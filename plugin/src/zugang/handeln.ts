@@ -86,6 +86,12 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: h.zeit_geraet ?? uhr.jetzt(), quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
   },
   "geraet.aktivitaet": setze(() => "aktivitaet"),
+  koerper: (db, h) => {
+    const w = h.wert as Wert;
+    if (!Number.isFinite(Number(w?.schlaf_min)) || !Number.isFinite(Number(w?.bis))) return "abgelehnt:schlaf_fehlt";
+    wertSetzen(db, "koerper:schlaf", JSON.stringify({ minuten: Number(w.schlaf_min), bis: Number(w.bis) }), h.geraet);
+    return "angenommen";
+  },
   praesenz: setze((h) => `praesenz:${h.geraet}`, () => regelMs("praesenz_gilt_min")),
   "push.token": setze((h) => `push:${h.geraet}`),
   "geraet.sperren": setze((h) => `uhr:${h.ziel}`),

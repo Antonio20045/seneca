@@ -23,7 +23,8 @@ test("PF08 Uhr allein: 14 Sätze, zweimal gesendet, genau 14 Einträge; Außen-F
   assert.match(antwort.s.h, /am Mac/);
   assert.equal(antwort.s.reg.q, 500);
   assert.equal(ereignisse(p.db, { art: "wert.gesetzt", schluessel: "aktivitaet" }).length, 1);
-  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { koerper: unknown }).koerper, { body_battery: 64, zeit: (Math.floor(t / 1000) + 3600) * 1000, stress: 20, schritte: 4000, morgens: 64, titel: "Body Battery nach dem Training", hinweis: null });
+  p.methode("seneca.handeln", { kennung: "schlaf1", geraet: "iphone", art: "koerper", wert: { schlaf_min: 431, bis: t } });
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { koerper: unknown }).koerper, { body_battery: 64, zeit: (Math.floor(t / 1000) + 3600) * 1000, stress: 20, schritte: 4000, morgens: 64, titel: "Body Battery nach dem Training", hinweis: null, schlaf: { minuten: 431, bis: t } });
   p.methode("seneca.handeln", { kennung: "sp1", geraet: "iphone", art: "geraet.sperren", ziel: "uhr1", wert: "gesperrt" });
   assert.equal(senden(saetze).status, 401);
 });

@@ -49,7 +49,7 @@
 	<key>NSCalendarsUsageDescription</key>
 	<string>Seneca liest die Termine von heute und morgen aus allen Kalendern auf diesem iPhone und schreibt sie in deinen Tageslauf auf deinem Mac.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Seneca zeigt dir auf der Statistik-Seite deine Läufe aus Apple Health (Strecke, Zeit, Kilometer-Zeiten, Höhenmeter und Puls) und dein Gewicht. Von deinen Trainings gehen Beginn, Ende, Art und Dauer in deinen Tageslauf auf deinem Mac.</string>
+	<string>Seneca zeigt dir auf der Statistik-Seite deine Läufe aus Apple Health (Strecke, Zeit, Kilometer-Zeiten, Höhenmeter und Puls) und dein Gewicht. Von deinen Trainings gehen Beginn, Ende, Art und Dauer in deinen Tageslauf auf deinem Mac. Deine Schlafdauer der letzten Nacht geht an Seneca und steht morgens auf der Uhr.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Seneca verbindet sich mit deinem privaten OpenClaw auf deinem Mac.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

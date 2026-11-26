@@ -51,6 +51,7 @@ final class Sinne: NSObject, ObservableObject {
         static let gefragt = "seneca-pocket.sinne.gefragt"
         static let immerGefragt = "seneca-pocket.sinne.immer-gefragt"
         static let ortsTag = "seneca-pocket.sinne.orts-tag"
+        static let schlaf = "seneca-pocket.sinne.schlaf-bis"
     }
 
     static var stumm: Bool {
@@ -219,6 +220,7 @@ final class Sinne: NSObject, ObservableObject {
         defer { gleichtAb = false }
         termineSammeln()
         await trainingsSammeln()
+        await schlafMelden()
         await senden()
         await meldungenHolen()
     }
@@ -342,6 +344,13 @@ final class Sinne: NSObject, ObservableObject {
         guard let a = await HealthStatistik.neueTrainings(anker: defaults.data(forKey: Merk.trainingAnker), seit: seit) else { return }
         schlange.hinzufuegen(a.neu.map(TrainingLogik.ereignis))
         if let anker = a.anker { defaults.set(anker, forKey: Merk.trainingAnker) }
+    }
+
+    private func schlafMelden() async {
+        guard HealthStatistik.verfuegbar, !(await HealthStatistik.mussFragen()), let s = await HealthStatistik.schlafLetzteNacht() else { return }
+        let bis = (s.ende.timeIntervalSince1970 * 1000).rounded()
+        guard defaults.double(forKey: Merk.schlaf) != bis, store?.daten?.handeln("koerper", wert: .objekt(["schlaf_min": .zahl(Double(s.minuten)), "bis": .zahl(bis)])) != nil else { return }
+        defaults.set(bis, forKey: Merk.schlaf)
     }
 
     func melden(_ ereignisse: [TageslaufEreignis]) async {
