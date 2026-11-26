@@ -1,18 +1,12 @@
-import { hole, laeufe, revision, uhr, wert } from "../register/lesen.ts";
+import { hole, laeufe, revision, spaeterBis, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
   anzeigeSetzen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
-import { regelMs, regelUhrzeitNach } from "../regeln.ts";
+import { regelMs } from "../regeln.ts";
 
 type Handlung = { kennung: string; geraet: string; art: string; ziel?: string; wert?: unknown; zeit_geraet?: number; gesehen_revision?: number };
 type Wert = Record<string, unknown>;
-
-function spaeterBis(db: Register, frageId: string, jetzt: number): number {
-  const fenster = regelUhrzeitNach("fenster", jetzt);
-  const frist = hole(db, "frage", frageId).frist;
-  return frist !== null && Number(frist) - regelMs("spaeter_vor_frist_min") < fenster ? Number(frist) - regelMs("spaeter_vor_frist_min") : fenster;
-}
 
 function antwort(db: Register, h: Handlung): string {
   const w = (h.wert ?? {}) as Wert;

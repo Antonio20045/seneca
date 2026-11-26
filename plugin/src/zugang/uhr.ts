@@ -25,6 +25,10 @@ function kurz(e: string): string {
   return e.startsWith("schon_beantwortet:") ? `sb:${e.slice("schon_beantwortet:".length)}` : `nein:${e.replace("abgelehnt:", "")}`;
 }
 
+function beantwortet(db: Register, frageId: string): boolean {
+  return db.prepare("SELECT 1 FROM frage WHERE id = ? AND zustand = 'beantwortet'").get(frageId) !== undefined;
+}
+
 export function schluesselHash(schluessel: string): string {
   return createHash("sha256").update(schluessel).digest("hex");
 }
@@ -76,7 +80,7 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   const q = (d.h ?? []).map((h) => {
     const z = ZUORDNUNG[h.a]?.(h.p ?? {});
     if (!z) return [h.id, "nein:unbekannte_art"];
-    if (h.a === "frage.antwort" && z.ziel !== fuerUhr) return [h.id, "nein:nicht_fuer_uhr"];
+    if (h.a === "frage.antwort" && z.ziel !== fuerUhr && !beantwortet(db, String(z.ziel))) return [h.id, "nein:nicht_fuer_uhr"];
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
   if (d.zs && wert(db, "aktivitaet")?.wert !== d.zs) wertSetzen(db, "aktivitaet", d.zs, "uhr");

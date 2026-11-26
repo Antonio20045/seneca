@@ -43,9 +43,105 @@ module Inhalt {
         return teile.size() == 2 ? teile[0] + " · " + teile[1] : (teile.size() == 1 ? teile[0] : "");
     }
 
+    function teamRoh() as Array {
+        var liste = Stand.daten()["tm"];
+        return liste instanceof Array ? liste : [];
+    }
+
     function teamArbeitet() as Number? {
-        var anzahl = Stand.daten()["ta"];
-        return anzahl instanceof Number ? anzahl : null;
+        if (!(Stand.daten()["tm"] instanceof Array)) {
+            return null;
+        }
+        var anzahl = 0;
+        var liste = teamRoh();
+        for (var i = 0; i < liste.size(); i += 1) {
+            if ("arbeitet".equals((liste[i] as Array)[1])) {
+                anzahl += 1;
+            }
+        }
+        return anzahl;
+    }
+
+    function gross(text as String) as String {
+        return text.length() == 0 ? text : text.substring(0, 1).toUpper() + text.substring(1, text.length());
+    }
+
+    function teamZeile(m as Array) as Array {
+        var name = gross(m[0] as String);
+        var zustand = m[1] instanceof String ? m[1] as String : "frei";
+        var satz = m[2] instanceof String ? m[2] as String : "";
+        var projekt = m[3] instanceof String ? gross(m[3] as String) : "";
+        var zeit = m[4] instanceof Number ? m[4] as Number : null;
+        if (zustand.equals("arbeitet") || zustand.equals("hängt")) {
+            var rest = zeit == null ? 0 : (zeit - Zeit.jetzt() + Regeln.SEKUNDEN_JE_MINUTE - 1) / Regeln.SEKUNDEN_JE_MINUTE;
+            var unter = rest > 0 ? "noch " + rest.toString() + " Min" + (projekt.length() > 0 ? " · " + projekt : "") : projekt;
+            var farbe = zustand.equals("arbeitet") ? Zeichnen.GRUEN : Zeichnen.GLUT;
+            return [name + " " + zustand, farbe, name, satz.length() > 0 ? satz : zustand, unter, farbe];
+        }
+        if (zustand.equals("fertig") && zeit != null) {
+            return [name + " fertig · " + Zeit.uhrzeit(zeit), Zeichnen.MATT, name, "fertig · " + Zeit.uhrzeit(zeit), "", Zeichnen.GEDAEMPFT];
+        }
+        var punkt = zustand.equals("wartet") ? Zeichnen.WARTET_PUNKT : Zeichnen.STUMM;
+        return [name + " " + zustand, punkt, name, zustand.equals("wartet") ? "wartet auf dich" : zustand, "", Zeichnen.GEDAEMPFT];
+    }
+
+    function team() as Array<Array> {
+        var reihe = ["wartet", "arbeitet", "hängt", "fertig", "ruht", "frei"];
+        var liste = teamRoh();
+        var ergebnis = [] as Array<Array>;
+        for (var stufe = 0; stufe <= reihe.size(); stufe += 1) {
+            for (var i = 0; i < liste.size(); i += 1) {
+                var m = liste[i] as Array;
+                var platz = reihe.indexOf(m[1]);
+                if ((platz < 0 ? reihe.size() : platz) == stufe) {
+                    var zeile = teamZeile(m);
+                    zeile.add(m.size() > 5 && m[5] instanceof Array ? m[5] : []);
+                    ergebnis.add(zeile);
+                }
+            }
+        }
+        return ergebnis;
+    }
+
+    function teamStart() as Number {
+        var liste = team();
+        for (var i = 0; i < liste.size(); i += 1) {
+            if (Zeichnen.GRUEN == liste[i][1]) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    function fragenAnzahl() as Number {
+        var n = Stand.daten()["n"];
+        return n instanceof Number ? n : 0;
+    }
+
+    function ruhe() as Dictionary? {
+        var z = Stand.daten()["z"];
+        return z instanceof Dictionary ? z : null;
+    }
+
+    function nacht() as Boolean {
+        var z = ruhe();
+        return z != null && "nacht".equals(z["g"]) && (!(z["b"] instanceof Number) || (z["b"] as Number) > Zeit.jetzt());
+    }
+
+    function termine() as Array<Array> {
+        var liste = Stand.daten()["tg"];
+        return liste instanceof Array ? liste as Array<Array> : [];
+    }
+
+    function naechsterTermin() as Array? {
+        var liste = termine();
+        for (var i = 0; i < liste.size(); i += 1) {
+            var rest = (liste[i][0] as Number) - Zeit.jetzt();
+            if (rest > 0 && rest <= Regeln.HINWEIS_VOR_S) {
+                return liste[i];
+            }
+        }
+        return null;
     }
 
     function wasWartet() as String {

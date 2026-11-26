@@ -49,3 +49,11 @@ export function letzteUhrzeit(text: string, jetzt: number): number {
 export function msAusSekunden(sekunden: number): number {
   return sekunden * EINHEIT_MS.s;
 }
+
+export function msAusMinuten(minuten: number): number {
+  return minuten * EINHEIT_MS.min;
+}
+
+export function sekundenAusMs(ms: number): number {
+  return Math.floor(ms / EINHEIT_MS.s);
+}

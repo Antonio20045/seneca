@@ -50,7 +50,7 @@ class TodoAnsicht extends ListenAnsicht {
         }
         var zeilen = Inhalt.todos();
         if (offen(zeilen) == 0) {
-            Bildschirm.bestaetigung(dc, "Alles erledigt", "MENU · neues To-do", 1.0, -1.0);
+            Bildschirm.bestaetigung(dc, :ja, "Alles erledigt", "MENU · neues To-do", 1.0, -1.0);
             return;
         }
         var anzeige = [] as Array<Dictionary>;

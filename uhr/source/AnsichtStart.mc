@@ -10,6 +10,19 @@ class StartAnsicht extends ListenAnsicht {
         return 3;
     }
 
+    function onShow() as Void {
+        ListenAnsicht.onShow();
+        Hinweise.zeigen(true);
+    }
+
+    function hoch() as Void {
+        if (_auswahl == 0 && Inhalt.teamArbeitet() != null) {
+            Ansichten.oeffnen(new TeamAnsicht());
+        } else {
+            ListenAnsicht.hoch();
+        }
+    }
+
     function kreisend() as Boolean {
         return true;
     }

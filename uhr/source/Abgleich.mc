@@ -81,6 +81,9 @@ module Abgleich {
         if (ergebnisse instanceof Array) {
             for (var i = 0; i < ergebnisse.size(); i += 1) {
                 var nummer = nummern[(ergebnisse[i] as Array)[0]];
+                if ((ergebnisse[i] as Array)[1] instanceof String) {
+                    Frage.schonMerken((ergebnisse[i] as Array)[1] as String);
+                }
                 if (nummer instanceof Number) {
                     Warteschlange.entfernen(nummer);
                 }

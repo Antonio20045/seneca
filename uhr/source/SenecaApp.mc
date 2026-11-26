@@ -8,6 +8,8 @@ import Toybox.WatchUi;
 
 (:background, :glance, :typecheck([disableBackgroundCheck, disableGlanceCheck]))
 class SenecaApp extends Application.AppBase {
+    private var _vordergrund as Boolean = false;
+
     function initialize() {
         AppBase.initialize();
     }
@@ -24,6 +26,7 @@ class SenecaApp extends Application.AppBase {
         Math.srand(Zeit.jetzt() + System.getTimer());
         anmelden();
         Takt.starten();
+        _vordergrund = true;
         var start = new StartAnsicht();
         return [start, new Bedienung(start)];
     }
@@ -34,6 +37,12 @@ class SenecaApp extends Application.AppBase {
 
     function getServiceDelegate() as [System.ServiceDelegate] {
         return [new Hintergrund()];
+    }
+
+    function onStop(zustand as Dictionary?) as Void {
+        if (_vordergrund) {
+            Training.unterbrechen();
+        }
     }
 
     function onSettingsChanged() as Void {

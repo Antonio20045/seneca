@@ -46,3 +46,21 @@ test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau 
   const abgleich = uhrAbgleich(p.db, json({ v: 1, g: "uhr2", r: 0, h: [] }), { authorization: `Bearer ${schluessel}` }, (j) => uhrStand(p.db, j));
   assert.equal(abgleich.status, 200);
 });
+
+test("PF08 Frage an der Uhr: Herkunft und Später-Zeit im Stand, am iPhone schon beantwortet meldet Wahl, Gerät, Zeit", () => {
+  const p = ladePlugin();
+  const frist = um("18:00", "2026-11-28");
+  um("13:40");
+  wertSetzen(p.db, "uhr:uhr3", schluesselHash("geheim-uhr3"), "iphone");
+  const frage = jaNeinFrage(p.db, auftragVonAntonio(p.db, "Instagram"), "Soll Hermes mit Instagram anfangen?", { frist });
+  const senden = (h: object[]) => uhrAbgleich(p.db, Buffer.from(JSON.stringify({ v: 1, g: "uhr3", r: 0, h })), { authorization: "Bearer geheim-uhr3" }, (j) => uhrStand(p.db, j)).inhalt as { q: string[][]; s: { q: { id: string; v: string; s: number; sb: number } } };
+  const stand = senden([]).s.q;
+  assert.equal(stand.id, frage);
+  assert.equal(typeof stand.v, "string");
+  assert.equal(stand.sb, new Date("2026-11-27T16:00:00").getTime() / 1000);
+  assert.ok(stand.sb > stand.s);
+  const am = um("13:49");
+  p.methode("seneca.handeln", { kennung: "a1", geraet: "iphone", art: "frage.antwort", ziel: frage, wert: { wahl: "ja" } });
+  um("13:51");
+  assert.deepEqual(senden([{ id: "u1", t: Math.floor(am / 1000) + 60, a: "frage.antwort", p: { f: frage, w: "nein" } }]).q, [["u1", `sb:ja,iphone,${am}`]]);
+});

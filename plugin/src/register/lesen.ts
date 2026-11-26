@@ -1,5 +1,6 @@
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import type { Register } from "./schema.ts";
+import { regelMs, regelUhrzeitNach } from "../regeln.ts";
 
 export type Zeile = Record<string, SQLOutputValue>;
 export type Tabelle = "auftrag" | "lauf" | "frage" | "todo" | "eintrag" | "anzeige";
@@ -44,6 +45,10 @@ export function faelligeAuftraege(db: Register, jetzt: number): Zeile[] {
 
 export function aktiveLaeufe(db: Register): Zeile[] {
   return alle(db, `SELECT * FROM lauf WHERE zustand IN ${AKTIV} ORDER BY gestartet`);
+}
+
+export function beendeteLaeufe(db: Register, mitarbeiter: string, seit: number): Zeile[] {
+  return alle(db, `SELECT lauf.*, auftrag.titel FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
 }
 
 export function laeufe(db: Register, auftragId: string): Zeile[] {
@@ -99,6 +104,12 @@ export function faelligeWirkungen(db: Register, jetzt: number): Zeile[] {
 export function kalenderTag(t: number): string {
   const d = new Date(t);
   return `kalender:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function spaeterBis(db: Register, frageId: string, jetzt: number): number {
+  const fenster = regelUhrzeitNach("fenster", jetzt);
+  const frist = hole(db, "frage", frageId).frist;
+  return frist !== null && Number(frist) - regelMs("spaeter_vor_frist_min") < fenster ? Number(frist) - regelMs("spaeter_vor_frist_min") : fenster;
 }
 
 export function termineAm(db: Register, t: number): { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; ganztag: boolean }[] {

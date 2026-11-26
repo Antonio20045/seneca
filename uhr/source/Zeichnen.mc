@@ -19,6 +19,11 @@ module Zeichnen {
     const GRUEN = 0x6BD98F;
     const BERNSTEIN = 0xE8B84B;
     const GLUT = 0xF07A5F;
+    const BERNSTEIN_GRUND = 0x251D0C;
+    const NACHT_KOPF = 0x5A6577;
+    const NACHT_TITEL = 0x8A94A3;
+    const NACHT_LEISE = 0x4F5968;
+    const WARTET_PUNKT = 0x8C6F2E;
     const HAKEN_DUNKEL = 0x04210F;
     const START = 60;
     const BACK = 120;
@@ -187,21 +192,98 @@ module Zeichnen {
         stift(dc, RING_BREITE);
         dc.setColor(SPUR, Graphics.COLOR_TRANSPARENT);
         dc.drawCircle(p(MITTE), p(MITTE), p(RING_RADIUS));
-        var teil = anteil > 1.0 ? 1.0 : anteil;
-        if (teil > 0.0) {
-            dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
-            var ende = 90 - 360 * teil;
-            if (teil < 1.0) {
-                dc.drawArc(p(MITTE), p(MITTE), p(RING_RADIUS), Graphics.ARC_CLOCKWISE, 90, ende);
-                var kappe = strahl(90 - ende, RING_RADIUS);
-                dc.fillCircle(kappe[0], kappe[1], p(RING_BREITE / 2.0));
-                var anfang = strahl(0, RING_RADIUS);
-                dc.fillCircle(anfang[0], anfang[1], p(RING_BREITE / 2.0));
-            } else {
-                dc.drawCircle(p(MITTE), p(MITTE), p(RING_RADIUS));
-            }
+        bogen(dc, RING_RADIUS, 360 * (anteil > 1.0 ? 1.0 : anteil), farbe);
+    }
+
+    function bogen(dc as Dc, radius as Numeric, grad as Numeric, farbe as Number) as Void {
+        if (grad <= 0) {
+            return;
+        }
+        stift(dc, RING_BREITE);
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        if (grad >= 360) {
+            dc.drawCircle(p(MITTE), p(MITTE), p(radius));
+        } else {
+            dc.drawArc(p(MITTE), p(MITTE), p(radius), Graphics.ARC_CLOCKWISE, 90, 90 - grad);
+            var kappe = strahl(grad, radius);
+            var anfang = strahl(0, radius);
+            dc.fillCircle(kappe[0], kappe[1], p(RING_BREITE / 2.0));
+            dc.fillCircle(anfang[0], anfang[1], p(RING_BREITE / 2.0));
         }
         dc.setPenWidth(1);
+    }
+
+    function tasteMit(dc as Dc, winkel as Number, farbe as Number, id as ResourceId, wortFarbe as Number, wort as String, y as Numeric) as Void {
+        var rand = TASTE_BREITE / 2.0;
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        balkenRund(dc, strahl(winkel, TASTE_AUSSEN - rand), strahl(winkel, TASTE_AUSSEN - TASTE_LANG + rand), TASTE_BREITE);
+        var links = winkel > 180;
+        dc.setColor(wortFarbe, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(p(links ? ENTWURF - TASTE_WORT_X : TASTE_WORT_X), p(y), schrift(id), wort, links ? LINKS : RECHTS);
+    }
+
+    function umbrechen(dc as Dc, text as String, id as ResourceId, breite as Numeric, hoechstens as Number) as Array<String> {
+        var zeilen = [] as Array<String>;
+        var rest = text;
+        while (rest.length() > 0 && zeilen.size() < hoechstens) {
+            var zeile = rest;
+            var schnitt = rest.length();
+            while (Zeichnen.breite(dc, id, zeile) > breite) {
+                var leer = zeile.substring(0, zeile.length() - 1).toString();
+                var stelle = -1;
+                for (var i = leer.length() - 1; i > 0; i -= 1) {
+                    if (leer.substring(i, i + 1).equals(" ")) {
+                        stelle = i;
+                        break;
+                    }
+                }
+                if (stelle < 0) {
+                    break;
+                }
+                zeile = leer.substring(0, stelle) as String;
+                schnitt = stelle + 1;
+            }
+            if (zeilen.size() == hoechstens - 1 && schnitt < rest.length()) {
+                zeile = kuerzen(dc, rest, id, breite);
+                schnitt = rest.length();
+            }
+            zeilen.add(zeile);
+            rest = rest.substring(schnitt, rest.length()) as String;
+        }
+        return zeilen;
+    }
+
+    function block(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, zeilen as Array<String>, abstand as Numeric) as Void {
+        var oben = y - (zeilen.size() - 1) * abstand / 2.0;
+        for (var i = 0; i < zeilen.size(); i += 1) {
+            mitte(dc, oben + i * abstand, id, farbe, zeilen[i]);
+        }
+    }
+
+    function linienIcon(dc as Dc, x as Numeric, y as Numeric, groesse as Numeric, farbe as Number, strich as Numeric, linien as Array<Array<Numeric>>) as Void {
+        var k = groesse / 24.0;
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        for (var i = 0; i < linien.size(); i += 1) {
+            var l = linien[i];
+            balkenRund(dc, [p(x + (l[0] - 12) * k), p(y + (l[1] - 12) * k + versatz)], [p(x + (l[2] - 12) * k), p(y + (l[3] - 12) * k + versatz)], strich * k);
+        }
+    }
+
+    function kreisIcon(dc as Dc, x as Numeric, y as Numeric, groesse as Numeric, farbe as Number, strich as Numeric, radius as Numeric) as Void {
+        var k = groesse / 24.0;
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        stift(dc, strich * k);
+        dc.drawCircle(p(x), p(y + versatz), p(radius * k));
+        dc.setPenWidth(1);
+    }
+
+    function telefon(dc as Dc, x as Numeric, y as Numeric, groesse as Numeric, farbe as Number) as Void {
+        var k = groesse / 24.0;
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        stift(dc, 1.8 * k);
+        dc.drawRoundedRectangle(p(x - 5 * k), p(y - 9.5 * k + versatz), p(10 * k), p(19 * k), p(2.5 * k));
+        dc.setPenWidth(1);
+        linienIcon(dc, x, y, groesse, farbe, 1.8, [[10.5, 18.5, 13.5, 18.5]]);
     }
 
     function balken(dc as Dc, x as Numeric, y as Numeric, laenge as Numeric, anteil as Float) as Void {
