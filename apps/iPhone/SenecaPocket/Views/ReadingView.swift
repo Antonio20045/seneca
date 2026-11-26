@@ -412,7 +412,7 @@ private struct BewertungsKnoepfe: View {
         Task { @MainActor in
             defer { laeuft = false }
             do {
-                _ = try await store.rufe("seneca.bewerten", params: ziel.params(passt, quelle: store.wegAktiv == .vertrag ? "app" : "website"), timeout: 15)
+                _ = try await store.rufe("seneca.bewerten", params: ziel.params(passt, quelle: "app"), timeout: 15)
                 urteil = passt
                 meldung = passt ? "Danke, „Passt“ ist notiert." : "Danke, „Passt nicht“ ist notiert."
             } catch {

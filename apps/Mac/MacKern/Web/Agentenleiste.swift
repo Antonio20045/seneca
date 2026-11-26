@@ -160,7 +160,7 @@ final class AgentenLeiste: ObservableObject {
         var alle: [[String: Any]] = []
         var offset: Int?
         for _ in 0..<4 {
-            guard let r = try? await rufe("chat.verlauf", ChatSpeicher.parameter(sessionKey: key, offset: offset), 30) else { return alle.isEmpty ? nil : await auswerten(alle, seit: seit) }
+            guard let r = try? await rufe("chat.history", ChatSpeicher.parameter(sessionKey: key, offset: offset), 30) else { return alle.isEmpty ? nil : await auswerten(alle, seit: seit) }
             let m = r["messages"] as? [[String: Any]] ?? []
             alle = m + alle
             let aelteste = (m.first?["timestamp"] as? NSNumber)?.doubleValue ?? 0

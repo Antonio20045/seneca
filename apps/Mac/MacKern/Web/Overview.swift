@@ -163,9 +163,9 @@ final class OverviewStore: ObservableObject {
 
     func aktualisiere() async {
         guard verbunden() else { return }
-        async let wb = lies("karten.liste")
-        async let cron = lies("auftraege.liste")
-        async let ag = lies("agenten.liste")
+        async let wb = lies("workboard.cards.list")
+        async let cron = lies("cron.list")
+        async let ag = lies("agents.list")
         async let kal = lies("seneca.kalender")
         async let ges = lies("seneca.gesehen")
         async let ber = lies("seneca.bereiche")
@@ -204,9 +204,9 @@ final class OverviewStore: ObservableObject {
         let standard = daten.defaultAgent
         var out: [BerichteWeb.Roh] = []
         for j in daten.jobs where BerichteWeb.istMelder(j) {
-            guard let l = await lies("auftrag.laeufe", ["id": j.id, "limit": 60]) else { continue }
+            guard let l = await lies("cron.runs", ["id": j.id, "limit": 60]) else { continue }
             let key = BerichteWeb.chatSchluessel(erster: (l["entries"] as? [[String: Any]])?.first?["sessionKey"] as? String, job: j, standard: standard)
-            let v = await lies("chat.verlauf", ["sessionKey": key, "agentId": BerichteWeb.berichtAgent(j, standard: standard), "limit": 200])
+            let v = await lies("chat.history", ["sessionKey": key, "agentId": BerichteWeb.berichtAgent(j, standard: standard), "limit": 200])
             if let r = BerichteWeb.rohAus(job: j, laeufe: l, verlauf: v, standard: standard) { out.append(r) }
         }
         berichtRoh = out
@@ -214,7 +214,7 @@ final class OverviewStore: ObservableObject {
     }
 
     func starteAuftrag(_ id: String) async throws {
-        _ = try await rufe("auftrag.starten", ["id": id, "mode": "force"], 30)
+        _ = try await rufe("cron.run", ["id": id, "mode": "force"], 30)
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 20_000_000_000)
             await self?.aktualisiere()
@@ -258,7 +258,7 @@ final class OverviewStore: ObservableObject {
     }
 
     func aktualisiereKarten() async {
-        guard verbunden(), let w = await lies("karten.liste") else { return }
+        guard verbunden(), let w = await lies("workboard.cards.list") else { return }
         let k = await karten(aus: w)
         var d = daten
         if let neu = k.karten { d.cards = neu }
@@ -357,7 +357,7 @@ final class OverviewStore: ObservableObject {
         let key = zielSitzung(a.e, antwort["leiterSession"])
         let leiter = Gegenueber.leiterVon(daten, key.agent)
         do {
-            _ = try await rufe("chat.senden", ["sessionKey": key.key, "agentId": key.agent,
+            _ = try await rufe("chat.send", ["sessionKey": key.key, "agentId": key.agent,
                                                "message": (antwort["nachricht"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? Entscheiden.nachrichtAnLeiter(a.e, a.wahl),
                                                "idempotencyKey": a.idem], 60)
             let wer = Gegenueber.bereichVon(daten, a.e.bereichId)?.leaderName ?? leiter?.leaderName ?? "Seneca"
@@ -389,7 +389,7 @@ final class OverviewStore: ObservableObject {
     }
 
     func aktualisiereSitzungen() async {
-        guard verbunden(), let r = await lies("sitzungen.liste", ["limit": 200, "configuredAgentsOnly": true, "includeDerivedTitles": true]) else { return }
+        guard verbunden(), let r = await lies("sessions.list", ["limit": 200, "configuredAgentsOnly": true, "includeDerivedTitles": true]) else { return }
         var d = daten
         d.rows = (r["sessions"] as? [[String: Any]] ?? []).compactMap(OvSitzung.init(json:))
         if let v = r["defaults"] as? [String: Any] { d.sitzungsStandard = OvSitzungsStandard(json: v) }
@@ -399,7 +399,7 @@ final class OverviewStore: ObservableObject {
 
     func starte() async {
         guard verbunden() else { return }
-        _ = await lies("sitzungen.abonnieren")
+        _ = await lies("sessions.subscribe")
         await aktualisiere()
         await aktualisiereSitzungen()
     }
@@ -436,7 +436,7 @@ final class OverviewStore: ObservableObject {
         do {
             var p: [String: Any] = ["id": c.id, "status": status]
             if let u = c.updatedAt { p["expectedUpdatedAt"] = u }
-            let r = try await rufe("karte.verschieben", p, 20)
+            let r = try await rufe("workboard.cards.move", p, 20)
             await aktualisiereKarten()
             return karte(r)
         } catch { await aktualisiereKarten(); throw error }
@@ -450,7 +450,7 @@ final class OverviewStore: ObservableObject {
         var p: [String: Any] = ["title": e.titel, "boardId": "privat", "status": "todo", "idempotencyKey": UUID().uuidString.lowercased()]
         if e.hoch { p["priority"] = "high" }
         do {
-            let r = try await rufe("karte.anlegen", p, 20)
+            let r = try await rufe("workboard.cards.create", p, 20)
             if let c = karte(r) {
                 var labels = c.labels.filter { !$0.hasPrefix("plan:") && !$0.hasPrefix("bereich:") }
                 labels.append(label)
@@ -459,7 +459,7 @@ final class OverviewStore: ObservableObject {
                 if e.hoch && c.priority != "high" { patch["priority"] = "high" }
                 var q: [String: Any] = ["id": c.id, "patch": patch]
                 if let u = c.updatedAt { q["expectedUpdatedAt"] = u }
-                _ = try await rufe("karte.aendern", q, 20)
+                _ = try await rufe("workboard.cards.update", q, 20)
             }
         } catch {
             hinweis("Konnte nicht eintragen: \(Self.fehlertext(error))")
@@ -517,7 +517,7 @@ final class OverviewStore: ObservableObject {
         var p: [String: Any] = ["id": id, "patch": patch]
         if let u = aktuell(id)?.updatedAt { p["expectedUpdatedAt"] = u }
         do {
-            let r = try await rufe("karte.aendern", p, 20)
+            let r = try await rufe("workboard.cards.update", p, 20)
             await aktualisiereKarten()
             return karte(r) ?? aktuell(id)
         } catch { await aktualisiereKarten(); throw error }
@@ -529,7 +529,7 @@ final class OverviewStore: ObservableObject {
         if t.isEmpty { return nil }
         let p: [String: Any] = ["title": t, "boardId": boardId, "status": "todo", "idempotencyKey": UUID().uuidString.lowercased()]
         do {
-            let r = try await rufe("karte.anlegen", p, 20)
+            let r = try await rufe("workboard.cards.create", p, 20)
             await aktualisiereKarten()
             return karte(r)
         } catch { hinweis("Konnte nicht anlegen: \(Self.schreibFehlertext(error))"); return nil }
@@ -538,7 +538,7 @@ final class OverviewStore: ObservableObject {
     @discardableResult
     func legeVorschlagAn(_ v: NachrichtVorschlag) async -> Bool {
         do {
-            _ = try await rufe("karte.anlegen", NachrichtVorschlaege.kartenParameter(v), 20)
+            _ = try await rufe("workboard.cards.create", NachrichtVorschlaege.kartenParameter(v), 20)
         } catch { hinweis("Konnte nicht anlegen: \(Self.schreibFehlertext(error))"); return false }
         await markiere([v.id])
         await aktualisiereKarten()
@@ -549,7 +549,7 @@ final class OverviewStore: ObservableObject {
 
     func legeMeetingAufgabeAn(_ aufgabe: String, meetingDatei: String) async throws {
         let p = MeetingAufgaben.kartenParameter(aufgabe: aufgabe, meetingDatei: meetingDatei, schluessel: MeetingAufgaben.schluessel(meetingDatei: meetingDatei, aufgabe: aufgabe))
-        _ = try await rufe("karte.anlegen", p, 20)
+        _ = try await rufe("workboard.cards.create", p, 20)
         await aktualisiereKarten()
     }
 
@@ -566,7 +566,7 @@ final class OverviewStore: ObservableObject {
         let t = satz.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, let c = aktuell(id) else { return false }
         do {
-            _ = try await rufe("karte.kommentieren", ["id": id, "body": "Zurückgegeben von Antonio: " + t], 20)
+            _ = try await rufe("workboard.cards.comment", ["id": id, "body": "Zurückgegeben von Antonio: " + t], 20)
             await aktualisiereKarten()
             if c.labels.contains("wartet-auf-antonio") { try await aendere(id, patch: ["labels": c.labels.filter { $0 != "wartet-auf-antonio" }]) }
             if c.status != "todo" { _ = try await verschiebe(aktuell(id) ?? c, nach: "todo") }
@@ -577,14 +577,14 @@ final class OverviewStore: ObservableObject {
     func kommentiere(_ id: String, text: String) async -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return false }
-        do { _ = try await rufe("karte.kommentieren", ["id": id, "body": t], 20); await aktualisiereKarten(); return true }
+        do { _ = try await rufe("workboard.cards.comment", ["id": id, "body": t], 20); await aktualisiereKarten(); return true }
         catch { hinweis("Konnte nicht kommentieren: \(Self.schreibFehlertext(error))"); return false }
     }
 
     func starteKarte(_ id: String, agent: String?) async -> Bool {
         do {
             if let agent, !agent.isEmpty, aktuell(id)?.agentId != agent { try await aendere(id, patch: ["agentId": agent]) }
-            guard let w = await lies("karten.liste"),
+            guard let w = await lies("workboard.cards.list"),
                   let c = (w["cards"] as? [[String: Any]] ?? []).compactMap(OvKarte.init(json:)).first(where: { $0.id == id }), !c.archiviert
             else { throw SenecaError.message("Die Aufgabe gibt es nicht mehr.") }
             if let bekannt = aktuell(id)?.updatedAt, let neu = c.updatedAt, bekannt != neu {
@@ -596,7 +596,7 @@ final class OverviewStore: ObservableObject {
                 throw SenecaError.message("Schreib zuerst in die Notiz, was das Ergebnis sein soll. Der Agent braucht einen Auftrag.")
             }
             if !["todo", "backlog", "ready"].contains(c.status) { throw SenecaError.message("Die Aufgabe ist schon in Arbeit.") }
-            _ = try await rufe("karte.starten", ["id": id], 60)
+            _ = try await rufe("workboard.cards.start", ["id": id], 60)
             await aktualisiereKarten()
             hinweis("Der Agent hat den Auftrag übernommen.")
             return true

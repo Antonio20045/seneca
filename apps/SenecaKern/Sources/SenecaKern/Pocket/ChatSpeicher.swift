@@ -519,7 +519,7 @@ final class ChatSpeicher: ObservableObject {
         abrufe[key, default: []].append(uhr())
         zaehler?.zaehle(sitzung: key, um: uhr())
         do {
-            let r = try await rufe("chat.verlauf", Self.parameter(sessionKey: key), Self.frist)
+            let r = try await rufe("chat.history", Self.parameter(sessionKey: key), Self.frist)
             zeilen[key] = ChatSpeicherLogik.nimmVerlauf(stand(key), fenster: r["messages"] as? [[String: Any]] ?? [], behalte: unterwegsGekommen[key] ?? [])
             serverMehr[key] = r["hasMore"] as? Bool ?? false
             naechsterOffset[key] = (r["nextOffset"] as? Int) ?? (r["messages"] as? [[String: Any]])?.count ?? 0
@@ -562,7 +562,7 @@ final class ChatSpeicher: ObservableObject {
         guard serverMehr[key] == true, let rufe else { return }
         aelterLaedt = true
         defer { aelterLaedt = false }
-        guard let r = try? await rufe("chat.verlauf", Self.parameter(sessionKey: key, offset: naechsterOffset[key] ?? stand(key).count), Self.frist),
+        guard let r = try? await rufe("chat.history", Self.parameter(sessionKey: key, offset: naechsterOffset[key] ?? stand(key).count), Self.frist),
               let seite = r["messages"] as? [[String: Any]] else { return }
         serverMehr[key] = (r["hasMore"] as? Bool ?? false) && !seite.isEmpty
         naechsterOffset[key] = (r["nextOffset"] as? Int) ?? ((naechsterOffset[key] ?? 0) + seite.count)

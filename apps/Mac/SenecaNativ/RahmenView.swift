@@ -257,19 +257,19 @@ enum Testlog {
             case "zieh":
                 modell.oeffneProjekt("alpha"); await warte(1500)
                 let vor = await serverStatus("k-a3")
-                let n0 = gesehen("karte.verschieben").count
+                let n0 = gesehen("workboard.cards.move").count
                 let ok = await BoardAktion.lasse(store, kartenId: "k-a3", in: .pruefen); await warte(500)
                 let nach = await serverStatus("k-a3")
-                let ruf = gesehen("karte.verschieben")
+                let ruf = gesehen("workboard.cards.move")
                 schreibe("zieh vorher=\(vor) abgelegt=\(ok) server-status=\(nach) aufrufe=\(ruf.count - n0) letzter-status=\(ruf.last?["status"] ?? "-") toast=\(store.toasts.last?.text ?? "-") aktion=\(store.toasts.last?.aktion ?? "-")")
                 if let t = store.toasts.last(where: { $0.aktion != nil }) { await store.fuehreAus(t.id) }
                 await warte(500)
                 let zurueck = await serverStatus("k-a3")
-                schreibe("zieh rueckgaengig server-status=\(zurueck) aufrufe=\(gesehen("karte.verschieben").count - n0) letzter-status=\(gesehen("karte.verschieben").last?["status"] ?? "-")")
+                schreibe("zieh rueckgaengig server-status=\(zurueck) aufrufe=\(gesehen("workboard.cards.move").count - n0) letzter-status=\(gesehen("workboard.cards.move").last?["status"] ?? "-")")
             case "karte":
                 modell.oeffneProjekt("alpha", karte: "k-a3"); await warte(1500)
                 schreibe("karte panel=\(modell.ansichten.zeigtProjektKarte) route=\(modell.route.pfad)")
-                let a0 = gesehen("karte.aendern").count, s0 = gesehen("karte.starten").count
+                let a0 = gesehen("workboard.cards.update").count, s0 = gesehen("workboard.cards.start").count
                 do {
                     try await KartenAktion.speichereNotiz(store, "k-a3", "Notiz aus dem Test: Budget in drei Zeilen.")
                     try await KartenAktion.setzeLabel(store, "k-a3", praefix: "plan", wert: Menschlich.isoTag(Date().timeIntervalSince1970 * 1000 + 86_400_000))
@@ -277,7 +277,7 @@ enum Testlog {
                 let ok = await KartenAktion.uebergib(store, "k-a3", agent: nil)
                 await warte(600)
                 let c = store.aktuell("k-a3")
-                schreibe("karte aendern=\(gesehen("karte.aendern").count - a0) starten=\(gesehen("karte.starten").count - s0) uebergeben=\(ok)")
+                schreibe("karte aendern=\(gesehen("workboard.cards.update").count - a0) starten=\(gesehen("workboard.cards.start").count - s0) uebergeben=\(ok)")
                 schreibe("karte notiz=\(c?.notes ?? "-") labels=\(c?.labels ?? []) status=\(c?.status ?? "-")")
             case "route":
                 modell.gehe(Route.lies("#/projekt/alpha/board?karte=k-a1")); await warte(1500)

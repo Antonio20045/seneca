@@ -95,7 +95,7 @@ struct RootView: View {
             ArbeitBlatt(reiter: r, zumGespraech: { oeffne(.chat()) }).environmentObject(store)
         }
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
-        .task { store.startKeepAlive(); await launch() }
+        .task { await launch() }
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
         .onOpenURL { _ in eingangVerarbeiten() }
         .onChange(of: scenePhase) { _, phase in
@@ -542,7 +542,7 @@ struct RootView: View {
         Task {
             var texte: [String?] = []
             for zeile in zeilen {
-                let antwort = try? await store.rufe("auftrag.laeufe", params: ["id": zeile.jobId, "limit": 1], timeout: 8)
+                let antwort = try? await store.rufe("cron.runs", params: ["id": zeile.jobId, "limit": 1], timeout: 8)
                 texte.append(antwort.flatMap(NeedsYou.laufText))
             }
             berichtLaedt = false

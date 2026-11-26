@@ -73,6 +73,11 @@
 			path = ../SenecaKern/Sources/SenecaKern;
 			sourceTree = "<group>";
 		};
+		A30000000000000000000049 /* SenecaVerbindung */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ../SenecaKern/Sources/SenecaVerbindung;
+			sourceTree = "<group>";
+		};
 		A30000000000000000000042 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shared;
@@ -158,6 +163,7 @@
 			children = (
 				A30000000000000000000040 /* SenecaPocket */,
 				A30000000000000000000041 /* SenecaKern (Quellen) */,
+				A30000000000000000000049 /* SenecaVerbindung */,
 				A30000000000000000000042 /* Shared */,
 				A30000000000000000000043 /* SenecaWidget */,
 				A30000000000000000000044 /* SenecaTeilen */,
@@ -210,6 +216,7 @@
 			fileSystemSynchronizedGroups = (
 				A30000000000000000000040 /* SenecaPocket */,
 				A30000000000000000000041 /* SenecaKern (Quellen) */,
+				A30000000000000000000049 /* SenecaVerbindung */,
 				A30000000000000000000042 /* Shared */,
 			);
 			name = SenecaPocket;

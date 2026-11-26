@@ -19,7 +19,7 @@ final class BerichteModel: ObservableObject {
         #endif
         guard store.isConnected else { return }
         for job in BerichteLogik.berichtJobs(jobs, jetzt: jetzt) {
-            if let antwort = try? await store.rufe("auftrag.laeufe", params: ["id": job.id, "limit": 30], timeout: 8) {
+            if let antwort = try? await store.rufe("cron.runs", params: ["id": job.id, "limit": 30], timeout: 8) {
                 laeufe[job.id] = BerichteLogik.laeufe(antwort)
             }
         }

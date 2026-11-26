@@ -4,7 +4,7 @@ cd "$(git rev-parse --show-toplevel)"
 BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|910" "plugin/src/pforte|760" "plugin/src/ausgang|450"
   "plugin/src/lernen|250" "plugin/src/zugang|310" "plugin/src/quellen|350" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
   "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150"
-  "apps/Mac|31255" "apps/iPhone|21251" "apps/SenecaKern|11169")
+  "apps/Mac|31255" "apps/iPhone|21237" "apps/SenecaKern|11093")
 TRY_BESTAND=611
 ERLAUBT=" openclaw typescript @types/node typebox yaml "
 PF_MAX=12
@@ -42,7 +42,7 @@ verbot P7 -e TODO -e FIXME $PRUEFBAR
 verbot P7 -e 'gh[pousr]_[A-Za-z0-9]{20,}' -e 'github_pat_' -e 'sk-ant-' -e 'AKIA[0-9A-Z]{16}' -e 'xox[abp]-' -e 'BEGIN [A-Z ]*PRIVATE KEY' $PRUEFBAR
 
 verbot P8 -e '^\s*(//|/\*|\*)' -e '\s//\s' plugin -g '*.ts'
-verbot P8 -e '^\s*//' apps uhr -g '*.swift' -g '*.mc'
+verbot P8 -e '^\s*//(?! swift-tools-version:)' -P apps uhr -g '*.swift' -g '*.mc'
 for f in $(dateien '*.sh'); do t=$(rg -n '^\s*#' "$f" | rg -v '^1:#!') && melde P8 "$f $t"; done
 
 verbot P9 -e '\*\s*(1000|60)\b' -e 'setTimeout\([^)]*,\s*[0-9]' plugin/src -g '!plugin/src/regeln.ts'
@@ -55,7 +55,7 @@ for n in $gel; do [[ $def == *" $n "* ]] || melde P9 "$n fehlt in regeln"; done
 verbot P10 -U -e 'catch\s*(\([^)]*\))?\s*\{\s*\}' plugin/src
 verbot P10 -w -e catch plugin/src/register
 verbot P10 -e 'as any\b' -e 'as unknown as' plugin/src -g '!plugin/src/index.ts' -g '!plugin/src/quellen/**'
-n=$(rg -c 'try\?' apps -g '!apps/SenecaKern/Sources/SenecaVerbindung/**' | awk -F: '{s+=$2} END {print s+0}')
+n=$(rg -c 'try\?' apps | awk -F: '{s+=$2} END {print s+0}')
 [ "$n" -le $TRY_BESTAND ] || melde P10 "try? in apps: $n Zeilen, Bestand $TRY_BESTAND"
 
 for p in $(dateien '*package.json'); do

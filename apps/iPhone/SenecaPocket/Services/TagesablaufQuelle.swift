@@ -145,7 +145,7 @@ final class TagesablaufQuelle: ObservableObject {
         Task {
             var params: [String: Any] = ["id": karte, "status": "done"]
             if let erwartet { params["expectedUpdatedAt"] = erwartet }
-            do { _ = try await Sinne.shared.rufe("karte.verschieben", params, zeitlimit: 12) }
+            do { _ = try await Sinne.shared.rufe("workboard.cards.move", params, zeitlimit: 12) }
             catch { erledigt.remove(ding.id); return }
             await store?.loadToday()
         }
@@ -181,9 +181,9 @@ final class TagesablaufQuelle: ObservableObject {
         defer { sendet = false }
         for f in fragenOffen {
             do {
-                _ = try await Sinne.shared.rufe("chat.senden", ["sessionKey": f.sitzung, "agentId": AreasLogic.agentID(of: f.sitzung), "message": f.nachricht,
+                _ = try await Sinne.shared.rufe("chat.send", ["sessionKey": f.sitzung, "agentId": AreasLogic.agentID(of: f.sitzung), "message": f.nachricht,
                                                                 "idempotencyKey": "frage-\(f.id.hashValue)-\(f.nachricht.count)"], zeitlimit: 12)
-                if let karte = f.karte { _ = try? await Sinne.shared.rufe("karte.kommentieren", ["id": karte, "body": f.kommentar], zeitlimit: 12) }
+                if let karte = f.karte { _ = try? await Sinne.shared.rufe("workboard.cards.comment", ["id": karte, "body": f.kommentar], zeitlimit: 12) }
             } catch SenecaError.offline {
                 break
             } catch {
@@ -205,7 +205,7 @@ final class TagesablaufQuelle: ObservableObject {
             do {
                 let antwort = try await Sinne.shared.rufe(fn, params, zeitlimit: 12)
                 if let nachricht = antwort["nachricht"] as? String, !nachricht.isEmpty, let sitzung = antwort["leiterSession"] as? String, !sitzung.isEmpty {
-                    _ = try? await Sinne.shared.rufe("chat.senden", ["sessionKey": sitzung, "agentId": AreasLogic.agentID(of: sitzung), "message": nachricht,
+                    _ = try? await Sinne.shared.rufe("chat.send", ["sessionKey": sitzung, "agentId": AreasLogic.agentID(of: sitzung), "message": nachricht,
                                                                      "idempotencyKey": "entscheidung-\(a.id)-\(a.wahl ?? a.text ?? "")"], zeitlimit: 12)
                 }
             } catch SenecaError.offline {

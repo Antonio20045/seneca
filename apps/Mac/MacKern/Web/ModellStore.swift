@@ -33,8 +33,8 @@ final class ModellStore: ObservableObject {
 
     func ladeKatalog() async {
         guard verbunden() else { return }
-        async let frei = try? rufe("modelle.liste", ["includeDetails": true], 30)
-        async let alle = try? rufe("modelle.liste", ["view": "all", "includeDetails": true], 30)
+        async let frei = try? rufe("models.list", ["includeDetails": true], 30)
+        async let alle = try? rufe("models.list", ["view": "all", "includeDetails": true], 30)
         let (f, a) = await (frei, alle)
         guard let f, let liste = f["models"] as? [[String: Any]] else { return }
         let erlaubt = liste.compactMap(KatalogModell.init(json:))
@@ -50,7 +50,7 @@ final class ModellStore: ObservableObject {
     }
 
     func ladeNutzung() async {
-        guard verbunden(), let r = try? await rufe("verbrauch.stand", [:], 45) else { return }
+        guard verbunden(), let r = try? await rufe("usage.status", [:], 45) else { return }
         nutzung = Nutzung(json: r)
     }
 
@@ -65,14 +65,14 @@ final class ModellStore: ObservableObject {
     }
 
     func setze(key: String, ref: String?) async throws -> [String: Any]? {
-        let r = try await rufe("sitzung.einstellen", ["key": key, "model": ref as Any? ?? NSNull()], 30)
+        let r = try await rufe("sessions.patch", ["key": key, "model": ref as Any? ?? NSNull()], 30)
         gewechselt[key] = Date().timeIntervalSince1970 * 1000
         await uebersicht.aktualisiereSitzungen()
         return r["resolved"] as? [String: Any]
     }
 
     func setzeEffort(key: String, id: String?) async throws -> [String: Any]? {
-        let r = try await rufe("sitzung.einstellen", ["key": key, "thinkingLevel": id as Any? ?? NSNull()], 30)
+        let r = try await rufe("sessions.patch", ["key": key, "thinkingLevel": id as Any? ?? NSNull()], 30)
         await uebersicht.aktualisiereSitzungen()
         return r["resolved"] as? [String: Any]
     }

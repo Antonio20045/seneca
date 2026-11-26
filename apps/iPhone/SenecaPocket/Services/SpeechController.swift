@@ -315,7 +315,7 @@ final class SpeechController: NSObject, ObservableObject {
                 let began = Date()
                 let result: Result<AVAudioPlayer, VoiceFailure>
                 do {
-                    let payload = try await gateway("stimme.sprechen", ["text": text], timeout)
+                    let payload = try await gateway("tts.speak", ["text": text], timeout)
                     if let clip = SpeechLogic.clip(from: payload) {
                         if let self, let audio = Self.makePlayer(clip, delegate: self) { result = .success(audio) } else { result = .failure(.badAudio) }
                     } else { result = .failure(.badAudio) }
@@ -386,7 +386,7 @@ final class SpeechController: NSObject, ObservableObject {
                 let began = Date()
                 let result: Result<SpeechClip, VoiceFailure>
                 do {
-                    let payload = try await gateway("stimme.sprechen", ["text": text], timeout)
+                    let payload = try await gateway("tts.speak", ["text": text], timeout)
                     if let clip = SpeechLogic.clip(from: payload) { result = .success(clip) } else { result = .failure(.badAudio) }
                 } catch {
                     result = .failure(SpeechLogic.failure(for: error, elapsed: Date().timeIntervalSince(began), timeout: timeout))
