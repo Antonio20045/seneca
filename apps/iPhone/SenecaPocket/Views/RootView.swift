@@ -6,7 +6,7 @@ struct RootView: View {
     @EnvironmentObject private var store: SenecaStore
     @StateObject private var conversation = ConversationModel()
     @AppStorage("gatewayURL") private var gatewayURL = ""
-    @AppStorage("sessionKey") private var sessionKey = "agent:main:main"
+    @AppStorage("sitzung") private var sessionKey = Hauptagent.sitzung
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var sinne = Sinne.shared
     @State private var eingangLaeuft = false
@@ -237,7 +237,7 @@ struct RootView: View {
             reading = nil
             if let mitarbeiter {
                 let kennung = Namen.reineKennung(mitarbeiter)
-                let schluessel = kennung.isEmpty || kennung == "main" ? store.chat.mainKey : "agent:\(kennung):main"
+                let schluessel = Hauptagent.ist(kennung) ? store.chat.mainKey : "agent:\(kennung):main"
                 conversation.target = ConversationTarget(sessionKey: schluessel, leaderName: Namen.mitarbeiter(mitarbeiter), opening: nil)
             }
             go(1, quick: false)
@@ -790,7 +790,7 @@ struct RootView: View {
         if env["SENECA_DEMO_WECHSEL"] == "1" { Task { try? await Task.sleep(for: .seconds(6)); go(1, quick: true) } }
         if let debugURL = env["SENECA_GATEWAY_URL"] {
             let debugToken = env["SENECA_GATEWAY_TOKEN"] ?? ""
-            let session = env["SENECA_SESSION"] ?? "agent:main:main"
+            let session = env["SENECA_SESSION"] ?? Hauptagent.sitzung
             if env["SENECA_PERSIST_CONNECTION"] == "1", let parsed = URL(string: debugURL), parsed.scheme == "https", parsed.host?.hasSuffix(".ts.net") == true {
                 try? CredentialStore.save(debugToken)
                 gatewayURL = debugURL

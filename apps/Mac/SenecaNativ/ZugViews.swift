@@ -20,7 +20,7 @@ func buendeln(_ schritte: [Schritt]) -> [GebuendelterSchritt] {
 
 func agentName(_ id: String?) -> String {
     guard let id, !id.isEmpty else { return "" }
-    if id == "main" { return "Seneca" }
+    if id == Hauptagent.id { return "Seneca" }
     return id.prefix(1).uppercased() + id.dropFirst()
 }
 

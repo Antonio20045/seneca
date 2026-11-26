@@ -175,7 +175,7 @@ enum DayLogic {
 
     static func agentName(_ id: String?, _ leaders: [String: String]) -> String {
         guard let id, !id.isEmpty else { return "ein Mitarbeiter" }
-        if id == "main" { return "Seneca" }
+        if id == Hauptagent.id { return "Seneca" }
 #if os(iOS)
         if let name = leaders[id] { return name.hasSuffix("Agent") ? "der \(name)" : name }
 #else

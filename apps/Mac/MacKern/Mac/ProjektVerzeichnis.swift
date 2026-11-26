@@ -93,8 +93,8 @@ struct ProjektVerzeichnis: Equatable {
               let liste = j["bereiche"] as? [[String: Any]] else { return }
         for b in liste {
             guard let id = b["id"] as? String else { continue }
-            if let leiter = b["leiter"] as? String, leiter != "main" { leiterAgenten.insert(leiter) }
-            for a in (b["spezialisten"] as? [String] ?? []) + [b["leiter"] as? String].compactMap({ $0 }) where agentBereich[a] == nil && a != "main" {
+            if let leiter = b["leiter"] as? String, leiter != Hauptagent.id { leiterAgenten.insert(leiter) }
+            for a in (b["spezialisten"] as? [String] ?? []) + [b["leiter"] as? String].compactMap({ $0 }) where agentBereich[a] == nil && a != Hauptagent.id {
                 agentBereich[a] = id
             }
             for u in b["unterabteilungen"] as? [[String: Any]] ?? [] {

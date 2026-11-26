@@ -71,7 +71,7 @@ enum Plan {
 
     static func anfrage(bereichId: String?, boardId: String) -> (pfad: String, workspaceVon: String?) {
         if let b = bereichId, !b.isEmpty { return ("~/Bereiche/\(b)/projekte/\(boardId)/PLAN.md", nil) }
-        return ("projekte/\(boardId)/PLAN.md", "main")
+        return ("projekte/\(boardId)/PLAN.md", Hauptagent.id)
     }
     static func anfrageParameter(bereichId: String?, boardId: String) -> [String: Any] {
         let a = anfrage(bereichId: bereichId, boardId: boardId)

@@ -8,7 +8,7 @@ struct EinstellungenSeite: View {
     @EnvironmentObject private var store: SenecaStore
     @ObservedObject private var sinne = Sinne.shared
     @AppStorage("gatewayURL") private var gespeicherteAdresse = ""
-    @AppStorage("sessionKey") private var gespeichertesGespraech = "agent:main:main"
+    @AppStorage("sitzung") private var gespeichertesGespraech = Hauptagent.sitzung
 
     private enum Unterseite { case orte }
     @State private var unterseite: Unterseite?
@@ -134,7 +134,7 @@ struct EinstellungenSeite: View {
         fehler = nil
         gespeicherteAdresse = sauber
         let gespraechsSchluessel = gespraech.trimmingCharacters(in: .whitespacesAndNewlines)
-        gespeichertesGespraech = gespraechsSchluessel.isEmpty ? "agent:main:main" : gespraechsSchluessel
+        gespeichertesGespraech = gespraechsSchluessel.isEmpty ? Hauptagent.sitzung : gespraechsSchluessel
         store.configure(url: sauber, token: verwendet, sessionKey: gespeichertesGespraech)
         await store.connect()
         if store.isConnected || store.demo {

@@ -249,7 +249,7 @@ extension AreasLogic {
 
     static func sessionKey(leader: String) -> String {
         let id = leader.trimmingCharacters(in: .whitespacesAndNewlines)
-        return id.isEmpty ? "agent:main:main" : "agent:\(id):main"
+        return id.isEmpty ? Hauptagent.sitzung : "agent:\(id):main"
     }
 
     static func chatSession(_ target: String?, main: String) -> String {
@@ -259,7 +259,7 @@ extension AreasLogic {
 
     static func agentID(of sessionKey: String) -> String {
         let parts = sessionKey.split(separator: ":")
-        return parts.count >= 2 && parts[0] == "agent" ? String(parts[1]) : "main"
+        return parts.count >= 2 && parts[0] == "agent" ? String(parts[1]) : Hauptagent.id
     }
 
 #if os(iOS)

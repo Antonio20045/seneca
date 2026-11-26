@@ -91,7 +91,7 @@ struct GrundMuster: View {
     private var mehr: some View {
         VStack(alignment: .leading, spacing: 0) {
             AbschnittKopf("Mitarbeiter", oben: false)
-            Zeile(vorn: .punkt(Stil.farbe.koralle), titel: Namen.mitarbeiter("main"), unter: "Fragt nach deiner Freigabe", hinten: .text("7:12")) {}
+            Zeile(vorn: .punkt(Stil.farbe.koralle), titel: Namen.mitarbeiter(Hauptagent.id), unter: "Fragt nach deiner Freigabe", hinten: .text("7:12")) {}
             Zeile(vorn: .punkt(Stil.farbe.bernstein), titel: Namen.mitarbeiter("agent:reporting:main"), unter: "Liest die Zahlen vom Montag", hinten: .text("8:40")) {}
             Zeile(titel: Namen.mitarbeiter("power-bi"), unter: "Wettbewerber CALL-E · 3× nichts Neues", hinten: .pfeil, linie: false) {}
 

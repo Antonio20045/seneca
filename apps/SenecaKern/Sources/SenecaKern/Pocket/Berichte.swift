@@ -98,7 +98,7 @@ enum BerichteLogik {
     }
 
     static func bewertung(_ e: BerichtEintrag) -> BerichtBewertung {
-        BerichtBewertung(agentId: e.agentId.isEmpty ? "main" : e.agentId, kartenId: e.id)
+        BerichtBewertung(agentId: e.agentId.isEmpty ? Hauptagent.id : e.agentId, kartenId: e.id)
     }
 
     static func ungelesen(_ e: [BerichtEintrag]) -> Int { e.filter { !$0.gelesen }.count }

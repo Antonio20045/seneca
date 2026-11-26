@@ -187,7 +187,7 @@ final class OverviewStore: ObservableObject {
         if let c { d.jobs = (c["jobs"] as? [[String: Any]] ?? []).compactMap(OvAuftrag.init(json:)) }
         if let a {
             d.agents = (a["agents"] as? [[String: Any]] ?? []).compactMap(OvAgent.init(json:))
-            d.defaultAgent = a["defaultId"] as? String ?? "main"
+            d.defaultAgent = a["defaultId"] as? String ?? Hauptagent.id
         }
         if let k { d.kalender = OvKalender(json: k) } else { d.kalender = OvKalender(ok: false, fehlt: true) }
         d.entRoh = e.flatMap { $0["entscheidungen"] as? [[String: Any]] }.map { OvEntscheidung.liste(json: $0, pm: d.pm.projekte, jetzt: jetzt) }

@@ -371,11 +371,11 @@ struct SnChatSeite: View {
         ZStack(alignment: .top) {
             VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                         leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
-                        karten: listen.liste?.auftragskarten ?? [], agent: gegenueber.ziel?.agentId ?? "main", neuLaden: neuLaden)
+                        karten: listen.liste?.auftragskarten ?? [], agent: gegenueber.ziel?.agentId ?? Hauptagent.id, neuLaden: neuLaden)
                 .equatable()
                 .verlaufRein()
                 .padding(.top, 228).padding(.bottom, 100)
-            SnSeiten(modell: bausteine, laeuft: aufgaben.liste?.laeuftGerade(fuer: gegenueber.ziel?.agentId ?? "main") ?? [],
+            SnSeiten(modell: bausteine, laeuft: aufgaben.liste?.laeuftGerade(fuer: gegenueber.ziel?.agentId ?? Hauptagent.id) ?? [],
                      oeffne: { modell.oeffneAufgabe($0) },
                      zumBoard: { modell.gehe(Route(.heute, q: ["liste": "voll"])) })
                 .padding(.top, 228).padding(.bottom, 100)
@@ -427,7 +427,7 @@ struct SnChatSeite: View {
             ansichten.senden = { steuerung.sende($0) }
             ansichten.vorschlagen = { steuerung.vorschlagen($0) }
             beobachte()
-            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? "main")
+            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? Hauptagent.id)
             #if DEBUG
             if Hintergrund.aktiv, ProcessInfo.processInfo.environment["SENECA_LEISTE_ALLE"] == "1" { alleOffen = true }
             #endif
@@ -436,7 +436,7 @@ struct SnChatSeite: View {
         .onChange(of: chat.lives) { _, _ in beobachte() }
         .onChange(of: key) { _, _ in chat.speicher.oeffne(key); beobachte() }
         .onChange(of: gegenueber.aktuellerKey) { _, _ in
-            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? "main")
+            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? Hauptagent.id)
             steuerung.hinweis = nil
             steuerung.ladeEntwurf()
             steuerung.fokussiere()

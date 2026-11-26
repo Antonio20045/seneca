@@ -77,12 +77,12 @@ enum GespraechsPartner {
         guard partner != alle || neu != angaben else { return false }
         alle = partner
         angaben = neu
-        ChatPartner.agentNamen = Dictionary(partner.filter { $0.id != "main" }.map { ($0.id, $0.kopfName) }, uniquingKeysWith: { a, _ in a })
+        ChatPartner.agentNamen = Dictionary(partner.filter { $0.id != Hauptagent.id }.map { ($0.id, $0.kopfName) }, uniquingKeysWith: { a, _ in a })
         return true
     }
 
     nonisolated static func ableiten(bereiche: [Area], namen: [String: String]) -> (partner: [ChatPartner], angaben: [String: Angabe]) {
-        var gesehen: Set<String> = ["main"]
+        var gesehen: Set<String> = [Hauptagent.id]
         var partner: [ChatPartner] = [.seneca]
         var neu: [String: Angabe] = [:]
         if bereiche.contains(where: { $0.mitarbeiter != nil }) {

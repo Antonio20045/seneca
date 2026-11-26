@@ -10,7 +10,7 @@ enum Namen {
 
     nonisolated static func anzeige(_ kennung: String, bekannt: [String: String]) -> String {
         let id = reineKennung(kennung)
-        if id.isEmpty || id == "main" { return "Seneca" }
+        if Hauptagent.ist(id) { return "Seneca" }
         if let name = bekannt[id]?.trimmingCharacters(in: .whitespaces), !name.isEmpty { return name }
         return id.split(whereSeparator: { $0 == "-" || $0 == "_" || $0 == " " })
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
