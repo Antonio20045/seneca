@@ -173,15 +173,15 @@ final class OverviewStore: ObservableObject {
         async let ent = lies("seneca.entscheidungen")
         let w = await wb, c = await cron, a = await ag, k = await kal
         let g = await ges, b = await ber, s = await str, e = await ent
-        let karten = await w.asyncMap { await karten(aus: $0) }
+        let neueKarten = await w.asyncMap { await self.karten(aus: $0) }
         stelleUhr()
         var d = daten
         if let s, let pm = OvProjektOrdnung(json: s) { d.pm = pm }
         if let g, let m = g["gesehen"] as? [String: Any] { d.gesehen = m.compactMapValues { ($0 as? NSNumber)?.doubleValue } }
         if let b { d.bereiche = SenecaPayloadParser.areas(b); d.unterabteilungen = Self.unterabteilungen(b) } else if d.bereiche == nil { d.bereiche = AreaRegistry() }
-        if let karten {
-            if let neu = karten.karten { d.cards = neu }
-            if let bl = karten.boards { d.boards = bl }
+        if let neueKarten {
+            if let neu = neueKarten.karten { d.cards = neu }
+            if let bl = neueKarten.boards { d.boards = bl }
             d.workboardFehler = false
         } else { d.workboardFehler = true }
         if let c { d.jobs = (c["jobs"] as? [[String: Any]] ?? []).compactMap(OvAuftrag.init(json:)) }
