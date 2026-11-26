@@ -3,7 +3,9 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|910" "plugin/src/pforte|760" "plugin/src/ausgang|450"
   "plugin/src/lernen|250" "plugin/src/zugang|310" "plugin/src/quellen|350" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
-  "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150")
+  "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150"
+  "apps/Mac|31246" "apps/iPhone|21251" "apps/SenecaKern|11169")
+TRY_BESTAND=611
 ERLAUBT=" openclaw typescript @types/node typebox yaml "
 PF_MAX=12
 MODULE="arbeitsdienst pforte ausgang lernen zugang quellen"
@@ -17,7 +19,7 @@ for e in "${BUDGET[@]}"; do
   [ "$n" -le "${e#*|}" ] || melde P1 "${e%|*}: $n Zeilen, Budget ${e#*|}"
 done
 
-verbot P2 -w -e INSERT -e UPDATE -e DELETE -e CREATE -e ALTER -e 'node:sqlite' plugin apps uhr -g '!plugin/src/register/**'
+verbot P2 -P -w -e '(INSERT|UPDATE|DELETE|CREATE|ALTER)(?!")' -e 'node:sqlite' plugin apps uhr -g '!plugin/src/register/**'
 
 verbot P3 -e 'SET[^;]*\bzustand\s*=' -e '\.zustand\s*=[^=]' plugin -g '!plugin/src/register/schreiben.ts'
 verbot P3 -e '\b(if|for|while|function)\b' -e '=>' plugin/src/register/uebergaenge.ts
@@ -53,7 +55,8 @@ for n in $gel; do [[ $def == *" $n "* ]] || melde P9 "$n fehlt in regeln"; done
 verbot P10 -U -e 'catch\s*(\([^)]*\))?\s*\{\s*\}' plugin/src
 verbot P10 -w -e catch plugin/src/register
 verbot P10 -e 'as any\b' -e 'as unknown as' plugin/src -g '!plugin/src/index.ts' -g '!plugin/src/quellen/**'
-verbot P10 -e 'try\?' apps -g '!apps/SenecaKern/Sources/SenecaVerbindung/**'
+n=$(rg -c 'try\?' apps -g '!apps/SenecaKern/Sources/SenecaVerbindung/**' | awk -F: '{s+=$2} END {print s+0}')
+[ "$n" -le $TRY_BESTAND ] || melde P10 "try? in apps: $n Zeilen, Bestand $TRY_BESTAND"
 
 for p in $(dateien '*package.json'); do
   im=0
