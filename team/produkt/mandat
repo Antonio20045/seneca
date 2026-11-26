@@ -1,0 +1,24 @@
+bereich: [Sundartha]
+projekte: [Hermes]
+ziele:
+  - kennzahl: pakete_je_woche
+    ziel: ">= 3"
+signale:
+  - quelle: github
+    was: "rote Prüfläufe, offene PRs ohne Bewegung > 1 Tag"
+  - quelle: register
+    was: "eigene Aufträge ohne Bewegung"
+rundgang: ["09:00"]
+befugnisse:
+  unterauftrag_an: [engineer, pruefer, recherche]
+  werkzeuge: [exec, browser, mcp:zoho-mail]
+  ablage_schreiben: [Sundartha]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, bauen: sonnet, steuern: opus, browser: { stufe: sonnet, ort: rechenknoten } }
+kontext:
+  mail_an_kunden: [profil:ton_mail, fakt:signatur]
+zugaenge: [zoho-mail]

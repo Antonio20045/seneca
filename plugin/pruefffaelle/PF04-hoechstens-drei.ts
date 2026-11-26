@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { test } from "node:test";
+import { faelligeWirkungenJob } from "../src/arbeitsdienst/jobs.ts";
+import { zustellenJob } from "../src/pforte/zustellen.ts";
+import { ereignisse } from "../src/register/lesen.ts";
+import { frageBeantworten, uebergang, wertSetzen } from "../src/register/schreiben.ts";
+import { auftragVonAntonio, jaNeinFrage, ladePlugin, spaeter, um } from "./aufbau.ts";
+
+const zahl = (p: ReturnType<typeof ladePlugin>, geraet: string) => (p.methode("seneca.stand", { geraet }) as { zaehler: { braucht: number } }).zaehler.braucht;
+const mitteilungen = (p: ReturnType<typeof ladePlugin>) => ereignisse(p.db, { art: "zustellung" }).filter((e) => JSON.parse(String(e.daten)).was === "zugestellt");
+
+test("PF04 Drehbuch-Tag: 3 · 2 · 1 · 0, überall gleich, im Fokus nichts", () => {
+  const p = ladePlugin();
+  um("09:00");
+  const fokusBis = um("11:00") ;
+  um("09:58");
+  wertSetzen(p.db, "aktivitaet", "fokus", "mac", fokusBis);
+  const anruf = jaNeinFrage(p.db, auftragVonAntonio(p.db, "Testanruf machen"), "Testanruf freigeben?", { wirkung_aussen: "anruf", frist: um("12:00") });
+  um("09:58");
+  const instaAuftrag = auftragVonAntonio(p.db, "Instagram anlegen");
+  const insta = jaNeinFrage(p.db, instaAuftrag, "Instagram anlegen?");
+  uebergang(p.db, "auftrag", instaAuftrag, "wartet", "frage", { wartet_auf: `frage:${insta}`, folge: "Produkt wartet", naechster_anlass: um("18:00") });
+  um("09:58");
+  const angebot = jaNeinFrage(p.db, auftragVonAntonio(p.db, "Angebot an Kunden"), "Angebot so senden?", { wirkung_aussen: "mail", frist: new Date("2026-11-28T12:00:00").getTime() });
+  jaNeinFrage(p.db, auftragVonAntonio(p.db, "Logo-Idee"), "Logo blau?");
+  um("09:58");
+  zustellenJob(p.db);
+  assert.equal(zahl(p, "mac"), 3);
+  assert.equal(zahl(p, "iphone"), 3);
+  assert.equal(mitteilungen(p).length, 0);
+  um("11:00");
+  zustellenJob(p.db);
+  assert.equal(mitteilungen(p).length, 1);
+  um("11:01");
+  frageBeantworten(p.db, { frage_id: anruf, antwort: "ja", geraet: "iphone", kennung: "a1" });
+  um("11:02");
+  faelligeWirkungenJob(p.db);
+  assert.equal(zahl(p, "mac"), 2);
+  um("13:50");
+  frageBeantworten(p.db, { frage_id: insta, antwort: "ja", geraet: "uhr", kennung: "a2", lokal: true });
+  faelligeWirkungenJob(p.db);
+  assert.equal(zahl(p, "uhr"), 1);
+  um("16:30");
+  frageBeantworten(p.db, { frage_id: angebot, antwort: "ja", geraet: "mac", kennung: "a3" });
+  spaeter(6000);
+  faelligeWirkungenJob(p.db);
+  assert.equal(zahl(p, "mac"), 0);
+});
+
+test("PF04 zehn Fragen: nie mehr als 3; ein geänderter Wert in regeln gilt beim nächsten Stand", () => {
+  const p = ladePlugin();
+  um("09:00");
+  for (let i = 0; i < 10; i++) jaNeinFrage(p.db, auftragVonAntonio(p.db, `Aufgabe ${i}`), `Frage ${i}?`, { frist: um("15:00") });
+  um("09:00");
+  assert.equal(zahl(p, "mac"), 3);
+  const kopie = `${process.env.TMPDIR ?? "/tmp"}/regeln-pf04`;
+  copyFileSync(new URL("../../regeln", import.meta.url).pathname, kopie);
+  writeFileSync(kopie, readFileSync(kopie, "utf8").replace(/^braucht_dich_max \d+/m, "braucht_dich_max 2"));
+  process.env.SENECA_REGELN = kopie;
+  assert.equal(zahl(p, "mac"), 2);
+  delete process.env.SENECA_REGELN;
+});
