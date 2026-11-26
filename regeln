@@ -101,6 +101,10 @@ kalender_vorschau_tage 42
 kalender_abgleich_min 5
 kalender_titel_zeichen 60
 ein_tag_tage 1
+stat_lang_km 15
+stat_gute_woche_mal 3
+kraft_volle_wdh 8
+kraft_schritt_kg 2.5
 termin_standard_min 60
 apns_url https://api.push.apple.com
 apns_thema de.antonio.seneca.nativ zu_messen

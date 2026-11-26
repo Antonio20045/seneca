@@ -23,24 +23,31 @@ struct StatistikLayer: View {
     var allowTap: () -> Bool = { true }
 
     enum Blatt: String, Identifiable { case lesen, gewicht, laufen; var id: String { rawValue } }
+    enum Seite: String { case lauf, kraft, lesen }
 
     @EnvironmentObject private var store: SenecaStore
     @StateObject private var model = StatistikModel()
-    @State private var lauf = false
+    @State private var seite: Seite?
+    @State private var reiter = 1
     @State private var blatt: Blatt?
 
     var body: some View {
         ZStack {
             TafelGrund()
             if let w = model.daten?.woche { woche(w) } else { HeuteSkelett() }
-            if lauf, let l = model.daten?.lauf {
-                LaufTafel(lauf: l) { Bewegung.mit(.wechsel) { lauf = false } }.background(TafelGrund()).transition(.move(edge: .trailing))
-            }
-            if let b = blatt, let w = model.daten?.woche {
-                EintragenBlatt(woche: w, art: b, schliessen: { Bewegung.mit(.wechsel) { blatt = nil } }) { art, werte in
-                    _ = store.daten?.handeln("eintrag.neu", wert: .objekt(["art": .text(art), "werte": .objekt(werte)]))
-                    Task { try? await Task.sleep(for: .seconds(1.5)); await model.laden(store: store) }
+            Group {
+                switch seite {
+                case .lauf: model.daten?.lauf.map { LaufTafel(lauf: $0, zurueck: zurueck) }
+                case .kraft: model.daten?.uebung.map { KraftTafel(u: $0, zurueck: zurueck) }
+                case .lesen: model.daten?.buch.map { b in LesenTafel(b: b, zurueck: zurueck, uhr: { aktivitaet("lesen") }) { t, s in
+                    eintragen("notiz", ["b": .text(String(b.titel.dropLast())), "t": .text(t)].merging(Int(s).map { ["s": .zahl(Double($0))] } ?? [:]) { a, _ in a })
+                } }
+                case nil: EmptyView()
                 }
+            }
+            .background(seite == nil ? nil : TafelGrund()).transition(.move(edge: .trailing))
+            if let b = blatt, let w = model.daten?.woche {
+                EintragenBlatt(woche: w, art: b, schliessen: { Bewegung.mit(.wechsel) { blatt = nil } }, eintragen: eintragen)
                 .transition(.opacity)
             }
         }
@@ -54,35 +61,47 @@ struct StatistikLayer: View {
             if !store.demo { await StatHealthSync.shared.abgleichen(grund: .statistikOffen, fragen: true) }
             #if DEBUG
             let env = ProcessInfo.processInfo.environment
-            if env["SENECA_DEMO_STAT_SEITE"] == "lauf" { lauf = true }
+            seite = env["SENECA_DEMO_STAT_SEITE"].flatMap(Seite.init(rawValue:))
+            reiter = Int(env["SENECA_DEMO_STAT_REITER"] ?? "") ?? 1
             if let b = env["SENECA_DEMO_STAT_BLATT"].flatMap(Blatt.init(rawValue:)) { blatt = b }
             #endif
         }
     }
 
+    private func zurueck() { Bewegung.mit(.wechsel) { seite = nil } }
+
+    private func aktivitaet(_ a: String) {
+        guard allowTap() else { return }
+        _ = store.daten?.handeln("geraet.aktivitaet", wert: .objekt(["wert": .text(a)]))
+    }
+
+    private func eintragen(_ art: String, _ werte: [String: JSONWert]) {
+        _ = store.daten?.handeln("eintrag.neu", wert: .objekt(["art": .text(art), "werte": .objekt(werte)]))
+        Task { try? await Task.sleep(for: .seconds(1.5)); await model.laden(store: store) }
+    }
+
     private func woche(_ w: SenecaStatistik.Woche) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(w.kopf).mono(12).foregroundStyle(TafelFarbe.leise)
-            TafelReiter(auswahl: .constant(1), optionen: [(0, "Tag"), (1, "Woche"), (2, "Monat"), (3, "Jahr")]).padding(.top, 2)
+        let d = model.daten
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(reiter == 0 ? d?.tag?.kopf ?? "" : reiter == 2 ? d?.monat?.kopf ?? "" : reiter == 3 ? d?.jahr?.kopf ?? "" : w.kopf).mono(12).foregroundStyle(TafelFarbe.leise)
+            TafelReiter(auswahl: $reiter, optionen: [(0, "Tag"), (1, "Woche"), (2, "Monat"), (3, "Jahr")]).padding(.top, 2)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    TafelSatz(vor: w.satz.first ?? "", akzent: w.satz.dropFirst().joined(separator: " ")).padding(.top, 16).padding(.bottom, 14)
-                    ForEach(w.karten) { k in karte(k) }
+                    switch reiter {
+                    case 0: d?.tag.map { TagSicht(t: $0) }
+                    case 2: d?.monat.map { JahrSicht(j: $0, breite: m.size.width - 48, monat: true) }
+                    case 3: d?.jahr.map { JahrSicht(j: $0, breite: m.size.width - 48) }
+                    default:
+                        TafelSatz(vor: w.satz.first ?? "", akzent: w.satz.dropFirst().joined(separator: " ")).padding(.top, 16).padding(.bottom, 14)
+                        ForEach(w.karten) { k in karte(k) }
+                    }
                 }
                 .padding(.bottom, 100)
             }
             .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 24).padding(.top, 62)
-        .overlay(alignment: .bottom) {
-            if let h = w.hinweis {
-                HStack(alignment: .top, spacing: 10) {
-                    SenecaPunkt().padding(.top, 5)
-                    Text(h).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.zweit).zeilenHoehe(20, schrift: 14).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, 24).padding(.bottom, 30)
-            }
-        }
+        .overlay(alignment: .bottom) { if reiter == 1, let h = w.hinweis { StatHinweis(text: h) } }
     }
 
     private func farbe(_ art: String) -> Color { art == "lesen" ? TafelFarbe.akzent : art == "gewicht" ? TafelFarbe.zweit : TafelFarbe.gruen }
@@ -131,12 +150,15 @@ struct StatistikLayer: View {
         .padding(.vertical, 14)
         .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.09)).frame(height: 1) }
         .contentShape(Rectangle())
-        .onTapGesture { if k.art == "laufen", model.daten?.lauf != nil, allowTap() { Bewegung.mit(.wechsel) { lauf = true } } }
+        .onTapGesture {
+            let ziel: Seite? = k.art == "laufen" && model.daten?.lauf != nil ? .lauf : k.art == "kraft" && model.daten?.uebung != nil ? .kraft : k.art == "lesen" && model.daten?.buch != nil ? .lesen : nil
+            if let ziel, allowTap() { Bewegung.mit(.wechsel) { seite = ziel } }
+        }
     }
 
     private func knopf(_ k: SenecaStatistik.Karte) {
         guard allowTap() else { return }
-        if k.art == "kraft" { store.daten?.handeln("geraet.aktivitaet", wert: .objekt(["wert": .text("training")])); return }
+        if k.art == "kraft" { aktivitaet("training"); return }
         Bewegung.mit(.wechsel) { blatt = Blatt(rawValue: k.art) }
     }
 }
@@ -205,10 +227,11 @@ struct EintragenBlatt: View {
     @State private var buchNeu: String?
     @State private var zahl1 = ""
     @State private var zahl2 = ""
+    @AppStorage("seneca.lesetimer") private var timerSeit = 0.0
 
     private var lesen: SenecaStatistik.Karte? { woche.karten.first { $0.art == "lesen" } }
     private var buch: String { buchNeu ?? lesen?.buch ?? "" }
-    private var wert: Int { Int(andere) ?? minuten }
+    private var wert: Int { timerSeit > 0 ? max(1, Int((Date().timeIntervalSince1970 - timerSeit) / 60)) : Int(andere) ?? minuten }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -263,13 +286,24 @@ struct EintragenBlatt: View {
                 .overlay { if !andere.isEmpty { kachel(andere, "MIN", an: true, gross: true) .allowsHitTesting(false) } }
             }
             .padding(.top, 20)
-            schalter([("heute", "Heute"), ("gestern", "Gestern")], gestern ? "gestern" : "heute") { gestern = $0 == "gestern" }.frame(width: 180).padding(.top, 14)
+            HStack {
+                schalter([("heute", "Heute"), ("gestern", "Gestern")], gestern ? "gestern" : "heute") { gestern = $0 == "gestern" }.frame(width: 180)
+                Spacer()
+                TimelineView(.periodic(from: .now, by: 1)) { z in
+                    Button { timerSeit = timerSeit > 0 ? 0 : Date().timeIntervalSince1970 } label: {
+                        Text(timerSeit > 0 ? "läuft · \(Self.uhr(z.date.timeIntervalSince1970 - timerSeit))" : "Timer starten").font(Sundartha.grotesk(14, .medium)).monospacedDigit()
+                            .foregroundStyle(TafelFarbe.himmel).frame(height: 44)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 14)
         }
     }
 
     private var knopfText: String {
         switch art {
-        case .lesen: return "\(wert) Minuten eintragen"
+        case .lesen: return timerSeit > 0 ? "Stoppen und \(wert) Minuten eintragen" : "\(wert) Minuten eintragen"
         case .gewicht: return "\(zahl1.isEmpty ? "Gewicht" : "\(zahl1) kg") eintragen"
         case .laufen: return "\(zahl2.isEmpty ? "Lauf" : "\(zahl2) km") eintragen"
         }
@@ -281,6 +315,7 @@ struct EintragenBlatt: View {
         case .lesen:
             guard wert > 0, !buch.isEmpty else { return }
             eintragen("lesen", ["m": .zahl(Double(wert)), "b": .text(buch), "tag": .text(gestern ? "gestern" : "heute")])
+            timerSeit = 0
         case .gewicht:
             guard let kg = zahl(zahl1) else { return }
             eintragen("gewicht", ["kg": .zahl(kg)])
@@ -324,6 +359,8 @@ struct EintragenBlatt: View {
         .padding(.horizontal, 16).frame(height: 72)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.07)))
     }
+
+    static func uhr(_ s: Double) -> String { String(format: "%d:%02d", Int(s) / 60, Int(s) % 60) }
 
     static func zahlwort(_ n: Int) -> String {
         let w = [15: "Fünfzehn", 20: "Zwanzig", 30: "Dreißig", 45: "Fünfundvierzig", 60: "Sechzig"]
