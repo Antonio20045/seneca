@@ -22,7 +22,7 @@ struct KalWeg: Equatable {
 }
 
 enum KalenderLogik {
-    typealias K = SenecaStand.Kalender
+    typealias K = SenecaStand.Wochenplan
     private static let stundeWort = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"]
     private static let wegWort = ["fuss": "zu Fuß", "rad": "mit dem Rad", "auto": "mit dem Auto"]
     private static let minute = 60_000.0

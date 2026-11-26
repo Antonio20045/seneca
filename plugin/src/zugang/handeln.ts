@@ -55,6 +55,11 @@ function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
   };
 }
 
+function wegSetzen(db: Register, uid: string, w: Wert, geraet: string): void {
+  wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.min))), geraet);
+  wertSetzen(db, `wegstrecke:${uid}`, JSON.stringify({ m: Math.round(Number(w.m)), art: String(w.art ?? "fuss") }), geraet);
+}
+
 const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
 function terminVerschieben(db: Register, kennung: string, uid: string, w: Wert): string {
@@ -107,7 +112,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     if (!w?.titel || !Number.isFinite(Number(w.start)) || !(Number(w.ende) > Number(w.start))) return "abgelehnt:termin_unvollstaendig";
     const uid = `${h.kennung}-${h.geraet}`;
     wertSetzen(db, `kalender:schreiben:${h.kennung}`, JSON.stringify({ aktion: "anlegen", uid, titel: w.titel, start: Number(w.start), ende: Number(w.ende), ort: w.ort || undefined, kalender: w.kalender }), h.geraet);
-    if (w.weg) wertSetzen(db, `wegzeit:${uid}`, JSON.stringify(w.weg), h.geraet);
+    if (w.weg) wegSetzen(db, uid, w.weg as Wert, h.geraet);
     return "angenommen";
   },
   "termin.verschieben": (db, h) => {
@@ -117,7 +122,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "termin.wegzeit": (db, h) => {
     const w = h.wert as Wert;
     if (!(Number(w?.min) >= 0) || !(Number(w?.m) >= 0)) return "abgelehnt:wegzeit_fehlt";
-    wertSetzen(db, `wegzeit:${h.ziel}`, JSON.stringify({ min: Math.round(Number(w.min)), m: Math.round(Number(w.m)), art: String(w.art ?? "fuss") }), h.geraet);
+    wegSetzen(db, String(h.ziel), w, h.geraet);
     return "angenommen";
   },
   "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),

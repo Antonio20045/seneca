@@ -91,7 +91,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct KalPlant: Codable, Equatable, Sendable {
         public var id: String; public var titel: String; public var text: String; public var knopf: String?; public var uid: String; public var start: Double?; public var ende: Double?
     }
-    public struct Kalender: Codable, Equatable, Sendable {
+    public struct Wochenplan: Codable, Equatable, Sendable {
         public var wochen: [KalWoche]; public var tage: [KalTag]; public var plant: KalPlant?; public var kalender: [String]; public var standard: String; public var tag_von: Double; public var tag_bis: Double
     }
     public struct Todo: Codable, Equatable, Sendable, Identifiable {
@@ -126,7 +126,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var termine: [Termin]?
-    public var kalender: Kalender?
+    public var wochenplan: Wochenplan?
     public var todos: [Todo]?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?

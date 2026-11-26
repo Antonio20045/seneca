@@ -26,7 +26,7 @@ function losHinweis(db: Register, jetzt: number): string {
   const t = termineAm(db, jetzt).find((x) => x.ort && !x.ganztag && x.start > jetzt && x.start - jetzt <= regelMs("wegzeit_vorlauf_min"));
   if (!t) return "";
   const ankunft = Number(wert(db, `ankunft:${t.uid}`)?.wert ?? t.start - regelMs("ankunft_puffer_min"));
-  const weg = JSON.parse(wert(db, `wegzeit:${t.uid}`)?.wert || "null")?.min;
+  const weg = wert(db, `wegzeit:${t.uid}`)?.wert;
   const los = weg ? ` · los um ${uhrzeit(ankunft - Number(weg) * regelMs("eine_minute_min"))}` : "";
   return `${t.titel} in ${t.ort}: an um ${uhrzeit(ankunft)}${los}`;
 }

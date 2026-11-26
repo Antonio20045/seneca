@@ -32,7 +32,7 @@ struct SnKalenderTafel: View {
     @FocusState private var titelFokus: Bool
 
     private typealias L = KalenderLogik
-    private var k: SenecaStand.Kalender? { stand.kalender }
+    private var k: SenecaStand.Wochenplan? { stand.wochenplan }
     private func regel(_ n: String, _ s: Double) -> Double { stand.regeln?[n] ?? s }
 
     var body: some View {
@@ -61,14 +61,14 @@ struct SnKalenderTafel: View {
     }
 
     private var wocheIndex: Int { z.woche ?? k.map { L.wocheVon($0, jetzt: stand.jetzt) } ?? 0 }
-    private var tagMs: Double { z.tag ?? stand.kalender?.tage.first { L.gleicherTag($0.tag, stand.jetzt) }?.tag ?? stand.jetzt }
+    private var tagMs: Double { z.tag ?? stand.wochenplan?.tage.first { L.gleicherTag($0.tag, stand.jetzt) }?.tag ?? stand.jetzt }
     private var sichtbar: [SenecaStand.KalTag] {
         guard let k else { return [] }
         return z.ansicht == .tag ? k.tage.filter { L.gleicherTag($0.tag, tagMs) } : Array(L.tage(k, woche: wocheIndex))
     }
     private var auswahlBlock: SenecaStand.KalBlock? { z.auswahl.flatMap { id in k?.tage.lazy.flatMap(\.bloecke).first { $0.id == id } } }
 
-    private func kopf(_ k: SenecaStand.Kalender) -> some View {
+    private func kopf(_ k: SenecaStand.Wochenplan) -> some View {
         let t = L.kopf(k, ansicht: z.ansicht, woche: wocheIndex, tag: tagMs, jetzt: stand.jetzt)
         return HStack(alignment: .bottom) {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -112,7 +112,7 @@ struct SnKalenderTafel: View {
     private var von: Double { k?.tag_von ?? 8 }
     private var hoehe: CGFloat { CGFloat((k?.tag_bis ?? 20) - von) * KF.stunde }
 
-    private func raster(_ k: SenecaStand.Kalender) -> some View {
+    private func raster(_ k: SenecaStand.Wochenplan) -> some View {
         let tage = sichtbar, w = spalte(tage.count)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .bottom, spacing: 0) {
@@ -293,7 +293,7 @@ struct SnKalenderTafel: View {
         .offset(x: 4, y: y)
     }
 
-    private func monat(_ k: SenecaStand.Kalender) -> some View {
+    private func monat(_ k: SenecaStand.Wochenplan) -> some View {
         let tage = L.monat(k, woche: wocheIndex), w = KF.breite / 7
         let reihen = stride(from: 0, to: tage.count, by: 7).map { Array(tage[$0..<min(tage.count, $0 + 7)]) }
         return VStack(spacing: 0) {
@@ -322,7 +322,7 @@ struct SnKalenderTafel: View {
         }
     }
 
-    @ViewBuilder private func seite(_ k: SenecaStand.Kalender) -> some View {
+    @ViewBuilder private func seite(_ k: SenecaStand.Wochenplan) -> some View {
         if let e = z.entwurf { SnKalNeu(e: e, k: k, stand: stand, fokus: $titelFokus, eintragen: eintragen, abbrechen: { z.entwurf = nil }, rechneWeg: rechneWeg) }
         else if let b = auswahlBlock, let d = b.detail { detail(b, d) }
         else if let b = auswahlBlock, let f = b.frage_id { vorschlag(b, f) }
@@ -342,7 +342,7 @@ struct SnKalenderTafel: View {
 
     private func etikett(_ t: String) -> some View { Text(t).font(Schrift.mono(12)).kerning(1.4).foregroundStyle(TafelFarbe.zweit) }
 
-    private func plant(_ k: SenecaStand.Kalender) -> some View {
+    private func plant(_ k: SenecaStand.Wochenplan) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             etikett("SENECA PLANT")
             if let p = k.plant {
@@ -454,7 +454,7 @@ struct SnKalenderEcht: View {
         if let s = store.stand {
             SnKalenderTafel(stand: s, handeln: { store.handle($0, ziel: $1, wert: $2) }, antworte: { store.antworte(frage: $0, wahl: $1) },
                             zumChat: { text in
-                                if route.seite != .chat { modell.zeigeGespraechSeite() }
+                                if modell.route.seite != .chat { modell.zeigeGespraechSeite() }
                                 if let text { store.chat.setzeEntwurf(text, fuer: modell.gegenueber.partner); modell.chatEntwurfNeuLaden?() }
                             },
                             rechneWeg: { await SnWeg.gemeinsam.rechne($0, fussBisMin: s.regeln?["weg_zu_fuss_bis_min"] ?? 20) })
@@ -462,8 +462,6 @@ struct SnKalenderEcht: View {
             SnHeuteSkelett()
         }
     }
-
-    private var route: Route { modell.route }
 }
 
 struct SnKalKnopf: ButtonStyle {
@@ -534,7 +532,7 @@ struct SnKalBlock: View {
 
 struct SnKalNeu: View {
     var e: KalEntwurf
-    var k: SenecaStand.Kalender
+    var k: SenecaStand.Wochenplan
     var stand: SenecaStand
     var fokus: FocusState<Bool>.Binding
     var eintragen: () -> Void
@@ -655,11 +653,11 @@ enum SnKalenderTasten {
 enum SnKalenderBild {
     static func zeige(_ seite: String, _ s: SenecaStand) {
         let z = SnKalZustand.gemeinsam
-        guard let heute = s.kalender?.tage.first(where: { KalenderLogik.gleicherTag($0.tag, s.jetzt) })?.tag else { return }
-        if seite == "kalender-detail" { z.auswahl = s.kalender?.tage.flatMap(\.bloecke).first { $0.detail?.seneca != nil }?.id }
+        guard let heute = s.wochenplan?.tage.first(where: { KalenderLogik.gleicherTag($0.tag, s.jetzt) })?.tag else { return }
+        if seite == "kalender-detail" { z.auswahl = s.wochenplan?.tage.flatMap(\.bloecke).first { $0.detail?.seneca != nil }?.id }
         if seite == "kalender-neu" {
             let start = heute + (24 + 13) * 3_600_000
-            z.entwurf = KalEntwurf(titel: "Friseur", start: start, ende: start + 3_600_000, ort: "Salon am Markt", kalender: s.kalender?.standard ?? "Privat", weg: KalWeg(m: 2300, min: 9, art: "rad"))
+            z.entwurf = KalEntwurf(titel: "Friseur", start: start, ende: start + 3_600_000, ort: "Salon am Markt", kalender: s.wochenplan?.standard ?? "Privat", weg: KalWeg(m: 2300, min: 9, art: "rad"))
         }
     }
 }

@@ -2,7 +2,7 @@ import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, b
 import { istFokus } from "./planen.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import { projekte } from "./projekte.ts";
-import { kalender, weg } from "./kalender.ts";
+import { weg, wochenplan } from "./wochenplan.ts";
 import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -114,7 +114,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin", weg: weg(db, t).kurz })),
-    kalender: kalender(db, jetzt),
+    wochenplan: wochenplan(db, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min,
       geplant_von: t.geplant_von, wiederkehrend: t.wiederkehrend, wichtig: !!t.wichtig, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),

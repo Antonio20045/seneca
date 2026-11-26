@@ -78,12 +78,14 @@ function gesetzt(db: Register, schluessel: string): { wert: string; wer: string;
 
 export function weg(db: Register, t: Termin) {
   const ankunft = gesetzt(db, `ankunft:${t.uid}`);
-  const w = JSON.parse(wert(db, `wegzeit:${t.uid}`)?.wert || "null") as { min: number; m: number; art: string } | null;
+  const min = Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0);
+  const strecke = JSON.parse(wert(db, `wegstrecke:${t.uid}`)?.wert || "{}") as { m?: number; art?: string };
+  const w = min ? { min, m: strecke.m ?? null, art: strecke.art ?? "fuss" } : null;
   const da = ankunft ? Number(ankunft.wert) : null;
   const los = w ? (da ?? t.start - regelMs("ankunft_puffer_min")) - msAusMinuten(w.min) : null;
   return {
     da, da_satz: ankunft && ankunft.wer === regelText("dauerauftraege_von") && t.namen?.length ? `${t.namen.join(", ")} weiß Bescheid, seit ${uhrzeit(ankunft.zeit)}` : null,
-    weg: w ? `${w.min} Min ${WEG[w.art] ?? WEG.fuss}` : null, km: w ? `${komma(w.m / 1000)} km von hier` : null,
+    weg: w ? `${w.min} Min ${WEG[w.art] ?? WEG.fuss}` : null, km: w?.m ? `${komma(w.m / 1000)} km von hier` : null,
     los: los === null ? null : `los um ${uhrzeit(los)} · Uhr erinnert ${uhrzeit(los - regelMs("weg_erinnern_vor_min"))}`,
     kurz: [da ? `du bist ${uhrzeit(da)} da` : "", w ? `${w.min} Min ${WEG[w.art] ?? WEG.fuss}` : ""].filter(Boolean).join(" · ") || null,
   };
@@ -201,7 +203,7 @@ function plant(db: Register, jetzt: number) {
   return null;
 }
 
-export function kalender(db: Register, jetzt: number) {
+export function wochenplan(db: Register, jetzt: number) {
   const von = plusTage(montag(jetzt), -7 * regelZahl("kal_wochen_zurueck"));
   const wochen = regelZahl("kal_wochen_zurueck") + 1 + regelZahl("kal_wochen_vor");
   return {

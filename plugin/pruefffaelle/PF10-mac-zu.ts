@@ -67,7 +67,7 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
     const ankunft = um("17:10");
     um("16:10");
     wertSetzen(p.db, "ankunft:c", String(ankunft), "seneca");
-    wertSetzen(p.db, "wegzeit:c", JSON.stringify({ min: 25, m: 2000, art: "rad" }), "mac");
+    wertSetzen(p.db, "wegzeit:c", "25", "iphone");
     planenJob(p.db);
     assert.equal(wert(p.db, "hinweis:los")?.wert, "Essen in Bergstr. 1: an um 17:10 · los um 16:45");
   });
