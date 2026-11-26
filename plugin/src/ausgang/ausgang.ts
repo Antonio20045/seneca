@@ -15,9 +15,21 @@ const STRENGE = ["frei", "kurz_fragen", "ausfuehrlich"];
 const WORT: Record<string, string> = { anruf: "Anruf", live: "Live schalten", gateway: "Gateway-Neustart" };
 const gestartet = new Map<string, string>();
 
-function aussenWerkzeug(name: string): { kanal: string; feld: string; freiwillig: boolean } | undefined {
-  const z = regelListe("aussen_werkzeuge").map((e) => e.split("/")).find(([w]) => w === name);
-  return z ? { kanal: z[1], feld: z[2].replace("?", ""), freiwillig: z[2].endsWith("?") } : undefined;
+function trifft(eintrag: string, a: Aufruf): boolean {
+  const [werkzeug, befehl] = eintrag.split("~");
+  return werkzeug === a.werkzeug && (befehl === undefined || new RegExp(befehl, "i").test(String(a.params.command ?? "")));
+}
+
+function gesperrt(a: Aufruf): boolean {
+  return regelListe("aussen_gesperrt").some((e) => trifft(e, a));
+}
+
+function aussenWerkzeug(a: Aufruf): { kanal: string; freiwillig: boolean; roh: unknown } | undefined {
+  const z = regelListe("aussen_werkzeuge").map((e) => e.split("/")).find(([w]) => trifft(w, a));
+  if (!z) return undefined;
+  const feld = z[2].replace("?", "");
+  const roh = z[0].includes("~") ? String(a.params.command).match(new RegExp(`"${feld}"\\s*:\\s*"([^"]+)"`))?.[1] : a.params[feld];
+  return { kanal: z[1], freiwillig: z[2].endsWith("?"), roh };
 }
 
 function liveArt(a: Aufruf): string | undefined {
@@ -58,14 +70,13 @@ function starten(db: Register, a: Aufruf, schluessel: string, daten: object): Ur
 }
 
 function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
-  if (regelListe("aussen_gesperrt").includes(a.werkzeug)) return sperre(db, a, "Dieses Werkzeug ist gesperrt.");
+  if (gesperrt(a)) return sperre(db, a, "Dieses Werkzeug ist gesperrt.");
   const live = liveArt(a);
   if (live === "gateway" && a.agent !== regelText("bausystem")) return sperre(db, a, "Kein Agent startet das Gateway neu. Nur der Bauablauf mit Antonios Ja.");
   if (live === "gateway" || (live && mandat(a.agent).befugnisse.live_nur_mit_ja)) return freigeben(db, a, bezug(db, a), { kanal: live, empfaenger: [], stufe: "ausfuehrlich", werkzeug: a.werkzeug }, n);
-  const w = aussenWerkzeug(a.werkzeug);
+  const w = aussenWerkzeug(a);
   if (!w) return undefined;
-  const roh = a.params[w.feld];
-  const empfaenger = (Array.isArray(roh) ? roh : [roh]).filter((e): e is string => typeof e === "string" && e.length > 0).map(normalisiere);
+  const empfaenger = (Array.isArray(w.roh) ? w.roh : [w.roh]).filter((e): e is string => typeof e === "string" && e.length > 0).map(normalisiere);
   if (!empfaenger.length) return w.freiwillig ? undefined : sperre(db, a, "Empfänger nicht erkennbar.");
   const auftragId = bezug(db, a);
   const eigene = wert(db, "profil:telefon")?.wert;
@@ -114,7 +125,7 @@ export function pruefeAufruf(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   try {
     return vorWerkzeug(db, a, n);
   } catch (fehler) {
-    const betroffen = aussenWerkzeug(a.werkzeug) || regelListe("aussen_gesperrt").includes(a.werkzeug) || liveArt(a);
+    const betroffen = aussenWerkzeug(a) || gesperrt(a) || liveArt(a);
     return betroffen ? { block: true, blockReason: `Ausgang gesperrt wegen Fehler: ${(fehler as Error).message}` } : undefined;
   }
 }
