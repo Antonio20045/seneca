@@ -34,7 +34,7 @@ function rueckgaengig(db: Register, h: Handlung): string {
 function auftrag(nach: string, felder: (h: Handlung) => Record<string, number> = () => ({})) {
   return (db: Register, h: Handlung) => {
     uebergang(db, "auftrag", String(h.ziel), nach, h.art, felder(h));
-    if (typeof h.wert === "string" && h.wert) ereignis(db, { art: "entscheidung", auftrag_id: String(h.ziel), geraet: h.geraet, satz: h.wert, daten: { text: h.wert } });
+    if (typeof h.wert === "string" && h.wert) ereignis(db, { art: "entscheidung", auftrag_id: String(h.ziel), geraet: h.geraet, schluessel: h.kennung, satz: h.wert, daten: { text: h.wert, art: h.art } });
     return "angenommen";
   };
 }

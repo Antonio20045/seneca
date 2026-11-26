@@ -1,4 +1,4 @@
-import { aktiveLaeufe, anzeigen, auftraege, ereignisse, fragen, hole, laeufe, laeufeSeit, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, anzeigen, auftraege, ereignisse, fragen, hole, laeufe, laeufeSeit, uhr, wert, wiederholungenSeit, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { anzeigeSetzen, auftragSetzen, befund, uebergang, vorschlagAnlegen, wertSetzen, type Wirkung } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
@@ -65,7 +65,7 @@ export function rundgangSicht(db: Register, a: Zeile, jetzt: number): string {
     if (eingang.length) zeilen.push(`Eingänge (${eingang.length}), gebündelt auswerten; Zusagen und Bitten werden Vorschläge:`, ...eingang.slice(0, regelZahl("rundgang_eingaenge")).map((e) => `- ${e.quelle}: ${JSON.stringify(e.verweis)}`));
     const geparkt = auftraege(db, ["geparkt"]);
     if (geparkt.length && (!vorher || Number(vorher.gestartet) < woche)) zeilen.push("Geparkte Ideen (einmal je Woche durchsehen):", ...geparkt.map((x) => `- ${x.id} „${x.titel}“`));
-    const wdh = ereignisse(db, { art: "korrektur", seit: woche }).filter((e) => JSON.parse(String(e.daten)).wiederholung).length;
+    const wdh = wiederholungenSeit(db, woche);
     if (wdh) zeilen.push(`Wiederholungen diese Woche: ${wdh}.`);
   }
   const aehnlich = new Map<string, number>();

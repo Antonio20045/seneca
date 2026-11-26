@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import { regelMs, regelZahl } from "../regeln.ts";
-import { hole, kinder, offeneFrage, revision, uhr, type Tabelle, type Zeile } from "./lesen.ts";
+import { hole, kinder, offeneFrage, revision, uhr, zurueckgenommen, type Tabelle, type Zeile } from "./lesen.ts";
 import type { Register } from "./schema.ts";
 import { NEBENWIRKUNGEN, NEU, PFLICHT_BEI, UEBERGAENGE } from "./uebergaenge.ts";
 
@@ -360,14 +360,18 @@ export function korrekturZuruecknehmen(db: Register, nr: number): string {
   return schritt(db, () => {
     const e = db.prepare("SELECT * FROM ereignis WHERE nr = ? AND art = 'korrektur'").get(nr);
     if (!e) throw new Error(`Korrektur ${nr} fehlt`);
+    if (zurueckgenommen(db, nr)) return "abgelehnt:schon_zurueckgenommen";
     const k = JSON.parse(String(e.daten));
+    const sperre = k.ort === "sperre" ? hole(db, "auftrag", String(k.nachher)) : undefined;
     if (k.ort === "profil" || k.ort === "fakt") wertSetzen(db, String(k.schluessel), k.vorher ?? "", "lernen");
-    if (k.ort === "sperre") uebergang(db, "auftrag", String(k.nachher), "verworfen", "korrektur zurückgenommen");
-    if (k.ort === "skill") {
+    if (sperre && !["erledigt", "verworfen"].includes(String(sperre.zustand))) uebergang(db, "auftrag", String(sperre.id), "verworfen", "korrektur zurückgenommen");
+    const umkehr = k.ort === "skill" ? `Skill „${k.ziel}“ zurückdrehen: „${k.nachher}“ wieder durch „${k.vorher}“ ersetzen.`
+      : sperre?.zustand === "erledigt" ? `Sperre „${k.kern}“ aus dem Ausgang wieder entfernen, mit Prüffall.` : undefined;
+    if (umkehr) {
       auftragAnlegen(db, {
-        art: "system", wortlaut: `Skill „${k.ziel}“ zurückdrehen: „${k.nachher}“ wieder durch „${k.vorher}“ ersetzen.`, wortlaut_quelle: `korrektur:${nr}`, titel: `Skill ${k.ziel} zurückdrehen`,
-        ziel: "Alter Text steht wieder im Skill", abnahme: "skill_workshop meldet die Änderung", abnahme_durch: "beleg", pruefer_noetig: false,
-        verantwortlich: String(e.wer ?? "seneca"), auftraggeber: "antonio", quelle: "du", bereich: "Privat", arbeitsart: "skill",
+        art: "system", wortlaut: umkehr, wortlaut_quelle: `korrektur:${nr}`, titel: umkehr.slice(0, regelZahl("titel_zeichen")),
+        ziel: "Der alte Stand gilt wieder", abnahme: k.ort === "skill" ? "skill_workshop meldet die Änderung" : "Prüffall zeigt den alten Stand", abnahme_durch: "beleg", pruefer_noetig: k.ort !== "skill",
+        verantwortlich: k.ort === "skill" ? String(e.wer ?? "seneca") : String(sperre?.verantwortlich), auftraggeber: "antonio", quelle: "du", bereich: "Privat", arbeitsart: k.ort === "skill" ? "skill" : "bauen",
       });
     }
     ereignis(db, { art: "korrektur.zurueckgenommen", schluessel: String(e.schluessel), daten: { korrektur_nr: nr } });
