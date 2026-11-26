@@ -1,6 +1,6 @@
-import { ereignisse, fragen, hole, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { ereignisse, fragen, hole, kinder, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { ereignis, uebergang } from "../register/schreiben.ts";
+import { auftragAnlegen, ereignis, uebergang } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { ruhe, uhrTauglich } from "./stand.ts";
 
@@ -16,12 +16,15 @@ function aktiv(db: Register, schluessel: string, jetzt: number): boolean {
   return w?.wert === "ja" && (w.gueltig_bis ?? Infinity) > jetzt;
 }
 
+function fest(f: Zeile, a: Zeile, jetzt: number): boolean {
+  const fristHeute = f.frist !== null && Number(f.frist) < naechsteUhrzeit("00:00", jetzt);
+  return fristHeute && a.zustand === "wartet" && jetzt - Number(a.geaendert) > regelMs("durchbruch_h");
+}
+
 function entscheide(db: Register, f: Zeile, jetzt: number): Entscheidung {
   const fenster = regelUhrzeitNach("fenster", jetzt);
-  const heuteEnde = naechsteUhrzeit("00:00", jetzt);
-  const fristHeute = f.frist !== null && Number(f.frist) < heuteEnde;
   const a = hole(db, "auftrag", String(f.auftrag_id));
-  const durchbruch = fristHeute && a.zustand === "wartet" && jetzt - Number(a.geaendert) > regelMs("durchbruch_h");
+  const durchbruch = fest(f, a, jetzt);
   const eilig = (f.frist !== null && Number(f.frist) < fenster) || durchbruch;
   const r = ruhe(db, jetzt);
   const durchsicht = [`aussen:${f.wirkung_aussen}`, `frist:${f.frist ?? "keine"}`, `ruhe:${r?.grund ?? "keine"}`];
@@ -38,6 +41,17 @@ function mitteilungErlaubt(db: Register, f: Zeile, jetzt: number): boolean {
   return !unterwegs && (!zuletzt || fristHeute);
 }
 
+function anrufWennFest(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
+  const r = ruhe(db, jetzt);
+  const nummer = wert(db, "profil:telefon")?.wert;
+  if (!nummer || !fest(f, a, jetzt) || (r && !r.durchbruch) || kinder(db, String(a.id)).some((k) => k.wortlaut_quelle === `frage:${f.id}`)) return;
+  auftragAnlegen(db, {
+    art: "system", wortlaut: `Ruf Antonio an (${nummer}) und stell diese Frage: ${f.text} Empfehlung: ${f.empfehlung}`, wortlaut_quelle: `frage:${f.id}`, eltern_id: String(a.id),
+    titel: `Anruf bei Antonio: ${a.titel}`, ziel: "Antonio hat die Frage gehört", abnahme: "Anruf ausgeführt", abnahme_durch: "beleg", pruefer_noetig: false,
+    verantwortlich: String(a.verantwortlich), auftraggeber: String(a.verantwortlich), quelle: "eigene_idee", bereich: String(a.bereich), arbeitsart: "anruf_antonio", naechster_anlass: jetzt,
+  });
+}
+
 export function zustellenJob(db: Register): void {
   const jetzt = uhr.jetzt();
   for (const f of fragen(db, "offen")) {
@@ -47,6 +61,7 @@ export function zustellenJob(db: Register): void {
       if (a.zustand === "wartet") uebergang(db, "auftrag", String(a.id), "bereit", "frist", { naechster_anlass: jetzt });
       continue;
     }
+    anrufWennFest(db, f, a, jetzt);
     const vorher = letzte(db, f);
     if (vorher && vorher.was !== "zurueckgehalten") continue;
     const e = entscheide(db, f, jetzt);

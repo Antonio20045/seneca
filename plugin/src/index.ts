@@ -13,7 +13,8 @@ import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
 import { githubEingang } from "./quellen/github.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
-import { uhrAbgleich } from "./zugang/uhr.ts";
+import { dateiRecht } from "./zugang/rechte.ts";
+import { uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
 import { revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
@@ -118,6 +119,7 @@ export default {
     });
 
     api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
+    api.on("before_tool_call", (event, ctx) => dateiRecht({ werkzeug: event.toolName, params: event.params, agent: ctx.agentId ?? "" }));
     api.on("after_tool_call", (event) => nachWerkzeug(db, event.toolCallId, event.error));
     api.on("message_received", (event, ctx) => mitlesen(db, ctx.channelId, event));
     const route = (path: string, verarbeite: (roh: Buffer, kopf: IncomingHttpHeaders) => { status: number; inhalt?: object; kopf?: Record<string, string> }) =>
@@ -135,6 +137,8 @@ export default {
         return true;
       } });
     route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrStand(db, t)));
+    route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
+    route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, process.env.SENECA_GITHUB_GEHEIMNIS) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.stand", ({ params }) => stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });

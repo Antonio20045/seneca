@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { revision, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { wertSetzen } from "../register/schreiben.ts";
@@ -29,6 +29,39 @@ export function schluesselHash(schluessel: string): string {
   return createHash("sha256").update(schluessel).digest("hex");
 }
 
+type Kopplung = { zahl: string; abholen: string; bestaetigt: boolean; abgeholt?: boolean };
+
+function begrenzt(schluessel: string, grenze: number): boolean {
+  const jetzt = uhr.jetzt();
+  const zeiten = (anfragen.get(schluessel) ?? []).filter((t) => t > jetzt - regelMs("uhr_anfragen_fenster_h"));
+  anfragen.set(schluessel, [...zeiten, jetzt]);
+  return zeiten.length >= grenze;
+}
+
+export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
+  const g = String((JSON.parse(roh.toString("utf8")) as Anfrage).g ?? "");
+  const fenster = wert(db, "kopplung:fenster");
+  if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
+  if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
+  const zahl = String(randomInt(0, 10000)).padStart(4, "0");
+  const abholen = randomBytes(16).toString("hex");
+  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false }), "uhr", fenster.gueltig_bis);
+  return { status: 200, inhalt: { zahl, abholen } };
+}
+
+export function uhrAbholen(db: Register, roh: Buffer): Antwort {
+  const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string };
+  const w = wert(db, `kopplung:${d.g}`);
+  const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? (JSON.parse(w.wert) as Kopplung) : undefined;
+  if (begrenzt("abholen", regelZahl("kopplung_anfragen_je_std")) || !k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
+    return { status: 403, inhalt: { f: "nicht bestätigt" } };
+  }
+  const schluessel = randomBytes(32).toString("base64url");
+  wertSetzen(db, `uhr:${d.g}`, schluesselHash(schluessel), "uhr");
+  wertSetzen(db, `kopplung:${d.g}`, JSON.stringify({ ...k, abgeholt: true }), "uhr", uhr.jetzt());
+  return { status: 200, inhalt: { schluessel } };
+}
+
 export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, string | string[] | undefined>, uhrStand: UhrStand): Antwort {
   const d = JSON.parse(roh.toString("utf8")) as Anfrage;
   const geraet = String(d.g);
@@ -37,9 +70,7 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   if (!gespeichert || gespeichert === "gesperrt" || schluesselHash(token) !== gespeichert) return { status: 401, inhalt: { f: gespeichert === "gesperrt" ? "gesperrt" : "unbekannt" } };
   if (d.v !== regelZahl("uhr_protokoll")) return { status: 426, inhalt: { f: "Uhr-App zu alt" } };
   const jetzt = uhr.jetzt();
-  const zeiten = (anfragen.get(geraet) ?? []).filter((t) => t > jetzt - regelMs("uhr_anfragen_fenster_h"));
-  if (zeiten.length >= regelZahl("uhr_anfragen_je_std")) return { status: 429, inhalt: { f: "zu viele" }, kopf: { "retry-after": String(regelMs("uhr_anfragen_fenster_h") / msAusSekunden(1)) } };
-  anfragen.set(geraet, [...zeiten, jetzt]);
+  if (begrenzt(geraet, regelZahl("uhr_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" }, kopf: { "retry-after": String(regelMs("uhr_anfragen_fenster_h") / msAusSekunden(1)) } };
   if ((d.h ?? []).length > regelZahl("uhr_handlungen_max")) return { status: 413, inhalt: { f: "zu viele Handlungen" } };
   const fuerUhr = uhrStand(jetzt).q?.id;
   const q = (d.h ?? []).map((h) => {

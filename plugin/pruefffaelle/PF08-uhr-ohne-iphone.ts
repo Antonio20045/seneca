@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { uhrStand } from "../src/pforte/stand.ts";
 import { ereignisse } from "../src/register/lesen.ts";
 import { wertSetzen } from "../src/register/schreiben.ts";
-import { schluesselHash, uhrAbgleich } from "../src/zugang/uhr.ts";
+import { schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "../src/zugang/uhr.ts";
 import { auftragVonAntonio, jaNeinFrage, ladePlugin, um } from "./aufbau.ts";
 
 test("PF08 Uhr allein: 14 Sätze, zweimal gesendet, genau 14 Einträge; Außen-Frage nur als Hinweis; gesperrt abgewiesen", () => {
@@ -25,4 +25,24 @@ test("PF08 Uhr allein: 14 Sätze, zweimal gesendet, genau 14 Einträge; Außen-F
   assert.equal(ereignisse(p.db, { art: "wert.gesetzt", schluessel: "aktivitaet" }).length, 1);
   p.methode("seneca.handeln", { kennung: "sp1", geraet: "iphone", art: "geraet.sperren", ziel: "uhr1", wert: "gesperrt" });
   assert.equal(senden(saetze).status, 401);
+});
+
+test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau einmal", () => {
+  const p = ladePlugin();
+  um("09:00");
+  const json = (o: object) => Buffer.from(JSON.stringify(o));
+  assert.equal(uhrKoppeln(p.db, json({ g: "uhr2" })).status, 403);
+  p.methode("seneca.handeln", { kennung: "k1", geraet: "iphone", art: "geraet.uhr_koppeln" });
+  const k = uhrKoppeln(p.db, json({ g: "uhr2" })).inhalt as { zahl: string; abholen: string };
+  assert.match(k.zahl, /^\d{4}$/);
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "iphone" }) as { kopplung: object[] }).kopplung, [{ geraet: "uhr2", zahl: k.zahl }]);
+  assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
+  assert.match((p.methode("seneca.handeln", { kennung: "k2", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: "0000x" }) as { ergebnis: string }).ergebnis, /zahl_passt_nicht/);
+  p.methode("seneca.handeln", { kennung: "k3", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: k.zahl });
+  const a = uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen }));
+  assert.equal(a.status, 200);
+  assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
+  const schluessel = (a.inhalt as { schluessel: string }).schluessel;
+  const abgleich = uhrAbgleich(p.db, json({ v: 1, g: "uhr2", r: 0, h: [] }), { authorization: `Bearer ${schluessel}` }, (j) => uhrStand(p.db, j));
+  assert.equal(abgleich.status, 200);
 });

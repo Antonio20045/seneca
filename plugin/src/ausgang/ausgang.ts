@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { auftraege, ereignisse, fragen, hole, laufZurSitzung } from "../register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, laufZurSitzung, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, befund, ereignis, frageBeantworten, frageStellen } from "../register/schreiben.ts";
 import { regelListe, regelText } from "../regeln.ts";
@@ -56,6 +56,10 @@ function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   const empfaenger = (Array.isArray(roh) ? roh : [roh]).filter((e): e is string => typeof e === "string" && e.length > 0).map(normalisiere);
   if (!empfaenger.length) return sperre(db, a, "Empfänger nicht erkennbar.");
   const auftragId = bezug(db, a);
+  const eigene = wert(db, "profil:telefon")?.wert;
+  if (hole(db, "auftrag", auftragId).arbeitsart === "anruf_antonio" && eigene && empfaenger.every((e) => e === normalisiere(eigene))) {
+    return starten(db, a, `anruf_antonio:${auftragId}`, { kanal: w.kanal, empfaenger, stufe: "eigene_nummer", werkzeug: a.werkzeug });
+  }
   const stufen = empfaenger.map((e) => stufe(db, e));
   const unbekannt = empfaenger[stufen.indexOf(undefined)];
   if (unbekannt) {
