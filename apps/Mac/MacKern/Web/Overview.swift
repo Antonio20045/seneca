@@ -171,7 +171,8 @@ final class OverviewStore: ObservableObject {
         async let ber = lies("seneca.bereiche")
         async let str = lies("seneca.projekte")
         async let ent = lies("seneca.entscheidungen")
-        let (w, c, a, k, g, b, s, e) = await (wb, cron, ag, kal, ges, ber, str, ent)
+        let w = await wb, c = await cron, a = await ag, k = await kal
+        let g = await ges, b = await ber, s = await str, e = await ent
         let karten = await w.asyncMap { await karten(aus: $0) }
         stelleUhr()
         var d = daten

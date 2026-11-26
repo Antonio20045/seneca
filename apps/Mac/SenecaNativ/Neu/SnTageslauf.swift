@@ -46,11 +46,16 @@ final class TageslaufModell: ObservableObject {
 }
 
 extension SnHeuteSeite {
+    func wartetZeile(_ w: TageslaufSicht.Wartet) -> Text {
+        let name = Text(w.name).font(Schrift.grotesk(18, .medium)).foregroundColor(Color.white)
+        let rest = Text(w.rest).font(Schrift.grotesk(18)).foregroundColor(Farbe.ink2)
+        return name + rest
+    }
+
     func tageslaufWartet(_ s: TageslaufSicht) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(s.wartet.enumerated()), id: \.element.id) { i, w in
-                (Text(w.name).font(Schrift.grotesk(18, .medium)).foregroundColor(Color.white)
-                    + Text(w.rest).font(Schrift.grotesk(18)).foregroundColor(Farbe.ink2))
+                wartetZeile(w)
                     .lineHeight(.exact(points: 26))
                     .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                     .snRein(0.1 + Double(i) * 0.05)

@@ -99,7 +99,7 @@ struct SnProjektTabSeite: View {
                             Rectangle().fill(m.erreicht ? Farbe.gruen : Farbe.nacht).frame(width: 7, height: 7)
                                 .overlay(Rectangle().strokeBorder(m.erreicht ? Farbe.gruen : Color.white.opacity(0.8), lineWidth: 1.2))
                                 .rotationEffect(.degrees(45)).position(x: w * (m.ort ?? 0), y: y)
-                                .help(m.name + (m.datum.isEmpty ? "" : ", " + m.datum) + (m.erreicht ? " (erreicht)" : ""))
+                                .help(Self.meilensteinHilfe(m.name, m.datum, m.erreicht))
                         }
                         Circle().fill(farbe(p.dringlich)).frame(width: 11, height: 11).position(x: x1, y: y)
                         Text(p.fristTag + " · " + p.fristRest).font(Schrift.grotesk(12.5, .medium)).foregroundStyle(farbe(p.dringlich)).fixedSize()
@@ -270,6 +270,11 @@ struct SnProjektTabSeite: View {
             .padding(.top, 22)
         }
         .accessibilityIdentifier("projekt-einzeln")
+    }
+
+    static func meilensteinHilfe(_ name: String, _ datum: String, _ erreicht: Bool) -> String {
+        let teil = datum.isEmpty ? "" : ", " + datum
+        return name + teil + (erreicht ? " (erreicht)" : "")
     }
 }
 
