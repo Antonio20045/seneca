@@ -131,7 +131,7 @@ enum Bildprobe {
     }
 
     static func chatAnsicht(liste: ArbeitsListe?, aufgaben: AufgabenListe?, jetzt: Date, env: [String: String]) -> AnyView {
-            let agent = env["SENECA_BILD_AGENT"].flatMap { $0.isEmpty ? nil : $0 } ?? "main"
+            let agent = env["SENECA_BILD_AGENT"].flatMap { $0.isEmpty ? nil : $0 } ?? Hauptagent.id
             let zeilen: [[String: Any]] = (env["SENECA_BILD_SPEICHER"].flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }
                 .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["zeilen"] as? [[String: Any]]) ?? []
             let alle = ChatSpeicherLogik.bloecke(zeilen)

@@ -125,7 +125,7 @@ enum Selbstfoto {
         if let p = b["partner"] as? String {
             let g = modell.gegenueber
             let ov = modell.uebersicht.daten
-            if p == "main" || p == ov.defaultAgent { g.waehle(g.personen.seneca) }
+            if p == Hauptagent.id || p == ov.defaultAgent { g.waehle(g.personen.seneca) }
             else if let person = Agentenleiste.alle(ov).flatMap(\.leute).first(where: { $0.id == p }) ?? g.personen.alle.first(where: { $0.id == p }) { g.waehle(person) }
             else { g.oeffneChat(key: "agent:\(p):main", agentId: p) }
         }

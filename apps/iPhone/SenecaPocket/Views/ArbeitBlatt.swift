@@ -107,7 +107,7 @@ struct ArbeitZahlen {
 enum ArbeitWorte {
     static func kennung(_ z: ListenZeile) -> String {
         let k = z.agent.isEmpty ? z.von : z.agent
-        return k.contains(".") ? "main" : k
+        return k.contains(".") ? Hauptagent.id : k
     }
 
     static func wer(_ z: ListenZeile) -> String { Namen.mitarbeiter(kennung(z)) }
@@ -199,7 +199,7 @@ enum ArbeitWorte {
 
     static func sitzung(_ kennung: String, store: SenecaStore) -> String {
         let id = Namen.reineKennung(kennung)
-        if id.isEmpty || id == "main" { return ChatPartner.seneca.sessionKey(main: store.chat.mainKey) }
+        if Hauptagent.ist(id) { return ChatPartner.seneca.sessionKey(main: store.chat.mainKey) }
         if let p = GespraechsPartner.alle.first(where: { Namen.reineKennung($0.id) == id }) { return p.sessionKey(main: store.chat.mainKey) }
         return "agent:\(id):main"
     }

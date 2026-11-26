@@ -491,7 +491,7 @@ struct OvDaten: Equatable {
     var boards: [OvBoard] = []
     var jobs: [OvAuftrag] = []
     var agents: [OvAgent] = []
-    var defaultAgent = "main"
+    var defaultAgent = Hauptagent.id
     var rows: [OvSitzung] = []
     var kalender: OvKalender?
     var gesehen: [String: Double] = [:]

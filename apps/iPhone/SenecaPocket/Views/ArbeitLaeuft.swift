@@ -126,6 +126,6 @@ struct ArbeitLaeuft: View {
     private func chat(_ kennung: String) {
         let id = Namen.reineKennung(kennung)
         schliessen()
-        wege.oeffne(.chat(mitarbeiter: id.isEmpty || id == "main" ? nil : id))
+        wege.oeffne(.chat(mitarbeiter: Hauptagent.ist(id) ? nil : id))
     }
 }

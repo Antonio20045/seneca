@@ -48,7 +48,7 @@ final class AnsichtModell: ObservableObject {
     var vorschlagen: (String) -> Void = { _ in }
 
     private var dokumente: [String: WidgetDokument] = [:]
-    let agentId = "main"
+    let agentId = Hauptagent.id
 
     init(store: SenecaStore) { self.store = store }
 

@@ -545,7 +545,7 @@ enum Zuege {
     }
 
     static func agentNameKurz(_ id: String) -> String {
-        id == "main" ? "Seneca" : id.split(separator: "-", omittingEmptySubsequences: false).map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: "-")
+        id == Hauptagent.id ? "Seneca" : id.split(separator: "-", omittingEmptySubsequences: false).map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: "-")
     }
 }
 

@@ -54,7 +54,7 @@ final class SenecaStore: ObservableObject {
 
     private var endpoint = ""
     private var sharedToken = ""
-    private var sessionKey = "agent:main:main"
+    private var sessionKey = Hauptagent.sitzung
     private(set) var daten: SenecaDaten?
     @Published private(set) var stand: SenecaStand?
     @Published private(set) var wartendeTodos: Set<String> = []
@@ -109,7 +109,7 @@ final class SenecaStore: ObservableObject {
         return try? JSONDecoder().decode(TodaySnapshot.self, from: data)
     }
 
-    func configure(url: String, token: String, sessionKey: String = "agent:main:main") {
+    func configure(url: String, token: String, sessionKey: String = Hauptagent.sitzung) {
         let normalized = url.trimmingCharacters(in: .whitespacesAndNewlines)
         let endpointChanged = endpoint != normalized
         if endpointChanged || sharedToken != token || self.sessionKey != sessionKey { disconnect() }
@@ -896,7 +896,7 @@ final class SenecaStore: ObservableObject {
         waiter.resume(with: result)
     }
 
-    private var agentID: String { sessionKey.split(separator: ":").dropFirst().first.map(String.init) ?? "main" }
+    private var agentID: String { sessionKey.split(separator: ":").dropFirst().first.map(String.init) ?? Hauptagent.id }
     private var targetSessions: Set<String> = []
     private func matchesSession(_ payload: [String: Any]) -> Bool {
         guard let key = payload["sessionKey"] as? String else { return false }
@@ -907,7 +907,7 @@ final class SenecaStore: ObservableObject {
     }
     private func sitzungsSchluessel(_ key: String, agent: String?) -> String {
         for s in [sessionKey] + Array(targetSessions) + asks.values.map(\.sessionKey) where Self.sameSession(key, s, agent: agent) { return s }
-        return key.hasPrefix("agent:") ? key : "agent:\(agent ?? "main"):\(key)"
+        return key.hasPrefix("agent:") ? key : "agent:\(agent ?? Hauptagent.id):\(key)"
     }
 
     private func receiveSessionEvent(_ event: String, _ payload: [String: Any]) {
@@ -1003,12 +1003,12 @@ final class SenecaStore: ObservableObject {
         let weekday = cal.component(.weekday, from: now) - 1
         let jobs = [
             job("a", "Sundartha Planung", "sundartha", "45 6 * * *"),
-            job("b", "Morgen-Briefing mit Anruf", "main", "30 7 * * *"),
+            job("b", "Morgen-Briefing mit Anruf", Hauptagent.id, "30 7 * * *"),
             job("c", "Wettbewerber CALL-E — täglicher Check", "sundartha", "30 8 * * *"),
             job("d", "Sundartha Ideen", "sundartha", "0 17 * * \(weekday)"),
             job("e", "Vodafone Ideen", "powerbi", "15 17 * * \(weekday)"),
             job("f", "Sundartha Status", "sundartha", "30 18 * * *"),
-            job("g", "🌙 Abendbericht", "main", "0 19 * * *"),
+            job("g", "🌙 Abendbericht", Hauptagent.id, "0 19 * * *"),
         ]
         let demoEnv = ProcessInfo.processInfo.environment
         let aufgaben = AufgabenLogic.demo(now: now, cal)
@@ -1028,7 +1028,7 @@ final class SenecaStore: ObservableObject {
         let (areas, areaCards) = Self.demoAreas(now: now, cal)
         let seenAreaCards = Dictionary(uniqueKeysWithValues: areaCards.map { (NeedsYou.cardKey($0), now.timeIntervalSince1970 * 1000) })
         today = TodaySnapshot(calendar: entries, tasks: tasks, briefings: [], updatedAt: now, jobs: jobList, leaders: ["sundartha": "Sundartha", "powerbi": "Vodafone"],
-                              cards: (cards ?? []) + areaCards, sessions: needs ? [] : nil, seen: seenAreaCards, agentNames: needs ? ["main": "Seneca"] : nil,
+                              cards: (cards ?? []) + areaCards, sessions: needs ? [] : nil, seen: seenAreaCards, agentNames: needs ? [Hauptagent.id: "Seneca"] : nil,
                               areas: areas, projects: useAufgaben ? aufgaben.projects : nil, projectDue: useAufgaben ? aufgaben.due : nil)
         localSeen = [:]
         var history: [String: DayRecord] = [:]

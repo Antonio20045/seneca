@@ -112,7 +112,7 @@ enum BereicheUebersicht {
             let a = j.agent
             let zeit = j.lastRunAtMs ?? 0
             guard !a.isEmpty, zeit > 0, !istDauerlaeufer(j) else { continue }
-            let bereich = [n.bereichName(a), a == "main" ? label(a) : ""].first { !$0.isEmpty } ?? keineAngabe
+            let bereich = [n.bereichName(a), a == Hauptagent.id ? label(a) : ""].first { !$0.isEmpty } ?? keineAngabe
             alle.append(Zeile(key: "j" + j.id, bereich: bereich, satz: laufSatz(j, jobName: n.jobName), zeit: zeit,
                               zeitText: zeitAnzeige(zeit, jetzt: jetzt), art: .lauf, gruppe: gruppeVon(zeit, jetzt: jetzt)))
         }

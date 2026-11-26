@@ -179,7 +179,7 @@ enum NeedsYou {
 
     static func who(_ id: String?, _ input: NeedsInput) -> String {
         guard let id, !id.isEmpty else { return "ein Mitarbeiter" }
-        if id == "main" { return "Seneca" }
+        if id == Hauptagent.id { return "Seneca" }
         let name = label(id, input)
 #if os(iOS)
         return name.hasSuffix("Agent") ? "der \(name)" : name.prefix(1).uppercased() + name.dropFirst()
@@ -289,7 +289,7 @@ enum NeedsYou {
         let keys = teile.map(\.line.key)
         if teile.count == 1 {
             return BerichtText(id: "ergebnis-\(first.line.key)", kicker: "Bericht · \(wann(first.line))", title: first.line.name, body: first.text, keys: keys,
-                           bewertung: BerichtBewertung(agentId: first.line.agentId.isEmpty ? "main" : first.line.agentId, kartenId: first.line.key))
+                           bewertung: BerichtBewertung(agentId: first.line.agentId.isEmpty ? Hauptagent.id : first.line.agentId, kartenId: first.line.key))
         }
         return BerichtText(id: "ergebnisse-\(keys.joined(separator: ","))", kicker: "Bericht · \(wann(first.line))", title: "Neue Ergebnisse",
                            body: teile.map { "## \($0.line.name)\n\n\($0.text)" }.joined(separator: "\n\n"), keys: keys)

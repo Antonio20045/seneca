@@ -99,7 +99,7 @@ enum EntwurfChatDaten {
     static let schritteZusammen = "Seneca hat Kalender, Läufe und den Verlauf am Mac geprüft."
 
     static let gespraeche: [EntwurfChatGespraech] = [
-        .init(id: "main", name: "Seneca", wer: "Hauptgespräch, hier und am Mac", fuell: 0.204, token: 203_893, fenster: 1_000_000,
+        .init(id: Hauptagent.id, name: "Seneca", wer: "Hauptgespräch, hier und am Mac", fuell: 0.204, token: 203_893, fenster: 1_000_000,
               wann: "gerade eben", zuletzt: "24,4 km im Oktober. Im September waren es 61,1.", verlauf: hauptVerlauf),
         .init(id: "sundartha", name: "Sundartha", wer: "Mitarbeiter Ideen", fuell: 0.45, token: 116_276, fenster: 258_400,
               wann: "vor 2 Stunden", zuletzt: "Steht jetzt ganz oben auf der Liste für morgen.", verlauf: sundarthaVerlauf),

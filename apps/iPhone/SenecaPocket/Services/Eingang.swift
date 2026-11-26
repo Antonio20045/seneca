@@ -68,7 +68,7 @@ enum Eingang {
         if !store.isConnected, !store.demo {
             let adresse = UserDefaults.standard.string(forKey: "gatewayURL") ?? ""
             if !adresse.isEmpty {
-                store.configure(url: adresse, token: CredentialStore.load(), sessionKey: UserDefaults.standard.string(forKey: "sessionKey") ?? "agent:main:main")
+                store.configure(url: adresse, token: CredentialStore.load(), sessionKey: UserDefaults.standard.string(forKey: "sitzung") ?? Hauptagent.sitzung)
                 let verbinden = Task { @MainActor in await store.connect() }
                 for _ in 0..<16 where !store.isConnected { try? await Task.sleep(for: .milliseconds(500)) }
                 if !store.isConnected { verbinden.cancel() }

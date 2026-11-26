@@ -69,7 +69,7 @@ struct ChatPartner: Identifiable, Equatable, Sendable {
     var platzhalter: String
     var festerSchluessel: String?
 
-    static let seneca = ChatPartner(id: "main", kopfName: "Seneca", nominativ: "Seneca", dativ: "Seneca", platzhalter: "Frag Seneca etwas")
+    static let seneca = ChatPartner(id: Hauptagent.id, kopfName: "Seneca", nominativ: "Seneca", dativ: "Seneca", platzhalter: "Frag Seneca etwas")
     static let alle: [ChatPartner] = [.seneca]
     static let demoPartner: [ChatPartner] = [.seneca,
         ChatPartner(id: "powerbi", kopfName: "Vodafone", nominativ: "Vodafone", dativ: "Vodafone", platzhalter: "Schreib Vodafone"),
@@ -78,25 +78,25 @@ struct ChatPartner: Identifiable, Equatable, Sendable {
 
     func sessionKey(main: String) -> String {
         if let festerSchluessel { return festerSchluessel }
-        return id == "main" ? main : "agent:\(id):main"
+        return id == Hauptagent.id ? main : "agent:\(id):main"
     }
-    var ohneFrage: Bool { festerSchluessel == nil && id != "main" }
+    var ohneFrage: Bool { festerSchluessel == nil && id != Hauptagent.id }
     var satzName: String { nominativ.prefix(1).uppercased() + nominativ.dropFirst() }
 
     static func mit(id: String) -> ChatPartner? { alle.first { $0.id == id } }
 
     static func zu(sessionKey raw: String, agent: String? = nil, main: String, hilfsweise: Bool = false) -> ChatPartner? {
-        let key = raw.hasPrefix("agent:") ? raw : "agent:\(agent ?? "main"):\(raw)"
+        let key = raw.hasPrefix("agent:") ? raw : "agent:\(agent ?? Hauptagent.id):\(raw)"
         if key == main || raw == main { return .seneca }
-        for p in alle where p.id != "main" && p.sessionKey(main: main) == key { return p }
-        if key == "agent:main:main" { return .seneca }
+        for p in alle where p.id != Hauptagent.id && p.sessionKey(main: main) == key { return p }
+        if key == Hauptagent.sitzung { return .seneca }
         guard hilfsweise else { return nil }
         return ChatPartner(id: raw, kopfName: "Seneca", nominativ: "Seneca", dativ: "Seneca", platzhalter: "Frag Seneca etwas", festerSchluessel: raw)
     }
 
     static func satzName(sessionKey key: String) -> String {
         let id = AreasLogic.agentID(of: key)
-        if let n = agentNamen[id], !n.isEmpty, id != "main" { return n }
+        if let n = agentNamen[id], !n.isEmpty, id != Hauptagent.id { return n }
         return "Seneca"
     }
 }
@@ -269,7 +269,7 @@ enum ChatLogic {
     }
 
     static func isSenecaMain(_ key: String) -> Bool {
-        key == "main" || (AreasLogic.agentID(of: key) == "main" && key.hasSuffix(":main"))
+        key == Hauptagent.id || (AreasLogic.agentID(of: key) == Hauptagent.id && key.hasSuffix(":main"))
     }
 
     static func kontextNeuParams(key: String, expectedSessionId: String? = nil) -> [String: Any] {
@@ -502,7 +502,7 @@ final class ChatService: ObservableObject {
 
     let speicher: ChatSpeicher
 
-    private(set) var mainKey = "agent:main:main"
+    private(set) var mainKey = Hauptagent.sitzung
 
     private var zuletztGesetzteLives: [ChatLive] = []
     private var zurueckgehalteneLives: [ChatLive]?
@@ -566,7 +566,7 @@ final class ChatService: ObservableObject {
         if text.isEmpty { defaults.removeObject(forKey: Self.entwurfKey + p.id) } else { defaults.set(text, forKey: Self.entwurfKey + p.id) }
     }
 
-    var partnerSitzungen: [String] { (ChatPartner.alle + (partner.id == "main" ? [] : [partner])).map { $0.sessionKey(main: mainKey) } }
+    var partnerSitzungen: [String] { (ChatPartner.alle + (partner.id == Hauptagent.id ? [] : [partner])).map { $0.sessionKey(main: mainKey) } }
 
     func loadHistory() async { await speicher.nachholen(currentKey, grund: .hand) }
 
@@ -772,14 +772,14 @@ final class ChatService: ObservableObject {
     func loadDemo(now: Date, admin: String = "1", partnerId: String? = nil, art: String? = nil, neuIds: String? = nil) {
         demo = true
         let env = ProcessInfo.processInfo.environment
-        mainKey = "agent:main:main"
+        mainKey = Hauptagent.sitzung
         for p in ChatPartner.demoPartner {
             let key = p.sessionKey(main: mainKey)
             speicher.ersetze(key, zeilen: ChatDemo.zeilen(ChatDemo.verlauf(p, now: now, art: art ?? env["SENECA_DEMO_FADEN"])))
             fuellstand[key] = ChatDemo.fill(p)
         }
         func demoMit(_ id: String) -> ChatPartner? { ChatPartner.demoPartner.first { $0.id == id } }
-        partner = demoMit(partnerId ?? env["SENECA_DEMO_PARTNER"] ?? "main") ?? .seneca
+        partner = demoMit(partnerId ?? env["SENECA_DEMO_PARTNER"] ?? Hauptagent.id) ?? .seneca
         neu = Set((neuIds ?? env["SENECA_DEMO_NEU"] ?? "").split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { demoMit($0) != nil && $0 != partner.id })
         lives = [:]
         synchronisiereLive()
@@ -854,17 +854,17 @@ enum ChatDemo {
     static func conversations(now: Date) -> [ChatConversation] {
         func ago(_ minutes: Double) -> Date { now.addingTimeInterval(-minutes * 60) }
         return [
-            ChatConversation(key: "agent:main:main", agentId: "main", title: "Seneca", lastMessage: "Gern, dann erinnere ich dich um halb sechs an den Anruf.",
+            ChatConversation(key: Hauptagent.sitzung, agentId: Hauptagent.id, title: "Seneca", lastMessage: "Gern, dann erinnere ich dich um halb sechs an den Anruf.",
                              updatedAt: ago(4), isRunning: false, isMain: true, fill: ChatFill(used: 200_000, window: 1_000_000)),
             ChatConversation(key: "agent:sundartha:main", agentId: "sundartha", title: "Sundartha", lastMessage: "Der Newsletter-Entwurf für Oktober liegt zur Durchsicht bereit.",
                              updatedAt: ago(35), isRunning: true, isMain: true, fill: ChatFill(used: 116_276, window: 258_400)),
             ChatConversation(key: "agent:powerbi:main", agentId: "powerbi", title: "Vodafone", lastMessage: "Power BI wartet weiter auf deine einmalige Anmeldung.",
                              updatedAt: ago(190), isRunning: false, isMain: true, fill: ChatFill(used: 61_000, window: 258_400)),
-            ChatConversation(key: "agent:main:reise-mailand", agentId: "main", title: "Reise nach Mailand", lastMessage: "Der Zug am Montag um 7:10 Uhr ist gebucht.",
+            ChatConversation(key: "agent:main:reise-mailand", agentId: Hauptagent.id, title: "Reise nach Mailand", lastMessage: "Der Zug am Montag um 7:10 Uhr ist gebucht.",
                              updatedAt: ago(60 * 26), fill: ChatFill(used: 34_000, window: 1_000_000)),
-            ChatConversation(key: "agent:main:steuer-2025", agentId: "main", title: "Steuererklärung 2025", lastMessage: "Für Oktober fehlen noch zwei Belege.",
+            ChatConversation(key: "agent:main:steuer-2025", agentId: Hauptagent.id, title: "Steuererklärung 2025", lastMessage: "Für Oktober fehlen noch zwei Belege.",
                              updatedAt: ago(60 * 52), fill: ChatFill(used: 52_000, window: 1_000_000)),
-            ChatConversation(key: "agent:main:geschenk-mama", agentId: "main", title: "Geschenk für Mama", lastMessage: "Drei Ideen stehen jetzt in deiner Notiz.",
+            ChatConversation(key: "agent:main:geschenk-mama", agentId: Hauptagent.id, title: "Geschenk für Mama", lastMessage: "Drei Ideen stehen jetzt in deiner Notiz.",
                              updatedAt: ago(60 * 24 * 4), fill: ChatFill(used: 12_000, window: 1_000_000)),
         ]
     }
@@ -883,7 +883,7 @@ enum ChatDemo {
         case "sundartha": return sundartha(now: now)
         default:
             if art == "lang" { return langerFaden(now: now) }
-            var out = history(for: "agent:main:main", now: now)
+            var out = history(for: Hauptagent.sitzung, now: now)
             if art == "langeantwort" { out += langeAntwort(now: now) }
             return out
         }
@@ -970,7 +970,7 @@ enum ChatDemo {
         let pairs: [(String, String)]
         if key == "agent:powerbi:main" { return vodafone(now: now) }
         if key == "agent:sundartha:main" { return sundartha(now: now) }
-        if key == "agent:main:main" {
+        if key == Hauptagent.sitzung {
             pairs = [
                 ("Guten Morgen, was steht heute an?", "Ein ruhiger Tag, vormittags die Abstimmung und abends ein *Anruf*.\n10:30 Abstimmung Website, heute\n17:30 Anruf mit Jonas, heute"),
                 ("Verschieb die Abstimmung bitte auf elf.", "Erledigt, die Abstimmung beginnt jetzt um *11 Uhr*.\n11:00 Abstimmung Website, heute"),

@@ -57,7 +57,7 @@ final class DemoGateway: @unchecked Sendable {
         self.schrittPause = schrittPause
         self.ansichten = ansichten
         self.speicher = speicher?.appendingPathComponent("demo-ansichten.json")
-        verlauf["agent:main:main"] = Self.langerVerlauf(vorlauf) + Self.beispielVerlauf() + (ansichten ? Self.ansichtenVerlauf() : []) + Self.schaufensterVerlauf()
+        verlauf[Hauptagent.sitzung] = Self.langerVerlauf(vorlauf) + Self.beispielVerlauf() + (ansichten ? Self.ansichtenVerlauf() : []) + Self.schaufensterVerlauf()
         let vor = Self.jetztMs()
         verlauf["agent:alpha-lead:main"] = [Self.zeile("user", "Wie weit ist der Plan für Projekt Alpha?", id: "al-1", ms: vor - 7_200_000, key: "al-1"),
                                             Self.zeile("assistant", "Der Plan steht zu **drei Vierteln**. Offen sind noch der Lieferant und die Abnahme.", id: "al-2", ms: vor - 7_190_000, key: nil)]
@@ -173,7 +173,7 @@ final class DemoGateway: @unchecked Sendable {
         case "sessions.describe":
             antwort(id, ["session": ["sessionId": "demo", "totalTokens": 12_000, "contextTokens": 1_000_000]], v)
         case "chat.history":
-            let key = daten["sessionKey"] as? String ?? "agent:main:main"
+            let key = daten["sessionKey"] as? String ?? Hauptagent.sitzung
             lock.lock(); var rows = verlauf[key] ?? []; lock.unlock()
             if rows.isEmpty, !leer, let r = key.range(of: ":cron:") { rows = Self.cronVerlauf(jobId: String(key[r.upperBound...])) }
             let fertig: [String: Any] = ["messages": rows, "hasMore": false, "nextOffset": rows.count]
@@ -244,7 +244,7 @@ final class DemoGateway: @unchecked Sendable {
     }
 
     private func sende(_ id: String, _ daten: [String: Any], _ v: Verbindung) {
-        let session = daten["sessionKey"] as? String ?? "agent:main:main"
+        let session = daten["sessionKey"] as? String ?? Hauptagent.sitzung
         let schluessel = daten["idempotencyKey"] as? String ?? UUID().uuidString
         let nachricht = daten["message"] as? String ?? ""
         let frage = ChatLogic.stripPhoneHint(nachricht)
@@ -459,7 +459,7 @@ final class DemoGateway: @unchecked Sendable {
 extension DemoGateway {
 
     static let meldeJobs: [(id: String, agent: String, name: String, stunde: Double, tageVor: Double)] = [
-        ("j-morgen", "main", "Morgenbericht", 7, 0), ("j-woche", "alpha-lead", "Wochenübersicht", 12.5, 1),
+        ("j-morgen", Hauptagent.id, "Morgenbericht", 7, 0), ("j-woche", "alpha-lead", "Wochenübersicht", 12.5, 1),
         ("j-kurse", "alpha-lead", "Kursabgleich", 10, 0), ("j-lager", "haus-lead", "Lagerbestand", 10.08, 0),
     ]
 
@@ -511,7 +511,7 @@ extension DemoGateway {
         }
         switch name {
         case "main.json":
-            return (messwerte("main", [kz("antworten", "Antworten heute", 14, ""), kz("erledigt", "Erledigt in 7 Tagen", 21, "Aufgaben", ziel: 20)], alter: 2 * stunde), 2 * stunde)
+            return (messwerte(Hauptagent.id, [kz("antworten", "Antworten heute", 14, ""), kz("erledigt", "Erledigt in 7 Tagen", 21, "Aufgaben", ziel: 20)], alter: 2 * stunde), 2 * stunde)
         case "alpha-lead.json":
             return (messwerte("alpha-lead", [kz("termin", "Aufgaben im Zeitplan", 83, "%", ziel: 90, ampel: "gelb"), kz("erledigt", "Erledigt in 7 Tagen", 9, "Aufgaben")], alter: 3 * stunde), 3 * stunde)
         case "haus-lead.json":
@@ -520,13 +520,13 @@ extension DemoGateway {
             return (messwerte("alpha-spez", [kz("entwuerfe", "Entwürfe geprüft", 4, "")], alter: 3 * stunde), 3 * stunde)
         case "vertrauen.json":
             func v(_ stufe: Int, _ vor: Double, _ grund: String) -> [String: Any] { ["stufe": stufe, "wirksam": stufe, "seit": iso(tagMs() - vor * 86_400_000), "grund": grund] }
-            return (text(["stand": stamp(3 * stunde), "agenten": ["main": v(3, 40, "Arbeitet seit Wochen zuverlässig."), "alpha-lead": v(2, 12, "Pläne sind meist im Zeitrahmen."),
+            return (text(["stand": stamp(3 * stunde), "agenten": [Hauptagent.id: v(3, 40, "Arbeitet seit Wochen zuverlässig."), "alpha-lead": v(2, 12, "Pläne sind meist im Zeitrahmen."),
                                                       "haus-lead": v(1, 3, "Startstufe")]]), 3 * stunde)
         case "stand.json" where pfad.contains("/geld/"):
             func k(_ n: String, _ bisher: Double, _ budget: Double, _ prognose: Double, _ ampel: String) -> [String: Any] {
                 ["name": n, "bisher_eur": bisher, "budget_eur": budget, "hochrechnung_eur": prognose, "anteil_budget_prozent": bisher / budget * 100, "ampel": ampel]
             }
-            return (text(["stand": stamp(4 * stunde), "kostenstellen": ["main": k("Seneca", 8.1, 20, 14.3, "gruen"), "alpha-lead": k("Mara", 3.2, 10, 11.4, "gelb")]]), 4 * stunde)
+            return (text(["stand": stamp(4 * stunde), "kostenstellen": [Hauptagent.id: k("Seneca", 8.1, 20, 14.3, "gruen"), "alpha-lead": k("Mara", 3.2, 10, 11.4, "gelb")]]), 4 * stunde)
         case "stand.json" where pfad.contains("/beobachten/"):
             return (text(["stand": stamp(6 * stunde), "offen": [["id": "b1"]], "gefunden": [["zeit": heute, "agent": "alpha-lead", "text": "Zwei Pläne haben seit zehn Tagen keine Änderung."]]]), 6 * stunde)
         default:
@@ -750,7 +750,7 @@ extension DemoGateway {
     }
 
     static let effortStufen: [[String: Any]] = [["id": "low", "label": "niedrig"], ["id": "medium", "label": "mittel"], ["id": "high", "label": "hoch"], ["id": "xhigh", "label": "sehr hoch"]]
-    static let erstwahl: [String: String] = ["main": "anthropic/claude-opus-5-5", "alpha-lead": "openai-codex/gpt-6.1-sol", "haus-lead": "zai/glm-5.1"]
+    static let erstwahl: [String: String] = [Hauptagent.id: "anthropic/claude-opus-5-5", "alpha-lead": "openai-codex/gpt-6.1-sol", "haus-lead": "zai/glm-5.1"]
 
     static let katalog: [[String: Any]] = {
         func m(_ provider: String, _ id: String, _ name: String, _ fenster: Double, bilder: Bool = false, lokal: Bool = false, erlaubt: Bool = true, erreichbar: Bool = true) -> [String: Any] {
@@ -786,7 +786,7 @@ extension DemoGateway {
         let teile = ref.split(separator: "/", maxSplits: 1).map(String.init)
         var z: [String: Any] = ["key": key, "agentId": agent, "modelProvider": teile[0], "model": teile.count > 1 ? teile[1] : ref,
                                 "thinkingLevels": Self.effortStufen, "thinkingDefault": "medium", "sessionId": "s-\(agent)-\(leer)",
-                                "totalTokens": leer > 0 ? 0 : (agent == "main" ? 96_000 : 21_000), "totalTokensFresh": true,
+                                "totalTokens": leer > 0 ? 0 : (agent == Hauptagent.id ? 96_000 : 21_000), "totalTokensFresh": true,
                                 "contextTokens": Self.katalog.first { ($0["id"] as? String) == (teile.count > 1 ? teile[1] : ref) }?["contextWindow"] ?? 248_000,
                                 "updatedAt": nun - 3_600_000]
         if e["model"] != nil { z["modelOverrideSource"] = "user" }
@@ -822,7 +822,7 @@ extension DemoGateway {
             switch fn {
             case "workboard.cards.list": return ["cards": [], "boards": []]
             case "cron.list": return ["jobs": []]
-            case "agents.list": return ["defaultId": "main", "agents": [["id": "main", "name": "Seneca", "model": ["primary": "anthropic/claude-opus-5-5", "fallbacks": []]]]]
+            case "agents.list": return ["defaultId": Hauptagent.id, "agents": [["id": Hauptagent.id, "name": "Seneca", "model": ["primary": "anthropic/claude-opus-5-5", "fallbacks": []]]]]
             case "seneca.bereiche": return ["registry": "ok", "bereiche": []]
             case "seneca.projekte": return ["version": 1, "revision": 1, "projekte": [:]]
             case "seneca.entscheidungen": return ["entscheidungen": []]
@@ -856,7 +856,7 @@ extension DemoGateway {
             ]]
         case "cron.list":
             return ["jobs": [
-                ["id": "j-morgen", "delivery": ["mode": "announce"], "name": "Morgenbericht", "agentId": "main", "enabled": true, "schedule": ["kind": "every", "everyMs": 86_400_000, "anchorMs": h(7)],
+                ["id": "j-morgen", "delivery": ["mode": "announce"], "name": "Morgenbericht", "agentId": Hauptagent.id, "enabled": true, "schedule": ["kind": "every", "everyMs": 86_400_000, "anchorMs": h(7)],
                  "state": ["lastRunAtMs": h(7), "lastRunStatus": "ok"]],
                 ["id": "j-woche", "delivery": ["mode": "announce"], "name": "Wochenübersicht", "agentId": "alpha-lead", "enabled": true, "schedule": ["kind": "every", "everyMs": 86_400_000, "anchorMs": h(12.5)],
                  "state": ["lastRunAtMs": h(12.5) - 86_400_000, "lastRunStatus": "ok"]],
@@ -866,15 +866,15 @@ extension DemoGateway {
                  "state": ["lastRunAtMs": h(10), "lastRunStatus": "ok"]],
                 ["id": "j-lager", "delivery": ["mode": "announce"], "name": "Lagerbestand", "agentId": "haus-lead", "enabled": true, "schedule": ["kind": "every", "everyMs": 86_400_000, "anchorMs": h(10.08)],
                  "state": ["lastRunAtMs": h(10.08), "lastRunStatus": "ok"]],
-                ["id": "j-post", "name": "Posteingang prüfen", "agentId": "main", "enabled": true, "schedule": ["kind": "every", "everyMs": 1_800_000, "anchorMs": h(0)],
+                ["id": "j-post", "name": "Posteingang prüfen", "agentId": Hauptagent.id, "enabled": true, "schedule": ["kind": "every", "everyMs": 1_800_000, "anchorMs": h(0)],
                  "state": ["lastRunAtMs": nun - 600_000, "lastRunStatus": "ok"]],
             ]]
         case "agents.list":
             func ag(_ id: String, _ name: String, _ modell: String, _ ausweich: [String] = []) -> [String: Any] {
                 ["id": id, "name": name, "model": ["primary": modell, "fallbacks": ausweich]]
             }
-            return ["defaultId": "main", "agents": [
-                ag("main", "Seneca", "anthropic/claude-opus-5-5", ["anthropic/claude-sonnet-5-5"]),
+            return ["defaultId": Hauptagent.id, "agents": [
+                ag(Hauptagent.id, "Seneca", "anthropic/claude-opus-5-5", ["anthropic/claude-sonnet-5-5"]),
                 ag("alpha-lead", "Mara", "openai-codex/gpt-6.1-sol"), ag("haus-lead", "Jonas", "zai/glm-5.1"),
                 ag("alpha-spez", "Tim", "anthropic/claude-haiku-5"), ag("alpha-einkauf", "Nora", "anthropic/claude-haiku-5"),
             ]]
@@ -1051,10 +1051,10 @@ extension DemoGateway {
             return ["ok": true, "id": eid]
         case "sessions.list":
             var zeilen: [[String: Any]] = [
-                ["key": "agent:alpha-lead:sub-1", "agentId": "alpha-lead", "status": "running", "hasActiveRun": true, "spawnedBy": "agent:main:main",
+                ["key": "agent:alpha-lead:sub-1", "agentId": "alpha-lead", "status": "running", "hasActiveRun": true, "spawnedBy": Hauptagent.sitzung,
                  "label": "Alpha — Lieferantenvergleich", "startedAt": nun - 12 * 60_000, "updatedAt": nun - 20_000],
             ]
-            for (key, agent) in [("agent:main:main", "main"), ("agent:alpha-lead:main", "alpha-lead"), ("agent:haus-lead:main", "haus-lead")] {
+            for (key, agent) in [(Hauptagent.sitzung, Hauptagent.id), ("agent:alpha-lead:main", "alpha-lead"), ("agent:haus-lead:main", "haus-lead")] {
                 zeilen.append(sitzungsZeile(key: key, agent: agent, nun: nun))
             }
             return ["sessions": zeilen, "defaults": ["modelProvider": "anthropic", "model": "claude-opus-5-5",
@@ -1077,7 +1077,7 @@ extension DemoGateway {
                 if daten.keys.contains("model") { if let m = daten["model"] as? String { e["model"] = m } else { e.removeValue(forKey: "model") } }
                 if daten.keys.contains("thinkingLevel") { if let t = daten["thinkingLevel"] as? String { e["thinkingLevel"] = t } else { e.removeValue(forKey: "thinkingLevel") } }
                 einstellungen[key] = e
-                let agent = key.split(separator: ":").dropFirst().first.map(String.init) ?? "main"
+                let agent = key.split(separator: ":").dropFirst().first.map(String.init) ?? Hauptagent.id
                 let ref = (e["model"] as? String) ?? Self.erstwahl[agent] ?? "anthropic/claude-opus-5-5"
                 let teile = ref.split(separator: "/", maxSplits: 1).map(String.init)
                 var r: [String: Any] = ["modelProvider": teile[0], "model": teile.count > 1 ? teile[1] : ref, "thinkingLevels": Self.effortStufen, "thinkingDefault": "medium"]
@@ -1089,7 +1089,7 @@ extension DemoGateway {
             lock.withLock { kontextLeer[key, default: 0] += 1 }
             return ["ok": true]
         case "sessions.create":
-            let agent = daten["agentId"] as? String ?? "main"
+            let agent = daten["agentId"] as? String ?? Hauptagent.id
             return ["key": "agent:\(agent):neu-\(UUID().uuidString.prefix(6).lowercased())"]
         case "workboard.cards.create":
             let id = "k-neu-" + UUID().uuidString.prefix(8).lowercased()
