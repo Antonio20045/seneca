@@ -27,6 +27,17 @@ Stand und Grenzen der Server-Seite. Ausführlich begründet im Umsetzungsplan (A
 
 Geschwister kennen sich nicht. Sie arbeiten über das Register zusammen: ein Modul schreibt, das andere liest im Takt.
 
+## Apps
+
+| Ordner | Inhalt | Darf kennen |
+|---|---|---|
+| `apps/SenecaKern/Sources/SenecaKern` | Code, den Mac und iPhone teilen: Chat, Verbindung, Fachlogik. Ein Exemplar, beide Xcode-Projekte übersetzen den Ordner mit. Wo Mac und iPhone verschieden sind, steht `#if os(iOS)` | nichts außerhalb |
+| `apps/Mac/MacKern` | Fachlogik nur für den Mac (Meeting, Menüleiste, Tageslauf, Übersicht) | `apps/SenecaKern` |
+| `apps/Mac/SenecaNativ`, `SenecaWidget` | Oberfläche der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
+| `apps/iPhone/*` | Oberfläche, Widget, Teilen-Erweiterung der iPhone-App | `apps/SenecaKern` |
+
+Die Apps sprechen mit dem Plugin nur über das Gateway. Ihre Zeilen dürfen nicht wachsen (Budget in `pruefen.sh`, Prüfung P1).
+
 ## Zustandsmaschinen
 
 Auftrag: vorgeschlagen · geparkt · bereit · laeuft · wartet · wartet_auf_abnahme · erledigt · verworfen.

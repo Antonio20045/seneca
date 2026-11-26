@@ -1,7 +1,7 @@
 # Seneca
 
 Seneca ist Antonios Assistent mit seinem Team. Dieses Repo enthält alles, was dafür gebaut wird:
-die Erweiterung (Plugin) für OpenClaw auf dem Server, später die Apps für Mac, iPhone und Uhr,
+die Erweiterung (Plugin) für OpenClaw auf dem Server, die Apps für Mac, iPhone und Uhr,
 und je Mitarbeiter einen Ordner mit Rolle und Mandat.
 
 ## Aufbau
@@ -10,6 +10,9 @@ und je Mitarbeiter einen Ordner mit Rolle und Mandat.
 |---|---|
 | `plugin/` | OpenClaw-Plugin, die Server-Seite (höchstens 4.000 Zeilen) |
 | `plugin/pruefffaelle/` | die höchstens zwölf Prüffälle PF01 bis PF12 |
+| `apps/SenecaKern/` | gemeinsamer Code von Mac und iPhone, ein Exemplar |
+| `apps/Mac/`, `apps/iPhone/` | die beiden Apps (Xcode-Projekte) |
+| `uhr/` | die Garmin-App |
 | `team/<name>/` | `rolle.md` und `mandat` je Mitarbeiter |
 | `regeln` | alle Zeiten und Schwellen, eine Zeile je Wert |
 | `.github/pruefen.sh` | das eine Prüfskript mit 14 Prüfungen |
@@ -26,6 +29,13 @@ cd plugin
 npm ci --ignore-scripts
 npx tsc --noEmit -p .
 node --test "pruefffaelle/PF*.ts"
+```
+
+Apps (Xcode 26 oder neuer, ohne Signatur):
+
+```
+xcodebuild -project apps/Mac/SenecaNativ.xcodeproj -scheme SenecaNativ CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project apps/iPhone/SenecaPocket.xcodeproj -scheme SenecaPocket -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
 Das Plugin wird als TypeScript geladen; OpenClaw 2026.11.10 übersetzt es selbst.

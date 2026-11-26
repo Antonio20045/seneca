@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ATSApplicationFontsPath</key>
+	<string>.</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>de</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Seneca Nativ</string>
+	<key>CFBundleDisplayName</key>
+	<string>Seneca Nativ</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Seneca liest auf deinen Tastendruck, was du im vorderen Programm vor dir hast (die Seite im Browser, die geöffnete Mail, die markierten Dateien), damit du dazu fragen kannst. Es liest nur in diesem Moment und ändert dort nichts.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Seneca zeigt deine Termine aus Apple Kalender und trägt ein, ändert und löscht, was du im Kalender der App selbst anlegst oder bearbeitest. Die Termine bleiben auf diesem Mac.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Seneca macht auf deinen Tastendruck ein Foto des vorderen Fensters, wenn es den Inhalt anders nicht lesen kann, und gibt es mit deiner Frage mit.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Seneca braucht das Mikrofon für die Spracheingabe: Du hältst die Taste, sprichst, und der Text wird auf diesem Mac erkannt. Nichts davon verlässt das Gerät.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
