@@ -1,9 +1,10 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
+import { art, istSport, kalender } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
+import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
@@ -93,18 +94,20 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   if (eingabe.revision === rev) return { schema: SCHEMA, revision: rev, jetzt, unveraendert: true };
   const braucht = brauchtDich(db, jetzt);
   const tagBeginn = letzteUhrzeit(regelText("tag_grenze"), jetzt);
+  const b = buendel(db, braucht, jetzt);
+  const aufg = aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt);
   const inhalt = {
     schema: SCHEMA, revision: rev, jetzt, erzeugt: jetzt, geraet: eingabe.geraet, tag_beginn: tagBeginn,
     regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
       gespraech_haengt_hinweis_min: regelZahl("gespraech_haengt_hinweis_min"), gespraech_haengt_stopp_min: regelZahl("gespraech_haengt_stopp_min"),
       verbinden_start_s: regelZahl("verbinden_start_s"), verbinden_max_s: regelZahl("verbinden_max_s"),
-      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min") },
+      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min"), los_erinnern_min: regelZahl("los_erinnern_min") },
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
-    buendel: buendel(db, braucht, jetzt),
+    buendel: b,
     team: team(db, jetzt),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
     auftraege_neu: auftraege(db, ["bereit", "laeuft", "wartet"]).filter((a) => a.auftraggeber === "antonio" && jetzt - Number(a.erstellt) < regelMs("auftrag_quittung_min"))
@@ -112,8 +115,9 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
         bis: a.schaetzung_min ? Number(a.erstellt) + msAusMinuten(Number(a.schaetzung_min)) : null, dauer_min: a.schaetzung_min,
         danach: a.abnahme_durch === "antonio" ? `${a.pruefer_noetig ? "Prüfer schaut drüber, dann kommt es" : "Es kommt"} als Abnahme ins Fenster um ${regelText("fenster").split(" ")[0]}` : "Fertig ohne Abnahme" })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : "termin" })),
-    aufgaben: aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt),
+    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: art(t), ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null })),
+    aufgaben: aufg,
+    kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision })),
@@ -123,10 +127,6 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   };
   if (JSON.stringify(inhalt).length > regelZahl("stand_max_kb") * 1024) throw new Error("Stand zu gross");
   return inhalt;
-}
-
-function istSport(titel: string): boolean {
-  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
 }
 
 function uhrFrage(db: Register, f: Zeile, jetzt: number) {
