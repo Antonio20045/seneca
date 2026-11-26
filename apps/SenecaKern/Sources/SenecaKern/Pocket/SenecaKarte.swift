@@ -97,5 +97,5 @@ struct SenecaKarte: Equatable {
         return nil
     }
     private static func ton(_ v: Any?) -> Ton? { (v as? String).flatMap { Ton(rawValue: $0.lowercased()) } }
-    static func zahlText(_ v: Double) -> String { StatFormat.kg(v) }
+    static func zahlText(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "de_DE"))) }
 }

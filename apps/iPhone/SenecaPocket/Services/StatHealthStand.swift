@@ -1,5 +1,68 @@
 import Foundation
 
+struct StatKmSample: Equatable {
+    var von: Date
+    var bis: Date
+    var meter: Double
+}
+
+struct StatKm: Equatable, Codable {
+    var label: String
+    var sekunden: Double
+    var meter: Double
+    var pace: Double { meter > 0 ? sekunden * 1000 / meter : 0 }
+    var voll: Bool { meter >= 999.5 }
+}
+
+struct StatLauf: Equatable, Identifiable, Codable {
+    var id: String
+    var start: Date
+    var dauer: Double
+    var meter: Double
+    var kcal: Double? = nil
+    var aufstieg: Double? = nil
+    var pulsMittel: Double? = nil
+    var pulsMax: Double? = nil
+    var quelle: String = ""
+    var kmZeiten: [StatKm]? = nil
+
+    var km: Double { meter / 1000 }
+    var pace: Double { km > 0 ? dauer / km : 0 }
+}
+
+enum StatLaufRechnen {
+    static func kmZeiten(_ samples: [StatKmSample]) -> [StatKm]? {
+        let s = samples.filter { $0.meter > 0 && $0.bis >= $0.von }.sorted { $0.von < $1.von }
+        guard s.count >= 2, let erster = s.first, let letzter = s.last else { return nil }
+        let t0 = erster.von
+        var ergebnis: [StatKm] = []
+        var summe = 0.0
+        var naechster = 1000.0
+        var letzteMarke = 0.0
+        for sample in s {
+            let dauer = sample.bis.timeIntervalSince(sample.von)
+            let startRel = sample.von.timeIntervalSince(t0)
+            var verbraucht = 0.0
+            while summe + (sample.meter - verbraucht) >= naechster - 1e-6 {
+                verbraucht += naechster - summe
+                let t = startRel + dauer * (verbraucht / sample.meter)
+                ergebnis.append(StatKm(label: "\(ergebnis.count + 1)", sekunden: t - letzteMarke, meter: 1000))
+                letzteMarke = t
+                summe = naechster
+                naechster += 1000
+            }
+            summe += sample.meter - verbraucht
+        }
+        let rest = summe - Double(ergebnis.count) * 1000
+        if rest >= 100 {
+            let ende = letzter.bis.timeIntervalSince(t0)
+            let zehntel = min(9, Int((rest / 100).rounded()))
+            ergebnis.append(StatKm(label: ",\(zehntel)", sekunden: max(1, ende - letzteMarke), meter: rest))
+        }
+        return ergebnis.isEmpty ? nil : ergebnis
+    }
+}
+
 struct StatGewichtProbe: Codable, Equatable {
     var start: Date
     var kg: Double
@@ -24,7 +87,7 @@ enum StatHealthGrund {
 }
 
 struct StatHealthStand: Codable, Equatable {
-    static let aktuelleVersion = 1
+    static let aktuelleVersion = 2
     static let fensterTage = 400
 
     var version = StatHealthStand.aktuelleVersion
@@ -34,6 +97,7 @@ struct StatHealthStand: Codable, Equatable {
     var ankerLauf: Data?
     var ankerGewicht: Data?
     var aktualisiert: Date?
+    var gemeldet: Set<String> = []
 
     mutating func uebernehmen(laeufe neu: [StatLauf], geloescht: [String], anker: Data?, seit: Date) {
         let hatteDaten = !laeufe.isEmpty
@@ -63,18 +127,20 @@ struct StatHealthStand: Codable, Equatable {
         }
     }
 
-    var offeneDetails: [String] {
-        laeufe.values.filter { !fertig.contains($0.id) }.sorted { $0.start > $1.start }.map(\.id)
+    var zuMelden: [(id: String, art: String, werte: [String: JSONWert])] {
+        let l = laeufe.values.filter { fertig.contains($0.id) && !gemeldet.contains($0.id) }.map { l in
+            var w: [String: JSONWert] = ["km": .zahl((l.km * 100).rounded() / 100), "dauer_s": .zahl(l.dauer.rounded()), "quelle": .text(l.quelle)]
+            if let a = l.aufstieg { w["hm"] = .zahl(a.rounded()) }
+            if let p = l.pulsMittel { w["puls"] = .zahl(p.rounded()) }
+            if let k = l.kmZeiten?.filter(\.voll), !k.isEmpty { w["km_s"] = .liste(k.map { .zahl($0.sekunden.rounded()) }) }
+            return (id: l.id, art: "lauf", werte: w)
+        }
+        let g = gewichte.filter { !gemeldet.contains($0.key) }.map { (id: $0.key, art: "gewicht", werte: ["kg": JSONWert.zahl(($0.value.kg * 10).rounded() / 10)]) }
+        return l + g
     }
 
-    var laeufeSortiert: [StatLauf] { laeufe.values.sorted { $0.start < $1.start } }
-
-    var gewichtProTag: [String: Double] {
-        var proTag: [String: Double] = [:]
-        for (_, p) in gewichte.sorted(by: { ($0.value.start, $0.key) < ($1.value.start, $1.key) }) {
-            proTag[StatKalender.schluessel(p.start)] = p.kg
-        }
-        return proTag
+    var offeneDetails: [String] {
+        laeufe.values.filter { !fertig.contains($0.id) }.sorted { $0.start > $1.start }.map(\.id)
     }
 
     func braucht(_ grund: StatHealthGrund, jetzt: Date) -> Bool {

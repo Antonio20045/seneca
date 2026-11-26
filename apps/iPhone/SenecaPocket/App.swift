@@ -30,6 +30,11 @@ struct SenecaPocketApp: App {
                 .task { WidgetBridge.shared.attach(store) }
                 .task { Eingang.nachtragen(store) }
                 .task {
+                    StatHealthSync.shared.melde = { art, werte, zeit in
+                        store.daten?.handeln("eintrag.neu", wert: .objekt(["art": .text(art), "werte": .objekt(werte), "zeit": .zahl((zeit.timeIntervalSince1970 * 1000).rounded())])) != nil
+                    }
+                }
+                .task {
                     try? await Task.sleep(for: .seconds(1.5))
                     if !store.demo { await StatHealthSync.shared.abgleichen(grund: .vordergrund, fragen: false) }
                     try? await Task.sleep(for: .seconds(3))

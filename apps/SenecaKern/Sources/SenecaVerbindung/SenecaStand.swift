@@ -190,3 +190,16 @@ public final class StandSpeicher {
         }
     }
 }
+
+public struct SenecaStatistik: Codable, Equatable, Sendable {
+    public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool }
+    public struct Karte: Codable, Equatable, Sendable, Identifiable {
+        public var art: String; public var titel: String; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
+        public var tage: [Tag]; public var anteil: Double?; public var rechts: String; public var knopf: String
+        public var id: String { art }
+    }
+    public struct Woche: Codable, Equatable, Sendable { public var kopf: String; public var satz: [String]; public var karten: [Karte]; public var hinweis: String? }
+    public struct Km: Codable, Equatable, Sendable { public var nr: Int; public var zeit: String; public var anteil: Double; public var schnellste: Bool }
+    public struct Lauf: Codable, Equatable, Sendable { public var id: String; public var kopf: String; public var satz: [String]; public var werte: [[String]]; public var km: [Km]; public var bestwert: String?; public var woche: String? }
+    public var woche: Woche; public var lauf: Lauf?
+}

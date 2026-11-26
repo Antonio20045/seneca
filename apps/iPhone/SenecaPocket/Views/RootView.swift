@@ -743,7 +743,7 @@ struct RootView: View {
         if env["SENECA_DEMO"] == "1" {
             var now = Date()
             if let time = env["SENECA_DEMO_TIME"], let parts = Optional(time.split(separator: ":").compactMap { Int($0) }), parts.count == 2 {
-                let day = env["SENECA_DEMO_DATE"].flatMap { StatKalender.tag($0) } ?? Date()
+                let day = env["SENECA_DEMO_DATE"].flatMap { try? Date($0 + "T12:00:00Z", strategy: .iso8601) } ?? Date()
                 now = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)!
                 let real = Date()
                 let minuteStart = Calendar.current.dateInterval(of: .minute, for: real)!.start
