@@ -63,27 +63,17 @@ struct SpurView: View {
     var body: some View {
         if !zug.schritte.isEmpty {
             let z = Arbeitsspur.zusammenfassung(zug.schritte, dauerMs: dauer)
+            let k = VerlaufLogik.spur(zug.schritte, dauerMs: dauer)
             VStack(alignment: .leading, spacing: 0) {
                 Button { withAnimation(Kurve.ease(0.4)) { offen.toggle() } } label: {
-                    HStack(spacing: 13) {
-                        HStack(spacing: 4) {
-                            ForEach(Array(zug.schritte.suffix(5).enumerated()), id: \.offset) { i, s in
-                                Perle(art: s.art, groesse: 6).perleLandet(frisch, index: i)
-                            }
-                        }
-                        Text(SpurView.kurzText(zug.schritte)).fixedSize()
-                        if !z.dauer.isEmpty { Text("· " + z.dauer).foregroundStyle(Farbe.ink4).monospacedDigit() }
-                        Pfeil(offen: offen).padding(.leading, -6)
+                    HStack(spacing: 22) {
+                        Text((offen ? "▾ " : "▸ ") + k.titel).font(Schrift.grotesk(13))
+                        if !k.zeile.isEmpty { Text(k.zeile).font(Schrift.mono(12)) }
                     }
-                    .font(Schrift.grotesk(12.5)).foregroundStyle(offen || ueber ? Farbe.ink2 : Farbe.ink3)
-                    .lineLimit(1)
-                    .padding(.leading, 7).padding(.trailing, 12).padding(.vertical, 5)
-                    .background(offen || ueber ? Farbe.pille : .clear, in: Capsule())
-                    .contentShape(Capsule())
+                    .foregroundStyle(ueber ? TafelFarbe.zweit : TafelFarbe.leise).lineLimit(1).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .onHover { ueber = $0 }
-                .padding(.leading, -7)
                 .spurLandet(frisch)
                 .accessibilityLabel(offen ? "Arbeitsweg zuklappen" : "Ansehen, wie die Antwort entstanden ist")
                 .accessibilityValue(z.teile.map(\.text).joined(separator: ", "))
@@ -134,6 +124,31 @@ struct SpurView: View {
         .padding(.leading, 6).padding(.top, 6).padding(.bottom, 4)
         .erscheint(.auf)
         .accessibilityIdentifier("spurliste")
+    }
+}
+
+struct QuittungErgebnis: View {
+    var quittung: SenecaStand.Quittung
+    var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void
+    @Environment(\.festeZeit) private var festeZeit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !quittung.ergebnis.isEmpty { Text(quittung.ergebnis.joined(separator: "   ")).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.zweit) }
+            HStack(spacing: 14) {
+                if let z = quittung.zuruecklegen {
+                    TimelineView(.periodic(from: .now, by: 1)) { t in
+                        Button("Termin zurücklegen") { zuruecklegen(z) }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                            .overlay(alignment: .bottomLeading) {
+                                GeometryReader { g in Rectangle().fill(TafelFarbe.himmel).frame(width: g.size.width * VerlaufLogik.anteil(z, jetzt: festeZeit ?? t.date.timeIntervalSince1970 * 1000), height: 2).frame(maxHeight: .infinity, alignment: .bottom) }
+                            }
+                            .clipShape(Capsule())
+                    }
+                }
+                if let r = quittung.raus { Text(r).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise) }
+            }
+            .padding(.top, 2)
+        }
     }
 }
 
@@ -258,9 +273,9 @@ struct AntwortKarteView: View {
                 BlinkStrich().padding(.top, 6)
             } else {
                 AntwortStueck(text: text, art: .fertig, erster: true, folgtMehr: false, gross: gross, frisch: frisch, ts: ts)
-                kopierKnopf.padding(.top, 8)
             }
         }
+        .overlay(alignment: .bottomTrailing) { if !live { kopierKnopf.offset(y: 30) } }
         .frame(maxWidth: 760, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .entfaltet(frisch)
@@ -448,13 +463,14 @@ struct ZugView: View, Equatable {
     var neu: Bool
     var name: String
     var gross = false
-    var nurAntwort = false
-    var quittungen: [Quittung] = []
+    var quittung: SenecaStand.Quittung?
+    var alt = false
+    var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     var erneut: () -> Void
 
     static func == (a: ZugView, b: ZugView) -> Bool {
-        a.quittungen == b.quittungen && a.zug == b.zug && a.status == b.status && (a.lauf == nil) == (b.lauf == nil) && a.frisch == b.frisch && a.zustand == b.zustand
-            && a.neu == b.neu && a.name == b.name && a.gross == b.gross && a.nurAntwort == b.nurAntwort
+        a.quittung == b.quittung && a.alt == b.alt && a.zug == b.zug && a.status == b.status && (a.lauf == nil) == (b.lauf == nil) && a.frisch == b.frisch && a.zustand == b.zustand
+            && a.neu == b.neu && a.name == b.name && a.gross == b.gross
     }
 
     private var laeuft: Bool { zug.laeuft && lauf != nil }
@@ -481,7 +497,6 @@ struct ZugView: View, Equatable {
             if laeuft, let lauf {
                 LiveZugView(quelle: lauf, zug: zug, name: name)
             } else {
-                if !nurAntwort { SpurView(zug: zug, frisch: frisch != nil) }
                 if let a = zug.antwort {
                     if let an = Unterhaltung.antwortAn(zug) {
                         Text(an).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3).padding(.leading, 2)
@@ -489,7 +504,10 @@ struct ZugView: View, Equatable {
                     }
                     Text("\(name.uppercased()) · \(a.ts.map { Formate.hhmm($0) } ?? "")").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
                     AntwortKarteView(text: a.text, ts: a.ts, frisch: frisch == .voll, gross: gross).id(Self.antwortId(zug.id))
-                } else if !nurAntwort, !zug.schritte.isEmpty, zug.widgets.isEmpty {
+                    SpurView(zug: zug, frisch: frisch != nil).padding(.top, 2)
+                    if let q = quittung { QuittungErgebnis(quittung: q, zuruecklegen: zuruecklegen) }
+                } else if !zug.schritte.isEmpty, zug.widgets.isEmpty {
+                    SpurView(zug: zug, frisch: frisch != nil)
                     Text("Ohne Abschlussmeldung beendet").font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink4).padding(.leading, 2)
                 }
             }
@@ -501,8 +519,9 @@ struct ZugView: View, Equatable {
             ForEach(zug.bilder, id: \.id) { b in
                 Label(b.alt, systemImage: "photo").font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2)
             }
-            if !nurAntwort { ForEach(zug.hinweise, id: \.id) { h in EreignisZeileView(e: h, klein: true) } }
+            ForEach(zug.hinweise, id: \.id) { h in EreignisZeileView(e: h, klein: true) }
         }
+        .opacity(alt ? 0.8 : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -520,7 +539,7 @@ struct ZugView: View, Equatable {
                 }
             }
             .frame(maxWidth: 520, alignment: .trailing)
-            .opacity(pending && zustand != .fehlgeschlagen ? 0.8 : 1)
+            .opacity((pending && zustand != .fehlgeschlagen ? 0.8 : 1) * (alt ? 0.55 / 0.8 : 1))
             .erscheint(.steigt, wenn: neu)
             if zustand != .fehlgeschlagen, let status {
                 HStack(spacing: 5) {
@@ -533,7 +552,13 @@ struct ZugView: View, Equatable {
                 .font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3)
                 .accessibilityIdentifier("nachrichtstatus")
             }
-            ForEach(quittungen) { SnQuittung(quittung: $0, mehrere: quittungen.count > 1) }
+            if let q = quittung {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                    Text(q.teile.joined(separator: " · "))
+                }
+                .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.gruen).padding(.top, 4)
+            }
             if zustand == .fehlgeschlagen {
                 HStack(spacing: 8) {
                     Text("Nicht gesendet").font(Schrift.grotesk(12)).foregroundStyle(Farbe.koralle)

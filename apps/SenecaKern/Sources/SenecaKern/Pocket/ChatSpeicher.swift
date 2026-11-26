@@ -586,7 +586,7 @@ final class ChatSpeicher: ObservableObject {
 
     @discardableResult
     func legeFrageAn(sitzung key: String, text: String, schluessel: String? = nil) -> String {
-        let k = schluessel ?? ChatSpeicherLogik.gescheiterterSchluessel(stand(key), text: text) ?? UUID().uuidString
+        let k = schluessel ?? ChatSpeicherLogik.gescheiterterSchluessel(stand(key), text: text) ?? VerlaufLogik.schluessel()
         zeilen[key] = ChatSpeicherLogik.legeFrageAn(stand(key), text: text, schluessel: k, jetzt: uhr().timeIntervalSince1970 * 1000)
         geaendert(key, sofort: true)
         return k

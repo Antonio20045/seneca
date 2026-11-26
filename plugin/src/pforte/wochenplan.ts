@@ -5,7 +5,7 @@ import { fensterStart, istSport } from "./entscheiden.ts";
 import { uhrzeit } from "./heute.ts";
 
 type Termin = ReturnType<typeof termineAm>[number] & { namen?: string[]; notiz?: string; kalender?: string; wartet?: boolean };
-type Block = { id: string; titel: string; unter: string | null; start: number; ende: number; art: string; laeuft?: boolean; frage_id?: string; uid?: string; teile?: string[]; detail?: object };
+type Block = { id: string; titel: string; unter: string | null; start: number; ende: number; art: string; laeuft?: boolean; frage_id?: string; uid?: string; teile?: string[]; detail?: object; andere?: number[] };
 
 const TAG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
@@ -79,14 +79,14 @@ function gesetzt(db: Register, schluessel: string): { wert: string; wer: string;
 export function weg(db: Register, t: Termin) {
   const ankunft = gesetzt(db, `ankunft:${t.uid}`);
   const min = Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0);
-  const strecke = JSON.parse(wert(db, `wegstrecke:${t.uid}`)?.wert || "{}") as { m?: number; art?: string };
-  const w = min ? { min, m: strecke.m ?? null, art: strecke.art ?? "fuss" } : null;
+  const w = min ? { min, m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, art: wert(db, `wegart:${t.uid}`)?.wert ?? "fuss" } : null;
   const da = ankunft ? Number(ankunft.wert) : null;
   const los = w ? (da ?? t.start - regelMs("ankunft_puffer_min")) - msAusMinuten(w.min) : null;
   return {
     da, da_satz: ankunft && ankunft.wer === regelText("dauerauftraege_von") && t.namen?.length ? `${t.namen.join(", ")} weiß Bescheid, seit ${uhrzeit(ankunft.zeit)}` : null,
     weg: w ? `${w.min} Min ${WEG[w.art] ?? WEG.fuss}` : null, km: w?.m ? `${komma(w.m / 1000)} km von hier` : null,
     los: los === null ? null : `los um ${uhrzeit(los)} · Uhr erinnert ${uhrzeit(los - regelMs("weg_erinnern_vor_min"))}`,
+    los_ms: los,
     kurz: [da ? `du bist ${uhrzeit(da)} da` : "", w ? `${w.min} Min ${WEG[w.art] ?? WEG.fuss}` : ""].filter(Boolean).join(" · ") || null,
   };
 }
@@ -128,6 +128,13 @@ function zugleich(liste: Termin[]): Termin[][] {
   return gruppen;
 }
 
+function andere(db: Register, t: { titel: string; start: number; ende: number }, jetzt: number): number[] {
+  const liste = termineDesTages(db, t.start);
+  const schritt = msAusMinuten(regelZahl("anders_schritt_min"));
+  const versuche = Array.from({ length: regelZahl("anders_versuche") }, (_, i) => t.start + (i % 2 ? -1 : 1) * (Math.floor(i / 2) + 1) * schritt);
+  return versuche.filter((s) => s > jetzt && frei(liste, { ...t, uid: "", teilnehmer: [], ganztag: false }, s)).slice(0, 3).sort((a, b) => a - b);
+}
+
 function vorschlaege(db: Register): { frage: string; termin: { titel: string; start: number; ende: number } }[] {
   return fragen(db, "offen").filter((f) => f.art === "vorschlag")
     .map((f) => ({ frage: String(f.id), termin: (vorschlagDaten(db, String(f.auftrag_id)).wirkung as { termin?: { titel: string; start: number; ende: number } } | undefined)?.termin }))
@@ -156,7 +163,7 @@ function bloecke(db: Register, tag: number, jetzt: number): { bloecke: Block[]; 
   }
   for (const v of vorschlaege(db).filter((x) => kalenderTag(x.termin.start) === kalenderTag(tag))) {
     const sport = istSport(v.termin.titel);
-    b.push({ id: `vorschlag:${v.frage}`, frage_id: v.frage, titel: sport ? `${v.termin.titel}?` : v.termin.titel, unter: sport ? null : "Vorschlag", start: v.termin.start, ende: v.termin.ende, art: sport ? "bewegung_vorschlag" : "vorschlag" });
+    b.push({ id: `vorschlag:${v.frage}`, frage_id: v.frage, titel: sport ? `${v.termin.titel}?` : v.termin.titel, unter: sport ? null : "Vorschlag", start: v.termin.start, ende: v.termin.ende, art: sport ? "bewegung_vorschlag" : "vorschlag", andere: andere(db, v.termin, jetzt) });
   }
   const geplant = todos(db, "offen").filter((t) => t.geplant_von !== null && kalenderTag(Number(t.geplant_von)) === kalenderTag(tag))
     .map((t) => ({ von: Number(t.geplant_von), bis: Number(t.geplant_bis ?? t.geplant_von) })).sort((x, y) => x.von - y.von);

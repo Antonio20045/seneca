@@ -68,7 +68,6 @@ enum StatKalender {
         guard let s else { return nil }
         return iso.date(from: s) ?? isoPlain.date(from: s)
     }
-    static func isoText(_ d: Date) -> String { iso.string(from: d) }
 }
 
 enum StatFormat {

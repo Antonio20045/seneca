@@ -128,7 +128,6 @@ struct ChatAnhang: Identifiable, Equatable, Sendable {
         return (rest.trimmingCharacters(in: .whitespacesAndNewlines), namen)
     }
 
-    static func ohneHinweise(_ text: String) -> String { zerlege(text).text }
 
     static func anzeigeName(_ ref: String) -> String {
         var s = ref.trimmingCharacters(in: .whitespaces)

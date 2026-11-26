@@ -19,6 +19,7 @@ struct KalWeg: Equatable {
     var m: Double
     var min: Int
     var art: String
+    static func wert(_ g: KalWeg) -> [String: JSONWert] { ["entfernung_m": .zahl(g.m), "weg_min": .zahl(Double(g.min)), "art": .text(g.art)] }
 }
 
 enum KalenderLogik {
@@ -127,7 +128,7 @@ enum KalenderLogik {
     static func handlung(_ e: KalEntwurf) -> [String: JSONWert] {
         var w: [String: JSONWert] = ["titel": .text(e.titel), "start": .zahl(e.start), "ende": .zahl(e.ende), "kalender": .text(e.kalender)]
         if !e.ort.isEmpty { w["ort"] = .text(e.ort) }
-        if let g = e.weg { w["weg"] = .objekt(["m": .zahl(g.m), "min": .zahl(Double(g.min)), "art": .text(g.art)]) }
+        if let g = e.weg { w["weg"] = .objekt(KalWeg.wert(g)) }
         return w
     }
 }

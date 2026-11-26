@@ -187,6 +187,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
   };
   if (p.art === "vorschlag") {
+    if (p.termin && wert(db, `vorschlag:lassen:${new Date(p.termin.start).getDay()}:${p.termin.titel}`)) throw new Error("Antonio will diesen Vorschlag an diesem Wochentag nicht mehr.");
     const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist }, wirkung: p.termin ? { termin: p.termin } : undefined });
     return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
@@ -207,6 +208,7 @@ export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, 
 export type Fortschreibung = {
   letzter_stand: string; naechster_schritt: string; ergebnis: "weiter" | "wartet" | "fertig"; beleg?: string; wartet_auf?: string; folge?: string;
   nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number;
+  checkliste?: { text: string; fertig: boolean }[]; bericht?: string;
 };
 
 export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschreibung): { zustand: string } {
