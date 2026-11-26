@@ -439,28 +439,14 @@ struct SnHeuteMitFenster: View {
             let daten = modell.snDaten
             let quelle = SnQuelleMitEntscheidungen(basis: daten, entschieden: daten.istEcht ? [] : Set(fenster.entschieden.keys))
             ZStack(alignment: .top) {
-                SnHeuteSeite(quelle: quelle, notizen: notizen,
-                             aufgabenHeute: daten.istEcht ? store.aufgabenHeute : nil,
-                             neuesTodo: { store.addTodoHeute($0) },
-                             todoUmschalten: { store.toggleTask($0) },
-                             oeffneAufgabe: { a in
-                                 let bekannt = daten.aufgaben.first { $0.id == a.id } ?? daten.aufgaben.first { $0.id == "k:" + a.id.dropFirst(2) }
-                                 fenster.oeffne(bekannt.map { SnAufgabe(id: a.id, projekt: $0.projekt, agentId: $0.agentId, status: a.status, prio: $0.prio, titel: a.titel,
-                                                                        seit: $0.seit, frist: $0.frist, heuteFertig: a.heuteFertig) } ?? a, anker: zeiger.punkt)
-                             },
-                             oeffneBriefing: { fenster.oeffne($0, anker: zeiger.punkt) },
-                             liste: liste.liste, gelesen: liste.gelesen, markiereGelesen: { liste.markiereGelesen($0, store: uebersicht) },
-                             zuDenFragen: { modell.gehe(.entscheidungen) },
-                             tageslauf: tageslauf.tag, standWirdGelesen: !tageslauf.einmalGelesen,
-                             mitarbeiterName: { uebersicht.daten.mitarbeiterName($0) },
-                             nurMitarbeiterNennen: !Gegenueber.mitarbeiterIds(uebersicht.daten).isEmpty,
-                             aufgaben: aufgaben.liste, aufgabenLesbar: aufgaben.lesbar, aufgabenWerdenGelesen: !aufgaben.einmalGelesen,
-                             aufgabenVoll: modell.route.q["liste"] == "voll",
-                             zeigeAufgabenVoll: { modell.gehe(Route(.heute, q: $0 ? ["liste": "voll"] : [:])) },
-                             oeffneAufgabeId: { modell.oeffneAufgabe($0, anker: zeiger.punkt) })
-                    .task { await tageslauf.beobachte() }
-                    .task { await liste.beobachte() }
-                    .task { await aufgaben.beobachte() }
+                Group {
+                    if let s = store.stand {
+                        SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
+                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.gehe(.projekte) })
+                    } else {
+                        SnHeuteSkelett()
+                    }
+                }
                     .opacity(fenster.offen ? 0.4 : 1)
                     .blur(radius: fenster.offen && !ruhig ? 6 : 0)
                     .scaleEffect(fenster.offen && !ruhig ? 0.985 : 1, anchor: UnitPoint(x: 0.5, y: 0.4))

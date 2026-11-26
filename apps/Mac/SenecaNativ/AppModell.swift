@@ -377,7 +377,6 @@ final class AppModell: ObservableObject {
         }
         if store.isConnected {
             zustand = .bereit
-            store.startAufgabenTakt()
             uebernehmeNotizblock()
             uebersicht.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })
             installiereTasten()
@@ -440,7 +439,6 @@ final class AppModell: ObservableObject {
 
     func zugangZuruecksetzen() {
         uebersicht.stopTakt()
-        store.stopAufgabenTakt()
         store.disconnect()
         Zugang.entferne()
         zustand = .einrichten
