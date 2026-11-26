@@ -151,7 +151,7 @@ export type AuftragEingabe = {
   art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen";
   nachricht_kennung?: string; wortlaut?: string; titel?: string; ziel?: string; abnahme?: string; abnahme_durch?: string; pruefer_noetig?: boolean;
   an?: string; bereich?: string; projekt?: string; frist?: number; arbeitsart?: string; schaetzung_min?: number; eltern_id?: string;
-  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string;
+  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string; termin?: { titel: string; start: number; ende: number; ort?: string };
 };
 
 function laufender(db: Register, sitzung: string): Zeile {
@@ -187,7 +187,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
   };
   if (p.art === "vorschlag") {
-    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist } });
+    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist }, wirkung: p.termin ? { termin: p.termin } : undefined });
     return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
   const { id, kostenrahmen_cent } = auftragAnlegen(db, {

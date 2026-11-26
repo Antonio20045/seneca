@@ -17,7 +17,7 @@ import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
 import { eingangJob } from "./quellen/eingang.ts";
 import { githubEingang } from "./quellen/github.ts";
-import { kalenderAbgleich, kalenderWerkzeug } from "./quellen/kalender.ts";
+import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
@@ -42,9 +42,10 @@ function nurSeneca(k: Kontext): void {
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
   ["seneca_lesen", "Kurze Sicht aus dem Register: auftrag, team, fragen, profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
     (db, _k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined)],
-  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag, Idee, Abnahme oder Verwerfen.",
+  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme oder Verwerfen.",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
-      an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S) }),
+      an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
+      termin: O(Type.Object({ titel: S, start: Z, ende: Z, ort: O(S) })) }),
     (db, k, p) => werkzeugAuftrag(db, k, p as AuftragEingabe)],
   ["seneca_fortschreiben", "Pflicht am Ende jedes Laufs: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Bei fertig: abnahme_art text, test, hoerprobe oder bau; bei Hörprobe hoerprobe_s.",
     Type.Object({ letzter_stand: S, naechster_schritt: S, ergebnis: S, beleg: O(S), wartet_auf: O(S), folge: O(S), nachfass_um: O(Z), schritt_nr: O(Z),
@@ -65,7 +66,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ nachricht_kennung: S, wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
       aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
     (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
-  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>.", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
+  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>, ankunft:<termin-uid> (ms), termin:<termin-uid> (ein Satz, was Seneca dazu getan hat).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
     (db, k, p) => {
       nurSeneca(k);
       return { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 };
@@ -176,7 +177,7 @@ export default {
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
-      { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderAbgleich(db, kalender), abstand: () => regelMs("kalender_abgleich_min") },
+      { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderJob(db, kalender) },
       { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
         const r = revision(db);

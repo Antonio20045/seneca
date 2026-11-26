@@ -40,8 +40,6 @@ final class OverviewStore: ObservableObject {
     @Published private(set) var toasts: [OvToast] = []
     @Published private(set) var weg: Set<String> = []
     @Published private(set) var plaene: [String: PlanStand] = [:]
-    @Published private(set) var kalenderGelesen: Double?
-    @Published private(set) var kalenderLang: OvKalender?
     @Published private(set) var ausstehend: [OvAusstehend] = []
     @Published private(set) var entWeg: Set<String> = []
     @Published private(set) var lokalSpaeter: [String: Double] = [:]
@@ -79,7 +77,6 @@ final class OverviewStore: ObservableObject {
 
     var entscheidungen: [OvEntscheidung] { daten.entRoh ?? [] }
     var entscheidungenSicht: [OvEntscheidung] { Entscheiden.alle(entscheidungen, lokalSpaeter: lokalSpaeter, weg: entWeg, jetzt: jetzt) }
-    var kalenderSicht: KalenderSicht { KalenderSicht(lang: kalenderLang, kurz: daten.kalender, jetzt: jetzt) }
     var projekte: [HeuteLogik.ProjektInfo] { HeuteLogik.projektInfos(daten, entscheidungen, jetzt: jetzt) }
     var echteProjekte: [HeuteLogik.ProjektInfo] { HeuteLogik.projektInfos(daten, entscheidungen, jetzt: jetzt, nurEchte: true) }
     var brauchtDich: Int { Zahlen.brauchtDichZahl(entscheidungen) }
@@ -110,15 +107,6 @@ final class OverviewStore: ObservableObject {
     var bisherHeute: HeuteLogik.Bisher {
         let t0 = Menschlich.tagStart(jetzt)
         return HeuteLogik.bisherHeute(zeilen: heuteZeilen, laeufe: HeuteLogik.laeufeFuerTag(daten, tag0: t0, jetzt: jetzt), jetzt: jetzt)
-    }
-
-    var kalenderHinweis: String {
-        guard let k = daten.kalender else { return "" }
-        if k.fehlt { return "Kalender nicht angebunden" }
-        if !k.ok { return "Kalender gerade nicht lesbar" }
-        guard let wann = k.geprueftAm.flatMap({ Frische.ausStempel($0) }) else { return "" }
-        let alt = jetzt - wann > 3 * 3_600_000
-        return "Kalender gelesen \(Menschlich.hhmm(wann))" + (alt ? " · veraltet" : "")
     }
 
     var laeuftN: Int { arbeitet.n }
@@ -265,34 +253,6 @@ final class OverviewStore: ObservableObject {
         if let bl = k.boards { d.boards = bl }
         setze(d)
         stelleUhr()
-    }
-
-    func ladeKalenderLang() async {
-        guard verbunden(), let r = await lies("seneca.kalender", ["tage": KalenderLogic.horizon, "vergangen": 31]),
-              r["ok"] as? Bool != false, r["termine"] is [Any] else { return }
-        let kl = OvKalender(json: r)
-        if kl != kalenderLang { kalenderLang = kl }
-        stelleUhr()
-    }
-
-    func terminAnlegen(titel: String, start: Date, ende: Date, kalender: String, ort: String = "") async throws {
-        if let satz = TerminEingabeLogik.pruefen(titel: titel, ort: ort, start: start, ende: ende, jetzt: Date(timeIntervalSince1970: uhr() / 1000)) {
-            throw SenecaError.message(satz)
-        }
-        guard verbunden() else { throw SenecaError.offline }
-        let r: [String: Any]
-        do {
-            r = try await rufe("seneca.kalender.anlegen", TerminEingabeLogik.params(titel: titel, start: start, ende: ende, kalender: kalender, ort: ort), 45)
-        } catch SenecaError.offline {
-            throw SenecaError.message("Keine Antwort vom Mac. Sieh im Kalender nach, ob der Termin schon steht, bevor du es noch einmal versuchst.")
-        }
-        if r["ok"] as? Bool == false {
-            let grund = (r["fehler"] as? String) ?? (r["hinweis"] as? String) ?? ""
-            throw SenecaError.message(grund.isEmpty ? "Der Termin wurde nicht eingetragen." : grund)
-        }
-        if r["termine"] is [Any] { daten.kalender = OvKalender(json: r) }
-        hinweis("Eingetragen in „\(kalender)“")
-        await ladeKalenderLang()
     }
 
     func entscheide(_ e: OvEntscheidung, _ w: Entscheiden.Wahl) {

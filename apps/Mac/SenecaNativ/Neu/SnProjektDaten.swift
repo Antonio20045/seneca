@@ -61,35 +61,10 @@ struct SnZeitachse: Equatable {
     let heuteWoche: Int
 }
 
-struct SnKalenderTermin: Identifiable, Equatable {
-    let id: String
-    let titel: String
-    let start: Date
-    let ende: Date
-    let ganztaegig: Bool
-
-    init(id: String = UUID().uuidString, titel: String, start: Date, ende: Date, ganztaegig: Bool = false) {
-        self.id = id; self.titel = titel; self.start = start; self.ende = ende; self.ganztaegig = ganztaegig
-    }
-}
-
-struct SnKalenderDaten {
-    let jetzt: Date
-    let termine: [SnKalenderTermin]
-}
-
 @MainActor
 protocol SnProjekteQuelle {
     var projekte: [SnProjekt] { get }
     var zeitachse: SnZeitachse { get }
-    var kalender: SnKalenderDaten { get }
-    func lade() async
-    func lege(titel: String, start: Date, ende: Date) async -> Bool
-}
-
-extension SnProjekteQuelle {
-    func lade() async {}
-    func lege(titel: String, start: Date, ende: Date) async -> Bool { false }
 }
 
 extension BeispielDaten: SnProjekteQuelle {
@@ -205,34 +180,5 @@ extension BeispielDaten: SnProjekteQuelle {
                 ],
                 zeitSatz: "Kein Zeitdruck, die Planung beginnt im Dezember."),
         ]
-    }
-
-    var kalender: SnKalenderDaten {
-        let kal = Calendar.current
-        func zeit(_ monat: Int, _ tag: Int, _ stunde: Double) -> Date {
-            let d = kal.date(from: DateComponents(year: 2026, month: monat, day: tag))!
-            return d.addingTimeInterval((stunde * 3600).rounded())
-        }
-        func t(_ tag: Int, _ s: Double, _ e: Double, _ titel: String) -> SnKalenderTermin {
-            SnKalenderTermin(id: "\(tag)-\(s)-\(titel)", titel: titel, start: zeit(11, tag, s), ende: zeit(11, tag, e))
-        }
-        func tag(_ monat: Int, _ tag: Int, _ titel: String) -> SnKalenderTermin {
-            SnKalenderTermin(id: "\(monat)-\(tag)-\(titel)", titel: titel, start: zeit(monat, tag, 0), ende: zeit(monat, tag, 0), ganztaegig: true)
-        }
-        let woche: [SnKalenderTermin] = [
-            t(9, 9, 9.5, "Daily"), t(9, 10, 11.5, "Planung Alpha"), t(9, 12.5, 13.5, "Mittag mit Nora"), t(9, 14, 14.5, "Call mit Lieferant B"),
-            t(9, 15, 15.75, "Zahnarzt"), t(9, 17, 18, "Spaziergang"),
-            t(10, 9, 9.5, "Daily"), t(10, 13, 14, "Hermes-Review"), t(10, 18.5, 20, "Sport"),
-            t(11, 9.5, 12, "Workshop"), t(11, 13, 14, "Gespräch mit Wolfgang"), t(11, 16, 16.5, "Standup"),
-            t(12, 9, 9.5, "Daily"), t(12, 11, 12, "Kundencall"),
-            t(13, 9, 9.5, "Daily"), t(13, 18.5, 20, "Elternabend"),
-            t(14, 10, 13, "Flur streichen"),
-            t(15, 10, 11, "Wochenrückblick"),
-        ]
-        let monat: [SnKalenderTermin] = [
-            tag(10, 28, "Steuerberater"), tag(11, 3, "Kino"), tag(11, 6, "Quartalsgespräch"), tag(11, 18, "Steuer abgeben"),
-            tag(11, 21, "Hausverwaltung"), tag(11, 25, "Geburtstag Opa"), tag(11, 30, "Heizungswartung"),
-        ]
-        return SnKalenderDaten(jetzt: zeit(11, 9, 11 + 40.0 / 60), termine: monat + woche)
     }
 }
