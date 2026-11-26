@@ -9,7 +9,6 @@ struct EinstellungenSeite: View {
     @ObservedObject private var sinne = Sinne.shared
     @AppStorage("gatewayURL") private var gespeicherteAdresse = ""
     @AppStorage("sessionKey") private var gespeichertesGespraech = "agent:main:main"
-    @AppStorage(VertragWeg.schluessel) private var weg = VertragWeg.alt.rawValue
 
     private enum Unterseite { case orte }
     @State private var unterseite: Unterseite?
@@ -136,7 +135,6 @@ struct EinstellungenSeite: View {
         gespeicherteAdresse = sauber
         let gespraechsSchluessel = gespraech.trimmingCharacters(in: .whitespacesAndNewlines)
         gespeichertesGespraech = gespraechsSchluessel.isEmpty ? "agent:main:main" : gespraechsSchluessel
-        store.verbindungswegPruefen()
         store.configure(url: sauber, token: verwendet, sessionKey: gespeichertesGespraech)
         await store.connect()
         if store.isConnected || store.demo {
@@ -167,22 +165,7 @@ struct EinstellungenSeite: View {
                     .schrift(.klein)
                     .foregroundStyle(Stil.tinte.leise)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Verbindungsweg").schrift(.zeileWichtig).foregroundStyle(Stil.tinte.voll)
-                ReiterLeiste(auswahl: $weg, optionen: [
-                    .init(VertragWeg.alt.rawValue, "Bisher"),
-                    .init(VertragWeg.vertrag.rawValue, "Neu"),
-                ])
-                .accessibilityIdentifier("einstellungen.weg")
-                .onChange(of: weg) { _, _ in
-                    store.verbindungswegPruefen()
-                    Task { await store.connect() }
-                }
-                Text("Gilt sofort. Geht der neue Weg von unterwegs noch nicht, nimmt Seneca von selbst den bisherigen.")
-                    .schrift(.klein)
-                    .foregroundStyle(Stil.tinte.zweit)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let hinweis = store.wegHinweis { HinweisZeile(hinweis, art: .offline) }
-                Text("Gespräch").schrift(.zeileWichtig).foregroundStyle(Stil.tinte.voll).padding(.top, Stil.abstand.s)
+                Text("Gespräch").schrift(.zeileWichtig).foregroundStyle(Stil.tinte.voll)
                 Text("Läuft mit \(Namen.mitarbeiter(gespeichertesGespraech)), wie das Hauptgespräch auf deinem Mac.")
                     .schrift(.klein)
                     .foregroundStyle(Stil.tinte.zweit)

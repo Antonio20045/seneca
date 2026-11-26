@@ -54,34 +54,3 @@ enum SimulatorSperre {
         #endif
     }
 }
-
-struct ConnectSchleife: Equatable {
-    static let maxVersuche = 3
-    struct Schritt: Equatable {
-        var entscheidung: ConnectFallback
-        var pause: Double?
-        var versuch: Int
-    }
-
-    private(set) var versuch = 0
-    private(set) var heilungen = 0
-    private(set) var triedShared = false
-
-    mutating func schritt(_ refusal: GatewayRefusal, askedAdmin: Bool) -> Schritt {
-        let entscheidung = ConnectFallback.decide(refusal, askedAdmin: askedAdmin, triedShared: triedShared)
-        var pause: Double?
-        switch entscheidung {
-        case .retrySharedToken:
-            triedShared = true
-        case .repair:
-            heilungen += 1
-            triedShared = true
-            if versuch + 1 < Self.maxVersuche { pause = ConnectFallback.backoff(versuch: heilungen) }
-        case .retryWithoutAdmin, .giveUp:
-            break
-        }
-        let s = Schritt(entscheidung: entscheidung, pause: pause, versuch: versuch)
-        if entscheidung != .giveUp { versuch += 1 }
-        return s
-    }
-}

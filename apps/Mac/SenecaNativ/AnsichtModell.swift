@@ -118,7 +118,7 @@ final class AnsichtModell: ObservableObject {
     func dokument(docId: String) async -> Result<WidgetDokument, WidgetFehler> {
         if let d = dokumente[docId] { return .success(d) }
         do {
-            let r = try await store.rufe("widget.dokument", params: ["docId": docId])
+            let r = try await store.rufe("canvas.document.view", params: ["docId": docId])
             guard let html = r["html"] as? String, !html.isEmpty, let url = r["sandboxUrl"] as? String else { return .failure(.weg) }
             let d = WidgetDokument(html: html, sandboxUrl: url, sandboxOrigin: (r["sandboxOrigin"] as? String).flatMap { $0.isEmpty ? nil : $0 })
             dokumente[docId] = d

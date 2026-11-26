@@ -205,7 +205,7 @@ final class AppModell: ObservableObject {
     func neuerChat() async {
         let agent = gegenueber.aktuellerAgent
         do {
-            let r = try await store.rufe("sitzung.anlegen", params: ["agentId": agent, "idempotencyKey": UUID().uuidString], timeout: 30)
+            let r = try await store.rufe("sessions.create", params: ["agentId": agent, "idempotencyKey": UUID().uuidString], timeout: 30)
             let key = (r["key"] as? String) ?? (r["sessionKey"] as? String) ?? ((r["session"] as? [String: Any])?["key"] as? String)
             if let key { oeffneChat(key: key, agentId: agent) }
             await uebersicht.aktualisiereSitzungen()
@@ -312,7 +312,6 @@ final class AppModell: ObservableObject {
     func starte() async {
         guard !gestartet else { return }
         gestartet = true
-        MacStart.vorbereiten()
         let env = ProcessInfo.processInfo.environment
         if MacPfade.profil == .demo, env["SENECA_DEMO_GATEWAY"] != "0" {
             let gw = DemoGateway(modus: env["SENECA_DEMO_MODUS"] == "kopplung" ? .kopplung : .normal,
@@ -378,7 +377,6 @@ final class AppModell: ObservableObject {
         }
         if store.isConnected {
             zustand = .bereit
-            store.startKeepAlive()
             store.startAufgabenTakt()
             uebernehmeNotizblock()
             uebersicht.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })

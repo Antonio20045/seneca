@@ -76,6 +76,11 @@
 			path = ../SenecaKern/Sources/SenecaKern;
 			sourceTree = "<group>";
 		};
+		A20000000000000000000014 /* SenecaVerbindung */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ../SenecaKern/Sources/SenecaVerbindung;
+			sourceTree = "<group>";
+		};
 		A20000000000000000000013 /* MacKern */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MacKern;
@@ -131,6 +136,7 @@
 			children = (
 				A20000000000000000000011 /* SenecaNativ */,
 				A20000000000000000000012 /* SenecaKern (Quellen) */,
+				A20000000000000000000014 /* SenecaVerbindung */,
 				A20000000000000000000013 /* MacKern */,
 				A20000000000000000000042 /* SenecaWidget */,
 				D20000000000000000000050 /* Gemeinsam (Widget) */,
@@ -184,6 +190,7 @@
 			fileSystemSynchronizedGroups = (
 				A20000000000000000000011 /* SenecaNativ */,
 				A20000000000000000000012 /* SenecaKern (Quellen) */,
+				A20000000000000000000014 /* SenecaVerbindung */,
 				A20000000000000000000013 /* MacKern */,
 			);
 			name = SenecaNativ;

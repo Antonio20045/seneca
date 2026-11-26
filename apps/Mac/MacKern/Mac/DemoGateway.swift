@@ -45,7 +45,6 @@ final class DemoGateway: @unchecked Sendable {
 
     private final class Verbindung {
         let c: NWConnection
-        var publicKey: String?
         var seq = 0
         init(_ c: NWConnection) { self.c = c }
     }
@@ -119,6 +118,7 @@ final class DemoGateway: @unchecked Sendable {
         }
         c.start(queue: queue)
         lesen(v)
+        ereignis("connect.challenge", ["nonce": "n-demo", "ts": 1_764_000_000_000], v)
     }
 
     private func lesen(_ v: Verbindung) {
@@ -137,49 +137,42 @@ final class DemoGateway: @unchecked Sendable {
     }
 
     private func antwort(_ id: String, _ daten: [String: Any] = [:], _ v: Verbindung) {
-        senden(["t": "antwort", "id": id, "ok": true, "daten": daten], v)
+        senden(["type": "res", "id": id, "ok": true, "payload": daten], v)
     }
 
     private func fehler(_ id: String, _ code: String, _ text: String, details: [String: Any]? = nil, _ v: Verbindung) {
-        var f: [String: Any] = ["code": code, "text": text]
-        if let details { f["details"] = details }
-        senden(["t": "antwort", "id": id, "ok": false, "fehler": f], v)
+        senden(["type": "res", "id": id, "ok": false, "error": ["code": code, "message": text, "details": (details ?? [:]).merging(["code": code]) { a, _ in a }]], v)
     }
 
     private func ereignis(_ name: String, _ daten: [String: Any], _ v: Verbindung) {
         lock.lock(); v.seq += 1; let s = v.seq; lock.unlock()
-        senden(["t": "ereignis", "name": name, "seq": s, "daten": daten], v)
+        senden(["type": "event", "event": name, "seq": s, "payload": daten], v)
     }
 
     private func verarbeite(_ data: Data, _ v: Verbindung) {
-        guard let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], let t = o["t"] as? String else { return }
-        if t == "ping" { senden(["t": "pong"], v); return }
-        guard t == "anfrage", let id = o["id"] as? String, let fn = o["fn"] as? String else { return }
-        let daten = o["daten"] as? [String: Any] ?? [:]
+        guard let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], o["type"] as? String == "req",
+              let id = o["id"] as? String, let fn = o["method"] as? String else { return }
+        let daten = o["params"] as? [String: Any] ?? [:]
         lock.lock(); protokoll.append((fn, daten)); lock.unlock()
 
         switch fn {
-        case "vertrag.hallo":
+        case "connect":
             if modus == .kopplung {
-                fehler(id, "KOPPLUNG_NOETIG", "Dieses Gerät muss freigegeben werden.", details: ["anfrageId": Self.anfrageNummer], v)
+                fehler(id, "PAIRING_REQUIRED", "Dieses Gerät muss freigegeben werden.", details: ["requestId": Self.anfrageNummer, "reason": "not-paired"], v)
                 return
             }
-            v.publicKey = (daten["geraet"] as? [String: Any])?["publicKey"] as? String
-            ereignis("vertrag.herausforderung", ["nonce": "n-demo", "zuSignieren": "demo-herausforderung", "gueltigBis": 4_000_000_000_000], v)
-        case "vertrag.signieren":
-            guard let pub = v.publicKey, let sig = daten["signatur"] as? String, Self.gueltig(signatur: sig, text: "demo-herausforderung", publicKey: pub) else {
-                fehler("hallo", "NICHT_ANGEMELDET", "Die Signatur stimmt nicht.", v)
-                fehler(id, "NICHT_ANGEMELDET", "Die Signatur stimmt nicht.", v)
+            guard Self.gueltig(anmeldung: daten) else {
+                fehler(id, "AUTH_SIGNATURE_INVALID", "Die Signatur stimmt nicht.", v)
                 return
             }
-            antwort("hallo", ["version": "1.1.0", "geraeteToken": Self.geraeteToken, "rechte": ["lesen", "schreiben"],
-                              "server": ["name": "Demo-Gateway", "version": "1"], "standardSitzung": "agent:main:main"], v)
+            antwort(id, ["type": "hello-ok", "protocol": 4, "server": ["version": "demo"],
+                         "auth": ["deviceToken": Self.geraeteToken, "role": "operator", "scopes": daten["scopes"] ?? []],
+                         "policy": ["tickIntervalMs": 15_000]], v)
+        case "sessions.messages.subscribe", "sessions.subscribe", "sessions.messages.unsubscribe":
             antwort(id, ["ok": true], v)
-        case "sitzung.abonnieren", "sitzungen.abonnieren", "sitzung.abbestellen":
-            antwort(id, ["ok": true], v)
-        case "sitzung.beschreibung":
+        case "sessions.describe":
             antwort(id, ["session": ["sessionId": "demo", "totalTokens": 12_000, "contextTokens": 1_000_000]], v)
-        case "chat.verlauf":
+        case "chat.history":
             let key = daten["sessionKey"] as? String ?? "agent:main:main"
             lock.lock(); var rows = verlauf[key] ?? []; lock.unlock()
             if rows.isEmpty, !leer, let r = key.range(of: ":cron:") { rows = Self.cronVerlauf(jobId: String(key[r.upperBound...])) }
@@ -191,11 +184,11 @@ final class DemoGateway: @unchecked Sendable {
                 try? await Task.sleep(for: .seconds(verzug))
                 self?.antwort(id, paket.daten, v)
             }
-        case "chat.senden":
+        case "chat.send":
             sende(id, daten, v)
-        case "chat.abbrechen":
+        case "chat.abort":
             brich(id, daten, v)
-        case "widget.dokument":
+        case "canvas.document.view":
             widgetDokument(id, daten, v)
         case "seneca.pins":
             antwort(id, ["pins": lock.withLock { pins }], v)
@@ -220,15 +213,24 @@ final class DemoGateway: @unchecked Sendable {
         case "seneca.datei":
             let pfad = daten["pfad"] as? String ?? ""
             if let d = dateiAntwort(pfad) { antwort(id, d, v) } else { fehler(id, "NICHT_GEFUNDEN", "Datei nicht gefunden: \(pfad)", v) }
-        case "karten.liste", "auftraege.liste", "agenten.liste", "seneca.kalender", "seneca.gesehen", "seneca.gesehen.setzen", "seneca.bereiche",
-             "seneca.projekte", "seneca.entscheidungen", "sitzungen.liste", "karte.anlegen", "karte.aendern", "karte.verschieben",
-             "karte.kommentieren", "karte.starten", "seneca.projekte.speichern", "modelle.liste", "seneca.konten", "verbrauch.stand", "sitzung.einstellen", "seneca.kontext.neu", "sitzung.anlegen",
-             "seneca.kalender.anlegen", "seneca.entscheidung.treffen", "seneca.entscheidung.spaeter", "auftrag.laeufe", "auftrag.starten":
+        case "workboard.cards.list", "cron.list", "agents.list", "seneca.kalender", "seneca.gesehen", "seneca.gesehen.setzen", "seneca.bereiche",
+             "seneca.projekte", "seneca.entscheidungen", "sessions.list", "workboard.cards.create", "workboard.cards.update", "workboard.cards.move",
+             "workboard.cards.comment", "workboard.cards.start", "seneca.projekte.speichern", "models.list", "seneca.konten", "usage.status", "sessions.patch", "seneca.kontext.neu", "sessions.create",
+             "seneca.kalender.anlegen", "seneca.entscheidung.treffen", "seneca.entscheidung.spaeter", "cron.runs", "cron.run":
             antwort(id, uebersicht(fn, daten), v)
         default:
             if fn.hasPrefix("seneca.") || fn.hasSuffix(".liste") { antwort(id, ["ok": true], v) }
             else { fehler(id, "UNBEKANNT", "Im Demo-Gateway nicht vorhanden: \(fn)", v) }
         }
+    }
+
+    static func gueltig(anmeldung a: [String: Any]) -> Bool {
+        let geraet = a["device"] as? [String: Any] ?? [:], client = a["client"] as? [String: Any] ?? [:]
+        let teile: [Any?] = ["v3", geraet["id"], client["id"], client["mode"], a["role"], (a["scopes"] as? [String])?.joined(separator: ","),
+                             (geraet["signedAt"] as? NSNumber)?.stringValue, (a["auth"] as? [String: Any])?["token"], geraet["nonce"],
+                             client["platform"], client["deviceFamily"]]
+        let text = teile.map { $0.map { "\($0)" } ?? "" }.joined(separator: "|")
+        return gueltig(signatur: geraet["signature"] as? String ?? "", text: text, publicKey: geraet["publicKey"] as? String ?? "")
     }
 
     static func gueltig(signatur: String, text: String, publicKey: String) -> Bool {
@@ -257,7 +259,7 @@ final class DemoGateway: @unchecked Sendable {
         lock.unlock()
         antwort(id, ["runId": schluessel, "status": schonDa ? "in_flight" : "started"], v)
         guard !schonDa else { return }
-        ereignis("sitzung.nachricht", ["sessionKey": session, "message": eintrag, "messageId": "u-\(schluessel)", "runId": schluessel], v)
+        ereignis("session.message", ["sessionKey": session, "message": eintrag, "messageId": "u-\(schluessel)", "runId": schluessel], v)
         let recherche = frage.lowercased().contains("recherchiere")
         let text = recherche ? Self.rechercheAntwort : frage.lowercased().contains("karte") ? Self.kartenAntwort : Self.beispielAntwort(frage)
         Task.detached { [weak self] in
@@ -279,7 +281,7 @@ final class DemoGateway: @unchecked Sendable {
                 verlauf[session, default: []].append(["role": "assistant", "timestamp": nun, "content": bloecke,
                                                       "__openclaw": ["id": "w-\(run)-\(i)", "runId": run]])
             }
-            ereignis("chat.werkzeug", ["sessionKey": session, "runId": run, "stream": "tool",
+            ereignis("session.tool", ["sessionKey": session, "runId": run, "stream": "tool",
                                        "data": ["phase": "start", "name": schritt.name, "args": schritt.args]], v)
         }
     }
@@ -292,20 +294,20 @@ final class DemoGateway: @unchecked Sendable {
             let weg = lock.withLock { laeufe[run]?.abgebrochen ?? true }
             if weg {
                 lock.withLock { laeufe[run]?.laeuft = false }
-                ereignis("chat.strom", ["sessionKey": session, "runId": run, "state": "aborted", "message": bisher], v)
+                ereignis("chat", ["sessionKey": session, "runId": run, "state": "aborted", "message": bisher], v)
                 return
             }
             let stueck = (i == 0 ? "" : " ") + wort
             bisher += stueck
-            ereignis("chat.strom", ["sessionKey": session, "runId": run, "state": "delta", "deltaText": stueck], v)
+            ereignis("chat", ["sessionKey": session, "runId": run, "state": "delta", "deltaText": stueck], v)
         }
         let eintrag = Self.zeile("assistant", text, id: "a-\(run)", ms: Date().timeIntervalSince1970 * 1000, key: nil, run: run)
         lock.withLock {
             laeufe[run]?.laeuft = false
             verlauf[session, default: []].append(eintrag)
         }
-        ereignis("chat.strom", ["sessionKey": session, "runId": run, "state": "final", "message": text], v)
-        ereignis("sitzung.nachricht", ["sessionKey": session, "message": eintrag, "messageId": "a-\(run)", "runId": run], v)
+        ereignis("chat", ["sessionKey": session, "runId": run, "state": "final", "message": text], v)
+        ereignis("session.message", ["sessionKey": session, "message": eintrag, "messageId": "a-\(run)", "runId": run], v)
     }
 
     private func brich(_ id: String, _ daten: [String: Any], _ v: Verbindung) {
@@ -818,20 +820,20 @@ extension DemoGateway {
         func h(_ std: Double) -> Double { tag + std * 3_600_000 }
         if leer {
             switch fn {
-            case "karten.liste": return ["cards": [], "boards": []]
-            case "auftraege.liste": return ["jobs": []]
-            case "agenten.liste": return ["defaultId": "main", "agents": [["id": "main", "name": "Seneca", "model": ["primary": "anthropic/claude-opus-5-5", "fallbacks": []]]]]
+            case "workboard.cards.list": return ["cards": [], "boards": []]
+            case "cron.list": return ["jobs": []]
+            case "agents.list": return ["defaultId": "main", "agents": [["id": "main", "name": "Seneca", "model": ["primary": "anthropic/claude-opus-5-5", "fallbacks": []]]]]
             case "seneca.bereiche": return ["registry": "ok", "bereiche": []]
             case "seneca.projekte": return ["version": 1, "revision": 1, "projekte": [:]]
             case "seneca.entscheidungen": return ["entscheidungen": []]
             case "seneca.kalender": return ["ereignisse": [], "ok": true]
             case "seneca.gesehen": return ["gesehen": [:]]
-            case "auftrag.laeufe": return ["entries": []]
+            case "cron.runs": return ["entries": []]
             default: break
             }
         }
         switch fn {
-        case "auftrag.laeufe":
+        case "cron.runs":
             let jid = daten["id"] as? String ?? ""
             guard let m = Self.meldeJobs.first(where: { $0.id == jid }) else { return ["entries": []] }
             let eintraege: [[String: Any]] = Self.meldeLaeufe(m).map { l in
@@ -839,9 +841,9 @@ extension DemoGateway {
                  "sessionKey": "agent:\(m.agent):cron:\(m.id):run:r\(Int64(l.start))"]
             }
             return ["entries": eintraege]
-        case "auftrag.starten":
+        case "cron.run":
             return ["ok": true, "id": daten["id"] as? String ?? ""]
-        case "karten.liste":
+        case "workboard.cards.list":
             let karten = lock.withLock { () -> [[String: Any]] in
                 if uebersichtKarten == nil { uebersichtKarten = Self.beispielKarten() }
                 return uebersichtKarten ?? []
@@ -852,7 +854,7 @@ extension DemoGateway {
                 ["id": "haushalt", "name": "Haushalt", "orchestration": ["defaultAssignee": "haus-lead"]],
                 ["id": "flur", "name": "Flur streichen", "orchestration": ["defaultAssignee": "haus-lead"]],
             ]]
-        case "auftraege.liste":
+        case "cron.list":
             return ["jobs": [
                 ["id": "j-morgen", "delivery": ["mode": "announce"], "name": "Morgenbericht", "agentId": "main", "enabled": true, "schedule": ["kind": "every", "everyMs": 86_400_000, "anchorMs": h(7)],
                  "state": ["lastRunAtMs": h(7), "lastRunStatus": "ok"]],
@@ -867,7 +869,7 @@ extension DemoGateway {
                 ["id": "j-post", "name": "Posteingang prüfen", "agentId": "main", "enabled": true, "schedule": ["kind": "every", "everyMs": 1_800_000, "anchorMs": h(0)],
                  "state": ["lastRunAtMs": nun - 600_000, "lastRunStatus": "ok"]],
             ]]
-        case "agenten.liste":
+        case "agents.list":
             func ag(_ id: String, _ name: String, _ modell: String, _ ausweich: [String] = []) -> [String: Any] {
                 ["id": id, "name": name, "model": ["primary": modell, "fallbacks": ausweich]]
             }
@@ -958,7 +960,7 @@ extension DemoGateway {
                 projektRevision += 1
                 return ["version": 1, "revision": projektRevision, "projekte": projektFelder ?? [:]]
             }
-        case "karte.kommentieren":
+        case "workboard.cards.comment":
             let id = daten["id"] as? String ?? ""
             return lock.withLock { () -> [String: Any] in
                 guard let i = uebersichtKarten?.firstIndex(where: { ($0["id"] as? String) == id }) else { return ["ok": false] }
@@ -972,7 +974,7 @@ extension DemoGateway {
                 uebersichtKarten![i] = k
                 return ["card": k]
             }
-        case "karte.starten":
+        case "workboard.cards.start":
             let id = daten["id"] as? String ?? ""
             return lock.withLock { () -> [String: Any] in
                 guard let i = uebersichtKarten?.firstIndex(where: { ($0["id"] as? String) == id }) else { return ["ok": false] }
@@ -1047,7 +1049,7 @@ extension DemoGateway {
             let bis = (daten["bis"] as? String).flatMap { Self.ausIso($0) } ?? tag + 86_400_000
             lock.withLock { zurueckgestellt[eid] = bis }
             return ["ok": true, "id": eid]
-        case "sitzungen.liste":
+        case "sessions.list":
             var zeilen: [[String: Any]] = [
                 ["key": "agent:alpha-lead:sub-1", "agentId": "alpha-lead", "status": "running", "hasActiveRun": true, "spawnedBy": "agent:main:main",
                  "label": "Alpha — Lieferantenvergleich", "startedAt": nun - 12 * 60_000, "updatedAt": nun - 20_000],
@@ -1057,7 +1059,7 @@ extension DemoGateway {
             }
             return ["sessions": zeilen, "defaults": ["modelProvider": "anthropic", "model": "claude-opus-5-5",
                                                        "thinkingLevels": Self.effortStufen, "thinkingDefault": "medium"]]
-        case "modelle.liste":
+        case "models.list":
             let alle = (daten["view"] as? String) == "all"
             return ["models": Self.katalog.filter { alle || ($0["manualSelectionAllowed"] as? Bool) != false }]
         case "seneca.konten":
@@ -1065,10 +1067,10 @@ extension DemoGateway {
                     "anbieter": ["openai-codex": ["art": "oauth", "email": "demo@example.test"], "zai": ["art": "api_key"]],
                     "routen": ["anthropic": ["runtime": "claude-cli"]],
                     "standard": "anthropic/claude-opus-5-5", "ausweich": ["anthropic/claude-sonnet-5-5"]]
-        case "verbrauch.stand":
+        case "usage.status":
             return ["providers": [["provider": "openai", "displayName": "ChatGPT", "plan": "plus",
                                    "windows": [["label": "5h", "usedPercent": 18], ["label": "Week", "usedPercent": 42]]]]]
-        case "sitzung.einstellen":
+        case "sessions.patch":
             let key = daten["key"] as? String ?? ""
             return lock.withLock { () -> [String: Any] in
                 var e = einstellungen[key] ?? [:]
@@ -1086,10 +1088,10 @@ extension DemoGateway {
             let key = daten["key"] as? String ?? ""
             lock.withLock { kontextLeer[key, default: 0] += 1 }
             return ["ok": true]
-        case "sitzung.anlegen":
+        case "sessions.create":
             let agent = daten["agentId"] as? String ?? "main"
             return ["key": "agent:\(agent):neu-\(UUID().uuidString.prefix(6).lowercased())"]
-        case "karte.anlegen":
+        case "workboard.cards.create":
             let id = "k-neu-" + UUID().uuidString.prefix(8).lowercased()
             var k: [String: Any] = ["id": id, "title": daten["title"] as? String ?? "", "status": daten["status"] as? String ?? "todo",
                                     "priority": daten["priority"] as? String ?? "normal", "labels": [String](), "updatedAt": nun, "createdAt": nun,
@@ -1097,12 +1099,12 @@ extension DemoGateway {
             if let n = daten["notes"] as? String { k["notes"] = n }
             lock.withLock { if uebersichtKarten == nil { uebersichtKarten = Self.beispielKarten() }; uebersichtKarten?.append(k) }
             return ["card": k]
-        case "karte.aendern", "karte.verschieben":
+        case "workboard.cards.update", "workboard.cards.move":
             let id = daten["id"] as? String ?? ""
             return lock.withLock { () -> [String: Any] in
                 guard let i = uebersichtKarten?.firstIndex(where: { ($0["id"] as? String) == id }) else { return ["ok": false] }
                 var k = uebersichtKarten![i]
-                if fn == "karte.verschieben", let s = daten["status"] as? String {
+                if fn == "workboard.cards.move", let s = daten["status"] as? String {
                     k["status"] = s
                     if s == "done" { k["completedAt"] = nun } else { k.removeValue(forKey: "completedAt") }
                 } else if let patch = daten["patch"] as? [String: Any] {

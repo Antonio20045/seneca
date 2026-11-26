@@ -56,9 +56,7 @@ final class SenecaStore: ObservableObject {
     private var endpoint = ""
     private var sharedToken = ""
     private var sessionKey = "agent:main:main"
-    private var weg: SenecaVertrag?
-    private var altWeg: OpenClawAltWeg?
-    private var verbindet = false
+    private(set) var daten: SenecaDaten?
     private var generation = UUID()
     private var answerWaiters: [String: CheckedContinuation<String, Error>] = [:]
     private var asks: [String: AskTracker] = [:]
@@ -66,13 +64,8 @@ final class SenecaStore: ObservableObject {
     private var delivering: Set<String> = []
     private var subscribeRetry: Set<String> = []
     nonisolated static let alleRechte = ["lesen", "schreiben", "admin"]
-    private var vertragAusgesetzt = false
-    @Published var wegHinweis: String?
-    @Published var wegAktiv: VertragWeg = .alt
     let chat = ChatService()
     private let gatewayLog = Logger(subsystem: "de.antonio.senecapocket", category: "Gateway")
-    private var tempoSeen: Set<String> = []
-    private var tempoDeltas: [String: Int] = [:]
     private let defaults = UserDefaults.standard
 
     init() {
@@ -118,8 +111,6 @@ final class SenecaStore: ObservableObject {
     func configure(url: String, token: String, sessionKey: String = "agent:main:main") {
         let normalized = url.trimmingCharacters(in: .whitespacesAndNewlines)
         let endpointChanged = endpoint != normalized
-        if endpointChanged || sharedToken != token { altWeg = nil }
-        if endpointChanged { vertragAusgesetzt = false; wegHinweis = nil }
         if endpointChanged || sharedToken != token || self.sessionKey != sessionKey { disconnect() }
         endpoint = normalized
         sharedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -135,29 +126,14 @@ final class SenecaStore: ObservableObject {
         }
     }
 
-    var isActive = true
-    private var keepAlive: Task<Void, Never>?
-
-    func startKeepAlive() {
-        guard keepAlive == nil else { return }
-        keepAlive = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(4))
-                guard let self else { return }
-                if self.isActive, self.isConfigured, !self.isConnected, !self.demo, !self.verbindet {
-                    self.gatewayLog.info("keep-alive: reconnecting")
-                    await self.connect()
-                }
-            }
-        }
-    }
+    var isActive = true { didSet { if isActive { daten?.jetztVersuchen() } } }
 
     private var aufgabenTakt: Task<Void, Never>?
     private struct KartenAntwort: @unchecked Sendable { let w: [String: Any] }
 
     func ladeAufgabenHeute() async {
         guard isConnected, !demo else { return }
-        guard let result = try? await rufe("karten.liste") else { return }
+        guard let result = try? await rufe("workboard.cards.list") else { return }
         let roh = KartenAntwort(w: result), heute = DayLogic.dayKey(clock(), .current), vorher = aufgabenHeute, seit = lastLocalChange
         let neu = await Task.detached(priority: .utility) { () -> [SenecaTask] in
             let names = Self.boardNames(roh.w)
@@ -191,180 +167,99 @@ final class SenecaStore: ObservableObject {
 
     func stopAufgabenTakt() { aufgabenTakt?.cancel(); aufgabenTakt = nil }
 
-    func verbindungswegPruefen() {
-        vertragAusgesetzt = false
-        wegHinweis = nil
-        if isConnected, wegAktiv != VertragWeg.gewaehlt { disconnect() }
-    }
-
     func connect() async {
-        guard !demo else { return }
-        tempo("connect() start verbunden=\(isConnected)")
-        if isConnected, let weg, !(await weg.lebt(frist: ZustellPlan.pongFristVordergrund)) {
-            gatewayLog.info("connect: kein Pong, verbinde neu")
-            verbindungKappen("Die Verbindung zum Mac ist abgebrochen.")
-        }
-        if isConnected {
+        guard !demo, isConfigured else { return }
+        if daten == nil { daten = neueDaten() }
+        guard let daten else { return }
+        if daten.zustand == .aus { daten.starten() } else { daten.jetztVersuchen() }
+        if await daten.verbindung.warteVerbunden(frist: daten.verbindung.regeln.antwortFristS), isConnected {
             await flushOutbox()
             await loadToday()
-            return
-        }
-        guard !verbindet, isConfigured else { gatewayLog.info("connect skipped: waiter busy or not configured"); return }
-        error = nil
-        do {
-            verbindet = true
-            defer { verbindet = false }
-            try await oeffneWeg()
-            gatewayLog.info("connected")
-            _ = try? await rufe("sitzung.abonnieren", params: ["key": sessionKey, "agentId": agentID, "subscriptionId": "seneca-pocket-" + sessionKey])
-            tempo("abonniert (Verbindung bereit)")
-            targetSessions = []
-            for key in chat.partnerSitzungen { await subscribeSession(key) }
-            await resumeAsks()
-            await flushOutbox()
-            await loadToday()
-        } catch {
-            gatewayLog.info("connect failed: \(error.localizedDescription, privacy: .public)")
-            self.error = error.localizedDescription
-            connectionStatus = "Mac nicht erreichbar"
         }
     }
 
     func disconnect() {
         generation = UUID()
-        weg?.trenne()
-        weg = nil
+        daten?.stoppen()
+        daten = nil
         isConnected = false
         isLoading = false
         failPending(SenecaError.message("Verbindung beendet."), keepAsks: false)
         connectionStatus = "Nicht verbunden"
     }
 
-    private func verbindungKappen(_ grund: String) {
-        generation = UUID()
-        weg?.trenne()
-        weg = nil
-        isConnected = false
-        connectionStatus = "Mac nicht erreichbar"
-        error = grund
-        failPending(SenecaError.offline)
-    }
-
-    private func oeffneWeg() async throws {
-        generation = UUID()
-        let current = generation
-        connectionStatus = "Verbinde mit Seneca …"
-        if VertragWeg.gewaehlt == .vertrag, !vertragAusgesetzt {
-            do {
-                try await verbinde(mit: try await vertragVerbindung(), current)
-                wegAktiv = .vertrag
-                wegHinweis = nil
-                return
-            } catch VertragFehler.nurLokal {
-                vertragAusgesetzt = true
-                wegHinweis = "Der neue Verbindungsweg ist von unterwegs noch nicht freigeschaltet. Seneca nutzt vorerst den bisherigen Weg."
-                gatewayLog.info("vertrag: nur-lokal (4403), weiter über den bisherigen Weg")
-                generation = UUID()
-            } catch let f as VertragFehler {
-                throw f.alsSenecaFehler
-            }
-        }
-        let alt = altWeg ?? OpenClawAltWeg(adresse: endpoint, zugangsschluessel: sharedToken)
-        altWeg = alt
+    private func neueDaten() -> SenecaDaten {
+        let einstellung = Verbindung.Einstellung(adresse: endpoint, token: sharedToken, ablage: KernAblage(),
+                                                 sperre: { try SimulatorSperre.pruefe(adresse: $0) })
+        let d = SenecaDaten(einstellung, ordner: MacPfade.datenOrdner)
         let gen = generation
-        try await verbinde(mit: alt, gen)
-        wegAktiv = .alt
+        d.aufEreignis = { [weak self] name, inhalt in
+            guard let self, self.generation == gen else { return }
+            self.gatewayEreignis(name == "agent" ? "session.tool" : name, inhalt)
+        }
+        d.$rechte.dropFirst().sink { [weak self] scopes in
+            self?.chat.setAccess(rechte: scopes.compactMap { ["operator.read": "lesen", "operator.write": "schreiben"][$0] }, admin: .notGranted)
+        }.store(in: &zustandsAbos)
+        d.$zustand.dropFirst().sink { [weak self] z in self?.zustandGeaendert(z, gen) }.store(in: &zustandsAbos)
+        return d
     }
 
-    private func vertragVerbindung() async throws -> VertragVerbindung {
-        guard var parts = URLComponents(string: endpoint), let host = parts.host, !host.isEmpty,
-              ["http", "https", "ws", "wss"].contains(parts.scheme?.lowercased() ?? "") else {
-            throw SenecaError.message("Trage die private HTTPS-Adresse deines Macs in den Einstellungen ein.")
+    private var zustandsAbos: Set<AnyCancellable> = []
+
+    private func zustandGeaendert(_ z: Verbindungszustand, _ gen: UUID) {
+        guard generation == gen else { return }
+        switch z {
+        case .verbunden:
+            isConnected = true
+            error = nil
+            connectionStatus = "Verbunden"
+            Task { await nachVerbinden() }
+        case .verbindet:
+            connectionStatus = "Verbinde mit Seneca …"
+        case .getrennt, .aus:
+            let war = isConnected
+            isConnected = false
+            connectionStatus = "Mac nicht erreichbar"
+            error = daten?.verbindung.letzterFehler?.text ?? (war ? "Die Verbindung zum Mac ist abgebrochen." : nil)
+            if war { failPending(SenecaError.offline) }
+        case .neuKoppeln(let grund):
+            isConnected = false
+            connectionStatus = "Neu koppeln"
+            error = grund
+            failPending(SenecaError.offline)
         }
-        parts.scheme = ["https", "wss"].contains(parts.scheme!.lowercased()) ? "wss" : "ws"
-        parts.path = "/seneca/v1"
-        guard let url = parts.url else { throw SenecaError.message("Ungültige Server-Adresse.") }
-        let geraet = VertragGeraet(schluessel: try await Schluesselbund.geraeteSchluesselAbseits())
-        let konto = "vertrag-token:\(host):\(geraet.id)"
-        var token = await Schluesselbund.liesAbseits(konto).flatMap { String(data: $0, encoding: .utf8) } ?? sharedToken
-        #if DEBUG
-        if ProcessInfo.processInfo.environment["SENECA_GATEWAY_TOKEN"]?.isEmpty == false, !sharedToken.isEmpty { token = sharedToken }
-        #endif
-        guard !token.isEmpty else { throw SenecaError.message("Hinterlege deinen Seneca-Zugangsschlüssel in den Einstellungen.") }
-        var einstellung = VertragVerbindung.Einstellung(url: url, geraet: geraet, token: token)
-        einstellung.rechte = ["lesen", "schreiben"]
-        einstellung.tokenSpeichern = { t in Task.detached(priority: .utility) { try? Schluesselbund.speichere(Data(t.utf8), konto: konto) } }
-        return VertragVerbindung(einstellung)
     }
 
-    private func verbinde(mit kandidat: SenecaVertrag, _ current: UUID) async throws {
-        kandidat.aufEreignis = { [weak self] e in
-            guard let self, self.generation == current else { return }
-            self.vertragEreignis(e)
-        }
-        kandidat.aufZugang = { [weak self] z in
-            guard let self, self.generation == current else { return }
-            let admin: ChatAdminState
-            switch z.admin {
-            case .gewaehrt: admin = .granted
-            case .wartet(let id): admin = .awaitingApproval(requestId: id)
-            case .nein: admin = .notGranted
-            case .unbekannt: admin = self.chat.adminState
-            }
-            self.chat.setAccess(rechte: z.rechte, admin: admin)
-        }
-        kandidat.aufGetrennt = { [weak self] _ in
-            guard let self, self.generation == current else { return }
-            let war = self.isConnected
-            self.isConnected = false
-            self.weg = nil
-            self.connectionStatus = "Mac nicht erreichbar"
-            self.error = "Die Verbindung zum Mac ist abgebrochen."
-            self.failPending(SenecaError.offline)
-            if war, self.isActive { Task { await self.connect() } }
-        }
-        do { try await kandidat.verbinde() }
-        catch let f as VertragFehler where f != .nurLokal { throw f.alsSenecaFehler }
-        guard generation == current else { kandidat.trenne(); throw SenecaError.offline }
-        weg = kandidat
-        isConnected = true
-        connectionStatus = "Verbunden"
+    private func nachVerbinden() async {
+        _ = try? await rufe("sessions.messages.subscribe", params: ["key": sessionKey, "agentId": agentID, "subscriptionId": "seneca-pocket-" + sessionKey])
+        targetSessions = []
+        for key in chat.partnerSitzungen { await subscribeSession(key) }
+        await resumeAsks()
+        await flushOutbox()
+        await loadToday()
     }
 
-    private func vertragEreignis(_ e: VertragEreignis) {
-        let payload = e.daten
-        if e.name == "chat.strom" || e.name == "chat.werkzeug" || e.name.hasPrefix("sitzung") {
-            let run = payload["runId"] as? String ?? "-"
-            let state = payload["state"] as? String ?? (payload["stream"] as? String ?? "-")
-            if state == "delta" { tempoDeltas[run, default: 0] += 1 }
-            if tempoSeen.insert("\(e.name)/\(state)/\(run)").inserted {
-                tempo("erstes Ereignis \(e.name)/\(state) run=\(run.prefix(8)) session=\(payload["sessionKey"] as? String ?? "-")")
-            }
-        }
-        guard ["chat.strom", "chat.werkzeug", "sitzung.nachricht"].contains(e.name), matchesSession(payload) else { return }
-        receiveSessionEvent(e.name, payload)
+    private func gatewayEreignis(_ name: String, _ payload: [String: Any]) {
+        guard ["chat", "session.tool", "session.message"].contains(name), matchesSession(payload) else { return }
+        receiveSessionEvent(name, payload)
     }
 
     func rufe(_ fn: String, params: [String: Any] = [:], timeout: Double = 20) async throws -> [String: Any] {
-        guard let weg, isConnected else { throw SenecaError.offline }
+        guard let daten, isConnected else { throw SenecaError.offline }
         guard let fenster = Self.lesefenster[fn] else {
-            let betroffen = fn.hasPrefix("karte.") || fn == "board.speichern" ? "karten.liste" : fn.hasPrefix("sitzung.") || fn == "chat.senden" ? "sitzungen.liste" : nil
+            let betroffen = fn.hasPrefix("workboard.") ? "workboard.cards.list" : fn.hasPrefix("sessions.") || fn == "chat.send" ? "sessions.list" : nil
             if let betroffen {
                 leseStand = leseStand.filter { !$0.key.hasPrefix(betroffen) }
                 leseLaeuft = leseLaeuft.filter { !$0.key.hasPrefix(betroffen) }
                 leseAenderung += 1
             }
-            do { return try await weg.rufe(fn, params, zeitlimit: timeout) }
-            catch let f as VertragFehler { throw f.alsSenecaFehler }
+            return try await Self.gateway(daten, fn, params, timeout)
         }
         if leseGeneration != generation { leseStand = [:]; leseLaeuft = [:]; leseGeneration = generation }
         let schluessel = fn + "|" + ((try? JSONSerialization.data(withJSONObject: params, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) } ?? "")
         if let s = leseStand[schluessel], Date().timeIntervalSince(s.zeit) < fenster { return s.antwort }
         if let laufend = leseLaeuft[schluessel] { return try await laufend.value }
-        let aufruf = Task { () throws -> [String: Any] in
-            do { return try await weg.rufe(fn, params, zeitlimit: timeout) }
-            catch let f as VertragFehler { throw f.alsSenecaFehler }
-        }
+        let aufruf = Task { () throws -> [String: Any] in try await Self.gateway(daten, fn, params, timeout) }
         leseLaeuft[schluessel] = aufruf
         let gen = generation, stand = leseAenderung
         defer { if leseGeneration == gen, leseLaeuft[schluessel] == aufruf { leseLaeuft[schluessel] = nil } }
@@ -373,7 +268,12 @@ final class SenecaStore: ObservableObject {
         return antwort
     }
 
-    private static let lesefenster: [String: Double] = ["karten.liste": 60, "agenten.liste": 60, "sitzungen.liste": 10]
+    static func gateway(_ daten: SenecaDaten, _ fn: String, _ params: [String: Any], _ timeout: Double) async throws -> [String: Any] {
+        do { return try await daten.rufe(fn, params, frist: timeout) }
+        catch let f as VerbindungsFehler { throw f.alsSenecaFehler }
+    }
+
+    private static let lesefenster: [String: Double] = ["workboard.cards.list": 60, "agents.list": 60, "sessions.list": 10]
     private var leseStand: [String: (zeit: Date, antwort: [String: Any])] = [:]
     private var leseLaeuft: [String: Task<[String: Any], Error>] = [:]
     private var leseGeneration = UUID()
@@ -404,7 +304,7 @@ final class SenecaStore: ObservableObject {
         var failures: [String] = []
         var snapshot = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
         do {
-            let result = try await rufe("karten.liste")
+            let result = try await rufe("workboard.cards.list")
             let roh = KartenAntwort(w: result)
             (snapshot.tasks, snapshot.cards, snapshot.boardNames) = await Task.detached(priority: .userInitiated) {
                 (Self.personalTasks(roh.w), SenecaPayloadParser.cards(roh.w), Self.boardNames(roh.w))
@@ -421,7 +321,7 @@ final class SenecaStore: ObservableObject {
         }
         if kalenderLang.map({ Date().timeIntervalSince($0.loadedAt) >= 120 }) ?? true { await loadKalenderLang() }
         do {
-            snapshot.jobs = SenecaPayloadParser.jobs(try await rufe("auftraege.liste"))
+            snapshot.jobs = SenecaPayloadParser.jobs(try await rufe("cron.list"))
         } catch { failures.append("Mitarbeiter") }
         if let result = try? await rufe("seneca.bereiche") {
             snapshot.leaders = SenecaPayloadParser.leaders(result)
@@ -435,11 +335,11 @@ final class SenecaStore: ObservableObject {
         let plugin = (try? await rufe("seneca.aufgaben", params: ["von": window.von, "bis": window.bis])).flatMap { SenecaPayloadParser.aufgaben($0) }
         snapshot.tasks = AufgabenLogic.angereichert(snapshot.tasks, plugin: plugin, projects: snapshot.projects, due: snapshot.projectDue, areas: snapshot.areas?.areas)
         if let result = try? await rufe("seneca.fortschritt") { mergeDays(SenecaPayloadParser.days(result)) }
-        if let result = try? await rufe("sitzungen.liste", params: ["limit": 200, "configuredAgentsOnly": true]) {
+        if let result = try? await rufe("sessions.list", params: ["limit": 200, "configuredAgentsOnly": true]) {
             snapshot.sessions = SenecaPayloadParser.sessions(result)
         }
         if let result = try? await rufe("seneca.gesehen"), let seen = SenecaPayloadParser.seen(result) { snapshot.seen = seen }
-        if let result = try? await rufe("agenten.liste") { snapshot.agentNames = SenecaPayloadParser.agentNames(result) }
+        if let result = try? await rufe("agents.list") { snapshot.agentNames = SenecaPayloadParser.agentNames(result) }
         guard generation == current else { return }
         if lastLocalChange > started, let local = today?.tasks {
             snapshot.tasks = local
@@ -738,26 +638,26 @@ final class SenecaStore: ObservableObject {
                 case .move:
                     var params: [String: Any] = ["id": op.taskId ?? "", "status": op.status ?? "todo"]
                     if let expected = op.expected { params["expectedUpdatedAt"] = expected }
-                    let moved = try await rufe("karte.verschieben", params: params)
+                    let moved = try await rufe("workboard.cards.move", params: params)
                     let card = moved["card"] as? [String: Any] ?? moved
                     let fresh = (card["updatedAt"] as? NSNumber)?.doubleValue
                     TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: fresh)
                     if let fresh, let i = today?.tasks.firstIndex(where: { $0.id == op.taskId }) { today?.tasks[i].updatedAt = fresh }
                     reload = true
                 case .create:
-                    let created = try await rufe("karte.anlegen", params: TodoEdits.createParams(title: op.title ?? "", plan: op.plan, frist: op.frist, board: op.board, key: op.id))
+                    let created = try await rufe("workboard.cards.create", params: TodoEdits.createParams(title: op.title ?? "", plan: op.plan, frist: op.frist, board: op.board, key: op.id))
                     let card = created["card"] as? [String: Any] ?? created
                     let status = outbox.first(where: { $0.id == op.id })?.status ?? op.status
                     if status == "done", let newID = card["id"] as? String {
-                        _ = try await rufe("karte.verschieben", params: ["id": newID, "status": "done"])
+                        _ = try await rufe("workboard.cards.move", params: ["id": newID, "status": "done"])
                     }
                     reload = true
                 case .update:
-                    let updated = try await rufe("karte.aendern", params: ["id": op.taskId ?? "", "patch": ["title": op.title ?? ""]])
+                    let updated = try await rufe("workboard.cards.update", params: ["id": op.taskId ?? "", "patch": ["title": op.title ?? ""]])
                     TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: ((updated["card"] as? [String: Any] ?? updated)["updatedAt"] as? NSNumber)?.doubleValue)
                     reload = true
                 case .archive:
-                    let archived = try await rufe("karte.archivieren", params: ["id": op.taskId ?? "", "archived": op.archived ?? true])
+                    let archived = try await rufe("workboard.cards.archive", params: ["id": op.taskId ?? "", "archived": op.archived ?? true])
                     TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: ((archived["card"] as? [String: Any] ?? archived)["updatedAt"] as? NSNumber)?.doubleValue)
                     reload = true
                 case .seen:
@@ -821,7 +721,7 @@ final class SenecaStore: ObservableObject {
         #if DEBUG
         if demo { return nil }
         #endif
-        guard isConnected, let result = try? await rufe("auftrag.laeufe", params: ["id": jobId, "limit": 1]) else { return nil }
+        guard isConnected, let result = try? await rufe("cron.runs", params: ["id": jobId, "limit": 1]) else { return nil }
         let entry = (result["entries"] as? [[String: Any]])?.first
         let summary = (entry?["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         return summary?.isEmpty == false ? summary : nil
@@ -886,7 +786,7 @@ final class SenecaStore: ObservableObject {
                 var sendeParams: [String: Any] = ["sessionKey": tracker.sessionKey, "agentId": AreasLogic.agentID(of: tracker.sessionKey),
                                                   "message": tracker.question + Self.phoneHint, "idempotencyKey": id, "queueMode": "followup"]
                 if let anhaenge = askAnhaenge[id] { sendeParams["attachments"] = anhaenge }
-                let result = try await rufe("chat.senden", params: sendeParams, timeout: ZustellPlan.sendeTimeout)
+                let result = try await rufe("chat.send", params: sendeParams, timeout: ZustellPlan.sendeTimeout)
                 let runID = result["runId"] as? String
                 let status = result["status"] as? String ?? "-"
                 tempo("chat.send bestätigt run=\((runID ?? "-").prefix(8)) status=\(status)")
@@ -942,7 +842,7 @@ final class SenecaStore: ObservableObject {
     private func abonniere(_ key: String) async -> Bool {
         let gen = generation
         do {
-            _ = try await rufe("sitzung.abonnieren", params: ["key": key, "agentId": AreasLogic.agentID(of: key), "subscriptionId": "seneca-pocket-" + key], timeout: 60)
+            _ = try await rufe("sessions.messages.subscribe", params: ["key": key, "agentId": AreasLogic.agentID(of: key), "subscriptionId": "seneca-pocket-" + key], timeout: 60)
             guard generation == gen else { return false }
             targetSessions.insert(key)
             return true
@@ -957,15 +857,15 @@ final class SenecaStore: ObservableObject {
         guard isConnected else { return }
         let agent = AreasLogic.agentID(of: key)
         if open.isEmpty {
-            _ = try? await rufe("chat.abbrechen", params: ["sessionKey": key, "agentId": agent])
+            _ = try? await rufe("chat.abort", params: ["sessionKey": key, "agentId": agent])
             return
         }
         for (id, tracker) in open {
             var stopped = false
             for run in tracker.abortableRunIds {
-                let plain = try? await rufe("chat.abbrechen", params: ["sessionKey": key, "agentId": agent, "runId": run])
+                let plain = try? await rufe("chat.abort", params: ["sessionKey": key, "agentId": agent, "runId": run])
                 if plain?["aborted"] as? Bool == true { stopped = true; continue }
-                let queued = try? await rufe("chat.abbrechen", params: ["sessionKey": key, "agentId": agent, "runId": run, "discardPendingInput": true])
+                let queued = try? await rufe("chat.abort", params: ["sessionKey": key, "agentId": agent, "runId": run, "discardPendingInput": true])
                 if queued?["aborted"] as? Bool == true { stopped = true }
             }
             tempo("gestoppt id=\(id.prefix(8)) aborted=\(stopped)")
@@ -1035,7 +935,7 @@ final class SenecaStore: ObservableObject {
     private func receiveSessionEvent(_ event: String, _ payload: [String: Any]) {
         let key = sitzungsSchluessel(payload["sessionKey"] as? String ?? "", agent: payload["agentId"] as? String)
         let run = payload["runId"] as? String
-        if event == "sitzung.nachricht" {
+        if event == "session.message" {
             let zeile = payload["message"] as? [String: Any]
             if let zeile {
                 chat.speicher.nimmNachricht(sitzung: key, zeile: zeile, lauf: run, kennung: payload["messageId"] as? String,
@@ -1057,7 +957,7 @@ final class SenecaStore: ObservableObject {
             if zeile?["role"] as? String == "assistant" { pruefeFragen(key) }
             return
         }
-        if event == "chat.strom", let run {
+        if event == "chat", let run {
             let r = run.lowercased()
             let state = payload["state"] as? String ?? ""
             let message = ChatLogic.text(of: payload["message"])
@@ -1086,7 +986,7 @@ final class SenecaStore: ObservableObject {
             case .update: publishLives()
             case .stopped: finishAsk(id, .failure(SenecaError.stopped))
             case .finished(let text):
-                tempo("\(payload["state"] as? String ?? "final") übernommen id=\(id.prefix(8)) deltas=\(tempoDeltas[run ?? ""] ?? 0)")
+                tempo("\(payload["state"] as? String ?? "final") übernommen id=\(id.prefix(8))")
                 finishAsk(id, .success(text))
             case .failed(let message): finishAsk(id, .failure(SenecaError.message(message)))
             }

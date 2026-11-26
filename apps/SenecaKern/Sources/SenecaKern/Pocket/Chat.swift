@@ -22,8 +22,6 @@ enum ZustellPlan {
     static let gesamtFrist: TimeInterval = 1800
     static let antwortFrist: TimeInterval = 3600
     static let pingIntervall: Double = 15
-    static let pongFrist: Double = 10
-    static let pongFristVordergrund: Double = 4
     static let abonnierPausen: [Double] = [2, 5, 10, 20, 30]
 
     static func abbruchGibtAuf(abbrueche: Int) -> Bool { abbrueche >= maxAbbrueche }
@@ -449,7 +447,7 @@ struct AskTracker: Equatable {
     mutating func handle(event: String, payload: [String: Any], now: Date = Date()) -> Step {
         guard let run = payload["runId"] as? String, runIds.contains(run.lowercased()) else { return .ignore }
         lastEventAt = now
-        if event == "chat.strom" {
+        if event == "chat" {
             let message = ChatLogic.text(of: payload["message"])
             switch payload["state"] as? String ?? "" {
             case "delta":
@@ -575,7 +573,7 @@ final class ChatService: ObservableObject {
     func refreshFill(_ p: ChatPartner? = nil) async {
         guard !demo, let store else { return }
         let key = (p ?? partner).sessionKey(main: mainKey)
-        if let result = try? await store.rufe("sitzung.beschreibung", params: ["key": key]) {
+        if let result = try? await store.rufe("sessions.describe", params: ["key": key]) {
             let row = result["session"] as? [String: Any] ?? result
             if let f = ChatLogic.fill(row) { fuellstand[key] = f }
         }
@@ -681,7 +679,7 @@ final class ChatService: ObservableObject {
         }
         guard let store else { problem = "Der Mac ist gerade nicht erreichbar."; return false }
         var sessionId: String?
-        if let described = try? await store.rufe("sitzung.beschreibung", params: ["key": key]) {
+        if let described = try? await store.rufe("sessions.describe", params: ["key": key]) {
             sessionId = ((described["session"] as? [String: Any]) ?? described)["sessionId"] as? String
         }
         let params = ChatLogic.kontextNeuParams(key: key, expectedSessionId: sessionId)
@@ -691,7 +689,7 @@ final class ChatService: ObservableObject {
             } catch where canReset {
                 var direkt = params
                 direkt["reason"] = "new"
-                _ = try await store.rufe("sitzung.zuruecksetzen", params: direkt)
+                _ = try await store.rufe("sessions.reset", params: direkt)
             }
             speicher.leere(key)
             problem = nil
@@ -819,7 +817,7 @@ final class ChatService: ObservableObject {
         case "sundartha": tool = ["phase": "start", "name": "Read", "args": ["path": "newsletter/oktober.md"]]
         default: tool = ["phase": "start", "name": "Bash", "args": ["command": "icalBuddy eventsToday+1"]]
         }
-        _ = t.handle(event: "chat.werkzeug", payload: ["runId": t.key, "stream": "tool", "data": tool])
+        _ = t.handle(event: "session.tool", payload: ["runId": t.key, "stream": "tool", "data": tool])
         setzeDemoLive(t.live, sessionKey: key)
         try? await Task.sleep(for: .milliseconds(slow ? 2200 : 450))
         let words = answer.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
@@ -827,7 +825,7 @@ final class ChatService: ObservableObject {
         let step = max(12, min(120, budget / Double(max(1, words.count))))
         for (i, word) in words.enumerated() {
             if demoStop { break }
-            _ = t.handle(event: "chat.strom", payload: ["runId": t.key, "state": "delta", "deltaText": (i == 0 ? "" : " ") + word])
+            _ = t.handle(event: "chat", payload: ["runId": t.key, "state": "delta", "deltaText": (i == 0 ? "" : " ") + word])
             setzeDemoLive(t.live, sessionKey: key)
             try? await Task.sleep(for: .milliseconds(Int(step)))
         }

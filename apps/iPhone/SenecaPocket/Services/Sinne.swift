@@ -37,7 +37,7 @@ final class Sinne: NSObject, ObservableObject {
     private let schlange = TageslaufSchlange()
     private let defaults = UserDefaults.standard
     private let log = Logger(subsystem: "de.antonio.senecapocket", category: "Sinne")
-    private var eigen: OpenClawAltWeg?
+    private var eigen: Verbindung?
     private var fehlschlag: Date?
     private var gestartet = false
     private var gleichtAb = false
@@ -389,25 +389,21 @@ final class Sinne: NSObject, ObservableObject {
             return try await store.rufe(fn, params: params, timeout: zeitlimit)
         }
         let weg = try await eigenerWeg()
-        do { return try await weg.rufe(fn, params, zeitlimit: zeitlimit) }
-        catch let f as VertragFehler { throw f.alsSenecaFehler }
+        do { return try await weg.rufe(fn, params, frist: zeitlimit) }
+        catch let f as VerbindungsFehler { throw f.alsSenecaFehler }
     }
 
-    private func eigenerWeg() async throws -> OpenClawAltWeg {
+    private func eigenerWeg() async throws -> Verbindung {
         if let eigen { return eigen }
         if let fehlschlag, Date().timeIntervalSince(fehlschlag) < 60 { throw SenecaError.offline }
         let adresse = defaults.string(forKey: "gatewayURL") ?? ""
         guard !adresse.isEmpty else { throw SenecaError.offline }
-        let weg = OpenClawAltWeg(adresse: adresse, zugangsschluessel: CredentialStore.load())
-        let wache = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(8))
-            if !Task.isCancelled { weg.trenne() }
-        }
-        defer { wache.cancel() }
-        do { try await weg.verbinde() } catch {
+        let weg = Verbindung(.init(adresse: adresse, token: CredentialStore.load(), ablage: KernAblage(), sperre: { try SimulatorSperre.pruefe(adresse: $0) }))
+        weg.starten()
+        guard await weg.warteVerbunden(frist: 8) else {
             fehlschlag = Date()
-            weg.trenne()
-            log.info("Mac im Hintergrund nicht erreichbar: \(error.localizedDescription, privacy: .public)")
+            weg.stoppen()
+            log.info("Server im Hintergrund nicht erreichbar")
             throw SenecaError.offline
         }
         eigen = weg
@@ -415,7 +411,7 @@ final class Sinne: NSObject, ObservableObject {
     }
 
     private func verbindungSchliessen() {
-        eigen?.trenne()
+        eigen?.stoppen()
         eigen = nil
     }
 

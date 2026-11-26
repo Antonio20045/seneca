@@ -17,15 +17,8 @@ enum Schluesselbund {
         return wert
     }
 
-    nonisolated(unsafe) private(set) static var echteZugriffe = 0
-
-    private static func zaehleEchtenZugriff() {
-        cacheSperre.lock(); echteZugriffe += 1; cacheSperre.unlock()
-    }
-
     private static func liesDirekt(_ konto: String) -> Data? {
         if MacPfade.pruefinstanz { return ersatzLies(konto) }
-        zaehleEchtenZugriff()
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: dienst, kSecAttrAccount as String: konto, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
@@ -72,7 +65,6 @@ enum Schluesselbund {
         cacheSperre.lock(); cache.removeValue(forKey: konto); cacheSperre.unlock()
         defer { cacheSperre.lock(); cache.removeValue(forKey: konto); cacheSperre.unlock() }
         if MacPfade.pruefinstanz { ersatzSchreibe(nil, konto: konto); return }
-        zaehleEchtenZugriff()
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: dienst, kSecAttrAccount as String: konto]
         SecItemDelete(query as CFDictionary)
     }
@@ -93,15 +85,9 @@ enum Schluesselbund {
         for konto in geraeteTokenKonten(adresse: adresse, oeffentlicherSchluessel: pub) { loesche(konto) }
     }
 
-    static func loescheGeraeteTokenAbseits(adresse: String) async {
-        guard let pub = oeffentlicherSchluessel(roh: await liesAbseits("device-key")) else { return }
-        for konto in geraeteTokenKonten(adresse: adresse, oeffentlicherSchluessel: pub) { await loescheAbseits(konto) }
-    }
-
     static func speichere(_ data: Data, konto: String) throws {
         defer { cacheSperre.lock(); cache[konto] = data; cacheSperre.unlock() }
         if MacPfade.pruefinstanz { ersatzSchreibe(data, konto: konto); return }
-        zaehleEchtenZugriff()
         let key: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: dienst, kSecAttrAccount as String: konto]
         let update = SecItemUpdate(key as CFDictionary, [kSecValueData as String: data] as CFDictionary)
         if update == errSecSuccess { return }
@@ -123,30 +109,5 @@ enum Schluesselbund {
 
     static func loescheAbseits(_ konto: String) async {
         await Task.detached(priority: .userInitiated) { loesche(konto) }.value
-    }
-
-    static func vergesseGemerkte() {
-        cacheSperre.lock(); cache.removeAll(); cacheSperre.unlock()
-    }
-
-    static func liesGemerkt(_ konto: String) -> Data? {
-        cacheSperre.lock()
-        defer { cacheSperre.unlock() }
-        return cache[konto] ?? nil
-    }
-
-    static func geraeteSchluessel() throws -> Curve25519.Signing.PrivateKey {
-        if let stored = lies("device-key"), let k = try? Curve25519.Signing.PrivateKey(rawRepresentation: stored) { return k }
-        let neu = Curve25519.Signing.PrivateKey()
-        try speichere(neu.rawRepresentation, konto: "device-key")
-        return neu
-    }
-
-    static func geraeteSchluesselAbseits() async throws -> Curve25519.Signing.PrivateKey {
-        if let stored = await liesAbseits("device-key"), let k = try? Curve25519.Signing.PrivateKey(rawRepresentation: stored) { return k }
-        let neu = Curve25519.Signing.PrivateKey()
-        let roh = neu.rawRepresentation
-        try await Task.detached(priority: .userInitiated) { try speichere(roh, konto: "device-key") }.value
-        return neu
     }
 }
