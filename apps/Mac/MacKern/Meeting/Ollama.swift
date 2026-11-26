@@ -120,12 +120,12 @@ struct OllamaKlient: Sendable {
         OllamaKlient(transport: transport, modell: modell, kontext: geladen ?? gemeinsamerKontext, halten: gemeinsamesHalten, ohneKuerzen: true)
     }
 
-    func antwort(system: String, nutzer: String, json: Bool, zeitlimit: TimeInterval = 600) async throws -> String {
+    func antwort(system: String, nutzer: String, json: Bool, zeitlimit: TimeInterval = 600, bilder: [Data] = []) async throws -> String {
         var optionen: [String: Any] = ["temperature": 0.2]
         if let kontext { optionen["num_ctx"] = kontext }
         var koerper: [String: Any] = [
             "model": modell, "stream": false,
-            "messages": [["role": "system", "content": system], ["role": "user", "content": nutzer]],
+            "messages": [["role": "system", "content": system], ["role": "user", "content": nutzer, "images": bilder.map { $0.base64EncodedString() }]],
             "options": optionen,
         ]
         if json { koerper["format"] = "json" }

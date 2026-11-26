@@ -31,7 +31,7 @@ enum HierLeser {
         return Vorne(pid: a.processIdentifier, name: a.localizedName ?? "", bundle: a.bundleIdentifier ?? "")
     }
 
-    private static func ax(_ pid: pid_t) -> (markiert: String, titel: String) {
+    static func ax(_ pid: pid_t) -> (markiert: String, titel: String) {
         guard AXIsProcessTrusted() else { return ("", "") }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.4)
@@ -117,7 +117,7 @@ enum HierLeser {
         }
     }
 
-    private static func fensterfoto(_ pid: pid_t) async -> URL? {
+    static func fensterfoto(_ pid: pid_t) async -> URL? {
         guard CGPreflightScreenCaptureAccess() else { return nil }
         let liste = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let nummer = liste.first { ($0[kCGWindowOwnerPID as String] as? pid_t) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }?[kCGWindowNumber as String] as? CGWindowID
