@@ -95,8 +95,8 @@ test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, ni
     const f = jaNeinFrage(p.db, a, "Vertrag so einreichen?", { frist });
     uebergang(p.db, "auftrag", a, "wartet", "frage", { wartet_auf: `frage:${f}`, folge: "Frist verpasst", naechster_anlass: nachfassen });
     um(zeit);
-    zustellenJob(p.db);
-    zustellenJob(p.db);
+    await zustellenJob(p.db);
+    await zustellenJob(p.db);
     const anruf = kinder(p.db, a).filter((k) => k.arbeitsart === "anruf_antonio");
     assert.equal(anruf.length, erwartet);
     if (!erwartet) continue;

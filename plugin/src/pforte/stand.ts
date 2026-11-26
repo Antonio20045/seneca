@@ -1,4 +1,5 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, revision, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
+import { istFokus } from "./planen.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
@@ -9,6 +10,8 @@ export function ruhe(db: Register, jetzt: number): { grund: string; bis: number;
   const nachtBis = naechsteUhrzeit(regelText("nachtruhe_bis"), jetzt);
   if (naechsteUhrzeit(regelText("nachtruhe_von"), jetzt) > nachtBis) return { grund: "nacht", bis: nachtBis, durchbruch: false };
   const a = wert(db, "aktivitaet");
+  const fokus = termineAm(db, jetzt).find((t) => !t.ganztag && t.start <= jetzt && t.ende > jetzt && istFokus(t));
+  if ((!a || a.wert === "leer" || (a.gueltig_bis ?? Infinity) <= jetzt) && fokus) return { grund: "fokus", bis: fokus.ende, durchbruch: true };
   if (!a || a.wert === "leer" || (a.gueltig_bis ?? Infinity) <= jetzt) return undefined;
   return { grund: a.wert, bis: a.gueltig_bis ?? Infinity, durchbruch: !regelText("ruhe_ohne_durchbruch").split(",").includes(a.wert) };
 }

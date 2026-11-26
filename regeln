@@ -79,3 +79,17 @@ kalender_abgleich_min 5
 kalender_titel_zeichen 60
 ein_tag_tage 1
 termin_standard_min 60
+apns_url https://api.push.apple.com
+apns_thema de.antonio.seneca.nativ zu_messen
+apns_marke_neu_min 50
+apns_zeitlimit_s 10
+planen_min 5
+plan_von 07:00
+plan_bis 21:00
+fenster_dauer_min 30
+todo_dauer_standard_min 30
+luecke_faktor 1.5
+fokus_worte Fokus,Seneca-Block
+wegzeit_vorlauf_min 60
+ankunft_puffer_min 0
+eine_minute_min 1
