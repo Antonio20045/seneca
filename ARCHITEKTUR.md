@@ -56,10 +56,11 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 19 | Kontext für den Lauf | `arbeitsdienst/lauf.ts` · Hook `before_prompt_build` |
 | 20 | Lauf-Ende: Fortschreibung erzwingen | `arbeitsdienst/lauf.ts` · Hook `agent_end` (ohne Fortschreibung: Befund `ohne_stand`) |
 | 21 | Mandat lesen, frisch bei jedem Lauf | `team.ts` |
-| 22, 27 | Modellstufe wählen, Rückfall lokal → Haiku | `arbeitsdienst/modell.ts` |
+| 22, 27 | Modellstufe wählen, Rückfall lokal → Haiku; lokale Textarbeit über das native Werkzeug `node_inference` im Lauf, wenn ein Knoten `ollama.chat` anbietet | `arbeitsdienst/modell.ts`, `arbeitsdienst/lauf.ts` |
 | 23 | Abo-Reihenfolge | `arbeitsdienst/abo.ts` |
 | 24, 25 | Kosten zählen, Kostenrahmen prüfen | `arbeitsdienst/kosten.ts` |
-| 26 | Läufe und Knoten prüfen, „hängt“ | `arbeitsdienst/jobs.ts` · Job `laeufe_pruefen` |
+| 26 | Läufe prüfen, „hängt“, Anstupsen als Folgezug (`steerActiveRun`) | `arbeitsdienst/jobs.ts` · Job `laeufe_pruefen` |
+| 76 | Knoten erkennen, Rechenknoten bei Bedarf starten und nach Leerlauf stoppen (AWS) | `arbeitsdienst/rechenknoten.ts` · Job `knoten` |
 | 28 | Frage stellen (höchstens eine offen je Auftrag) | `register/schreiben.ts` · `frageStellen`, über Werkzeug `seneca_frage` |
 | 29 | Frage beantworten (erste Antwort gilt) | `register/schreiben.ts` · `frageBeantworten` |
 | 30 | Frage ersetzt oder zurückgezogen | `register/uebergaenge.ts` (Nebenwirkungen) |
@@ -94,4 +95,4 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | HTTP-Routen | `/seneca/uhr/v1/abgleich`, `/seneca/uhr/v1/koppeln`, `/seneca/uhr/v1/abholen` → `zugang/uhr.ts` · `/seneca/github` → `quellen/github.ts` (Lesen des Körpers mit Grenze: `index.ts`) |
 | Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |
-| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `laeufe_pruefen`, `pflegen` → `arbeitsdienst/jobs.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
+| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `laeufe_pruefen`, `pflegen` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |

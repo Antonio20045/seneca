@@ -49,7 +49,7 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
   const haken = new Map<string, Haken>();
   const vorWerkzeug: Haken[] = [];
   const methoden = new Map<string, (o: { params: Record<string, unknown> }) => unknown>();
-  const starts: { sessionKey: string; message: string; model: string }[] = [];
+  const starts: { sessionKey: string; message: string; model: string; werkzeuge: string[] }[] = [];
   const api = {
     pluginConfig: { ordner, ...mehr },
     registerTool: (f: Fabrik, o: { name: string }) => werkzeuge.set(o.name, f),
@@ -57,11 +57,11 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
     registerGatewayMethod: (name: string, h: (o: { params: Record<string, unknown> }) => unknown) => methoden.set(name, h),
     registerService: () => undefined,
     registerHttpRoute: () => undefined,
-    runtime: { subagent: { run: async (p: { sessionKey: string; message: string; model: string }) => (starts.push(p), { runId: `run-${starts.length}` }) } },
+    runtime: { subagent: { run: async (p: { sessionKey: string; message: string; model: string; werkzeuge: string[] }) => (starts.push(p), { runId: `run-${starts.length}` }) } },
   };
   plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
   const db = oeffne(join(ordner, "register.sqlite"));
-  const starte = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string }) => api.runtime.subagent.run(p);
+  const starte = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string; werkzeuge: string[] }) => api.runtime.subagent.run(p);
   return {
     db, starts, starte, ordner,
     aufruf: (sitzung: string, toolName: string, params: Record<string, unknown>, toolCallId = `t-${Math.random()}`, agentId = "produkt") =>

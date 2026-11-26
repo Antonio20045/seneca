@@ -1,5 +1,5 @@
 import { statfsSync } from "node:fs";
-import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import { auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, uebergang, wertSetzen } from "../register/schreiben.ts";
@@ -40,8 +40,8 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   const anhalten = antwort === "anhalten" && ["arbeitsdienst:kostenrahmen", "arbeitsdienst:haengt"].includes(String(f.von));
   if (f.von === "arbeitsdienst:haengt") {
     const lauf = aktiveLaeufe(db).find((l) => l.auftrag_id === id);
-    if (lauf) laufEnde(db, String(lauf.id), "abgebrochen", { grund: anhalten ? "angehalten" : "angestupst, startet neu" });
-    if (!anhalten && a.zustand === "laeuft") zurueckMitWartezeit(db, a, "wiederaufnahme");
+    if (lauf && anhalten) laufEnde(db, String(lauf.id), "abgebrochen", { grund: "angehalten" });
+    if (lauf && !anhalten) wertSetzen(db, `anstupsen:${lauf.id}`, "offen", "arbeitsdienst");
   }
   const jetztA = hole(db, "auftrag", id);
   if (anhalten && ["bereit", "laeuft", "wartet"].includes(String(jetztA.zustand))) return uebergang(db, "auftrag", id, "geparkt", "anhalten");
@@ -58,17 +58,36 @@ export function faelligeWirkungenJob(db: Register): number | undefined {
   return naechsteFaelligkeit(db);
 }
 
-export function laeufePruefenJob(db: Register): void {
+function neuStarten(db: Register, l: Zeile, grund: string): void {
+  const a = hole(db, "auftrag", String(l.auftrag_id));
+  laufEnde(db, String(l.id), "abgebrochen", { grund });
+  if (a.zustand === "laeuft") zurueckMitWartezeit(db, a, "wiederaufnahme");
+}
+
+type Stupser = (sitzung: string, text: string, kennung: string) => Promise<boolean>;
+
+export async function laeufePruefenJob(db: Register, stupse: Stupser): Promise<void> {
   const jetzt = uhr.jetzt();
   for (const l of aktiveLaeufe(db)) {
     const still = jetzt - Number(l.letzter_schritt_um);
     const auftragId = String(l.auftrag_id);
+    const stups = wert(db, `anstupsen:${l.id}`);
+    if (stups?.wert === "offen") {
+      const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);
+      if (ok) wertSetzen(db, `anstupsen:${l.id}`, "gestupst", "arbeitsdienst", jetzt + regelMs("haengt_leise_min"));
+      else neuStarten(db, l, "angestupst, startet neu");
+      continue;
+    }
+    if (stups?.wert === "gestupst" && Number(stups.gueltig_bis) <= jetzt && Number(l.letzter_schritt_um) < Number(stups.gueltig_bis) - regelMs("haengt_leise_min")) {
+      neuStarten(db, l, "angestupst, keine Antwort, startet neu");
+      continue;
+    }
     if (l.zustand === "laeuft" && still > regelMs("haengt_leise_min")) uebergang(db, "lauf", String(l.id), "haengt", "kein Schritt");
-    if (still > regelMs("haengt_frage_min") && !offeneFrage(db, auftragId)) {
+    if (still > regelMs("haengt_frage_min") && !offeneFrage(db, auftragId) && !stups) {
       frageStellen(db, {
         auftrag_id: auftragId, von: "arbeitsdienst:haengt", art: "auswahl", text: `${l.mitarbeiter} hängt seit ${new Date(Number(l.letzter_schritt_um)).toTimeString().slice(0, 5)}. Was tun?`,
         was_passiert_ist: `Letzter Schritt: ${l.letzter_schritt ?? "keiner"}.`, wenn_nichts: "Der Lauf hängt weiter.", empfehlung: "Anstupsen",
-        optionen: [{ wert: "anstupsen", text: "Anstupsen", folge: "Der Lauf startet neu am letzten Stand." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
+        optionen: [{ wert: "anstupsen", text: "Anstupsen", folge: "Seneca fragt den Lauf, wo er hängt; ohne Antwort startet er neu." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
       });
     }
   }

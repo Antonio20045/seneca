@@ -4,6 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk/plugin-entry";
 import { Type, type TSchema } from "typebox";
+import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
+import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
 import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
@@ -113,8 +115,10 @@ export default {
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
       (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3])]];
     for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
-    const starte = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string }) =>
-      api.runtime.subagent.run({ ...p, toolsAlsoAllow: alle.map((w) => w[0]), deliver: false });
+    const starte: Starter = ({ werkzeuge, ...p }) => api.runtime.subagent.run({ ...p, toolsAlsoAllow: [...alle.map((w) => w[0]), ...werkzeuge], deliver: false });
+    const stupse = async (sessionKey: string, text: string, idempotencyKey: string) => (await api.session.workflow.steerActiveRun({ sessionKey, text, idempotencyKey })).steered;
+    const knotenListe = async () => (await api.runtime.nodes.list({ connected: true })).nodes
+      .map((k) => ({ name: k.displayName ?? k.nodeId, ollama: (k.invocableCommands ?? []).includes("ollama.chat") }));
 
     api.on("before_prompt_build", (event, ctx) => {
       const sitzung = ctx.sessionKey ?? "";
@@ -160,7 +164,8 @@ export default {
     const dienst = takt(db, [
       { job: "faellige_auftraege", ursache: "Aufträge mit fälligem Anlass wecken, nur hier", lauf: () => faelligeAuftraegeJob(db, starte) },
       { job: "faellige_wirkungen", ursache: "Antworten wirken erst nach der Rückgängig-Frist", lauf: () => faelligeWirkungenJob(db) },
-      { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db) },
+      { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db, stupse) },
+      { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderAbgleich(db, kalender), abstand: () => regelMs("kalender_abgleich_min") },

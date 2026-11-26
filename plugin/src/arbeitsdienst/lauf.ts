@@ -8,8 +8,9 @@ import { mandat, rolle } from "../team.ts";
 import { aboReihenfolge } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
+import { knoten } from "./rechenknoten.ts";
 
-export type Starter = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string }) => Promise<{ runId: string }>;
+export type Starter = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string; werkzeuge: string[] }) => Promise<{ runId: string }>;
 type SkillLeser = (mitarbeiter: string, arbeitsart: string) => string | undefined;
 type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 
@@ -83,12 +84,18 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
     return "abos";
   }
   if (hinweis) wertSetzen(db, "hinweis:abos", "", "arbeitsdienst");
-  const { stufe, modell, ort } = waehle(a, m);
-  if (ort !== "server") return "ort";
+  const { stufe, modell, ort, lokal } = waehle(a, m);
+  const verbunden = knoten(db);
+  const name = regelText("rechenknoten_name");
+  if (ort === "mac" || (ort === "rechenknoten" && !verbunden.some((k) => k.name === name))) return "ort";
+  const ollama = lokal && verbunden.some((k) => k.ollama);
+  const zusatz = [ollama ? " Textarbeit über node_inference (discover, dann run) auf dem lokalen Modell." : "", ort === "rechenknoten" ? ` Schwere Befehle mit exec host=${name}.` : ""].join("");
   const laufId = laufAnlegen(db, { auftrag_id: String(a.id), mitarbeiter: wer, anlass: String(a.anlass ?? "neu"), art: "werkzeug", ort, stufe, modell, abo: abos[0] });
   const lauf = hole(db, "lauf", laufId);
   try {
-    const { runId } = await starte({ sessionKey: String(lauf.sitzung), message: `Arbeite am Auftrag „${a.titel}“. Der Auftrag steht oben im Kontext.`, model: modell, idempotencyKey: laufId });
+    const { runId } = await starte({
+      sessionKey: String(lauf.sitzung), message: `Arbeite am Auftrag „${a.titel}“. Der Auftrag steht oben im Kontext.${zusatz}`, model: modell, idempotencyKey: laufId, werkzeuge: ollama ? ["node_inference"] : [],
+    });
     laufSchritt(db, laufId, "angenommen", { run_id: runId });
   } catch (fehler) {
     laufEnde(db, laufId, "abgebrochen", { grund: `Start abgelehnt: ${String(fehler)}` });
