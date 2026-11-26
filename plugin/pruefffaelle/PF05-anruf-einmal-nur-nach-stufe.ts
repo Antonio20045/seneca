@@ -7,7 +7,7 @@ import { frageBeantworten, frageZuruecknehmen, uebergang, wertSetzen } from "../
 import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { auftragVonAntonio, jaNeinFrage, ladePlugin, spaeter, um } from "./aufbau.ts";
 
-const ANRUF = "mcp__telefon__anruf";
+const ANRUF = "hermes__place_call";
 const MAIL = "mcp__zoho-mail__send_mail";
 
 async function imLauf(p: ReturnType<typeof ladePlugin>) {
@@ -23,8 +23,8 @@ const freigabe = (p: ReturnType<typeof ladePlugin>, art = "freigabe") => fragen(
 test("PF05 a) unbekannte Nummer: 0 Anrufe, Frage nach der Stufe; e) gesperrtes Werkzeug: 0 und Befund", async () => {
   const p = ladePlugin();
   const { sitzung } = await imLauf(p);
-  assert.ok(p.aufruf(sitzung, ANRUF, { nummer: "+49 170 9999999" })?.block);
-  assert.ok(p.aufruf(sitzung, ANRUF, { nummer: "+49 170 9999999" })?.block);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+49 170 9999999" })?.block);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+49 170 9999999" })?.block);
   assert.equal(fragen(p.db, "offen").filter((f) => f.art === "stufe_festlegen").length, 1);
   assert.ok(p.aufruf(sitzung, "whatsapp_send", { to: "+491701" })?.block);
   assert.ok(ereignisse(p.db, { art: "befund" }).some((b) => String(b.satz).startsWith("whatsapp_send")));
@@ -35,7 +35,7 @@ test("PF05 b) Ja und Rückgängig: 0; c) Ja von zwei Geräten und Neustart in de
   const p = ladePlugin();
   const { sitzung } = await imLauf(p);
   wertSetzen(p.db, "kontakt:+491701111111", "kurz_fragen", "antonio");
-  const anruf = { nummer: "+49 170 1111111" };
+  const anruf = { to: "+49 170 1111111" };
   assert.ok(p.aufruf(sitzung, ANRUF, anruf)?.block);
   const f = String(freigabe(p)?.id);
   frageBeantworten(p.db, { frage_id: f, antwort: "ja", geraet: "iphone", kennung: "k1" });
@@ -77,7 +77,7 @@ test("PF05 g) Antonios eigener Befehl mit Empfänger und Wortlaut: ohne Frage, m
   um("12:30");
   wertSetzen(p.db, "kontakt:+491701111111", "kurz_fragen", "antonio");
   p.nachricht("agent:seneca:main", "m7", "Ruf +491701111111 an und sag: Ich komme zehn Minuten später");
-  const anruf = { nummer: "+491701111111", text: "Ich komme zehn Minuten später" };
+  const anruf = { to: "+491701111111", text: "Ich komme zehn Minuten später" };
   assert.ok(p.aufruf("agent:seneca:main", ANRUF, anruf)?.block);
   assert.equal(fragen(p.db, "offen").length, 0);
   spaeter(6000);
@@ -102,9 +102,9 @@ test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, ni
     if (!erwartet) continue;
     await faelligeAuftraegeJob(p.db, p.starte);
     const sitzung = String(laeufe(p.db, String(anruf[0].id))[0].sitzung);
-    assert.equal(p.aufruf(sitzung, ANRUF, { nummer: "+491705550000" }, "x1"), undefined);
-    assert.ok(p.aufruf(sitzung, ANRUF, { nummer: "+491705550000" }, "x2")?.block);
-    assert.ok(p.aufruf(sitzung, ANRUF, { nummer: "+491709999999" })?.block);
+    assert.equal(p.aufruf(sitzung, ANRUF, { to: "+491705550000" }, "x1"), undefined);
+    assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" }, "x2")?.block);
+    assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491709999999" })?.block);
   }
 });
 
@@ -115,4 +115,22 @@ test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich, Privat liest n
   assert.ok(p.aufruf("s", "write", pfad("Vodafone/x.md"), "w2", "produkt")?.block);
   assert.ok(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r1", "produkt")?.block);
   assert.equal(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r2", "seneca"), undefined);
+});
+
+test("PF05 j) Live nur mit ausführlichem Ja; Gateway-Neustart nur im Bauablauf mit Ja", async () => {
+  const p = ladePlugin();
+  const { sitzung } = await imLauf(p);
+  const merge = { command: "gh pr merge 17 --squash" };
+  assert.equal(p.aufruf(sitzung, "exec", { command: "git push -u origin bau/x" }), undefined);
+  assert.ok(p.aufruf(sitzung, "exec", merge)?.block);
+  const f = freigabe(p, "ausfuehrliches_ja");
+  frageBeantworten(p.db, { frage_id: String(f?.id), antwort: "ja", geraet: "mac", kennung: "m1", inhalt_hash: String(f?.inhalt_hash) });
+  spaeter(6000);
+  faelligeWirkungenJob(p.db);
+  assert.equal(p.aufruf(sitzung, "exec", merge), undefined);
+  assert.ok(p.aufruf(sitzung, "exec", { command: "systemctl --user restart openclaw-gateway" })?.block);
+  assert.ok(p.aufruf(sitzung, "gateway", { action: "restart" })?.block);
+  assert.equal(freigabe(p, "ausfuehrliches_ja"), undefined);
+  assert.ok(p.aufruf(sitzung, "exec", { command: "openclaw gateway restart" }, "g1", "engineer")?.block);
+  assert.ok(freigabe(p, "ausfuehrliches_ja"));
 });
