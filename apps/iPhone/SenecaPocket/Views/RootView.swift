@@ -49,7 +49,6 @@ struct RootView: View {
     @State private var pageGestures: [Page: PageGestures] = [:]
     @State private var scrollClaims: [CGRect] = []
     @State private var reading: ReadingDocument?
-    @State private var berichtLaedt = false
     @State private var kalenderFokus: KalenderFokus?
     @State private var lichtEingang: Double = 0
     @State private var bruecke: KalenderFokus?
@@ -515,22 +514,7 @@ struct RootView: View {
             show(.bereiche)
             return
         }
-        let zeilen = heroOverride == nil ? NeedsYou.berichtZeilen(day.needs) : []
-        guard !zeilen.isEmpty, reading == nil, !berichtLaedt else { openChat(day); return }
-        berichtLaedt = true
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        Task {
-            var texte: [String?] = []
-            for zeile in zeilen {
-                let antwort = try? await store.rufe("cron.runs", params: ["id": zeile.jobId, "limit": 1], timeout: 8)
-                texte.append(antwort.flatMap(NeedsYou.laufText))
-            }
-            berichtLaedt = false
-            guard let bericht = NeedsYou.bericht(zeilen, texte: texte, now: Date(), calendar: .current) else { openChat(day); return }
-            reading = ReadingDocument(id: bericht.id, kicker: bericht.kicker, title: bericht.title, body: bericht.body, bewertung: bericht.bewertung)
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.25 : 0.9))
-            store.markSeen(bericht.keys)
-        }
+        openChat(day)
     }
 
     private func openChat(_ day: DayState) {

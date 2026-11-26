@@ -263,38 +263,6 @@ enum NeedsYou {
         return n == 1 ? "Eine Sache wartet auf dich: \(erstes)." : "\(countWord(n)) Sachen warten auf dich, zuerst \(erstes)."
     }
 
-    struct BerichtText: Equatable {
-        var id: String, kicker: String, title: String, body: String, keys: [String]
-        var bewertung: BerichtBewertung? = nil
-    }
-
-    static func berichtZeilen(_ items: [NeedsItem]) -> [NeedsItem.Line] {
-        guard let first = items.first, first.kind == .results else { return [] }
-        return Array(first.lines.prefix(3))
-    }
-
-    static func laufText(_ result: [String: Any]) -> String? {
-        let text = ((result["entries"] as? [[String: Any]])?.first?["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return text?.isEmpty == false ? text : nil
-    }
-
-    static func bericht(_ lines: [NeedsItem.Line], texte: [String?], now: Date, calendar cal: Calendar) -> BerichtText? {
-        let teile = zip(lines, texte).compactMap { l, t in t.map { (line: l, text: $0) } }
-        guard let first = teile.first else { return nil }
-        func wann(_ l: NeedsItem.Line) -> String {
-            let date = Date(timeIntervalSince1970: l.lastRunAtMs / 1000)
-            let days = cal.dateComponents([.day], from: cal.startOfDay(for: date), to: cal.startOfDay(for: now)).day ?? 0
-            return "\(days <= 0 ? "heute" : days == 1 ? "gestern" : "vorgestern"), \(DayLogic.hm(date, cal)) Uhr"
-        }
-        let keys = teile.map(\.line.key)
-        if teile.count == 1 {
-            return BerichtText(id: "ergebnis-\(first.line.key)", kicker: "Bericht · \(wann(first.line))", title: first.line.name, body: first.text, keys: keys,
-                           bewertung: BerichtBewertung(agentId: first.line.agentId.isEmpty ? Hauptagent.id : first.line.agentId, kartenId: first.line.key))
-        }
-        return BerichtText(id: "ergebnisse-\(keys.joined(separator: ","))", kicker: "Bericht · \(wann(first.line))", title: "Neue Ergebnisse",
-                           body: teile.map { "## \($0.line.name)\n\n\($0.text)" }.joined(separator: "\n\n"), keys: keys)
-    }
-
     static func nennung(_ item: NeedsItem, _ input: NeedsInput) -> String {
         switch item.kind {
         case .agent: return "\(who(item.agentId, input)), der gerade abbricht"
