@@ -190,6 +190,10 @@ final class SenecaStore: ObservableObject {
         daten?.handeln("frage.antwort", ziel: id, wert: .objekt(["wahl": .text(wahl)]))
     }
 
+    func handle(_ art: String, ziel: String, text: String? = nil) {
+        daten?.handeln(art, ziel: ziel, wert: text.map { .text($0) })
+    }
+
     private func zustandGeaendert(_ z: Verbindungszustand, _ gen: UUID) {
         guard generation == gen else { return }
         switch z {

@@ -1,9 +1,10 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
+import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
-import { mitarbeiter } from "../team.ts";
+import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
+import { anzeigeName, mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
 
@@ -54,7 +55,7 @@ function vorschlagAnUhr(db: Register): Zeile | undefined {
 
 function frageSicht(db: Register, f: Zeile) {
   return {
-    id: f.id, text: f.text, von: f.von, projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, optionen: JSON.parse(String(f.optionen)),
+    id: f.id, text: f.text, von: anzeigeName(String(f.von)), projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, ...optionenSicht(f),
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab,
     zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null,
@@ -79,8 +80,7 @@ function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   const abnahmen = auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio");
   const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id));
   return {
-    fenster: regelUhrzeitNach("fenster", jetzt), ...buendelText(abnahmen, offen.length),
-    abnahmen: abnahmen.map((a) => ({ id: a.id, titel: a.titel, projekt: a.projekt ?? a.bereich, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
+    fenster: fensterStart(jetzt), ...buendelText(abnahmen, offen.length), ...buendelFortschritt(db, abnahmen, jetzt),
     fragen: offen.map((f) => frageSicht(db, f)),
   };
 }
@@ -90,6 +90,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   if (eingabe.revision === rev) return { schema: SCHEMA, revision: rev, jetzt, unveraendert: true };
   const braucht = brauchtDich(db, jetzt);
   const tagBeginn = letzteUhrzeit(regelText("tag_grenze"), jetzt);
+  const b = buendel(db, braucht, jetzt);
   const inhalt = {
     schema: SCHEMA, revision: rev, jetzt, erzeugt: jetzt, geraet: eingabe.geraet, tag_beginn: tagBeginn,
     regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
@@ -101,11 +102,12 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
-    buendel: buendel(db, braucht, jetzt),
-    team: team(db, jetzt),
+    buendel: b,
+    entscheiden: entscheiden(db, braucht.length + b.fragen.length, b.abnahmen.length > 0, tagBeginn, jetzt),
+    team: team(db, jetzt).map((t) => ({ ...t, name: anzeigeName(t.name) })),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : "termin" })),
+    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin" })),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min,
       geplant_von: t.geplant_von, wiederkehrend: t.wiederkehrend, wichtig: !!t.wichtig, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),
@@ -114,10 +116,6 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   };
   if (JSON.stringify(inhalt).length > regelZahl("stand_max_kb") * 1024) throw new Error("Stand zu gross");
   return inhalt;
-}
-
-function istSport(titel: string): boolean {
-  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
 }
 
 function uhrFrage(db: Register, f: Zeile, jetzt: number) {

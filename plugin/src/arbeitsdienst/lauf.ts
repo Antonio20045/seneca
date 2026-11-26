@@ -206,7 +206,7 @@ export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, 
 
 export type Fortschreibung = {
   letzter_stand: string; naechster_schritt: string; ergebnis: "weiter" | "wartet" | "fertig"; beleg?: string; wartet_auf?: string; folge?: string;
-  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch";
+  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number;
 };
 
 export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschreibung): { zustand: string } {
@@ -237,7 +237,7 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   if (a.quelle === "dauerauftrag") return uebergang(db, "auftrag", id, "bereit", "termin", { naechster_anlass: naechsterTermin(a, jetzt), fehlversuche: 0 });
   if (f.ergebnis === "weiter") return uebergang(db, "auftrag", id, "bereit", "weiter", { naechster_anlass: jetzt, fehlversuche: 0 });
   if (f.ergebnis === "wartet") return uebergang(db, "auftrag", id, "wartet", "fortschreibung", { wartet_auf: f.wartet_auf ?? null, folge: f.folge ?? null, naechster_anlass: f.nachfass_um ?? null });
-  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg] });
+  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg], art: f.abnahme_art, hoerprobe_s: f.hoerprobe_s });
   const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt");
   if (a.pruefer_noetig && !geprueft) {
     const kind = auftragAnlegen(db, {

@@ -40,7 +40,6 @@ struct Tageslauf: Equatable {
     var klartext: [String: String] = [:]
     var klartextArt: [String: String] = [:]
     var liste: ArbeitsListe? = nil
-    var vorschlaege: [NachrichtVorschlag] = []
 
     var istLeer: Bool { ereignisse.isEmpty && kommt.isEmpty && fuerDich == nil && laeuft == nil }
 
@@ -100,7 +99,6 @@ struct Tageslauf: Equatable {
         t.fuerDich = FuerDich.zeilen(wurzel["fuer_dich"], zeit: zeit)
         t.laeuft = FuerDich.laeuft(wurzel["laeuft"], zeit: zeit)
         t.liste = ArbeitsListe.lies(wurzel: wurzel, jetzt: jetzt, kalender: kalender)
-        t.vorschlaege = NachrichtVorschlaege.lies(wurzel["vorschlaege"], zeit: zeit)
         for (k, v) in (wurzel["klartext"] as? [String: Any]) ?? [:] { let satz = text(v); if !satz.isEmpty { t.klartext[k] = satz } }
         for (k, v) in (wurzel["klartext_art"] as? [String: Any]) ?? [:] { t.klartextArt[k] = text(v) }
         if let j = wurzel["jetzt"] as? [String: Any] {

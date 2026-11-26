@@ -19,7 +19,6 @@ final class AppModell: ObservableObject {
     let modelle: ModellStore
     let gegenueber: GegenueberModell
     let suche: SucheModell
-    let entscheiden: EntscheidenModell
     @Published var modellwahlOffen = false
     @Published var hilfeOffen = false
     @Published private(set) var neuesTodoZaehler = 0
@@ -80,7 +79,6 @@ final class AppModell: ObservableObject {
         let gg = GegenueberModell(uebersicht: ov, chat: s.chat, defaults: Hintergrund.defaults())
         gegenueber = gg
         suche = SucheModell(uebersicht: ov, modelle: mo, gegenueber: gg)
-        entscheiden = EntscheidenModell(store: ov)
         let gemerkt = Fensterstand.lies()
         var r = gemerkt.map { Route.lies($0.route) } ?? .heute
         var chat = gemerkt?.chatOffen ?? false
@@ -149,12 +147,6 @@ final class AppModell: ObservableObject {
         modelle.chatNeuLaden = { [weak self] _ in Task { await self?.chat.loadHistory() } }
         gegenueber.oeffneSuche = { [weak self] in self?.oeffneSuche() }
         suche.fuehreAus = { [weak self] a in self?.fuehreAus(a) }
-        entscheiden.rueckfrage = { [weak self] e in
-            guard let self else { return }
-            let agent = Gegenueber.leiterVon(self.uebersicht.daten, e.leiterSession.flatMap { $0.split(separator: ":").dropFirst().first.map(String.init) })?.id
-                ?? self.uebersicht.daten.defaultAgent
-            self.oeffneChat(key: e.leiterSession ?? "agent:\(agent):main", agentId: e.leiterSession.flatMap { $0.split(separator: ":").dropFirst().first.map(String.init) } ?? agent)
-        }
     }
 
     func schalteSuche() {

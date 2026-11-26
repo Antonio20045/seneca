@@ -96,7 +96,7 @@ struct SnHeuteTafel: View {
 
     private func herkunft(_ f: SenecaStand.Frage) -> some View {
         let von = [f.von ?? "Seneca", f.projekt].compactMap { $0 }.joined(separator: " · ")
-        let frist = f.frist.map { $0 - stand.jetzt < 2 * 86_400_000 ? "Frist morgen" : "Frist \(L.uhr($0))" }
+        let frist = f.frist.map { L.frist($0, jetzt: stand.jetzt) }
         let seit = f.seit.map { $0 < (stand.tag_beginn ?? 0) ? "seit gestern" : "seit \(L.uhr($0))" } ?? ""
         return (Text(von + " · ").foregroundColor(TafelFarbe.leise) + Text(frist ?? seit).foregroundColor(frist == nil ? TafelFarbe.leise : TafelFarbe.bernstein))
             .font(Schrift.mono(12))

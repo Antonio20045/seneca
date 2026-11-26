@@ -102,7 +102,7 @@ struct RahmenView: View {
             #endif
         }
         #if DEBUG
-        .task { await Testlog.seitenLauf(modell); await Testlog.todoLauf(modell); await Testlog.p5Lauf(modell); await Testlog.entscheidenLauf(modell); await Testlog.p7Lauf(modell); await Testlog.p8Lauf(modell); await Testlog.p9Lauf(modell); await Testlog.p10Lauf(modell) }
+        .task { await Testlog.seitenLauf(modell); await Testlog.todoLauf(modell); await Testlog.p5Lauf(modell); await Testlog.p7Lauf(modell); await Testlog.p8Lauf(modell); await Testlog.p9Lauf(modell); await Testlog.p10Lauf(modell) }
         #endif
     }
 
@@ -118,7 +118,7 @@ struct RahmenView: View {
         case .projekt: alteSeite { ProjektBuehneView(modell: modell, rand: 40) }
         case .bereich: alteSeite { BereichBuehneView(modell: modell, rand: 40) }
         case .kalender: SnEchteSeite(modell: modell) { _, projekte in SnKalenderSeite(projekte: projekte, route: modell.route) }
-        case .entscheidungen: SnFragenEcht(modell: modell)
+        case .entscheidungen: SnEntscheidenEcht(store: modell.store)
         case .bereiche: alteSeite { BereicheView(modell: modell, rand: 40) }
         case .berichte:
             if let id = modell.route.id, !id.isEmpty { alteSeite { BerichteView(modell: modell, rand: 40) } } else { SnBerichteEcht(modell: modell) }
@@ -353,7 +353,7 @@ enum Testlog {
         func warte(_ ms: Int = 500) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func stand(_ was: String) {
             let fokus = w.firstResponder.map { String(describing: type(of: $0)) } ?? "-"
-            schreibe("p10 \(was): seite=\(modell.route.seite.rawValue) ansicht=\(modell.route.q["ansicht"] ?? "-") hilfe=\(modell.hilfeOffen) gespraech=\(modell.gespraechAn) suche=\(modell.suche.offen) todo-zaehler=\(modell.neuesTodoZaehler) fokus=\(fokus) entscheiden=\(modell.entscheiden.position)/\(modell.entscheiden.schlange.count)")
+            schreibe("p10 \(was): seite=\(modell.route.seite.rawValue) ansicht=\(modell.route.q["ansicht"] ?? "-") hilfe=\(modell.hilfeOffen) gespraech=\(modell.gespraechAn) suche=\(modell.suche.offen) todo-zaehler=\(modell.neuesTodoZaehler) fokus=\(fokus)")
         }
         for sch in schritte {
             switch sch {
@@ -715,33 +715,6 @@ enum Testlog {
             schreibe("taste g \(buchstabe) -> seite=\(modell.route.seite.rawValue) titel=\(modell.route.seite.titel)")
         }
         schreibe("seitenlauf fertig")
-    }
-
-    static func entscheidenLauf(_ modell: AppModell) async {
-        guard an, let schritte = env["SENECA_TEST_ENTSCHEIDEN"]?.split(separator: ",").map(String.init), !schritte.isEmpty else { return }
-        try? await Task.sleep(for: .seconds(4))
-        guard let w = NSApp.windows.first(where: { $0.canBecomeMain }) else { schreibe("entscheiden kein Fenster"); return }
-        let m = modell.entscheiden
-        func stand(_ was: String) { schreibe("entscheiden \(was): seite=\(modell.route.seite.rawValue) index=\(m.position)/\(m.schlange.count) details=\(m.detailsOffen) wahl=\(m.aktuell.flatMap { m.wahl($0) } ?? "-") frage=\(m.aktuell?.frage.prefix(40) ?? "-")") }
-        w.makeFirstResponder(nil)
-        stand("start")
-        for sch in schritte {
-            switch sch {
-            case "j": druecke(w, "j", code: 38)
-            case "k": druecke(w, "k", code: 40)
-            case "o": druecke(w, "o", code: 31)
-            case "h": druecke(w, "h", code: 4)
-            case "2": druecke(w, "2", code: 19)
-            case "return": druecke(w, "\r", code: 36)
-            case "runter": druecke(w, runter, code: 125)
-            case "hoch": druecke(w, hoch, code: 126)
-            case "pause": try? await Task.sleep(for: .seconds(11))
-            default: break
-            }
-            try? await Task.sleep(for: .milliseconds(500))
-            stand(sch)
-        }
-        schreibe("entscheiden fertig")
     }
 }
 #endif

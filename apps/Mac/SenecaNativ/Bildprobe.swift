@@ -116,8 +116,6 @@ enum Bildprobe {
                 case "messung":
                     await ZeichenMessung.laufe(env: env, breite: breite, hoehe: hoehe)
                     exit(0)
-                case "fragen":
-                    inhalt = AnyView(SnFragenSeite(liste: liste, jetzt: jetzt, startOffen: offen, ueberholtOffenZuBeginn: offen == "ueberholt"))
                 default:
                     inhalt = AnyView(SnProjektTabSeite(liste: liste, jetzt: jetzt, startBereich: env["SENECA_BILD_BEREICH"].flatMap { $0.isEmpty ? nil : $0 },
                                                        startProjekt: env["SENECA_BILD_PROJEKT"].flatMap { $0.isEmpty ? nil : $0 }))

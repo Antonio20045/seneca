@@ -33,6 +33,22 @@ enum HeuteTafelLogik {
         return f.string(from: datum(ms))
     }
 
+    static func wochentag(_ ms: Double) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "EEEE"
+        return f.string(from: datum(ms))
+    }
+
+    static func frist(_ ms: Double, jetzt: Double, _ cal: Calendar = .current) -> String {
+        if cal.isDate(datum(ms), inSameDayAs: datum(jetzt)) { return "Frist \(uhr(ms, cal))" }
+        if let morgen = cal.date(byAdding: .day, value: 1, to: datum(jetzt)), cal.isDate(datum(ms), inSameDayAs: morgen) { return "Frist morgen" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "d.M."
+        return "Frist \(f.string(from: datum(ms)))"
+    }
+
     static func uhr(_ ms: Double, _ cal: Calendar = .current) -> String {
         let k = cal.dateComponents([.hour, .minute], from: datum(ms))
         return String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)

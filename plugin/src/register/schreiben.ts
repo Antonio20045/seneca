@@ -11,7 +11,7 @@ type Ereignis = {
   art: string; wer?: string; geraet?: string; auftrag_id?: string; frage_id?: string; lauf_id?: string;
   schluessel?: string; daten?: unknown; satz?: string; beleg?: string;
 };
-type Option = { wert: string; text: string; folge: string };
+type Option = { wert: string; text: string; folge: string; titel?: string; preis?: string; einheit?: string };
 
 function neueId(): string {
   return uhr.jetzt().toString(36).padStart(9, "0") + randomBytes(4).toString("hex");
