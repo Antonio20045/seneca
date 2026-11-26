@@ -107,7 +107,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | Art | Name → Ort |
 |---|---|
 | Werkzeuge | `seneca_lesen` → `pforte/stand.ts` · `seneca_auftrag`, `seneca_fortschreiben` → `arbeitsdienst/lauf.ts` · `seneca_frage`, `seneca_einstellen`, `seneca_anzeige`, `seneca_todo`, `seneca_eintrag` → `register/schreiben.ts` · `seneca_lernen` → `lernen/lernen.ts` · `seneca_kalender` → `quellen/kalender.ts` |
-| Gateway-Methoden | `seneca.stand` → `pforte/stand.ts` · `seneca.handeln` → `zugang/handeln.ts` |
+| Gateway-Methoden | `seneca.stand` → `pforte/stand.ts` · `seneca.handeln` → `zugang/handeln.ts` · `seneca.verstehen` (Satz → To-do-Felder, Kalender des Tages) → `pforte/verstehen.ts` |
 | HTTP-Routen | `/seneca/uhr/v1/abgleich`, `/seneca/uhr/v1/koppeln`, `/seneca/uhr/v1/abholen` → `zugang/uhr.ts` · `/seneca/github` → `quellen/github.ts` (Lesen des Körpers mit Grenze: `index.ts`) |
 | Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |

@@ -160,49 +160,72 @@ struct TerminDetail: View {
     var termin: SenecaStand.Termin
     var erinnern: Double?
     @Environment(\.openURL) private var oeffne
+    @Environment(\.wege) private var wege
+    @Environment(\.dismiss) private var schliessen
 
     var body: some View {
         let start = HeuteTafelLogik.datum(termin.start)
         let k = Calendar.current.dateComponents([.weekday, .day, .month], from: start)
         VStack(alignment: .leading, spacing: 0) {
             Text("\(AufgabeWort.wochentag[(k.weekday ?? 1) - 1].uppercased()) \(k.day ?? 0). \(AufgabeWort.monat[(k.month ?? 1) - 1].uppercased()) · \(HeuteTafelLogik.uhr(termin.start)) BIS \(HeuteTafelLogik.uhr(termin.ende))")
-                .mono(11, abstand: 1.1).foregroundStyle(TafelFarbe.leise).padding(.top, 24)
-            Text(termin.titel).font(Sundartha.serif(34)).foregroundStyle(.white).padding(.top, 8).padding(.bottom, 14)
-            if let a = termin.ankunft { zeile("DU BIST DA", HeuteTafelLogik.uhr(a)) }
-            if let o = termin.ort { zeile("WO", o) }
+                .mono(11, abstand: 1).foregroundStyle(TafelFarbe.leise).padding(.top, 20)
+            Text(termin.titel).font(Sundartha.serif(34)).zeilenHoehe(35.4, schrift: 34).foregroundStyle(.white).padding(.top, 6).padding(.bottom, 14)
+            if let a = termin.ankunft { zeile("DU BIST DA", HeuteTafelLogik.uhr(a), termin.bescheid) }
+            if let o = termin.ort { zeile("WO", o, termin.entfernung_m.map { ($0 / 1000).formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "de_DE"))) + " km" }) }
             if let w = termin.weg_min {
                 let los = (termin.ankunft ?? termin.start) - w * 60_000
                 zeile("WEG", "\(Int(w)) Min zu Fuß", "los \(HeuteTafelLogik.uhr(los))" + (erinnern.map { " · Uhr erinnert \(HeuteTafelLogik.uhr(los - $0 * 60_000))" } ?? ""))
             }
-            if let t = termin.teilnehmer, !t.isEmpty { zeile("MIT", t.joined(separator: ", ")) }
+            if let m = termin.mit, !m.isEmpty {
+                zeile("MIT", m.joined(separator: ", ")) {
+                    Button("Schreiben") { schliessen(); wege.oeffne(.chat()) }.font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.himmel).buttonStyle(.plain)
+                }
+            }
+            if let kal = termin.kalender { zeile("KALENDER", kal, termin.kalender_quelle) }
+            if let n = termin.notiz {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 8) {
+                        SenecaPunkt()
+                        Text((["SENECA"] + [n.um.map { HeuteTafelLogik.uhr($0) }].compactMap { $0 }).joined(separator: " · ")).mono(11).foregroundStyle(TafelFarbe.leise)
+                    }
+                    .padding(.bottom, 6)
+                    Text(n.satz).font(Sundartha.grotesk(14)).zeilenHoehe(20, schrift: 14).foregroundStyle(TafelFarbe.text).fixedSize(horizontal: false, vertical: true)
+                    Button("Im Gespräch ansehen ›") { schliessen(); wege.oeffne(.chat()) }.font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.himmel).buttonStyle(.plain).padding(.top, 6)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 16).fill(TafelFarbe.himmel.opacity(0.08)))
+                .padding(.top, 14)
+            }
             Spacer(minLength: 12)
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 knopf("Route", hell: true) {
                     if let o = termin.ort?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed), let u = URL(string: "maps://?daddr=\(o)&dirflg=w") { oeffne(u) }
                 }
                 knopf("Bearbeiten", hell: false) { if let u = URL(string: "calshow:\(termin.start / 1000 - 978_307_200)") { oeffne(u) } }
             }
-            .padding(.bottom, 6)
+            .padding(.bottom, 34)
         }
     }
 
-    private func zeile(_ name: String, _ wert: String, _ unter: String? = nil) -> some View {
+    private func zeile(_ name: String, _ wert: String, _ unter: String? = nil, @ViewBuilder rechts: () -> some View = { EmptyView() }) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(name).mono(11, abstand: 1).foregroundStyle(TafelFarbe.leise).frame(width: 84, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(wert).font(Sundartha.grotesk(16)).foregroundStyle(.white)
-                if let unter { Text(unter).font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise) }
+            Text(name).mono(11, abstand: 0.8).foregroundStyle(TafelFarbe.leise).frame(width: 84, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(wert).font(Sundartha.grotesk(15)).zeilenHoehe(21, schrift: 15).foregroundStyle(.white)
+                if let unter { Text(unter).font(Sundartha.grotesk(12)).zeilenHoehe(17, schrift: 12).foregroundStyle(TafelFarbe.leise) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            rechts()
         }
-        .padding(.vertical, 10).frame(minHeight: 56)
+        .frame(minHeight: 52)
         .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
     }
 
     private func knopf(_ titel: String, hell: Bool, _ aktion: @escaping () -> Void) -> some View {
         Button(action: aktion) {
-            Text(titel).font(Sundartha.grotesk(16, .medium)).foregroundStyle(hell ? TafelFarbe.aufHimmel : .white)
-                .frame(maxWidth: .infinity).frame(height: 52).background(Capsule().fill(hell ? Color.white : Color.white.opacity(0.1)))
+            Text(titel).font(Sundartha.grotesk(15, .medium)).foregroundStyle(hell ? TafelFarbe.aufHimmel : .white)
+                .frame(maxWidth: .infinity).frame(height: 44).background(Capsule().fill(hell ? Color.white : Color.white.opacity(0.1)))
         }
         .buttonStyle(.plain)
     }
