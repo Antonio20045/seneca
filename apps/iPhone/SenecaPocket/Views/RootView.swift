@@ -37,6 +37,8 @@ struct RootView: View {
     @State private var lastDone: Int?
     @State private var einstellungen = false
     @State private var arbeit: ArbeitReiter?
+    @State private var entscheide: SenecaStand.Frage?
+    @State private var auftragNeu: SenecaStand.AuftragNeu?
     @State private var kalenderTag: Date?
     @State private var sinneFrage = false
     @State private var keyboard: CGFloat = 0
@@ -87,9 +89,8 @@ struct RootView: View {
         .senecaBlatt(item: Binding(get: { sinne.offeneMeldung }, set: { sinne.offeneMeldung = $0 }), titel: { $0.titel }) {
             MeldungBlatt(m: $0)
         }
-        .senecaBlatt(item: $arbeit, groesse: .voll, scrollt: false) { r in
-            ArbeitBlatt(reiter: r, zumGespraech: { oeffne(.chat()) }).environmentObject(store)
-        }
+        .modifier(TeamWege(store: store, arbeit: $arbeit, entscheide: $entscheide, auftragNeu: $auftragNeu,
+                           chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
         .task { await launch() }
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
@@ -244,7 +245,7 @@ struct RootView: View {
             berichte.tab = .berichte
             show(.bereiche)
         case .arbeit(let teil):
-            arbeit = switch teil { case .fragen: ArbeitReiter.fragen; case .laeuft: ArbeitReiter.board; case .projekte: ArbeitReiter.projekte }
+            if teil == .fragen, let f = store.stand.flatMap({ TeamLogik.offeneFragen($0).first }) { entscheide = f } else { arbeit = .board }
         case .kalender(let tag):
             kalenderTag = tag
             show(.kalender)
@@ -861,6 +862,7 @@ struct RootView: View {
                                               titel: "Dein Morgen", text: "Guten Morgen. Um 9:30 beginnt der Wochenstart im Team, danach um 10:15 die Abstimmung zum Angebot. Hermes wartet seit gestern auf deine Entscheidung.",
                                               knoepfe: ["Passt so", "Später"], dringend: true)
             case "arbeit": oeffne(.arbeit(.fragen))
+            case "laeuft": oeffne(.arbeit(.laeuft))
             case "zurueck": zurueck()
             case "lesen": reading = .demo
             case "heute": setSide(SideState()); reading = nil
