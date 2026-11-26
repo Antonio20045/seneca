@@ -63,17 +63,22 @@ module Warteschlange {
         return liste;
     }
 
-    function aeltester() as Number {
+    function aeltesterEintrag() as Dictionary? {
         var nummer = Speicher.lesen("qa", 1) as Number;
         var ende = Speicher.lesen("nr", 0) as Number;
         while (nummer <= ende) {
             var gefunden = eintrag(nummer);
             if (gefunden != null) {
-                return gefunden["t"] as Number;
+                return gefunden;
             }
             nummer += 1;
         }
-        return 0;
+        return null;
+    }
+
+    function aeltester() as Number {
+        var gefunden = aeltesterEintrag();
+        return gefunden == null ? 0 : gefunden["t"] as Number;
     }
 
     function entfernen(nummer as Number) as Void {

@@ -68,6 +68,10 @@ module Training {
         zustand["kg"] = bewegt() + (kg * wiederholungen).toNumber();
         zustand["l"] = Zeit.jetzt();
         zustand["i"] = neuer["id"];
+        zustand["u"] = uebung;
+        if (Verlauf.satz(uebung, kg, wiederholungen)) {
+            zustand["bw"] = [uebung, kg];
+        }
         Speicher.schreiben("tl", zustand);
         Stand.lokalSatz(uebung, kg, wiederholungen);
         gefragt = false;
@@ -86,6 +90,7 @@ module Training {
         zustand["n"] = saetze() - 1;
         zustand["kg"] = bewegt() - ((werte["kg"] as Float) * (werte["w"] as Number)).toNumber();
         zustand.remove("i");
+        Verlauf.zurueck(werte["u"] as String);
         Speicher.schreiben("tl", zustand);
     }
 
@@ -98,9 +103,16 @@ module Training {
         if (geloescht) {
             zustand["n"] = saetze() - 1;
             zustand.remove("i");
+            Verlauf.zurueck(zustand["u"] as String);
             Speicher.schreiben("tl", zustand);
         }
         return geloescht;
+    }
+
+    function bestwert() as Array? {
+        var werte = zustand();
+        var wert = werte == null ? null : werte["bw"];
+        return wert instanceof Array ? wert : null;
     }
 
     function pulsDurchschnitt() as Number? {
@@ -138,6 +150,9 @@ module Training {
             werte["hf"] = puls;
         }
         Warteschlange.neu("eintrag.neu", werte, 0);
+        if (speichern) {
+            Verlauf.trainingGespeichert(saetze());
+        }
         stopAufzeichnung(speichern);
         Speicher.loeschen("tl");
     }

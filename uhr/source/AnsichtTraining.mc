@@ -4,27 +4,45 @@ import Toybox.Timer;
 import Toybox.WatchUi;
 
 class UebungenAnsicht extends ListenAnsicht {
-    function initialize() {
+    const HAEUFIGSTE = 8;
+    private var _alle as Boolean;
+
+    function initialize(alle as Boolean) {
         ListenAnsicht.initialize();
+        _alle = alle;
+    }
+
+    function gekuerzt() as Boolean {
+        return !_alle && Inhalt.uebungen().size() > HAEUFIGSTE;
     }
 
     function anzahl() as Number {
-        return Inhalt.uebungen().size();
+        return gekuerzt() ? HAEUFIGSTE + 1 : Inhalt.uebungen().size();
     }
 
     function zeichnen(dc as Dc) as Void {
         var uebungen = Inhalt.uebungen();
         var namen = [] as Array<String>;
-        for (var i = 0; i < uebungen.size(); i += 1) {
-            namen.add((uebungen[i] as Array)[1] as String);
+        for (var i = 0; i < anzahl(); i += 1) {
+            namen.add(i < uebungen.size() && !(gekuerzt() && i == HAEUFIGSTE) ? (uebungen[i] as Array)[1] as String : "Alle Übungen");
         }
-        var u = uebungen[_auswahl] as Array;
         var kopf = "● TRAINING " + (Training.dauer() / Regeln.SEKUNDEN_JE_MINUTE).toString() + " MIN";
-        Bildschirm.uebungen(dc, kopf, namen, "zuletzt " + Zeichnen.kg(u[2] as Float) + " kg × " + (u[3] as Number).toString(), _auswahl);
+        var unter = "";
+        if (!(gekuerzt() && _auswahl == HAEUFIGSTE)) {
+            var u = uebungen[_auswahl] as Array;
+            unter = Verlauf.text(u[0] as String, true);
+            unter = unter.length() > 0 ? unter : "zuletzt " + Zeichnen.kg(u[2] as Float) + " kg × " + (u[3] as Number).toString();
+        }
+        var fuss = gekuerzt() && _auswahl + 2 < HAEUFIGSTE ? "ALLE ÜBUNGEN" : "";
+        Bildschirm.uebungen(dc, kopf, namen, unter, _auswahl, fuss);
         Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "wählen");
     }
 
     function waehlen() as Void {
+        if (gekuerzt() && _auswahl == HAEUFIGSTE) {
+            Ansichten.oeffnen(new UebungenAnsicht(true));
+            return;
+        }
         var u = Inhalt.uebungen()[_auswahl] as Array;
         Ansichten.oeffnen(new SatzAnsicht(u, u[2] as Float, u[3] as Number));
     }
@@ -79,7 +97,7 @@ class SatzAnsicht extends Ansicht {
 
     function zeichnen(dc as Dc) as Void {
         var kopf = "Satz " + (Training.saetze() + 1).toString() + " seit " + Zeit.dauer(Training.pauseSekunden()) + " · ♥ " + Anzeige.puls(Training.puls());
-        Bildschirm.satz(dc, _uebung[1] as String, kopf, Zeichnen.kg(_kg), _wiederholungen.toString(), Anzeige.wartend(), "UP/DOWN Wdh · MENU Gewicht");
+        Bildschirm.satz(dc, _uebung[1] as String, kopf, Zeichnen.kg(_kg), _wiederholungen.toString(), Anzeige.wartend(), Verlauf.text(_uebung[0] as String, false), "UP/DOWN Wdh · MENU Gewicht");
         Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "eintragen");
         Zeichnen.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
         Zeichnen.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
@@ -207,6 +225,7 @@ class PauseAnsicht extends Ansicht {
 
 class FertigAnsicht extends Ansicht {
     private var _gespeichert as Array<Number>? = null;
+    private var _bestwert as String = "";
     private var _weiter as Timer.Timer = new Timer.Timer();
 
     function initialize() {
@@ -222,10 +241,16 @@ class FertigAnsicht extends Ansicht {
         return [Training.dauer(), Training.saetze(), Training.bewegt(), puls == null ? -1 : puls];
     }
 
+    function bestwert() as String {
+        var bw = Training.bestwert();
+        return bw == null ? "" : "Bestwert · " + Inhalt.uebungName(bw[0] as String) + " " + Zeichnen.kg(bw[1] as Float) + " kg";
+    }
+
     function zeichnen(dc as Dc) as Void {
         var w = _gespeichert != null ? _gespeichert : werte();
         var t = _gespeichert != null ? 1.0 : _auftritt.wert;
         Zeichnen.versatz = 0.0;
+        Bildschirm.bestwert(dc, _gespeichert != null ? _bestwert : bestwert());
         Bildschirm.fertig(dc, [Zeit.dauer((w[0] * t).toNumber()), (w[1] * t).toNumber().toString(), Zeichnen.tausend((w[2] * t).toNumber()), w[3] < 0 ? "–" : (w[3] * t).toNumber().toString()]);
         if (_gespeichert != null) {
             Bildschirm.fertigGespeichert(dc);
@@ -240,6 +265,7 @@ class FertigAnsicht extends Ansicht {
             return;
         }
         _gespeichert = werte();
+        _bestwert = bestwert();
         Training.beenden(true);
         Signal.kurz();
         WatchUi.requestUpdate();

@@ -103,7 +103,8 @@ export function uhrStand(db: Register, jetzt: number) {
     t: jetzt, n: braucht.length,
     q: frage ? { id: frage.id, x: String(frage.text).slice(0, regelZahl("uhr_frage_zeichen")) } : null,
     h: !frage && braucht.length ? "Wichtige Frage wartet. Lass uns am Mac darüber reden." : null,
-    d: todos(db, "offen").slice(0, regelZahl("uhr_todos")).map((t) => [t.id, t.kurz_uhr ?? t.titel]),
+    d: todos(db, "offen").slice(0, regelZahl("uhr_todos")).map((t) => [t.id, t.kurz_uhr ?? t.titel, t.bereich, t.dauer_min]),
+    ta: team(db, jetzt).filter((t) => t.zustand === "arbeitet").length,
     z: r ? { g: r.grund, b: r.bis } : null,
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
   };

@@ -29,7 +29,8 @@ class StartAnsicht extends ListenAnsicht {
         if (Training.laeuft()) {
             return {"titel" => "Training", "unter" => "läuft · " + Training.saetzeText() + " · " + Zeit.dauer(Training.dauer()), "klein" => "Training · " + Training.saetzeText(), "buch" => ""};
         }
-        return {"titel" => "Training", "unter" => Inhalt.uebungen().size().toString() + " Übungen bereit", "klein" => "Training", "buch" => ""};
+        var zuletzt = Verlauf.letztesTraining();
+        return {"titel" => "Training", "unter" => zuletzt.length() > 0 ? zuletzt : Inhalt.uebungen().size().toString() + " Übungen bereit", "klein" => "Training", "buch" => ""};
     }
 
     function lesen() as Dictionary {
@@ -46,15 +47,20 @@ class StartAnsicht extends ListenAnsicht {
     }
 
     function zeichnen(dc as Dc) as Void {
-        var farbe = Zustand.stoerung() ? Zeichnen.GLUT : (Zustand.aktuell() == :abgeglichen ? Zeichnen.GRUEN : Zeichnen.BERNSTEIN);
-        Bildschirm.start(dc, Zustand.knapp(), farbe, [training(), lesen(), todos()], _auswahl);
+        var team = Inhalt.teamArbeitet();
+        if (team == null || Zustand.stoerung()) {
+            var farbe = Zustand.stoerung() ? Zeichnen.GLUT : (Zustand.aktuell() == :abgeglichen ? Zeichnen.GRUEN : Zeichnen.BERNSTEIN);
+            Bildschirm.start(dc, Zustand.knapp(), farbe, [training(), lesen(), todos()], _auswahl);
+        } else {
+            Bildschirm.start(dc, team > 0 ? "Team · " + team.toString() + " arbeitet" : "Team · alle frei", team > 0 ? Zeichnen.GRUEN : Zeichnen.MATT, [training(), lesen(), todos()], _auswahl);
+        }
         Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "öffnen");
     }
 
     function waehlen() as Void {
         if (_auswahl == 0) {
             Training.starten();
-            Ansichten.oeffnen(new UebungenAnsicht());
+            Ansichten.oeffnen(new UebungenAnsicht(false));
         } else if (_auswahl == 1) {
             Ansichten.oeffnen(new LesenAnsicht());
         } else {

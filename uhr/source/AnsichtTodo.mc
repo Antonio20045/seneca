@@ -57,8 +57,7 @@ class TodoAnsicht extends ListenAnsicht {
         for (var i = 0; i < zeilen.size(); i += 1) {
             var zeile = zeilen[i];
             var erledigt = zeile["erledigt"] as Boolean;
-            var meta = zeile["id"] == null ? "neu · wartet auf iPhone" : (erledigt ? "erledigt · wartet auf iPhone" : "");
-            anzeige.add({"x" => zeile["x"], "meta" => meta, "erledigt" => erledigt});
+            anzeige.add({"x" => zeile["x"], "meta" => erledigt ? "erledigt · wartet auf iPhone" : zeile["meta"], "erledigt" => erledigt});
         }
         if (_auswahl >= anzeige.size()) {
             _auswahl = anzeige.size() - 1;
@@ -74,7 +73,7 @@ class TodoAnsicht extends ListenAnsicht {
         }
         if (Todo.abhaken(zeilen[_auswahl])) {
             var rest = offen(Inhalt.todos());
-            Rueckgaengig.melden(zeilen[_auswahl]["x"] as String, rest == 0 ? "erledigt · alles geschafft" : "erledigt · noch " + rest.toString() + " offen");
+            Rueckgaengig.melden(zeilen[_auswahl]["x"] as String, rest == 0 ? "erledigt · alles geschafft" : "erledigt · noch " + rest.toString() + " heute");
         } else {
             Signal.lang();
         }

@@ -58,6 +58,7 @@ SCHRIFTEN = {
     'G5_40': (G5T, 40, 0, VOLL, False),
     'G5_38': (G5T, 38, 0, VOLL, False),
     'G5_36': (G5, 36, 0, 'Min ', False),
+    'G5_34': (G5, 34, 0, VOLL, True),
     'G5_30': (G5, 30, 0, VOLL, False),
     'G5_26': (G5, 26, 0, VOLL, False),
     'G4_26': (G4, 26, 0, VOLL, False),
@@ -65,6 +66,7 @@ SCHRIFTEN = {
     'G4_22': (G4, 22, 0, VOLL, True),
     'G4_21': (G4, 21, 0, VOLL, False),
     'G4_20': (G4, 20, 0, VOLL, False),
+    'G4_19': (G4, 19, 0, VOLL, False),
     'G4_18': (G4, 18, 0, VOLL, False),
     'G4_15': (G4, 15, 0, VOLL, False),
     'I_48': (IS, 48, 0, VOLL, False),
@@ -126,21 +128,6 @@ def verlauf(stopps, t):
     return stopps[-1][1]
 
 
-def hintergrund(n):
-    linear = [(0, (0x12, 0x32, 0x64)), (0.55, (0x0A, 0x1F, 0x44)), (1, (0x06, 0x16, 0x32))]
-    glanz = [(0, (143, 182, 227, .34)), (.11, (143, 182, 227, .18)), (.24, (143, 182, 227, .06)), (.36, (143, 182, 227, 0))]
-    mx, my = .74 * n, .16 * n
-    weit = max(math.hypot(mx - x, my - y) for x in (0, n) for y in (0, n))
-    bild = Image.new('RGB', (n, n))
-    punkte = bild.load()
-    for y in range(n):
-        grund = verlauf(linear, (y + .5) / n)
-        for x in range(n):
-            *licht, a = verlauf(glanz, math.hypot(x + .5 - mx, y + .5 - my) / weit)
-            punkte[x, y] = tuple(round(grund[i] * (1 - a) + licht[i] * a) for i in range(3))
-    return bild
-
-
 def lichtpunkt(px):
     n = max(round(px), 1)
     bild = Image.new('RGBA', (n, n))
@@ -160,10 +147,8 @@ for ordner, breite in GERAETE.items():
     for name, (daten, px, sperrung, zeichen, blick) in SCHRIFTEN.items():
         schrift(name, daten, px * s, sperrung * s, zeichen, ziel)
         zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{" scope=\"glance\"" if blick else ""}/>')
-    hintergrund(breite).save(ziel / 'hintergrund.png', optimize=True)
     lichtpunkt(14 * s).save(ziel / 'lichtpunkt.png')
     zeilen += ['    </fonts>', '    <drawables>',
-               '        <bitmap id="Hintergrund" filename="hintergrund.png" dithering="floyd_steinberg"/>',
                '        <bitmap id="Lichtpunkt" filename="lichtpunkt.png" scope="glance"/>',
                '    </drawables>', '</resources>', '']
     (ziel / 'gestalt.xml').write_text('\n'.join(zeilen))

@@ -23,13 +23,65 @@ module Inhalt {
         var offen = liste("d");
         for (var i = 0; i < offen.size(); i += 1) {
             var eintrag = offen[i] as Array;
-            zeilen.add({"id" => eintrag[0], "x" => eintrag[1], "erledigt" => erledigt.indexOf(eintrag[0]) >= 0});
+            zeilen.add({"id" => eintrag[0], "x" => eintrag[1], "meta" => todoMeta(eintrag), "erledigt" => erledigt.indexOf(eintrag[0]) >= 0});
         }
         var neue = Stand.lokalListe("n");
         for (var i = 0; i < neue.size(); i += 1) {
-            zeilen.add({"id" => null, "x" => neue[i], "erledigt" => false});
+            zeilen.add({"id" => null, "x" => neue[i], "meta" => "neu · wartet auf iPhone", "erledigt" => false});
         }
         return zeilen;
+    }
+
+    function todoMeta(eintrag as Array) as String {
+        var teile = [] as Array<String>;
+        if (eintrag.size() > 2 && eintrag[2] instanceof String) {
+            teile.add(eintrag[2] as String);
+        }
+        if (eintrag.size() > 3 && eintrag[3] instanceof Number) {
+            teile.add((eintrag[3] as Number).toString() + " Min");
+        }
+        return teile.size() == 2 ? teile[0] + " · " + teile[1] : (teile.size() == 1 ? teile[0] : "");
+    }
+
+    function teamArbeitet() as Number? {
+        var anzahl = Stand.daten()["ta"];
+        return anzahl instanceof Number ? anzahl : null;
+    }
+
+    function wasWartet() as String {
+        var eintrag = Warteschlange.aeltesterEintrag();
+        if (eintrag == null) {
+            return "";
+        }
+        var art = eintrag["a"] as String;
+        var werte = eintrag["p"] as Dictionary;
+        if (art.equals("todo.anlegen")) {
+            return werte["x"] as String;
+        }
+        if (art.equals("todo.erledigt")) {
+            var liste = todos();
+            for (var i = 0; i < liste.size(); i += 1) {
+                if (werte["z"].equals(liste[i]["id"])) {
+                    return liste[i]["x"] as String;
+                }
+            }
+            return "To-do";
+        }
+        var k = werte["k"];
+        if (k instanceof String && k.equals("satz")) {
+            return werte["u"] instanceof String ? uebungName(werte["u"] as String) : "Satz";
+        }
+        return k instanceof String && k.equals("lesen") ? "Lesen" : "Training";
+    }
+
+    function uebungName(id as String) as String {
+        var liste = uebungen();
+        for (var i = 0; i < liste.size(); i += 1) {
+            if (((liste[i] as Array)[0] as String).equals(id)) {
+                return (liste[i] as Array)[1] as String;
+            }
+        }
+        return id;
     }
 
     function uebungen() as Array {
