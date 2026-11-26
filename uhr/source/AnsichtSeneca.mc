@@ -35,6 +35,7 @@ module Hinweise {
         }
         if (Takt.akkuKnapp() && einmal(:akku)) {
             Signal.lang();
+            Signal.dunkler();
             return new GrenzfallAnsicht(:akku);
         }
         return null;
@@ -253,7 +254,7 @@ class MorgenAnsicht extends Ansicht {
         if (n > 0 && ruhe != null && ruhe["b"] instanceof Number) {
             fragen += " · ab " + Angabe.stunde(ruhe["b"] as Number) + " Uhr";
         }
-        Bildschirm.morgen(dc, kopf, "–", batterie(), zeilen, fragen);
+        Bildschirm.morgen(dc, kopf, Inhalt.schlaf(), batterie(), zeilen, fragen);
     }
 
     function waehlen() as Void {
@@ -334,9 +335,7 @@ class GrenzfallAnsicht extends Ansicht {
             var z = Inhalt.ruhe();
             var n = Inhalt.fragenAnzahl();
             var morgen = z != null && z["b"] instanceof Number ? "morgen " + Zeit.uhrzeit(z["b"] as Number) : "morgen";
-            var team = Inhalt.team();
-            var start = Inhalt.teamStart();
-            var arbeitet = start < team.size() && Zeichnen.GRUEN == team[start][1] ? (team[start][2] as String) + " arbeitet noch" : "";
+            var arbeitet = Inhalt.arbeitetBis();
             Bildschirm.nacht(dc, morgen + (n > 0 ? " · " + n.toString() + (n == 1 ? " Sache wartet" : " Sachen warten") : ""), arbeitet);
         }
     }

@@ -11,6 +11,7 @@ type Anfrage = { v?: number; g?: string; r?: number; zs?: string; k?: Koerper; h
 export type Antwort = { status: number; inhalt: object; kopf?: Record<string, string> };
 
 const anfragen = new Map<string, number[]>();
+const LAUF = "trail";
 
 const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string; wert?: unknown }> = {
   "eintrag.neu": (p) => ({ wert: { art: p.k, werte: p } }),
@@ -84,10 +85,17 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
     if (h.a === "frage.antwort" && z.ziel !== fuerUhr && !beantwortet(db, String(z.ziel))) return [h.id, "nein:nicht_fuer_uhr"];
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
-  if (d.zs && wert(db, "aktivitaet")?.wert !== d.zs) wertSetzen(db, "aktivitaet", d.zs, "uhr");
+  aktivitaetSetzen(db, d.zs, jetzt);
   koerperSetzen(db, d.k);
   const r = revision(db);
-  return { status: 200, inhalt: d.r === r ? { q, r, u: 1 } : { q, r, s: uhrStand(jetzt) } };
+  return { status: 200, inhalt: d.r === r || d.zs === LAUF ? { q, r, u: 1 } : { q, r, s: uhrStand(jetzt) } };
+}
+
+function aktivitaetSetzen(db: Register, zs: string | undefined, jetzt: number): void {
+  const a = wert(db, "aktivitaet");
+  const laeuft = a?.wert === LAUF && (a.gueltig_bis ?? 0) > jetzt;
+  if (!zs || (laeuft && zs === "leer") || (a?.wert === zs && zs !== LAUF)) return;
+  wertSetzen(db, "aktivitaet", zs, "uhr", zs === LAUF ? jetzt + regelMs("uhr_lauf_ruhe_min") : undefined);
 }
 
 function koerperSetzen(db: Register, k: Koerper | undefined): void {

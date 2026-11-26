@@ -74,7 +74,8 @@ module Inhalt {
         var zeit = m[4] instanceof Number ? m[4] as Number : null;
         if (zustand.equals("arbeitet") || zustand.equals("hängt")) {
             var rest = zeit == null ? 0 : (zeit - Zeit.jetzt() + Regeln.SEKUNDEN_JE_MINUTE - 1) / Regeln.SEKUNDEN_JE_MINUTE;
-            var unter = rest > 0 ? "noch " + rest.toString() + " Min" + (projekt.length() > 0 ? " · " + projekt : "") : projekt;
+            var bis = rest <= 0 ? "" : rest <= Regeln.NOCH_MIN_BIS ? "noch " + rest.toString() + " Min" : "bis " + Zeit.uhrzeit(zeit as Number);
+            var unter = bis.length() > 0 ? bis + (projekt.length() > 0 ? " · " + projekt : "") : projekt;
             var farbe = zustand.equals("arbeitet") ? Zeichnen.GRUEN : Zeichnen.GLUT;
             return [name + " " + zustand, farbe, name, satz.length() > 0 ? satz : zustand, unter, farbe];
         }
@@ -101,6 +102,30 @@ module Inhalt {
             }
         }
         return ergebnis;
+    }
+
+    function arbeitetBis() as String {
+        var liste = teamRoh();
+        for (var i = 0; i < liste.size(); i += 1) {
+            var m = liste[i] as Array;
+            if ("arbeitet".equals(m[1])) {
+                var name = gross(m[0] as String);
+                if (m[4] instanceof Number && (m[4] as Number) > Zeit.jetzt()) {
+                    return name + " arbeitet bis " + Zeit.stunde(m[4] as Number);
+                }
+                return name + " arbeitet noch";
+            }
+        }
+        return "";
+    }
+
+    function schlaf() as String {
+        var k = Stand.daten()["koerper"];
+        var wert = k instanceof Dictionary ? k["schlaf"] : null;
+        if (wert instanceof Number) {
+            return Lang.format("$1$:$2$", [wert / Regeln.MINUTEN_JE_STUNDE, (wert % Regeln.MINUTEN_JE_STUNDE).format("%02d")]);
+        }
+        return wert instanceof String ? wert : "–";
     }
 
     function teamStart() as Number {

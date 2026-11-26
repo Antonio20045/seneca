@@ -128,7 +128,7 @@ function uhrTeam(db: Register, jetzt: number) {
   return team(db, jetzt).map((t) => {
     const l = laeufe.find((x) => x.mitarbeiter === t.name);
     const a = l ? hole(db, "auftrag", String(l.auftrag_id)) : undefined;
-    const ende = a?.schaetzung_min ? Number(l?.gestartet) + msAusMinuten(Number(a.schaetzung_min)) : null;
+    const ende = a?.schaetzung_min ? Number(l?.gestartet) + msAusMinuten(Number(a.schaetzung_min)) : a?.frist && Number(a.frist) > jetzt ? Number(a.frist) : null;
     const heute = beendeteLaeufe(db, t.name, tagBeginn);
     const verlauf = heute.slice(0, regelZahl("uhr_verlauf")).map((x) => [x.titel, sekundenAusMs(Number(x.beendet_um))]);
     if (l) return [t.name, t.zustand, t.satz, a?.projekt ?? a?.bereich ?? null, ende === null ? null : sekundenAusMs(ende), verlauf];
@@ -151,6 +151,7 @@ export function uhrStand(db: Register, jetzt: number) {
     tg: termineAm(db, jetzt).filter((t) => !t.ganztag && t.ende > jetzt).slice(0, regelZahl("uhr_termine"))
       .map((t) => [sekundenAusMs(t.start), sekundenAusMs(t.ende), t.titel, t.ort ?? null, istSport(t.titel) ? "s" : istFokus(t) ? "f" : "t"]),
     z: r ? { g: r.grund, b: sekundenAusMs(r.bis) } : null,
+    koerper: { schlaf: koerper(db, letzteUhrzeit(regelText("tag_grenze"), jetzt), r)?.schlaf ?? null },
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
   };
 }

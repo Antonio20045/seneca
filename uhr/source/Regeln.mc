@@ -16,6 +16,9 @@ module Regeln {
     const MS_JE_S = 1000;
     const HINWEIS_VOR_S = 600;
     const WEITER_S = 1800;
+    const NOCH_MIN_BIS = 120;
+    const MINUTEN_JE_STUNDE = 60;
+    const AKKU_HELLIGKEIT = 0.3;
     const MORGEN_BIS_STUNDE = 12;
     const VERSION = "1.1";
     const DOPPELT_PAUSE_MS = 150;
