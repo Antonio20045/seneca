@@ -74,7 +74,9 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   const inhalt = {
     schema: SCHEMA, revision: rev, jetzt, erzeugt: jetzt, geraet: eingabe.geraet, tag_beginn: tagBeginn,
     regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
-      gespraech_haengt_hinweis_min: regelZahl("gespraech_haengt_hinweis_min"), gespraech_haengt_stopp_min: regelZahl("gespraech_haengt_stopp_min") },
+      gespraech_haengt_hinweis_min: regelZahl("gespraech_haengt_hinweis_min"), gespraech_haengt_stopp_min: regelZahl("gespraech_haengt_stopp_min"),
+      verbinden_start_s: regelZahl("verbinden_start_s"), verbinden_max_s: regelZahl("verbinden_max_s"),
+      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s") },
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     braucht_dich: braucht.map((f) => frageSicht(db, f)),

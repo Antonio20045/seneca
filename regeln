@@ -101,3 +101,7 @@ rechenknoten_leerlauf_min 30 vorschlag
 aws_zeitlimit_s 20
 knoten_pruefen_min 1
 app_neu_installieren_tage 5
+verbinden_start_s 1
+verbinden_max_s 30
+anmeldefehler_max 3
+getrennt_nach_s 30
