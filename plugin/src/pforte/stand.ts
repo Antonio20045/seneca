@@ -1,6 +1,6 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
-import { buendelText, heute, projektVon, restMin } from "./heute.ts";
+import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
@@ -95,6 +95,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
+    koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
     buendel: buendel(db, braucht, jetzt),
     team: team(db, jetzt),

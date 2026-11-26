@@ -86,6 +86,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 44 | Skill ändern | Skill-Werkstatt von OpenClaw (`skill_workshop`), kein Plugin-Code |
 | 48 | Uhr koppeln (Zahlenvergleich, Fenster 10 Min, Schlüssel genau einmal) | `zugang/uhr.ts`; Bestätigung als Handlung in `zugang/handeln.ts` |
 | 49 | Uhr-Zugang (Abgleich, Token, Begrenzung) | `zugang/uhr.ts` |
+| 49 | Körperwerte im Abgleich: Feld `k` = `bb` [Body Battery, Zeit s], `st` Stress, `sc` Schritte; Server legt `koerper` und `koerper:morgens` als Wert ab, Ausgabe in `seneca.stand.koerper` | `uhr/source/Abgleich.mc` → `zugang/uhr.ts` → `pforte/stand.ts` |
 | 45 | Ablage-Rechte je Bereich (lesen: `bereich`, schreiben: `ablage_schreiben`) | `zugang/rechte.ts` · Hook `before_tool_call` |
 | 50 | Uhr-Abgleich (Kennung je Handlung) | `zugang/handeln.ts` |
 | 53, 54 | Kalender lesen und schreiben (CalDAV, Konflikte, Teilnehmer nur über den Ausgang) | `quellen/kalender.ts` · Werkzeug `seneca_kalender`; Tagesstand je Tag als Wert `kalender:<tag>` (`register/lesen.ts` · `termineAm`) |

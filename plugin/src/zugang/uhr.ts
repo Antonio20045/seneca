@@ -2,11 +2,12 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import { revision, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { wertSetzen } from "../register/schreiben.ts";
-import { msAusSekunden, regelMs, regelZahl } from "../regeln.ts";
+import { letzteUhrzeit, msAusSekunden, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { handeln } from "./handeln.ts";
 
 type UhrStand = (jetzt: number) => { q: { id: unknown } | null };
-type Anfrage = { v?: number; g?: string; r?: number; zs?: string; h?: { id: string; t: number; a: string; p?: Record<string, unknown>; lokal?: boolean }[] };
+type Koerper = { bb?: [number, number]; st?: number; sc?: number };
+type Anfrage = { v?: number; g?: string; r?: number; zs?: string; k?: Koerper; h?: { id: string; t: number; a: string; p?: Record<string, unknown>; lokal?: boolean }[] };
 export type Antwort = { status: number; inhalt: object; kopf?: Record<string, string> };
 
 const anfragen = new Map<string, number[]>();
@@ -84,6 +85,16 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
   if (d.zs && wert(db, "aktivitaet")?.wert !== d.zs) wertSetzen(db, "aktivitaet", d.zs, "uhr");
+  koerperSetzen(db, d.k);
   const r = revision(db);
   return { status: 200, inhalt: d.r === r ? { q, r, u: 1 } : { q, r, s: uhrStand(jetzt) } };
+}
+
+function koerperSetzen(db: Register, k: Koerper | undefined): void {
+  if (!k?.bb) return;
+  const neu = JSON.stringify({ body_battery: k.bb[0], zeit: msAusSekunden(k.bb[1]), stress: k.st ?? null, schritte: k.sc ?? null });
+  if (wert(db, "koerper")?.wert === neu) return;
+  const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "{\"zeit\":0}");
+  if (morgens.zeit < letzteUhrzeit(regelText("tag_grenze"), msAusSekunden(k.bb[1]))) wertSetzen(db, "koerper:morgens", JSON.stringify({ body_battery: k.bb[0], zeit: msAusSekunden(k.bb[1]) }), "uhr");
+  wertSetzen(db, "koerper", neu, "uhr");
 }
