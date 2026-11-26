@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application entry="TrailApp" id="5047a6c77929443ba08d689b826e8176" launcherIcon="@Drawables.LauncherIcon" minApiLevel="6.0.0" name="@Strings.Name" type="datafield">
+        <iq:products>
+            <iq:product id="fenix9pro43mm"/>
+            <iq:product id="fenix9pro47mm"/>
+            <iq:product id="fenix9pro51mm"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="UserProfile"/>
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>deu</iq:language>
+        </iq:languages>
+    </iq:application>
+</iq:manifest>

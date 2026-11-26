@@ -51,6 +51,7 @@ module Zeichnen {
 
     var s as Float = 1.0;
     var versatz as Float = 0.0;
+    var seitlich as Float = 0.0;
     var _schriften as Dictionary = {};
 
     (:glance)
@@ -99,7 +100,7 @@ module Zeichnen {
     (:glance)
     function text(dc as Dc, x as Numeric, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, ausrichtung as Number) as Void {
         dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(p(x), p(y + versatz), schrift(id), inhalt, ausrichtung);
+        dc.drawText(p(x + seitlich), p(y + versatz), schrift(id), inhalt, ausrichtung);
     }
 
     function mitte(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String) as Void {
@@ -149,7 +150,7 @@ module Zeichnen {
     (:glance)
     function punkt(dc as Dc, x as Numeric, y as Numeric, durchmesser as Numeric, farbe as Number) as Void {
         dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
-        dc.fillCircle(p(x), p(y + versatz), p(durchmesser / 2.0));
+        dc.fillCircle(p(x + seitlich), p(y + versatz), p(durchmesser / 2.0));
     }
 
     function kreis(dc as Dc, x as Numeric, y as Numeric, durchmesser as Numeric, strich as Numeric, farbe as Number) as Void {
@@ -322,7 +323,11 @@ module Zeichnen {
     }
 
     function kg(wert as Float) as String {
-        var text = wert == wert.toNumber() ? wert.toNumber().toString() : wert.format("%.1f");
+        return wert == wert.toNumber() ? wert.toNumber().toString() : komma(wert, 1);
+    }
+
+    function komma(wert as Float, stellen as Number) as String {
+        var text = wert.format("%." + stellen.toString() + "f");
         var punkt = text.find(".");
         return punkt == null ? text : (text.substring(0, punkt) as String) + "," + (text.substring(punkt + 1, text.length()) as String);
     }

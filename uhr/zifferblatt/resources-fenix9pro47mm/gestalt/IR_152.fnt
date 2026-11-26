@@ -1,0 +1,19 @@
+info face="IR_152" size=148 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1
+common lineHeight=193 base=147 scaleW=512 scaleH=512 pages=1 packed=0
+page id=0 file="IR_152.png"
+chars count=15
+char id=48 x=0 y=0 width=70 height=111 xoffset=-1 yoffset=38 xadvance=66 page=0 chnl=15
+char id=49 x=71 y=0 width=39 height=110 xoffset=-1 yoffset=38 xadvance=35 page=0 chnl=15
+char id=50 x=111 y=0 width=62 height=110 xoffset=-1 yoffset=38 xadvance=58 page=0 chnl=15
+char id=51 x=174 y=0 width=57 height=111 xoffset=-1 yoffset=38 xadvance=53 page=0 chnl=15
+char id=52 x=232 y=0 width=60 height=109 xoffset=-1 yoffset=39 xadvance=56 page=0 chnl=15
+char id=53 x=293 y=0 width=59 height=113 xoffset=-1 yoffset=36 xadvance=55 page=0 chnl=15
+char id=54 x=353 y=0 width=62 height=112 xoffset=-1 yoffset=37 xadvance=58 page=0 chnl=15
+char id=55 x=416 y=0 width=56 height=109 xoffset=-1 yoffset=39 xadvance=52 page=0 chnl=15
+char id=56 x=0 y=114 width=66 height=111 xoffset=-1 yoffset=38 xadvance=62 page=0 chnl=15
+char id=57 x=67 y=114 width=62 height=112 xoffset=-1 yoffset=38 xadvance=58 page=0 chnl=15
+char id=58 x=130 y=114 width=34 height=74 xoffset=-1 yoffset=75 xadvance=30 page=0 chnl=15
+char id=8211 x=165 y=114 width=77 height=46 xoffset=-1 yoffset=102 xadvance=73 page=0 chnl=15
+char id=45 x=243 y=114 width=66 height=46 xoffset=-1 yoffset=102 xadvance=62 page=0 chnl=15
+char id=44 x=310 y=114 width=34 height=41 xoffset=-1 yoffset=132 xadvance=30 page=0 chnl=15
+char id=46 x=345 y=114 width=34 height=18 xoffset=-1 yoffset=131 xadvance=30 page=0 chnl=15

@@ -115,9 +115,14 @@ Vorlage ist der Entwurf „Seneca – ein Assistent, drei Geräte“, Seite Garm
 
 | Teil | Ort |
 |---|---|
-| Farben, Schriften, Grundformen (Tastenmarke, Ring, Balken, Haken), Bewegung | `uhr/source/Zeichnen.mc`, Klasse `Bewegung` in `uhr/source/Ansicht.mc` |
+| Farben, Schriften, Grundformen (Tastenmarke, Ring, Balken, Haken), Bewegung | `uhr/gemeinsam/Zeichnen.mc` (App, Zifferblatt, Trail), Klasse `Bewegung` in `uhr/source/Ansicht.mc` |
+| Zifferblatt (Elegant, Sportlich, Always-On) | `uhr/zifferblatt/`, eigenes Watch-Face-Projekt |
+| Trail-Datenfeld (Vollbild) | `uhr/trail/`, Connect-IQ-Datenfeld |
 | Alle Positionen je Ansicht, in Entwurfs-px, skaliert auf 416, 454 und 466 px | `uhr/source/Bildschirm.mc` |
 | Eigene Sätze je Übung, Bestwerte, letztes Training (bleiben auf der Uhr, auch nach dem Abgleich) | `uhr/source/Verlauf.mc` |
 | Bitmap-Schriften (BMFont) und Lichtpunkt je Uhrgröße | `uhr/resources*/gestalt/`, erzeugt mit `python3 uhr/werkzeug/gestalt.py <Ordner mit den TTF von Google Fonts>` (Pillow, fontTools) |
 
 App-Ansichten auf Schwarz (#000), wie im Entwurf. Die Ansichten liefern nur Inhalt und Tastenbelegung. Der Uhr-Stand (`uhrStand` in `pforte/stand.ts`) bringt je To-do Bereich und Dauer, `tm` (Team: Zustand, Satz, Projekt, Ende, heute Fertiges), `tg` (Termine heute: Sport, Fokus, Termin) und zur Frage Absender, Kontext, Projekt, gestellt und die Später-Zeit (`sb`). Zeiten an die Uhr in Sekunden. Die Uhr zeigt beim Start und im Takt, was dran ist (`Hinweise` in `AnsichtSeneca.mc`): Frage, Los-Hinweis 10 Min vor dem Termin, Akku knapp, Weitermachen, Speicher, Neu, Nacht, Morgen. Vibration: kurz = eingetragen, doppelt = Frage, Los-Hinweis, Pause vorbei, lang = Fehler und Akku; nachts keine. Schriften: IBM Plex Mono, Instrument Serif, Space Grotesk (OFL, `uhr/werkzeug/OFL.txt`).
+
+Zifferblatt und App teilen keinen Speicher. Die App meldet die Seneca-Zeile als geschützte Komplikation (`Stand.melden`, nur Apps mit demselben Schlüssel sehen sie), das Zifferblatt abonniert sie. Ist die App nie gelaufen, zeigt das Zifferblatt die Fassung ohne Seneca-Zeile. Schlaf und Lauf-Ruhe kennt Connect IQ nicht; Schlaf steht als „–“.
+
