@@ -1,7 +1,7 @@
 import { hole, laeufe, revision, uhr } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeSetzen, auftragSetzen, ereignis, eintragSetzen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeSetzen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
 import { regelMs, regelUhrzeitNach } from "../regeln.ts";
 
@@ -94,9 +94,11 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "geraet.aktivitaet": setze(() => "aktivitaet"),
   praesenz: setze((h) => `praesenz:${h.geraet}`, () => regelMs("praesenz_gilt_min")),
   "push.token": setze((h) => `push:${h.geraet}`),
+  "geraet.sperren": setze((h) => `uhr:${h.ziel}`),
   "eingang.datei": (db, h) => eingang(db, h, "teilen"),
   "eingang.meeting": (db, h) => eingang(db, h, "meeting"),
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
+  "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
   "anzeige.weg": (db, h) => {
     const a = hole(db, "anzeige", String(h.ziel));
     anzeigeSetzen(db, { id: String(a.id), projekt: String(a.projekt), art: String(a.art), titel: String(a.titel), werte: JSON.parse(String(a.werte)), besitzer: h.geraet, zustand: "entfernt" });

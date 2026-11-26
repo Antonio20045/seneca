@@ -1,18 +1,24 @@
 import { existsSync, readFileSync } from "node:fs";
+import type { IncomingHttpHeaders } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk/plugin-entry";
 import { Type, type TSchema } from "typebox";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
-import { agentEnde, kontext, merkeNachricht, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
+import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
-import { lesenWerkzeug, stand } from "./pforte/stand.ts";
+import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
+import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
+import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
+import { githubEingang } from "./quellen/github.ts";
+import { mitlesen } from "./quellen/whatsapp.ts";
+import { uhrAbgleich } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
 import { revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
-import { regelMs } from "./regeln.ts";
+import { regelMs, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
 type Ausfuehren = (db: Register, k: Kontext, p: Record<string, unknown>) => unknown;
@@ -42,6 +48,10 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S) }),
     (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
+  ["seneca_lernen", "Korrektur von Antonio an genau einem Ort lernen: skill, profil, sperre oder fakt.",
+    Type.Object({ nachricht_kennung: S, wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
+      aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
+    (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
   ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>.", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
     (db, k, p) => {
       nurSeneca(k);
@@ -107,6 +117,25 @@ export default {
       agentEnde(db, ctx.sessionKey ?? "", JSON.stringify(event.messages.at(-1) ?? event.error ?? ""), tokens);
     });
 
+    api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
+    api.on("after_tool_call", (event) => nachWerkzeug(db, event.toolCallId, event.error));
+    api.on("message_received", (event, ctx) => mitlesen(db, ctx.channelId, event));
+    const route = (path: string, verarbeite: (roh: Buffer, kopf: IncomingHttpHeaders) => { status: number; inhalt?: object; kopf?: Record<string, string> }) =>
+      api.registerHttpRoute({ path, auth: "plugin", match: "exact", handler: async (req, res) => {
+        const teile: Buffer[] = [];
+        let groesse = 0;
+        for await (const t of req) {
+          groesse += (t as Buffer).length;
+          if (groesse > regelZahl("http_anfrage_max_kb") * 1024) break;
+          teile.push(t as Buffer);
+        }
+        const a = groesse > regelZahl("http_anfrage_max_kb") * 1024 ? { status: 413 } : verarbeite(Buffer.concat(teile), req.headers);
+        res.writeHead(a.status, { "content-type": "application/json", ...a.kopf });
+        res.end(a.inhalt ? JSON.stringify(a.inhalt) : undefined);
+        return true;
+      } });
+    route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrStand(db, t)));
+    route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, process.env.SENECA_GITHUB_GEHEIMNIS) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.stand", ({ params }) => stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
@@ -129,6 +158,7 @@ export default {
       start(ctx) {
         melde = (r) => ctx.gatewayEvents?.emit("stand", { revision: r }, { scope: "operator.read" });
         nachNeustart(db);
+        unklarePruefen(db);
         dienst.start();
       },
       stop() {

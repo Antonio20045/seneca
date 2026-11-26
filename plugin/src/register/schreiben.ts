@@ -95,14 +95,14 @@ export function uebergang(db: Register, art: Maschine, id: string, nach: string,
 }
 
 export type NeuerAuftrag = {
-  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "dauerauftrag";
+  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "dauerauftrag" | "system";
   wortlaut: string; wortlaut_quelle: string; titel: string; ziel: string; abnahme: string; abnahme_durch: string;
   pruefer_noetig: boolean; verantwortlich: string; auftraggeber: string; quelle: string; bereich: string; arbeitsart: string;
   eltern_id?: string; projekt?: string; schaetzung_min?: number; frist?: number; naechster_anlass?: number;
   nachricht?: { kennung: string; text: string };
 };
 
-const START = { auftrag: "bereit", unterauftrag: "bereit", dauerauftrag: "bereit", vorschlag: "vorgeschlagen", idee: "geparkt" };
+const START = { auftrag: "bereit", unterauftrag: "bereit", dauerauftrag: "bereit", system: "bereit", vorschlag: "vorgeschlagen", idee: "geparkt" };
 
 function verbrauchtAls(db: Register, kennung: string): string | undefined {
   const z = db.prepare("SELECT art FROM ereignis WHERE schluessel = ? AND art IN ('auftrag.angelegt', 'nachricht.verbraucht') LIMIT 1").get(kennung);
@@ -333,5 +333,24 @@ export function anzeigeSetzen(db: Register, a: { id?: string; projekt: string; a
       .run(id, a.projekt, a.art, a.titel, JSON.stringify(a.werte), a.beantwortet ?? null, a.besitzer, uhr.jetzt(), zustand);
     ereignis(db, { art: "anzeige.geaendert", schluessel: id, wer: a.besitzer, daten: { anzeige_id: id, was: zustand } });
     return id;
+  });
+}
+
+export function korrekturZuruecknehmen(db: Register, nr: number): string {
+  return schritt(db, () => {
+    const e = db.prepare("SELECT * FROM ereignis WHERE nr = ? AND art = 'korrektur'").get(nr);
+    if (!e) throw new Error(`Korrektur ${nr} fehlt`);
+    const k = JSON.parse(String(e.daten));
+    if (k.ort === "profil" || k.ort === "fakt") wertSetzen(db, String(k.schluessel), k.vorher ?? "", "lernen");
+    if (k.ort === "sperre") uebergang(db, "auftrag", String(k.nachher), "verworfen", "korrektur zurückgenommen");
+    if (k.ort === "skill") {
+      auftragAnlegen(db, {
+        art: "system", wortlaut: `Skill „${k.ziel}“ zurückdrehen: „${k.nachher}“ wieder durch „${k.vorher}“ ersetzen.`, wortlaut_quelle: `korrektur:${nr}`, titel: `Skill ${k.ziel} zurückdrehen`,
+        ziel: "Alter Text steht wieder im Skill", abnahme: "skill_workshop meldet die Änderung", abnahme_durch: "beleg", pruefer_noetig: false,
+        verantwortlich: String(e.wer ?? "seneca"), auftraggeber: "antonio", quelle: "du", bereich: "Privat", arbeitsart: "skill",
+      });
+    }
+    ereignis(db, { art: "korrektur.zurueckgenommen", schluessel: String(e.schluessel), daten: { korrektur_nr: nr } });
+    return "angenommen";
   });
 }

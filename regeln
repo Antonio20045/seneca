@@ -55,3 +55,16 @@ antwort_max_alter_min 60 zu_messen
 praesenz_gilt_min 2
 preis_ein_cent_je_mio_tokens 300 zu_messen
 preis_aus_cent_je_mio_tokens 1500 zu_messen
+woche_tage 7
+bausystem engineer
+wiederholung_worte hab_ich_schon_gesagt,wie_oft_noch,schon_mal_gesagt,habe_ich_doch_gesagt
+aussen_werkzeuge mcp__telefon__anruf/anruf/nummer,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender_einladen/einladung/teilnehmer
+aussen_gesperrt mcp__whatsapp__send_message,whatsapp_send
+uhr_anfragen_je_std 120
+uhr_handlungen_max 20
+uhr_protokoll 1
+http_anfrage_max_kb 512
+uhr_anfragen_fenster_h 1
+uhr_frage_zeichen 90
+uhr_todos 3
+uhr_warteschlange_max 500

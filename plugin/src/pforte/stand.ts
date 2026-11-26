@@ -89,6 +89,20 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   return inhalt;
 }
 
+export function uhrStand(db: Register, jetzt: number) {
+  const braucht = brauchtDich(db, jetzt);
+  const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f));
+  const r = ruhe(db, jetzt);
+  return {
+    t: jetzt, n: braucht.length,
+    q: frage ? { id: frage.id, x: String(frage.text).slice(0, regelZahl("uhr_frage_zeichen")) } : null,
+    h: !frage && braucht.length ? "Wichtige Frage wartet. Lass uns am Mac darüber reden." : null,
+    d: todos(db, "offen").slice(0, regelZahl("uhr_todos")).map((t) => [t.id, t.kurz_uhr ?? t.titel]),
+    z: r ? { g: r.grund, b: r.bis } : null,
+    reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
+  };
+}
+
 export function lesenWerkzeug(db: Register, was: string, id?: string): string {
   const jetzt = uhr.jetzt();
   if (was === "auftrag" && id) {

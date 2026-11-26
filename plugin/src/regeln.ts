@@ -45,3 +45,7 @@ export function letzteUhrzeit(text: string, jetzt: number): number {
   d.setDate(d.getDate() - 1);
   return d.getTime();
 }
+
+export function msAusSekunden(sekunden: number): number {
+  return sekunden * EINHEIT_MS.s;
+}
