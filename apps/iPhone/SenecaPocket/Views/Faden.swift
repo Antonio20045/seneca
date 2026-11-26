@@ -27,7 +27,6 @@ struct FadenLayer: View {
     @State var fragtNeu = false
     @State var zeigtFuellstand = false
     @State var fuellstandBis = Date.distantPast
-    @State var wechselOffen = false
     @State var laedtAelteres = false
     @State var gewachsen: Set<String> = []
     @State var abstandSonde: Int?
@@ -49,20 +48,8 @@ struct FadenLayer: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            Seite(titel: partner.kopfName, zurueck: zurueckZiel, kopf: .eineZeile, scrollt: false,
-                  beimZurueck: {
-                      guard allowTap() else { return }
-                      model.dismissKeyboard()
-                      zurueck()
-                  },
-                  titelTipp: {
-                      guard allowTap() else { return }
-                      wechselOffen = true
-                  }) {
+            Seite(scrollt: false) {
                 VStack(spacing: 0) {
-                    AgentenLeiste(aktiv: partner, allowTap: allowTap, alle: { wechselOffen = true }, waehle: { gewaehlt($0, proxy) })
-                        .seitenRand()
-                        .padding(.bottom, Stil.abstand.s)
                     zustandsZeile
                     fadenBereich(proxy)
                         .overlay(alignment: .bottom) { neuKnopf(proxy) }
@@ -70,13 +57,23 @@ struct FadenLayer: View {
                 }
                 .bewegt(.wechsel, wert: zustand?.satz)
             }
-            .rechts { anhaltenKnopf }
-            .unten { schreibzeile }
+            .reiter {
+                ChatKopf(stand: store.stand, aktiv: partner, zurueck: {
+                    guard allowTap() else { return }
+                    model.dismissKeyboard()
+                    zurueck()
+                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) })
+            }
+            .unten {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let l = ChatTafelLogik.laeuft(store.stand) { HStack { ChatLaeuftZeile(satz: l); anhaltenKnopf } }
+                    schreibzeile
+                }
+            }
             .padding(.bottom, keyboardHeight)
             .bewegt(.blatt, wert: keyboardHeight)
             .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
             .accessibilityElement(children: .contain)
-            .gegenueberWahl(offen: $wechselOffen, partner: partner, chat: chat) { gewaehlt($0, proxy) }
             .onChange(of: chat.faden(partner).messages.last?.id) { _, id in
                 guard let id, let letzte = chat.faden(partner).messages.last else { return }
                 if letzte.role == .user, id.hasPrefix("lokal-"), model.istOffen(partner) { verankere(id, proxy); return }
@@ -100,13 +97,6 @@ struct FadenLayer: View {
                     pruefeAnfang(proxy)
                 }
             }
-            #if DEBUG
-            .task {
-                guard ProcessInfo.processInfo.environment["SENECA_DEMO_WECHSEL"] == "1" else { return }
-                try? await Task.sleep(for: .seconds(2))
-                wechselOffen = true
-            }
-            #endif
         }
         .background(sonden)
         .onAppear {
@@ -169,6 +159,8 @@ struct FadenLayer: View {
             .coordinateSpace(name: "faden-inhalt")
         }
         .scrollIndicators(.hidden)
+        .environment(\.chatSerif, true)
+        .mask { VStack(spacing: 0) { LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 70); Color.black } }
         .defaultScrollAnchor(ankerAktiv ? .top : .bottom)
         .scrollDismissesKeyboard(.interactively)
         .id(partner.id)

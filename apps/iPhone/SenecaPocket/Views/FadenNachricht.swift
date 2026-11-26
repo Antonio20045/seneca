@@ -84,7 +84,7 @@ extension FadenLayer {
     private func frage(_ n: ChatMessage, oben: CGFloat, letzte: Bool, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
         let anzeige = FadenLogik.zustandsAnzeige(n.zustand, istLetzteEigene: letzte, antwortFehlt: antwortFehlt)
         return VStack(alignment: .trailing, spacing: Stil.abstand.xs) {
-            FadenFrage(text: n.text, breite: m.size.width)
+            FadenFrage(text: n.text, breite: m.size.width, zeit: n.date)
             if let anzeige { FadenFrageZustand(anzeige: anzeige, erneut: { erneutSenden(n, proxy) }) }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -96,12 +96,12 @@ extension FadenLayer {
     }
 
     private func antwort(_ n: ChatMessage) -> some View {
-        VStack(alignment: .leading, spacing: Stil.abstand.xs) {
+        VStack(alignment: .leading, spacing: 6) {
             if n.role == .dritter {
                 FadenAbsender(name: n.absender ?? "Jemand anderes", fremd: true)
                 FadenAntwort(text: n.text, sprecher: n.absender ?? "Jemand anderes")
             } else {
-                if let vermerk = n.vermerk { FadenAbsender(name: sprecher, vermerk: vermerk) }
+                ChatMeta(name: sprecher, zeit: n.date, ort: n.vermerk)
                 FadenAntwort(text: n.text, sprecher: sprecher)
             }
         }
@@ -128,6 +128,10 @@ extension FadenLayer {
     }
 
     @ViewBuilder private func endeSatz(faden: ChatFaden, letzteEigene: ChatMessage?) -> some View {
+        if partner.id == ChatPartner.seneca.id, let s = store.stand {
+            ForEach(s.auftraege_neu ?? []) { ChatAuftragKarte(auftrag: $0).padding(.top, 10) }
+            if let w = s.wartet { ChatHinweis(satz: w, farbe: TafelFarbe.bernstein).padding(.top, 18) }
+        }
         if let schluss = model.schluss[partner.id], !faden.messages.isEmpty, letzteEigene?.zustand != .fehlgeschlagen {
             HinweisZeile(schluss, art: schluss == "Die Antwort ist nicht angekommen." ? .fehler : .info)
                 .padding(.top, Stil.abstand.s)
