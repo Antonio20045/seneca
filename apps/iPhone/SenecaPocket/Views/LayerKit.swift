@@ -124,30 +124,6 @@ extension EnvironmentValues {
     }
 }
 
-struct HorizontalSwipe: ViewModifier {
-    var allows: (CGFloat) -> Bool
-    var changed: (CGFloat) -> Void
-    var ended: (CGFloat, CGFloat) -> Void
-    var cancelled: () -> Void
-    @State private var decided: Bool?
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.gesture(HorizontalPan(allows: allows, changed: changed, ended: ended, cancelled: cancelled))
-        } else {
-            content.simultaneousGesture(DragGesture(minimumDistance: 12)
-                .onChanged { v in
-                    if decided == nil { decided = abs(v.translation.width) > abs(v.translation.height) * 1.2 && allows(v.translation.width) }
-                    if decided == true { changed(v.translation.width) }
-                }
-                .onEnded { v in
-                    if decided == true { ended(v.translation.width, v.predictedEndTranslation.width) }
-                    decided = nil
-                })
-        }
-    }
-}
-
 @available(iOS 18.0, *)
 private struct HorizontalPan: UIGestureRecognizerRepresentable {
     var allows: (CGFloat) -> Bool

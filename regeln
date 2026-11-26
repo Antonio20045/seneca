@@ -114,3 +114,5 @@ getrennt_nach_s 30
 buendel_abnahme_s 50 vorschlag
 buendel_frage_min 3 vorschlag
 koerper_schwer_ab 50 vorschlag
+anruf_worte anruf,telefonat,call vorschlag
+satz_ruhe_ab_min 60 vorschlag

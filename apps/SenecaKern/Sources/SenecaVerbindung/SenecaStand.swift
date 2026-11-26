@@ -11,6 +11,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var id: String
         public var text: String
         public var von: String?
+        public var projekt: String?
         public var seit: Double?
         public var art: String?
         public var wirkung_aussen: String?
@@ -22,9 +23,22 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
     }
-    public struct Abnahme: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String }
-    public struct Buendel: Codable, Equatable, Sendable { public var fenster: Double?; public var abnahmen: [Abnahme]?; public var fragen: [Frage]? }
-    public struct Mitglied: Codable, Equatable, Sendable { public var name: String; public var zustand: String; public var satz: String?; public var seit: Double? }
+    public struct Abnahme: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var projekt: String? }
+    public struct Buendel: Codable, Equatable, Sendable {
+        public var fenster: Double?; public var abnahmen: [Abnahme]?; public var fragen: [Frage]?
+        public var dauer_min: Double?; public var satz: String?; public var kurz: String?
+    }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double? }
+    public struct Mitglied: Codable, Equatable, Sendable {
+        public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
+        public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
+    }
+    public struct Heute: Codable, Equatable, Sendable { public var satz: [String]?; public var satz_folge: [String]? }
+    public struct Schlaf: Codable, Equatable, Sendable { public var minuten: Double; public var bis: Double }
+    public struct Koerper: Codable, Equatable, Sendable {
+        public var body_battery: Double?; public var zeit: Double?; public var stress: Double?; public var schritte: Double?
+        public var morgens: Double?; public var titel: String?; public var hinweis: String?; public var schlaf: Schlaf?
+    }
     public struct Erledigt: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String }
     public struct Termin: Codable, Equatable, Sendable, Identifiable {
         public var uid: String
@@ -60,6 +74,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var regeln: [String: Double]?
     public var zaehler: Zaehler?
     public var ruhe: Ruhe?
+    public var heute: Heute?
+    public var koerper: Koerper?
     public var braucht_dich: [Frage]?
     public var buendel: Buendel?
     public var team: [Mitglied]?

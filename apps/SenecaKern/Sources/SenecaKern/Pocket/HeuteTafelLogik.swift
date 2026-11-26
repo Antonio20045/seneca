@@ -38,25 +38,13 @@ enum HeuteTafelLogik {
         return String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)
     }
 
-    static func stundeAlsWort(_ ms: Double, _ cal: Calendar = .current) -> String {
-        let k = cal.dateComponents([.hour, .minute], from: datum(ms))
-        let woerter = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"]
-        guard k.minute == 0, let h = k.hour else { return uhr(ms, cal) }
-        return woerter[h % 12]
-    }
-
     static func kommend(_ s: SenecaStand) -> [SenecaStand.Termin] {
         (s.termine ?? []).filter { $0.ganztag != true && $0.art != "fokus" && $0.art != "bewegung" && $0.start > s.jetzt }.sorted { $0.start < $1.start }
     }
 
-    static func satz(_ s: SenecaStand) -> (vor: String, akzent: String) {
-        let k = kommend(s)
-        if let r = s.ruhe, r.grund == "fokus", let bis = r.bis {
-            guard let a = k.first else { return ("Fokus bis \(stundeAlsWort(bis)).", "Danach ist der Tag frei.") }
-            return ("Fokus bis \(stundeAlsWort(bis)).", k.count > 1 ? "Danach zuerst \(a.titel), dann \(k[1].titel)." : "Danach \(a.titel).")
-        }
-        guard let a = k.first else { return ("Heute steht", "nichts mehr an.") }
-        return ("\(a.titel) um \(uhr(a.start)),", k.count > 1 ? "dann \(k[1].titel)." : "danach Ruhe.")
+    static func satz(_ s: SenecaStand, folge: Bool = false) -> (vor: String, akzent: String)? {
+        guard let t = folge ? s.heute?.satz_folge : s.heute?.satz, t.count == 2 else { return nil }
+        return (t[0], t[1])
     }
 
     static func frage(_ s: SenecaStand) -> SenecaStand.Frage? {

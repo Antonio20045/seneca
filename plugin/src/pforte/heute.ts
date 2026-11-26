@@ -1,6 +1,6 @@
 import { hole, letztesTraining, termineAm, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { regelMs, regelZahl } from "../regeln.ts";
+import { regelListe, regelMs, regelZahl } from "../regeln.ts";
 import { istFokus } from "./planen.ts";
 
 const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
@@ -27,6 +27,16 @@ function artikel(titel: string): [string, string] {
   return [`der ${titel}`, "er"];
 }
 
+function kurzName(titel: string): string {
+  return regelListe("anruf_worte").some((w) => titel.toLowerCase().includes(w)) ? "Ein Anruf" : titel;
+}
+
+function dann(a: Termin, b: Termin): string {
+  if (b.start - a.ende < regelMs("satz_ruhe_ab_min")) return `dann ${artikel(b.titel)[0]}.`;
+  const wort = b.titel.split(" ")[0];
+  return `dann Ruhe bis ${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}.`;
+}
+
 export function heute(db: Register, ruhe: { grund: string; bis: number } | undefined, jetzt: number) {
   const ab = ruhe?.grund === "fokus" ? ruhe.bis : jetzt;
   const [a, b] = termineAm(db, jetzt).filter((t: Termin) => !t.ganztag && t.start >= ab && !istFokus(t));
@@ -40,7 +50,7 @@ export function heute(db: Register, ruhe: { grund: string; bis: number } | undef
       satz_folge: [vor, b ? `Danach zuerst ${erster}, dann ${artikel(b.titel)[0]}.` : `Danach ${erster}.`],
     };
   }
-  const satz = a ? [`${a.titel} um ${uhrzeit(a.start)},`, b ? `dann ${b.titel}.` : "danach Ruhe."] : ["Heute steht", "nichts mehr an."];
+  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."] : ["Heute steht", "nichts mehr an."];
   return { satz, satz_folge: satz };
 }
 
