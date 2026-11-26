@@ -1,7 +1,7 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  auftragAnlegen, auftragSetzen, befund, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, wertSetzen,
+  auftragAnlegen, auftragSetzen, befund, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
 } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, rolle } from "../team.ts";
@@ -146,7 +146,7 @@ export type AuftragEingabe = {
   art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "abnahme" | "verwerfen";
   nachricht_kennung?: string; wortlaut?: string; titel?: string; ziel?: string; abnahme?: string; abnahme_durch?: string; pruefer_noetig?: boolean;
   an?: string; bereich?: string; projekt?: string; frist?: number; arbeitsart?: string; schaetzung_min?: number; eltern_id?: string;
-  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string;
+  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string;
 };
 
 function laufender(db: Register, sitzung: string): Zeile {
@@ -173,19 +173,20 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     if (!mandat(ctx.agent).befugnisse.unterauftrag_an.includes(String(p.an))) throw new Error(`Unterauftrag an ${p.an} ist im Mandat nicht erlaubt.`);
   }
   const verantwortlich = p.an ?? ctx.agent;
-  const { id, kostenrahmen_cent } = auftragAnlegen(db, {
-    art: p.art, wortlaut: String(p.wortlaut), wortlaut_quelle: p.nachricht_kennung ?? `lauf:${lauf?.id ?? ctx.sitzung}`, titel: p.titel ?? String(p.wortlaut).slice(0, regelZahl("titel_zeichen")),
+  const felder = {
+    wortlaut: String(p.wortlaut), wortlaut_quelle: p.nachricht_kennung ?? `lauf:${lauf?.id ?? ctx.sitzung}`, titel: p.titel ?? String(p.wortlaut).slice(0, regelZahl("titel_zeichen")),
     ziel: String(p.ziel), abnahme: String(p.abnahme), abnahme_durch: p.abnahme_durch ?? "antonio", pruefer_noetig: !!p.pruefer_noetig, verantwortlich,
-    auftraggeber: p.art === "auftrag" ? "antonio" : ctx.agent, quelle: { auftrag: "du", unterauftrag: "kollege", vorschlag: "vorschlag", idee: "eigene_idee" }[p.art],
-    bereich: p.bereich ?? mandat(verantwortlich).bereich[0], projekt: p.projekt, frist: p.frist, arbeitsart: p.arbeitsart ?? "standard",
-    schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id, nachricht: n && p.art === "auftrag" ? { kennung: n.kennung, text: n.text } : undefined,
-  });
+    auftraggeber: p.art === "auftrag" ? "antonio" : ctx.agent, bereich: p.bereich ?? mandat(verantwortlich).bereich[0], projekt: p.projekt, frist: p.frist,
+    arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
+  };
   if (p.art === "vorschlag") {
-    frageStellen(db, {
-      auftrag_id: id, von: ctx.agent, art: "vorschlag", text: `${p.titel ?? p.wortlaut}?`, was_passiert_ist: String(p.wortlaut), wenn_nichts: "Der Vorschlag verfällt.",
-      empfehlung: String(p.ziel), optionen: [{ wert: "ja", text: "Ja", folge: "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
-    });
+    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist } });
+    return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
+  const { id, kostenrahmen_cent } = auftragAnlegen(db, {
+    ...felder, art: p.art, quelle: { auftrag: "du", unterauftrag: "kollege", idee: "eigene_idee" }[p.art],
+    nachricht: n && p.art === "auftrag" ? { kennung: n.kennung, text: n.text } : undefined,
+  });
   const satz = p.schaetzung_min ? `Notiert. ${verantwortlich} kümmert sich, etwa ${euro(kostenrahmen_cent)}.` : `Notiert. ${verantwortlich} kümmert sich, Rahmen ${euro(kostenrahmen_cent)}.`;
   return { auftrag_id: id, satz };
 }

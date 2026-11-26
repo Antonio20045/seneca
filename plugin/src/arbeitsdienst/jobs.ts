@@ -1,8 +1,10 @@
 import { statfsSync } from "node:fs";
-import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
-import { auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, uebergang, wertSetzen } from "../register/schreiben.ts";
+import {
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
+} from "../register/schreiben.ts";
 import { regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
 import { naechsterTermin, starteLauf, zurueckMitWartezeit, type Starter } from "./lauf.ts";
@@ -32,10 +34,7 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   const antwort = String(f.antwort);
   if (antwort === "spaeter") return;
   if (f.art === "stufe_festlegen") wertSetzen(db, `kontakt:${f.ausgang_schluessel}`, antwort, "antonio");
-  if (f.art === "vorschlag" && a.zustand === "vorgeschlagen") {
-    uebergang(db, "auftrag", id, antwort === "ja" ? "bereit" : "verworfen", "vorschlag", antwort === "ja" ? { naechster_anlass: jetzt } : {});
-    return;
-  }
+  if (f.art === "vorschlag" && a.zustand === "vorgeschlagen") return vorschlagWirkt(db, id, antwort === "ja", jetzt);
   if (f.von === "arbeitsdienst:kostenrahmen" && antwort === "weiter") auftragSetzen(db, id, { kostenrahmen_cent: Number(a.kostenrahmen_cent) * 2 }, "Rahmen erhöht.");
   const anhalten = antwort === "anhalten" && ["arbeitsdienst:kostenrahmen", "arbeitsdienst:haengt"].includes(String(f.von));
   if (f.von === "arbeitsdienst:haengt") {
@@ -48,6 +47,17 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   if (jetztA.zustand === "wartet") {
     uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
   }
+}
+
+function vorschlagWirkt(db: Register, id: string, ja: boolean, jetzt: number): void {
+  const w = vorschlagDaten(db, id).wirkung as Wirkung | undefined;
+  if (!ja) return uebergang(db, "auftrag", id, "verworfen", "vorschlag");
+  if (!w) return uebergang(db, "auftrag", id, "bereit", "vorschlag", { naechster_anlass: jetzt });
+  if (w.todo) todoSetzen(db, { aktion: "anlegen", felder: w.todo, geraet: "seneca" });
+  if (w.wert) wertSetzen(db, w.wert.schluessel, w.wert.wert, "antonio");
+  if (w.parken && ["bereit", "laeuft", "wartet"].includes(String(hole(db, "auftrag", w.parken).zustand))) uebergang(db, "auftrag", w.parken, "geparkt", "vorschlag");
+  if (w.anzeige_weg) anzeigeEntfernen(db, w.anzeige_weg, "antonio");
+  uebergang(db, "auftrag", id, "erledigt", "vorschlag");
 }
 
 export function faelligeWirkungenJob(db: Register): number | undefined {

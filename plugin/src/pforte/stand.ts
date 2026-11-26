@@ -45,7 +45,11 @@ function brauchtDich(db: Register, jetzt: number): Zeile[] {
 }
 
 export function uhrTauglich(f: Zeile): boolean {
-  return f.art === "ja_nein" && f.wirkung_aussen === "keine";
+  return (f.art === "ja_nein" || f.art === "vorschlag") && f.wirkung_aussen === "keine";
+}
+
+function vorschlagAnUhr(db: Register): Zeile | undefined {
+  return fragen(db, "offen").find((f) => f.art === "vorschlag" && ereignisse(db, { art: "zustellung", frage_id: String(f.id), grenze: 1 }).some((e) => e.geraet === "uhr"));
 }
 
 function frageSicht(db: Register, f: Zeile) {
@@ -140,7 +144,7 @@ function uhrTeam(db: Register, jetzt: number) {
 
 export function uhrStand(db: Register, jetzt: number) {
   const braucht = brauchtDich(db, jetzt);
-  const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f));
+  const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f)) ?? vorschlagAnUhr(db);
   const r = ruhe(db, jetzt);
   return {
     t: jetzt, n: braucht.length,

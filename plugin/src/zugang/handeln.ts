@@ -1,7 +1,7 @@
 import { hole, laeufe, revision, spaeterBis, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeSetzen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeEntfernen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
 import { regelMs } from "../regeln.ts";
 
@@ -108,8 +108,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
   "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
   "anzeige.weg": (db, h) => {
-    const a = hole(db, "anzeige", String(h.ziel));
-    anzeigeSetzen(db, { id: String(a.id), projekt: String(a.projekt), art: String(a.art), titel: String(a.titel), werte: JSON.parse(String(a.werte)), besitzer: h.geraet, zustand: "entfernt" });
+    anzeigeEntfernen(db, String(h.ziel), h.geraet);
     return "angenommen";
   },
 };
