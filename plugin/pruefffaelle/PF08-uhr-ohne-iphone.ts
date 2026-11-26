@@ -14,7 +14,7 @@ test("PF08 Uhr allein: 14 Sätze, zweimal gesendet, genau 14 Einträge; Außen-F
   um("08:30");
   const saetze = Array.from({ length: 14 }, (_, i) => ({ id: `s${i}`, t: Math.floor(t / 1000) + i, a: "eintrag.neu", p: { k: "satz", u: "kniebeuge", kg: 60, w: 8, n: i + 1 }, lokal: true }));
   const kopf = { authorization: "Bearer geheim-uhr1" };
-  const senden = (h: typeof saetze) => uhrAbgleich(p.db, Buffer.from(JSON.stringify({ v: 1, g: "uhr1", r: 0, h, zs: "training" })), kopf, (j) => uhrStand(p.db, j));
+  const senden = (h: typeof saetze) => uhrAbgleich(p.db, Buffer.from(JSON.stringify({ v: 1, g: "uhr1", r: 0, h, zs: "training", k: { bb: [64, Math.floor(t / 1000)], st: 20, sc: 4000 } })), kopf, (j) => uhrStand(p.db, j));
   for (const stapel of [saetze.slice(0, 7), saetze.slice(7), saetze.slice(0, 7), saetze.slice(7)]) assert.equal(senden(stapel).status, 200);
   const antwort = senden([]).inhalt as { s: { q: unknown; h: string; reg: { q: number } } };
   const eintraege = p.db.prepare("SELECT werte FROM eintrag ORDER BY zeit").all().map((z) => JSON.parse(String(z.werte)).n);
@@ -23,6 +23,7 @@ test("PF08 Uhr allein: 14 Sätze, zweimal gesendet, genau 14 Einträge; Außen-F
   assert.match(antwort.s.h, /am Mac/);
   assert.equal(antwort.s.reg.q, 500);
   assert.equal(ereignisse(p.db, { art: "wert.gesetzt", schluessel: "aktivitaet" }).length, 1);
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { koerper: unknown }).koerper, { body_battery: 64, zeit: Math.floor(t / 1000) * 1000, stress: 20, schritte: 4000, morgens: 64 });
   p.methode("seneca.handeln", { kennung: "sp1", geraet: "iphone", art: "geraet.sperren", ziel: "uhr1", wert: "gesperrt" });
   assert.equal(senden(saetze).status, 401);
 });
