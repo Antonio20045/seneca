@@ -51,6 +51,14 @@ export function beendeteLaeufe(db: Register, mitarbeiter: string, seit: number):
   return alle(db, `SELECT lauf.*, auftrag.titel FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
 }
 
+export function laeufeSeit(db: Register, mitarbeiter: string, seit: number): Zeile[] {
+  return alle(db, "SELECT * FROM lauf WHERE mitarbeiter = ? AND gestartet >= ? ORDER BY gestartet", mitarbeiter, seit);
+}
+
+export function anzeigen(db: Register, besitzer: string): Zeile[] {
+  return alle(db, "SELECT * FROM anzeige WHERE besitzer = ? AND zustand != 'entfernt'", besitzer);
+}
+
 export function laeufe(db: Register, auftragId: string): Zeile[] {
   return alle(db, "SELECT * FROM lauf WHERE auftrag_id = ? ORDER BY gestartet", auftragId);
 }
