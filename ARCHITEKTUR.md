@@ -64,6 +64,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 15, 16 | Wecken; „ruht“ prüfen (einzige Prüfstelle) | `arbeitsdienst/lauf.ts` · `starteLauf()` |
 | 17 | Hintergrundjobs mit wachsendem Abstand bei Fehlern | `arbeitsdienst/takt.ts` |
 | 18 | Rundgang, Morgenbericht, Rückblick, Briefing | Daueraufträge, geweckt von `faellige_auftraege` |
+| 18a | Rundgang: Feststeckendes, Team, Eingänge, Signale und Ziele im Kontext; Anzeigen grau; Regel-Vorschläge aus Mustern (dreimal Ja zum selben Kontakt, dreimal vertagt, Anzeige ungesehen); Folgezug (`seneca_auftrag` art `nachfassen`) und eigener Auftrag (art `eigener`) nur im Rundgang | `arbeitsdienst/rundgang.ts` |
 | 19 | Kontext für den Lauf | `arbeitsdienst/lauf.ts` · Hook `before_prompt_build` |
 | 20 | Lauf-Ende: Fortschreibung erzwingen | `arbeitsdienst/lauf.ts` · Hook `agent_end` (ohne Fortschreibung: Befund `ohne_stand`) |
 | 21 | Mandat lesen, frisch bei jedem Lauf | `team.ts` |

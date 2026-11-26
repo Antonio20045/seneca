@@ -13,6 +13,8 @@ export type Mandat = {
   modellstufen: { standard: Stufe; arbeitsarten: Record<string, Stufe | { stufe: Stufe; ort: Ort }> };
   kontext: Record<string, string[]>;
   zugaenge: string[];
+  signale: { quelle: string; was: string }[];
+  ziele: { kennzahl: string; ziel: string }[];
 };
 
 function ordner(): string {
@@ -33,5 +35,5 @@ export function mandat(name: string): Mandat {
   const roh = parse(readFileSync(join(ordner(), name, "mandat"), "utf8"));
   const fehlt = ["bereich", "rundgang", "befugnisse", "budget", "modellstufen"].filter((f) => roh?.[f] === undefined);
   if (fehlt.length) throw new Error(`mandat ${name}: ${fehlt.join(", ")} fehlt`);
-  return { kontext: {}, zugaenge: [], ...roh };
+  return { kontext: {}, zugaenge: [], signale: [], ziele: [], ...roh };
 }

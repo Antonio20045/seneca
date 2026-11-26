@@ -9,6 +9,7 @@ import { aboReihenfolge } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
 import { knoten } from "./rechenknoten.ts";
+import { nachfassen, rundgangSicht, rundgangVorbereiten } from "./rundgang.ts";
 
 export type Starter = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string; werkzeuge: string[] }) => Promise<{ runId: string }>;
 type SkillLeser = (mitarbeiter: string, arbeitsart: string) => string | undefined;
@@ -92,6 +93,7 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
   const zusatz = [ollama ? " Textarbeit über node_inference (discover, dann run) auf dem lokalen Modell." : "", ort === "rechenknoten" ? ` Schwere Befehle mit exec host=${name}.` : ""].join("");
   const laufId = laufAnlegen(db, { auftrag_id: String(a.id), mitarbeiter: wer, anlass: String(a.anlass ?? "neu"), art: "werkzeug", ort, stufe, modell, abo: abos[0] });
   const lauf = hole(db, "lauf", laufId);
+  if (a.arbeitsart === "rundgang") rundgangVorbereiten(db, a, jetzt);
   try {
     const { runId } = await starte({
       sessionKey: String(lauf.sitzung), message: `Arbeite am Auftrag „${a.titel}“. Der Auftrag steht oben im Kontext.${zusatz}`, model: modell, idempotencyKey: laufId, werkzeuge: ollama ? ["node_inference"] : [],
@@ -132,6 +134,7 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
     [`Ziel: ${a.ziel}\nAbnahme: ${a.abnahme} (durch ${a.abnahme_durch})${a.pruefer_noetig ? "\nPrüfer nötig." : ""}`, false],
     [`Letzter Stand: ${a.letzter_stand || "noch nichts"}\nNächster Schritt: ${a.naechster_schritt || "offen"}${a.schritt_nr ? `\nPunkt ${a.schritt_nr} von ${a.schritt_gesamt}` : ""}`, false],
     [anlassSatz(db, a), false],
+    [a.arbeitsart === "rundgang" ? rundgangSicht(db, a, uhr.jetzt()) : "", true],
     [eltern ? `Elternauftrag: ${String(eltern.wortlaut).slice(0, regelZahl("kontext_eltern_zeichen"))}\nZiel: ${eltern.ziel}` : "", false],
     [ereignisse(db, { art: "befund", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") }).map((b) => `Befund: ${b.satz}`).join("\n"), false],
     [`Kosten: ${euro(verbraucht)} von ${euro(Number(a.kostenrahmen_cent))}. Stufe ${l.stufe}.`, false],
@@ -143,7 +146,7 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
 }
 
 export type AuftragEingabe = {
-  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "abnahme" | "verwerfen";
+  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen";
   nachricht_kennung?: string; wortlaut?: string; titel?: string; ziel?: string; abnahme?: string; abnahme_durch?: string; pruefer_noetig?: boolean;
   an?: string; bereich?: string; projekt?: string; frist?: number; arbeitsart?: string; schaetzung_min?: number; eltern_id?: string;
   auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string;
@@ -164,6 +167,8 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     if (p.satz) befund(db, { art: "teilergebnis", auftrag_id: String(a.id), satz: p.satz });
     return { auftrag_id: String(a.id), satz: `Auftrag ist jetzt ${nach}.` };
   }
+  if (p.art === "nachfassen") return { auftrag_id: String(p.auftrag_id), satz: nachfassen(db, laufender(db, ctx.sitzung), ctx.agent, String(p.auftrag_id), String(p.satz)) };
+  if (p.art === "eigener" && hole(db, "auftrag", String(laufender(db, ctx.sitzung).auftrag_id)).arbeitsart !== "rundgang") throw new Error("Eigene Aufträge entstehen im Rundgang.");
   const n = nachrichten.get(ctx.sitzung);
   const lauf = p.art === "auftrag" ? undefined : laufZurSitzung(db, ctx.sitzung);
   if (p.art === "auftrag" && (!n?.vonAntonio || n.kennung !== p.nachricht_kennung)) throw new Error("Ein Auftrag entsteht nur aus Antonios Nachricht in diesem Gespräch.");
@@ -172,10 +177,10 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     if (laufender(db, ctx.sitzung).auftrag_id !== eltern.id) throw new Error("Unteraufträge vergibt nur der Lauf des Elternauftrags.");
     if (!mandat(ctx.agent).befugnisse.unterauftrag_an.includes(String(p.an))) throw new Error(`Unterauftrag an ${p.an} ist im Mandat nicht erlaubt.`);
   }
-  const verantwortlich = p.an ?? ctx.agent;
+  const verantwortlich = p.art === "eigener" ? ctx.agent : p.an ?? ctx.agent;
   const felder = {
     wortlaut: String(p.wortlaut), wortlaut_quelle: p.nachricht_kennung ?? `lauf:${lauf?.id ?? ctx.sitzung}`, titel: p.titel ?? String(p.wortlaut).slice(0, regelZahl("titel_zeichen")),
-    ziel: String(p.ziel), abnahme: String(p.abnahme), abnahme_durch: p.abnahme_durch ?? "antonio", pruefer_noetig: !!p.pruefer_noetig, verantwortlich,
+    ziel: String(p.ziel), abnahme: String(p.abnahme), abnahme_durch: p.abnahme_durch ?? (p.art === "eigener" ? "beleg" : "antonio"), pruefer_noetig: !!p.pruefer_noetig, verantwortlich,
     auftraggeber: p.art === "auftrag" ? "antonio" : ctx.agent, bereich: p.bereich ?? mandat(verantwortlich).bereich[0], projekt: p.projekt, frist: p.frist,
     arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
   };
@@ -184,7 +189,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
   const { id, kostenrahmen_cent } = auftragAnlegen(db, {
-    ...felder, art: p.art, quelle: { auftrag: "du", unterauftrag: "kollege", idee: "eigene_idee" }[p.art],
+    ...felder, art: p.art, quelle: { auftrag: "du", unterauftrag: "kollege", idee: "eigene_idee", eigener: "eigene_idee" }[p.art],
     nachricht: n && p.art === "auftrag" ? { kennung: n.kennung, text: n.text } : undefined,
   });
   const satz = p.schaetzung_min ? `Notiert. ${verantwortlich} kümmert sich, etwa ${euro(kostenrahmen_cent)}.` : `Notiert. ${verantwortlich} kümmert sich, Rahmen ${euro(kostenrahmen_cent)}.`;

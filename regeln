@@ -29,6 +29,14 @@ modell_opus anthropic/claude-opus-5-5
 modell_fable anthropic/claude-fable-5-1
 pruefer pruefer
 dauerauftraege_von seneca
+rundgang_fehlversuche 3 vorschlag
+rundgang_alt_tage 2 vorschlag
+rundgang_muster_anzahl 3 vorschlag
+rundgang_aehnlich_tage 28
+rundgang_eingaenge 20
+rundgang_zeilen 60
+anzeige_veraltet_tage 14 zu_messen
+anzeige_ungesehen_tage 14
 morgenbericht_um 08:50
 rueckblick_um 21:30
 briefing_um 06:40
