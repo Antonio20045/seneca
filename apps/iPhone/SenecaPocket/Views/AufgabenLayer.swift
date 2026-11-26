@@ -9,17 +9,12 @@ struct AufgabenLayer: View {
 
     @EnvironmentObject private var store: SenecaStore
     @EnvironmentObject private var berichte: BerichteModel
-    @Environment(\.appActions) private var appActions
-
-    private var berichtGruppen: [BerichtGruppe] {
-        BerichteLogik.zusammengefasst(berichte.eintraege(store: store, jetzt: now))
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             TafelReiter(auswahl: $berichte.tab, optionen: [(.aufgaben, "Aufgaben"), (.berichte, "Berichte")]).padding(.horizontal, 24)
             if berichte.tab == .berichte {
-                ScrollView { BerichteListeView(now: now, allowTap: allowTap).padding(.horizontal, 24) }.transition(.wechsel)
+                if let b = store.stand?.berichte { BerichteTafel(berichte: b).transition(.wechsel) } else { HeuteSkelett() }
             } else if let stand = store.stand {
                 AufgabenTafel(stand: stand, jetzt: store.demo ? stand.jetzt : now.timeIntervalSince1970 * 1000, offline: offline).transition(.wechsel)
             } else {
@@ -31,10 +26,6 @@ struct AufgabenLayer: View {
         .background(TafelGrund())
         .scrollDisabled(griff)
         .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
-        .task { await berichte.laden(store: store, jetzt: now) }
-        .onChange(of: berichte.tab) { _, tab in
-            if tab == .berichte { Task { await berichte.laden(store: store, jetzt: now) } }
-        }
         .onAppear(perform: demoStart)
         .onDisappear { berichte.tab = .aufgaben }
         .accessibilityElement(children: .contain)
@@ -53,18 +44,7 @@ struct AufgabenLayer: View {
         #if DEBUG
         guard store.demo else { return }
         let env = ProcessInfo.processInfo.environment
-        if let v = env["SENECA_DEMO_BERICHTE"] {
-            berichte.tab = .berichte
-            if v == "lesen" {
-                Task {
-                    await berichte.laden(store: store, jetzt: now)
-                    try? await Task.sleep(for: .seconds(1.2))
-                    if let g = berichtGruppen.first(where: { $0.neuester.text.contains("```seneca") }) {
-                        BerichteListeView.oeffnen(g, now: now, store: store, actions: appActions)
-                    }
-                }
-            }
-        }
+        if env["SENECA_DEMO_BERICHTE"] != nil { berichte.tab = .berichte }
         #endif
     }
 }

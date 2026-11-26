@@ -1,6 +1,7 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
+import { berichte, rueckblick } from "./berichte.ts";
 import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
@@ -141,6 +142,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
     termine: termineAm(db, jetzt).map((t) => terminSicht(db, t)),
     aufgaben: aufg,
+    berichte: berichte(db, tagBeginn, jetzt),
+    rueckblick: rueckblick(db, tagBeginn),
     kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,

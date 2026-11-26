@@ -76,7 +76,9 @@ struct TodayLayer: View {
     var body: some View {
         if heroOverride == nil {
             Group {
-                if let stand = store.stand {
+                if let r = store.stand?.rueckblick {
+                    RueckblickTafel(r: r) { store.antworte(frage: $0, wahl: $1) }
+                } else if let stand = store.stand {
                     HeuteTafel(stand: stand, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
                                antworte: { f, wahl in store.antworte(frage: f.id, wahl: wahl) }, oeffne: oeffne, allowTap: allowTap)
                 } else {
