@@ -63,6 +63,9 @@ enum HeuteBild {
                 SnGrund(fortschritt: 0)
                 if let s = HeuteTafelLogik.beispiel(env["SENECA_DEMO_STAND"] ?? "Beispiel-Stand") {
                     switch env["SENECA_SEITE"] {
+                    case "projekte":
+                        SnProjekteTafel(stand: s, zuDenFragen: {}, oeffne: { _ in })
+                        SnGeruestBild(stand: s, aktiv: .projekte)
                     case "entscheiden":
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)
