@@ -93,6 +93,15 @@ function buendel(db: Register, braucht: Zeile[], jetzt: number) {
 
 const ANZAHL = ["Keine", "Eine", "Zwei", "Drei", "Vier", "Fünf"];
 
+function mitteilung(db: Register, f: Zeile, weitere: number) {
+  const [z, vorher] = ereignisse(db, { art: "zustellung", frage_id: String(f.id), grenze: 2 }).map((e) => ({ geraet: e.geraet, ...JSON.parse(String(e.daten)) }));
+  if (z?.geraet !== "iphone" || z.was !== "zugestellt") return null;
+  const g = JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}"));
+  const o = (JSON.parse(String(f.optionen)) as { wert: string; folge: string }[]).find((x) => x.wert === f.empfehlung) ?? JSON.parse(String(f.optionen))[0];
+  return { titel: `${vorher?.was === "zurueckgehalten" && vorher.grund === "fokus" ? "Fokus vorbei · " : ""}${g.kurz ?? f.text}`,
+    text: `${o.folge}${weitere ? ` Dazu ${weitere === 1 ? "wartet eine weitere Frage" : `warten ${ANZAHL[weitere]?.toLowerCase() ?? weitere} weitere Fragen`}.` : ""}` };
+}
+
 function wartetSatz(db: Register, offen: Zeile[]): string | null {
   const von = [...new Set(offen.map((f) => String(f.von)))];
   const viele = von.map((v) => [anzeigeName(v), offen.filter((f) => f.von === v)] as const).sort((a, b) => b[1].length - a[1].length)[0];
@@ -121,7 +130,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
-    braucht_dich: braucht.map((f) => frageSicht(db, f, jetzt)),
+    braucht_dich: braucht.map((f) => ({ ...frageSicht(db, f, jetzt), mitteilung: mitteilung(db, f, braucht.length - 1) })),
     buendel: b,
     team: team(db, jetzt),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
