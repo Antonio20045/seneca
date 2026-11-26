@@ -29,6 +29,10 @@ module Training {
         return feld("n", 0);
     }
 
+    function saetzeText() as String {
+        return saetze() == 1 ? "1 Satz" : saetze().toString() + " Sätze";
+    }
+
     function bewegt() as Number {
         return feld("kg", 0);
     }

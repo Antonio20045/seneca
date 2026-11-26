@@ -69,7 +69,7 @@ class SatzAnsicht extends Ansicht {
         Zeichnen.text(dc, 0.38, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, Zeichnen.kg(_kg) + " kg");
         Zeichnen.text(dc, 0.60, Graphics.FONT_NUMBER_MEDIUM, Zeichnen.GRUEN, "× " + _wiederholungen.toString());
         Zeichnen.text(dc, 0.76, Graphics.FONT_XTINY, Zeichnen.GRAU, "Satz " + (Training.saetze() + 1).toString());
-        Zeichnen.text(dc, 0.86, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = Satz eintragen");
+        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = eintragen");
     }
 
     function hoch() as Void {
@@ -94,7 +94,7 @@ class SatzAnsicht extends Ansicht {
     }
 
     function menue() as Void {
-        Menue.zeigen("Satz", [[:gewicht, "Gewicht ändern"], [:loeschen, "Letzten Satz löschen"], [:beenden, "Training beenden"]], method(:menuGewaehlt));
+        Menue.zeigen("Satz", [[:gewicht, "Gewicht ändern"], [:loeschen, "Satz löschen"], [:beenden, "Training beenden"]], method(:menuGewaehlt));
     }
 
     function menuGewaehlt(auswahl as Object?) as Void {
@@ -127,7 +127,7 @@ class GewichtAnsicht extends Ansicht {
         Zeichnen.titel(dc, "Gewicht");
         Zeichnen.text(dc, 0.5, Graphics.FONT_NUMBER_HOT, Graphics.COLOR_WHITE, Zeichnen.kg(_kg));
         Zeichnen.text(dc, 0.72, Graphics.FONT_XTINY, Zeichnen.GRAU, "kg · negativ = Unterstützung");
-        Zeichnen.text(dc, 0.86, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = übernehmen");
+        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = übernehmen");
     }
 
     function hoch() as Void {
@@ -197,10 +197,10 @@ class FertigAnsicht extends Ansicht {
         var puls = Training.pulsDurchschnitt();
         Zeichnen.leeren(dc);
         Zeichnen.titel(dc, "Fertig");
-        Zeichnen.text(dc, 0.30, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, Zeit.dauer(Training.dauer()));
-        Zeichnen.text(dc, 0.50, Graphics.FONT_SMALL, Zeichnen.GRUEN, Training.saetze().toString() + " Sätze · " + Training.bewegt().toString() + " kg");
-        Zeichnen.text(dc, 0.64, Graphics.FONT_SMALL, Zeichnen.KORALLE, "Puls Ø " + (puls == null ? "–" : puls.toString()));
-        Zeichnen.text(dc, 0.82, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = speichern");
+        Zeichnen.text(dc, 0.34, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, Zeit.dauer(Training.dauer()));
+        Zeichnen.text(dc, 0.54, Graphics.FONT_SMALL, Zeichnen.GRUEN, Training.saetzeText() + " · " + Training.bewegt().toString() + " kg");
+        Zeichnen.text(dc, 0.68, Graphics.FONT_SMALL, Zeichnen.KORALLE, "Puls Ø " + (puls == null ? "–" : puls.toString()));
+        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = speichern");
     }
 
     function waehlen() as Void {

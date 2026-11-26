@@ -14,21 +14,20 @@ class LesenAnsicht extends Ansicht {
         Zeichnen.leeren(dc);
         Zeichnen.titel(dc, _gestern ? "Lesen · gestern" : "Lesen");
         if (Lesen.timerLaeuft()) {
-            Zeichnen.text(dc, 0.42, Graphics.FONT_NUMBER_HOT, Zeichnen.GRUEN, Zeit.dauer(Lesen.timerSekunden()));
-            Zeichnen.text(dc, 0.66, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = stoppen und eintragen");
+            Zeichnen.text(dc, 0.40, Graphics.FONT_NUMBER_HOT, Zeichnen.GRUEN, Zeit.dauer(Lesen.timerSekunden()));
+            Zeichnen.text(dc, 0.66, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = stoppen");
         } else {
-            Zeichnen.text(dc, 0.42, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, _minuten.toString() + " Min");
-            Zeichnen.text(dc, 0.64, Graphics.FONT_XTINY, Zeichnen.GRAU, zielText());
-            Zeichnen.text(dc, 0.72, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = eintragen");
+            Zeichnen.text(dc, 0.32, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, _minuten.toString() + " Min");
+            Zeichnen.text(dc, 0.49, Graphics.FONT_XTINY, Zeichnen.GRAU, Inhalt.buch());
+            Zeichnen.text(dc, 0.56, Graphics.FONT_XTINY, Zeichnen.GRAU, zielText());
+            Zeichnen.text(dc, 0.67, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = eintragen");
         }
         Zeichnen.fuss(dc, true);
     }
 
     function zielText() as String {
         var ziel = Inhalt.lesenZiel();
-        var buch = Inhalt.buch();
-        var gelesen = ziel > 0 ? "heute " + Inhalt.heuteGelesen().toString() + " von " + ziel.toString() + " Min" : "";
-        return buch.length() > 0 && gelesen.length() > 0 ? buch + " · " + gelesen : buch + gelesen;
+        return ziel > 0 ? "heute " + Inhalt.heuteGelesen().toString() + " von " + ziel.toString() + " Min" : "";
     }
 
     function hoch() as Void {

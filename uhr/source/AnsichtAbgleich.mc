@@ -11,10 +11,11 @@ class AbgleichAnsicht extends Ansicht {
         var wartend = Warteschlange.anzahl();
         Zeichnen.leeren(dc);
         Zeichnen.titel(dc, "Abgleich");
-        Zeichnen.text(dc, 0.30, Graphics.FONT_SMALL, Zustand.stoerung() ? Zeichnen.ROT : Graphics.COLOR_WHITE, Zustand.text());
+        Zeichnen.zustand(dc, 0.26, Zustand.stoerung() ? Zeichnen.ROT : Graphics.COLOR_WHITE);
         Zeichnen.text(dc, 0.46, Graphics.FONT_MEDIUM, Zeichnen.HIMMEL, wartend == 0 ? "Nichts wartet" : wartend.toString() + " warten aufs Netz");
         if (wartend > 0) {
-            Zeichnen.text(dc, 0.60, Graphics.FONT_XTINY, Zeichnen.GRAU, "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()) + " · sicher auf der Uhr");
+            Zeichnen.text(dc, 0.60, Graphics.FONT_XTINY, Zeichnen.GRAU, "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()));
+            Zeichnen.text(dc, 0.67, Graphics.FONT_XTINY, Zeichnen.GRAU, "sicher auf der Uhr");
         }
         Zeichnen.text(dc, 0.82, Graphics.FONT_XTINY, Zeichnen.HIMMEL, Abgleich.laeuft ? "Sendet …" : "START = jetzt senden");
     }

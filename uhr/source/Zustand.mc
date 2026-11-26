@@ -12,7 +12,7 @@ module Zustand {
     }
 
     const TEXTE = {
-        :nie => "Noch nicht abgeglichen",
+        :nie => "Nie abgeglichen",
         :abgeglichen => "Abgeglichen $1$",
         :sendet => "Wird gesendet · $2$ offen",
         :offline => "Offline · wird später abgeglichen",
@@ -77,6 +77,12 @@ module Zustand {
     function text() as String {
         var argumente = [Zeit.uhrzeit(Stand.abgeglichenUm()), Warteschlange.anzahl(), Regeln.grenze()];
         return Lang.format(TEXTE[aktuell()] as String, argumente);
+    }
+
+    function kurz() as String {
+        var voll = text();
+        var trenner = voll.find(" · ");
+        return trenner == null ? voll : voll.substring(0, trenner) as String;
     }
 
     function stoerung() as Boolean {
