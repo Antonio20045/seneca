@@ -10,7 +10,10 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Kontext: Codable, Equatable, Sendable { public var worum: String?; public var wenn_nicht: String? }
     public struct Zustellung: Codable, Equatable, Sendable { public var geraet: String?; public var zeit: Double?; public var was: String?; public var bis: Double?; public var grund: String? }
     public struct Antwort: Codable, Equatable, Sendable { public var wahl: String; public var geraet: String?; public var zeit: Double? }
+    public struct Punkt: Codable, Equatable, Sendable { public var text: String; public var fertig: Bool }
+    public struct Bericht: Codable, Equatable, Sendable { public var satz: String; public var text: String; public var beleg: String? }
     public struct Frage: Codable, Equatable, Sendable, Identifiable {
+        public var checkliste: [Punkt]?; public var bericht: Bericht?
         public var id: String
         public var text: String
         public var von: String?
@@ -56,6 +59,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
+        public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?
     }
     public struct Heute: Codable, Equatable, Sendable { public var satz: [String]?; public var satz_folge: [String]? }
     public struct Schlaf: Codable, Equatable, Sendable { public var minuten: Double; public var bis: Double }
@@ -83,7 +87,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Notiz: Codable, Equatable, Sendable { public var zeit: Double; public var satz: String }
     public struct KalBlock: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String
-        public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?
+        public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?; public var andere: [Double]?
     }
     public struct KalMarke: Codable, Equatable, Sendable { public var titel: String; public var zeit: Double }
     public struct KalTag: Codable, Equatable, Sendable { public var tag: Double; public var bb: Double?; public var ganztag: [String]; public var bloecke: [KalBlock]; public var marken: [KalMarke] }
@@ -127,6 +131,12 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var heute_erledigt: [Erledigt]?
     public var termine: [Termin]?
     public var wochenplan: Wochenplan?
+    public var verlauf: Verlauf?
+    public struct Verlauf: Codable, Equatable, Sendable { public var quittungen: [Quittung]? }
+    public struct Zuruecklegen: Codable, Equatable, Sendable { public var uid: String; public var start: Double; public var ende: Double; public var ab: Double; public var bis: Double }
+    public struct Quittung: Codable, Equatable, Sendable {
+        public var sitzung: String; public var von: Double; public var bis: Double; public var teile: [String]; public var ergebnis: [String]; public var raus: String?; public var zuruecklegen: Zuruecklegen?
+    }
     public var todos: [Todo]?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?

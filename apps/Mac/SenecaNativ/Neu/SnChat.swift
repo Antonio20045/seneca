@@ -164,8 +164,6 @@ struct SnChatSeite: View {
     @ObservedObject private var chat: ChatService
     @ObservedObject private var ansichten: AnsichtModell
     @ObservedObject private var gegenueber: GegenueberModell
-    @ObservedObject private var listen = ListenModell.gemeinsam
-    @ObservedObject private var aufgaben = AufgabenModell.gemeinsam
     @State private var ziehtZiel = false
     var schliesse: () -> Void
 
@@ -215,7 +213,8 @@ struct SnChatSeite: View {
                 VStack(spacing: 24) {
                     VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
-                                karten: listen.liste?.auftragskarten ?? [], agent: agent, neuLaden: neuLaden)
+                                stand: stand, agent: agent, neuLaden: neuLaden,
+                                zuruecklegen: { z in modell.store.handle("termin.zuruecklegen", ziel: z.uid, wert: ["start": .zahl(z.start), "ende": .zahl(z.ende)]) })
                         .equatable()
                         .verlaufRein()
                     if let s = stand, !istSeneca {

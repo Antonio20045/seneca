@@ -137,7 +137,6 @@ struct ArbeitsListe: Equatable {
         return auftraege + rest
     }
 
-    var auftragskarten: [ListenZeile] { alle.filter { $0.nachricht != nil } }
 
     var agentJeKarte: [String: String] {
         var m: [String: String] = [:]
@@ -233,31 +232,6 @@ struct ArbeitsListe: Equatable {
         s.board = ((ls["board"] as? [String: Any]) ?? [:]).mapValues(zahl)
         l.stand = s
         return l
-    }
-}
-
-struct ZusagenSicht: Equatable {
-    struct Zeile: Equatable, Identifiable {
-        var id: String
-        var kopf: String
-        var wortlaut: String
-        var grund: String
-    }
-
-    static let titel = "Zugesagt, aber nichts dahinter"
-    var zeilen: [Zeile] = []
-    var istLeer: Bool { zeilen.isEmpty }
-    var zahl: String { zeilen.count == 1 ? "1 Zusage" : "\(zeilen.count) Zusagen" }
-
-    init(_ liste: ArbeitsListe, jetzt: Date = Date(), kalender: Calendar = .current) {
-        zeilen = liste.zusagenOffen.map { z in
-            let wer = z.von.isEmpty ? z.agent : z.von
-            let wann = z.zeit.map { ListenText.uhr($0, jetzt: jetzt, kalender: kalender) } ?? ""
-            let minuten = z.zeit.map { max(0, Int(jetzt.timeIntervalSince($0) / 60)) } ?? z.alterMin
-            let alter = minuten < 1 ? "gerade eben" : "seit " + ListenText.dauer(TimeInterval(minuten * 60))
-            let zitat = z.wortlaut.trimmingCharacters(in: CharacterSet(charactersIn: " „“\"")).trimmingCharacters(in: .whitespaces)
-            return Zeile(id: z.id, kopf: [wer, wann, alter].filter { !$0.isEmpty }.joined(separator: " · "), wortlaut: "„" + zitat + "“", grund: z.grund)
-        }
     }
 }
 
@@ -377,13 +351,9 @@ struct WegSicht: Equatable {
 
     var stationen: [Station] = []
 
-    init(_ z: ListenZeile, gesendet: Date? = nil, jetzt: Date, kalender: Calendar = .current) {
+    init(_ z: ListenZeile, jetzt: Date, kalender: Calendar = .current) {
         var vorher: Date?
         func uhr(_ d: Date) -> String { ListenText.uhr(d, jetzt: jetzt, kalender: kalender) }
-        if let g = gesendet {
-            stationen.append(Station(id: "gesendet", name: ListenText.station("gesendet"), zeit: uhr(g), erreicht: true, fehlt: false, hier: false, dauer: "", beleg: "Antonios Nachricht"))
-            vorher = g
-        }
         stationen += z.weg.map { s in
             let erreicht = s.zeit != nil || s.fehlt
             var dauer = ""

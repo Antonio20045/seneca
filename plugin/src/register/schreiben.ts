@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
-import { regelMs, regelZahl } from "../regeln.ts";
+import { letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { hole, kinder, offeneFrage, revision, uhr, zurueckgenommen, type Tabelle, type Zeile } from "./lesen.ts";
 import type { Register } from "./schema.ts";
 import { NEBENWIRKUNGEN, NEU, PFLICHT_BEI, UEBERGAENGE } from "./uebergaenge.ts";
@@ -142,15 +142,16 @@ export function auftragSetzen(db: Register, id: string, felder: Felder, satz?: s
 }
 
 export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; anzeige_weg?: string; termin?: { titel: string; start: number; ende: number; ort?: string } };
-type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number }; wirkung?: Wirkung };
+type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number; ja?: string }; wirkung?: Wirkung };
 
 export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
   return schritt(db, () => {
-    const { herkunft, frage, wirkung, ...a } = v;
+    const { herkunft, frage: { ja, ...frage }, wirkung, ...a } = v;
+    const frist = frage.frist ?? (wirkung?.termin ? letzteUhrzeit(regelText("vorschlag_verfaellt_uhr"), new Date(wirkung.termin.start).setHours(0, 0, 0, 0)) : undefined);
     const { id } = auftragAnlegen(db, { ...a, art: "vorschlag", quelle: "vorschlag" }, { herkunft, wirkung });
     frageStellen(db, {
-      auftrag_id: id, von: a.auftraggeber, art: "vorschlag", ...frage, wenn_nichts: "Der Vorschlag verfällt.",
-      optionen: [{ wert: "ja", text: "Ja", folge: wirkung ? "Seneca übernimmt das so." : "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
+      auftrag_id: id, von: a.auftraggeber, art: "vorschlag", ...frage, frist, wenn_nichts: "Der Vorschlag verfällt.",
+      optionen: [{ wert: "ja", text: ja ?? "Ja", folge: wirkung ? "Seneca übernimmt das so." : "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
     });
     return id;
   });

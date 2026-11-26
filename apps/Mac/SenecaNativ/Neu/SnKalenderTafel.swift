@@ -13,6 +13,7 @@ final class SnKalZustand: ObservableObject {
     @Published var auswahl: String?
     @Published var entwurf: KalEntwurf?
     @Published var verschoben: [String: (Double, Double)] = [:]
+    @Published var anders = false
     var blaettere: ((Int) -> Void)?
 }
 
@@ -260,13 +261,13 @@ struct SnKalenderTafel: View {
 
     private func verschieben(_ b: SenecaStand.KalBlock, tag: Double) -> some Gesture {
         DragGesture(minimumDistance: 6).onChanged { v in
-            guard b.uid != nil, ["termin", "seneca", "bewegung"].contains(b.art) else { return }
+            guard b.uid != nil || b.frage_id != nil, ["termin", "seneca", "bewegung", "vorschlag", "bewegung_vorschlag"].contains(b.art) else { return }
             let s = L.raste(b.start + Double(v.translation.height / KF.stunde) * 3_600_000, tag: tag, minuten: raster)
             z.verschoben[b.id] = (s, s + b.ende - b.start)
         }
         .onEnded { _ in
-            guard let uid = b.uid, let (s, e) = z.verschoben[b.id], s != b.start else { z.verschoben[b.id] = nil; return }
-            handeln("termin.verschieben", uid, ["start": .zahl(s), "ende": .zahl(e)])
+            guard let (s, e) = z.verschoben[b.id], s != b.start else { z.verschoben[b.id] = nil; return }
+            if let f = b.frage_id { handeln("vorschlag.anders", f, ["start": .zahl(s)]) } else if let uid = b.uid { handeln("termin.verschieben", uid, ["start": .zahl(s), "ende": .zahl(e)]) }
         }
     }
 
@@ -439,9 +440,19 @@ struct SnKalenderTafel: View {
             if let f { Text(f.text).font(Schrift.grotesk(14)).hoehe(20).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true) }
             HStack(spacing: 8) {
                 Button("Eintragen") { antworte(frage, "ja"); z.auswahl = nil }.buttonStyle(SnTafelKnopf(groesse: 14))
+                if !(b.andere ?? []).isEmpty { Button("Anders") { z.anders.toggle() }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14)) }
                 Button("Nein") { antworte(frage, "nein"); z.auswahl = nil }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 14))
             }
             .padding(.top, 16)
+            if z.anders {
+                HStack(spacing: 8) {
+                    ForEach(b.andere ?? [], id: \.self) { t in
+                        Button(HeuteTafelLogik.uhr(t).replacingOccurrences(of: "^0", with: "", options: .regularExpression)) { handeln("vorschlag.anders", frage, ["start": .zahl(t)]); z.auswahl = nil; z.anders = false }
+                            .buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                    }
+                }
+                .padding(.top, 10)
+            }
         }
     }
 }
@@ -486,9 +497,19 @@ struct SnKalBlock: View {
     @ViewBuilder static func grund<S: InsettableShape>(_ art: String, _ form: S, laeuft: Bool = false, gewaehlt: Bool = false) -> some View {
         let gestrichelt = StrokeStyle(lineWidth: 1, dash: [3, 2])
         switch art {
-        case "seneca", "todos", "vorschlag":
-            let rand: Double = laeuft ? 0.7 : art == "vorschlag" ? 0.45 : 0.55
-            form.fill(TafelFarbe.himmel.opacity(laeuft ? 0.10 : art == "vorschlag" ? 0 : 0.05)).overlay(form.strokeBorder(TafelFarbe.himmel.opacity(rand), style: gestrichelt))
+        case "seneca", "todos":
+            form.fill(TafelFarbe.himmel.opacity(laeuft ? 0.2 : 0.12))
+                .overlay { Canvas { c, g in
+                    var p = Path()
+                    for x in stride(from: -g.height, through: g.width, by: 10 * 2.squareRoot()) {
+                        p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x + g.height, y: g.height))
+                    }
+                    c.stroke(p, with: .color(TafelFarbe.himmel.opacity(0.10)), lineWidth: 5)
+                } }
+                .overlay(alignment: .leading) { Rectangle().fill(TafelFarbe.himmel).frame(width: 2) }
+                .clipShape(form)
+        case "vorschlag":
+            form.fill(Color.clear).overlay(form.strokeBorder(TafelFarbe.himmel.opacity(0.45), style: gestrichelt))
         case "bewegung_vorschlag":
             form.fill(TafelFarbe.gruen.opacity(0.05)).overlay(form.strokeBorder(TafelFarbe.gruen.opacity(0.6), style: gestrichelt))
         case "fenster":
@@ -655,6 +676,7 @@ enum SnKalenderBild {
         let z = SnKalZustand.gemeinsam
         guard let heute = s.wochenplan?.tage.first(where: { KalenderLogik.gleicherTag($0.tag, s.jetzt) })?.tag else { return }
         if seite == "kalender-detail" { z.auswahl = s.wochenplan?.tage.flatMap(\.bloecke).first { $0.detail?.seneca != nil }?.id }
+        if seite == "kalender-vorschlag" { z.auswahl = s.wochenplan?.tage.flatMap(\.bloecke).first { $0.art == "vorschlag" }?.id; z.anders = true }
         if seite == "kalender-neu" {
             let start = heute + (24 + 13) * 3_600_000
             z.entwurf = KalEntwurf(titel: "Friseur", start: start, ende: start + 3_600_000, ort: "Salon am Markt", kalender: s.wochenplan?.standard ?? "Privat", weg: KalWeg(m: 2300, min: 9, art: "rad"))

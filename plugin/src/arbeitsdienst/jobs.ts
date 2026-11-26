@@ -1,9 +1,9 @@
 import { statfsSync } from "node:fs";
-import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
 } from "../register/schreiben.ts";
 import { regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
@@ -34,7 +34,11 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   const antwort = String(f.antwort);
   if (antwort === "spaeter") return;
   if (f.art === "stufe_festlegen") wertSetzen(db, `kontakt:${f.ausgang_schluessel}`, antwort, "antonio");
-  if (f.art === "vorschlag" && a.zustand === "vorgeschlagen") return vorschlagWirkt(db, id, antwort === "ja", jetzt);
+  if (f.art === "vorschlag_lassen" && antwort === "ja") wertSetzen(db, `vorschlag:lassen:${f.ausgang_schluessel}`, "ja", "antonio");
+  const termin = (vorschlagDaten(db, id).wirkung as Wirkung | undefined)?.termin;
+  if (f.art === "vorschlag" && a.zustand === "vorgeschlagen") vorschlagWirkt(db, id, f, jetzt);
+  if (f.art === "vorschlag" && antwort === "nein" && termin && f.antwort_geraet !== "frist") zweitesNein(db, id, termin);
+  if (f.art === "vorschlag") return;
   if (f.von === "arbeitsdienst:kostenrahmen" && antwort === "weiter") auftragSetzen(db, id, { kostenrahmen_cent: Number(a.kostenrahmen_cent) * 2 }, "Rahmen erhöht.");
   const anhalten = antwort === "anhalten" && ["arbeitsdienst:kostenrahmen", "arbeitsdienst:haengt"].includes(String(f.von));
   if (f.von === "arbeitsdienst:haengt") {
@@ -49,16 +53,54 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   }
 }
 
-function vorschlagWirkt(db: Register, id: string, ja: boolean, jetzt: number): void {
+const OFT = ["sonntags", "montags", "dienstags", "mittwochs", "donnerstags", "freitags", "samstags"];
+const art = (t: { titel: string; start: number }) => `${new Date(t.start).getDay()}:${t.titel}`;
+
+function zweitesNein(db: Register, id: string, t: { titel: string; start: number }): void {
+  const frueher = fragen(db, "beantwortet").filter((f) => f.art === "vorschlag" && f.antwort === "nein" && f.antwort_geraet !== "frist" && f.auftrag_id !== id)
+    .map((f) => (vorschlagDaten(db, String(f.auftrag_id)).wirkung as Wirkung | undefined)?.termin).filter((x) => x && art(x) === art(t));
+  if (frueher.length !== 1) return;
+  frageStellen(db, {
+    auftrag_id: id, von: regelText("dauerauftraege_von"), art: "vorschlag_lassen", ausgang_schluessel: art(t), text: `Gut. Soll ich ${OFT[new Date(t.start).getDay()]} nicht mehr fragen?`,
+    was_passiert_ist: `Zweimal Nein zu ${t.titel}.`, wenn_nichts: "Seneca fragt weiter.", empfehlung: "Nicht mehr fragen, wenn der Tag dafür nie passt.",
+    optionen: [{ wert: "ja", text: "Nicht mehr fragen", folge: "Diesen Vorschlag gibt es an diesem Wochentag nicht mehr." }, { wert: "nein", text: "Weiter fragen", folge: "Seneca fragt weiter." }],
+  });
+}
+
+function vorschlagWirkt(db: Register, id: string, f: Zeile, jetzt: number): void {
   const w = vorschlagDaten(db, id).wirkung as Wirkung | undefined;
-  if (!ja) return uebergang(db, "auftrag", id, "verworfen", "vorschlag");
+  if (f.antwort !== "ja") return uebergang(db, "auftrag", id, "verworfen", "vorschlag");
+  const start = Number(wert(db, `vorschlag:zeit:${f.id}`)?.wert ?? w?.termin?.start);
   if (!w) return uebergang(db, "auftrag", id, "bereit", "vorschlag", { naechster_anlass: jetzt });
   if (w.todo) todoSetzen(db, { aktion: "anlegen", felder: w.todo, geraet: "seneca" });
   if (w.wert) wertSetzen(db, w.wert.schluessel, w.wert.wert, "antonio");
   if (w.parken && ["bereit", "laeuft", "wartet"].includes(String(hole(db, "auftrag", w.parken).zustand))) uebergang(db, "auftrag", w.parken, "geparkt", "vorschlag");
   if (w.anzeige_weg) anzeigeEntfernen(db, w.anzeige_weg, "antonio");
-  if (w.termin) wertSetzen(db, `kalender:schreiben:${id}`, JSON.stringify({ aktion: "anlegen", uid: `${id}-seneca`, kalender: regelText("kalender_seneca"), ...w.termin }), "antonio");
+  if (w.termin) wertSetzen(db, `kalender:schreiben:${id}`, JSON.stringify({ aktion: "anlegen", uid: `${id}-seneca`, kalender: regelText("kalender_seneca"), ...w.termin, start, ende: start + w.termin.ende - w.termin.start }), "antonio");
   uebergang(db, "auftrag", id, "erledigt", "vorschlag");
+}
+
+export function kalenderWacheJob(db: Register): void {
+  const jetzt = uhr.jetzt();
+  for (const f of fragen(db, "offen").filter((x) => x.art === "vorschlag" && x.frist !== null && Number(x.frist) < jetzt)) {
+    frageBeantworten(db, { frage_id: String(f.id), antwort: "nein", geraet: "frist", kennung: `frist:${f.id}` });
+  }
+  if (Number(wert(db, "praesenz:mac")?.gueltig_bis ?? 0) <= jetzt) return;
+  for (const t of termineAm(db, jetzt)) {
+    const weg = regelMs("eine_minute_min") * Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0);
+    const da = Number(wert(db, `ankunft:${t.uid}`)?.wert ?? t.start - regelMs("ankunft_puffer_min"));
+    const name = t.titel.split(" mit ")[1];
+    if (!weg || !name || jetzt < da - weg + regelMs("zu_spaet_nach_min") || jetzt > da || wert(db, `zuspaet:${t.uid}`)) continue;
+    const neu = Math.ceil((jetzt + weg) / regelMs("zu_spaet_runden_min")) * regelMs("zu_spaet_runden_min");
+    const um = new Date(neu).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    wertSetzen(db, `zuspaet:${t.uid}`, String(neu), "seneca");
+    vorschlagAnlegen(db, {
+      wortlaut: `${name} schreiben, dass Antonio um ${um} da ist. Danach ankunft:${t.uid} auf ${neu} setzen.`, wortlaut_quelle: `zuspaet:${t.uid}`, titel: `${name} schreiben: ${um} da`,
+      ziel: `${name} weiß, dass Antonio um ${um} kommt`, abnahme: "Nachricht ist raus", abnahme_durch: "beleg", pruefer_noetig: false, verantwortlich: regelText("dauerauftraege_von"),
+      auftraggeber: regelText("dauerauftraege_von"), bereich: "Privat", arbeitsart: "standard", herkunft: `zuspaet:${t.uid}`,
+      frage: { text: `Du bist noch am Schreibtisch. ${name} schreiben, dass du ${um} da bist?`, was_passiert_ist: `${t.titel} beginnt bald, der Weg dauert länger als die Zeit bis dahin.`, empfehlung: "Senden", frist: da, ja: "Senden" },
+    });
+  }
 }
 
 export function faelligeWirkungenJob(db: Register): number | undefined {

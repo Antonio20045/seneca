@@ -66,7 +66,7 @@ enum HeuteBild {
                     case "projekte":
                         SnProjekteTafel(stand: s, zuDenFragen: {}, oeffne: { _ in })
                         SnGeruestBild(stand: s, aktiv: .projekte)
-                    case "kalender", "kalender-detail", "kalender-neu":
+                    case "kalender", "kalender-detail", "kalender-neu", "kalender-vorschlag":
                         SnKalenderTafel(stand: s, handeln: { _, _, _ in }, antworte: { _, _ in }, zumChat: { _ in }, rechneWeg: { _ in nil })
                             .onAppear { SnKalenderBild.zeige(env["SENECA_SEITE"] ?? "", s) }
                         SnGeruestBild(stand: s, aktiv: .kalender)

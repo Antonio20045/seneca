@@ -688,7 +688,6 @@ final class SenecaStore: ObservableObject {
         guard !demo else { return }
         if let data = try? JSONEncoder().encode(days) { defaults.set(data, forKey: "seneca-pocket.days") }
     }
-    func clearSaveFailure() { saveFailure = nil }
 
     func markSeen(_ keys: [String]) {
         let fresh = keys.filter { localSeen[$0] == nil && today?.seen?[$0] == nil }
@@ -703,15 +702,6 @@ final class SenecaStore: ObservableObject {
         Task { await flushOutbox() }
     }
 
-    func lastRunSummary(_ jobId: String) async -> String? {
-        #if DEBUG
-        if demo { return nil }
-        #endif
-        guard isConnected, let result = try? await rufe("cron.runs", params: ["id": jobId, "limit": 1]) else { return nil }
-        let entry = (result["entries"] as? [[String: Any]])?.first
-        let summary = (entry?["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return summary?.isEmpty == false ? summary : nil
-    }
 
     nonisolated static let connectCaps = ["chat-only-assistant-text", "tool-events"]
 
@@ -734,7 +724,7 @@ final class SenecaStore: ObservableObject {
     func ask(_ text: String, sessionKey target: String? = nil, idempotencyKey: String? = nil, anhaenge: [[String: Any]] = []) async throws -> String {
         tempo("ask() verbunden=\(isConnected)")
         let key = AreasLogic.chatSession(target, main: sessionKey)
-        let id = idempotencyKey ?? UUID().uuidString
+        let id = idempotencyKey ?? VerlaufLogik.schluessel()
         guard asks[id] == nil else { throw SenecaError.message("Diese Frage wird schon gesendet.") }
         let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
         asks[id] = AskTracker(key: id, sessionKey: key, question: question, sentAt: Date())

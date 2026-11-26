@@ -56,8 +56,9 @@ function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
 }
 
 function wegSetzen(db: Register, uid: string, w: Wert, geraet: string): void {
-  wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.min))), geraet);
-  wertSetzen(db, `wegstrecke:${uid}`, JSON.stringify({ m: Math.round(Number(w.m)), art: String(w.art ?? "fuss") }), geraet);
+  wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.weg_min))), geraet);
+  wertSetzen(db, `entfernung:${uid}`, String(Math.round(Number(w.entfernung_m))), geraet);
+  if (w.art) wertSetzen(db, `wegart:${uid}`, String(w.art), geraet);
 }
 
 const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -119,11 +120,17 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     const w = h.wert as Wert;
     return terminVerschieben(db, h.kennung, String(h.ziel), w ?? {});
   },
-  "termin.wegzeit": (db, h) => {
-    const w = h.wert as Wert;
-    if (!(Number(w?.min) >= 0) || !(Number(w?.m) >= 0)) return "abgelehnt:wegzeit_fehlt";
-    wegSetzen(db, String(h.ziel), w, h.geraet);
+  "termin.weg": (db, h) => {
+    wegSetzen(db, String(h.ziel), h.wert as Wert, h.geraet);
     return "angenommen";
+  },
+  "termin.zuruecklegen": (db, h) => {
+    wertSetzen(db, `zurueckgelegt:${h.ziel}`, "ja", h.geraet);
+    return terminVerschieben(db, h.kennung, String(h.ziel), h.wert as Wert);
+  },
+  "vorschlag.anders": (db, h) => {
+    wertSetzen(db, `vorschlag:zeit:${h.ziel}`, String(Number((h.wert as Wert)?.start)), h.geraet);
+    return antwort(db, { ...h, wert: { wahl: "ja" } });
   },
   "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),
   "geraet.aktivitaet": setze(() => "aktivitaet"),

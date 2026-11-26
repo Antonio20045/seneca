@@ -55,17 +55,17 @@ struct VerlaufView: View, Equatable {
     var hinweis: String?
     var gesendet: Int = 0
     var erneut: (String) -> Void
-    var karten: [ListenZeile] = []
+    var stand: SenecaStand?
     var agent = ""
     var neuLaden: () -> Void = {}
-    @AppStorage(NurUnterhaltung.schluessel, store: Hintergrund.defaults()) private var nurUnterhaltung = true
+    var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
 
     static func == (a: VerlaufView, b: VerlaufView) -> Bool {
         a.verlauf === b.verlauf && a.chat === b.chat && a.lauf == b.lauf
-            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.karten == b.karten && a.agent == b.agent
+            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.stand?.verlauf == b.stand?.verlauf && a.agent == b.agent
     }
 
     private struct Zeile: Identifiable {
@@ -78,10 +78,6 @@ struct VerlaufView: View, Equatable {
 
     private func zeige(_ id: String, _ anker: UnitPoint, _ leser: ScrollViewProxy) {
         withAnimation(Kurve.ease(0.35)) { leser.scrollTo(id, anchor: anker) }
-    }
-
-    private func sichtbar(_ bloecke: [ZugBlock]) -> [ZugBlock] {
-        nurUnterhaltung ? Unterhaltung.nurUnterhaltung(bloecke) : bloecke
     }
 
     private func zeilen(_ bloecke: [ZugBlock]) -> [Zeile] {
@@ -130,11 +126,11 @@ struct VerlaufView: View, Equatable {
 
     var body: some View {
         let alleBloecke = verlauf.bloecke
-        let bloecke = sichtbar(alleBloecke)
+        let bloecke = alleBloecke
         let leisteInfo = Unterhaltung.leiste(alleBloecke, status: status)
         let _ = merker.pruefe(alleBloecke, sitzung: verlauf.sitzung, geladen: !verlauf.laedt, laeuft: lauf != nil)
         let alleZeilen = zeilen(bloecke)
-        let quittungen = Quittungen.zuordnen(nachrichten: Quittungen.nachrichten(alleBloecke), karten: karten, agent: agent)
+        let fragen = bloecke.compactMap { b -> (id: String, ts: Double?)? in if case .zug(let z) = b, case .user(_, _, let ts, _)? = z.start { return (z.id, ts) }; return nil }
         let grosserZug: String? = bloecke.last { if case .zug(let z) = $0 { return z.antwort != nil }; return false }?.id
         let letzterLaeuft: Bool = { if case .zug(let z)? = bloecke.last { return z.laeuft }; return false }()
         let quelle = lauf.map { _ in LaufQuelle(chat: chat, key: verlauf.sitzung, frisch: merker) }
@@ -166,8 +162,9 @@ struct VerlaufView: View, Equatable {
                             case .zug(let z):
                                 ZugView(zug: z, status: status(z), zurAntwort: { zeige(ZugView.antwortId(z.id), .center, leser) },
                                         lauf: quelle, frisch: merker.art(z.antwort),
-                                        zustand: zustand(z), neu: merker.istNeu(z.id), name: name, gross: zeile.id == grosserZug, nurAntwort: nurUnterhaltung,
-                                        quittungen: quittungen[z.id] ?? [],
+                                        zustand: zustand(z), neu: merker.istNeu(z.id), name: name, gross: zeile.id == grosserZug,
+                                        quittung: VerlaufLogik.quittung(stand, sitzung: verlauf.sitzung, von: z.startTs, bis: fragen.first { ($0.ts ?? 0) > (z.startTs ?? .infinity) }?.ts),
+                                        alt: z.startTs != nil && z.id != fragen.last?.id, zuruecklegen: zuruecklegen,
                                         erneut: { erneut(z.startText) })
                                     .equatable()
                                     .onAppear { Messung.markeEinmal("erster Zug sichtbar") }
@@ -208,7 +205,6 @@ struct VerlaufView: View, Equatable {
             }
             .safeAreaInset(edge: .top, spacing: 0) { if let leisteInfo { leiste(leisteInfo, leser) } }
             .onChange(of: gesendet) { _, _ in halter.ansEnde() }
-            .onChange(of: nurUnterhaltung) { _, _ in halter.ansEnde() }
             .onChange(of: verlauf.bloecke) { _, neu in merker.merkeNeue(neu) }
             .onAppear {
                 let b = $folgt
@@ -247,31 +243,5 @@ struct VerlaufView: View, Equatable {
 
 extension Zug {
     var startText: String { if case .user(_, let t, _, _)? = start { return t }; return "" }
-}
-
-enum NurUnterhaltung {
-    static let schluessel = "seneca-nativ.nurUnterhaltung"
-}
-
-struct NurUnterhaltungSchalter: View {
-    @AppStorage(NurUnterhaltung.schluessel, store: Hintergrund.defaults()) private var an = true
-
-    var body: some View {
-        Button { an.toggle() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: an ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right").font(.system(size: 13, weight: .medium))
-                Text("Nur Unterhaltung").font(Schrift.grotesk(13, .medium))
-            }
-            .foregroundStyle(an ? Farbe.himmel : Farbe.ink2)
-            .padding(.horizontal, 16).frame(height: 40)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .snGlas(Capsule())
-        .help(an ? "Alles zeigen: Aufträge, Meldungen und Arbeitsschritte" : "Nur deine Nachrichten und die Antworten darauf zeigen")
-        .accessibilityLabel("Nur Unterhaltung")
-        .accessibilityValue(an ? "an" : "aus")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("nur-unterhaltung")
-    }
+    var startTs: Double? { if case .user(_, _, let ts, _)? = start { return ts }; return nil }
 }
