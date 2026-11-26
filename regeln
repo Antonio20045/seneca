@@ -21,12 +21,12 @@ kostenrahmen_standard_cent 50 zu_messen
 cent_je_minute 2 zu_messen
 rahmen_nachfassen_h 24
 pruefung_nachfassen_h 4
-abos anthropic:konto1,anthropic:konto2,anthropic:konto3
+abos anthropic:antonio,anthropic:sundartha,anthropic:regius
 abo_limit_start_tokens 50000000 zu_messen
-modell_haiku anthropic/claude-haiku-4-5
-modell_sonnet anthropic/claude-sonnet-4-6
+modell_haiku anthropic/claude-haiku-5-5
+modell_sonnet anthropic/claude-sonnet-5-5
 modell_opus anthropic/claude-opus-5-5
-modell_fable anthropic/claude-fable
+modell_fable anthropic/claude-fable-5-1
 pruefer pruefer
 dauerauftraege_von seneca
 morgenbericht_um 08:50
