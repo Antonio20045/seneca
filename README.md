@@ -47,7 +47,7 @@ Noch nicht: Das Plugin geht erst nach dem Update des Servers auf OpenClaw 11.10 
 Dann liefert `ausliefern.yml` es aus, nur wenn kein Lauf aktiv ist.
 
 Apps: nur kostenloses Apple-Konto, das Profil läuft nach 7 Tagen ab. Darum baut `apps/installieren.sh iphone`
-den Stand von `main` und spielt ihn aufs iPhone, sobald es im WLAN ist und die letzte Installation
+nur den Git-Tag `iphone-frei` (Mac: `mac-frei`), gesetzt erst nach Beleg am echten Server, und spielt ihn aufs iPhone, sobald es im WLAN ist und die letzte Installation
 `app_neu_installieren_tage` alt ist. `apps/de.antonio.seneca-installieren.plist` (nach `~/Library/LaunchAgents`) ruft es
 alle 3 Stunden. `installieren.sh mac --jetzt` ersetzt die Mac-App nur, wenn Seneca nicht läuft.
 
