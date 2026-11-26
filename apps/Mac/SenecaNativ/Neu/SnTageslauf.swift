@@ -63,6 +63,7 @@ enum HeuteBild {
                 SnGrund(fortschritt: 0)
                 if let s = HeuteTafelLogik.beispiel(env["SENECA_DEMO_STAND"] ?? "Beispiel-Stand") {
                     SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {})
+                    SnGeruestBild(stand: s)
                 }
             }
             .frame(width: breite, height: hoehe)
@@ -79,5 +80,19 @@ enum HeuteBild {
         }
         app.run()
         exit(0)
+    }
+}
+
+struct SnGeruestBild: View {
+    var stand: SenecaStand
+    var aktiv: SnOrt = .heute
+
+    var body: some View {
+        VStack {
+            SnOrteKapsel(aktiv: aktiv, fragen: SnOrt.fragen(stand), waehle: { _ in })
+            Spacer()
+            SnDockZu { SnKugel(groesse: 32, atmet: false) }.snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        }
+        .padding(.top, 28).padding(.bottom, 28)
     }
 }
