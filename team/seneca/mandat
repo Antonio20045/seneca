@@ -1,0 +1,23 @@
+bereich: [Sundartha, Vodafone, Boardinghouse, Privat]
+ziele:
+  - kennzahl: statusfragen_je_woche
+    ziel: "< 10"
+signale:
+  - quelle: register
+    was: "Aufträge ohne Bewegung, offene Fragen, Wiederholungen"
+  - quelle: kalender
+    was: "Termine mit Teilnehmern, freie Lücken"
+rundgang: ["08:30", "17:00"]
+befugnisse:
+  unterauftrag_an: [produkt, engineer, pruefer, recherche]
+  werkzeuge: [mcp:zoho-mail]
+  ablage_schreiben: [Privat]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, einordnen: lokal, steuern: opus }
+kontext:
+  mail_an_kunden: [profil:ton_mail, fakt:signatur]
+zugaenge: [zoho-mail]

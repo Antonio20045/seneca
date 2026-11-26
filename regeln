@@ -1,0 +1,57 @@
+rueckgaengig_s 5 vorschlag
+rueckgaengig_vo_s 10 vorschlag
+takt_s 10 zu_messen
+takt_job_haengt_s 60
+takt_fehler_start_min 1
+takt_fehler_max_h 1
+takt_befund_ab_versuch 5
+register_warten_s 5
+pflegen_h 1
+platte_frei_min_mb 2000
+lauf_schritt_abstand_s 60
+lauf_wiederholen_start_min 1
+lauf_wiederholen_max_h 1
+haengt_leise_min 10
+haengt_frage_min 30
+gespraech_haengt_hinweis_min 2
+gespraech_haengt_stopp_min 10
+parallel_max 2 zu_messen
+ruht_pruefen_h 1
+kostenrahmen_standard_cent 50 zu_messen
+cent_je_minute 2 zu_messen
+rahmen_nachfassen_h 24
+pruefung_nachfassen_h 4
+abos anthropic:konto1,anthropic:konto2,anthropic:konto3
+abo_limit_start_tokens 50000000 zu_messen
+modell_haiku anthropic/claude-haiku-4-5
+modell_sonnet anthropic/claude-sonnet-4-6
+modell_opus anthropic/claude-opus-5-5
+modell_fable anthropic/claude-fable
+pruefer pruefer
+dauerauftraege_von seneca
+morgenbericht_um 08:50
+rueckblick_um 21:30
+briefing_um 06:40
+fenster 16:00 vorschlag
+nachtruhe_von 22:30
+nachtruhe_bis 06:30
+ruhe_ohne_durchbruch schlaf,training,laufen,trail
+durchbruch_h 2
+braucht_dich_max 3
+lange_wartend_h 24
+push_abstand_min 20
+tag_grenze 04:00
+stand_max_kb 256 zu_messen
+uhr_abfrage_min 5 zu_messen
+kontext_zeichen 5000
+kontext_eltern_zeichen 300
+kontext_befunde 5
+befund_antwort_zeichen 2000
+titel_zeichen 60
+anzeigen_max_je_projekt 4
+ereignis_daten_max_bytes 4096
+spaeter_vor_frist_min 30 vorschlag
+antwort_max_alter_min 60 zu_messen
+praesenz_gilt_min 2
+preis_ein_cent_je_mio_tokens 300 zu_messen
+preis_aus_cent_je_mio_tokens 1500 zu_messen

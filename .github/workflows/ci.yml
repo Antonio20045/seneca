@@ -1,0 +1,25 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  pruefen:
+    runs-on: ubuntu-24.04
+    env:
+      TZ: Europe/Berlin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: plugin/package-lock.json
+      - run: command -v rg || (sudo apt-get update -q && sudo apt-get install -y -q ripgrep)
+      - run: bash .github/pruefen.sh
+      - run: npm ci --ignore-scripts
+        working-directory: plugin
+      - run: npx tsc --noEmit -p .
+        working-directory: plugin
+      - run: node --test "pruefffaelle/PF*.ts"
+        working-directory: plugin
