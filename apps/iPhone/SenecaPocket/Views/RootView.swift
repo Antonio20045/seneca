@@ -380,27 +380,8 @@ struct RootView: View {
             BottomShade()
                 .opacity(lichtEingang)
             if dayMounted {
-                TodayLayer(m: m, day: day, zug: wisch.seneca, notice: notice, heroOverride: heroOverride, reduceMotion: reduceMotion,
-                           openSeneca: { openFromHero(day) },
-                           openSettings: { oeffne(.einstellungen) },
-                           retry: {
-                               if conversation.lateAnswer != nil { go(1, quick: false); return }
-                               store.clearSaveFailure(); Task { await reconnect() }
-                           },
-                           toggleTodo: { id in
-                               haptics.tick()
-                               if store.aufgaben.first(where: { $0.id == id })?.isDone == false { lightPulse += 1 }
-                               store.toggleTask(id)
-                           },
-                           toggleRoutine: {
-                               haptics.tick()
-                               if !day.routineDone { lightPulse += 1 }
-                               store.setRoutine(!day.routineDone)
-                           },
-                           allowTap: { tapAllowed() },
-                           showCalendar: { show(.kalender) },
-                           showAreas: { show(.bereiche) },
-                           showStatistics: { show(.statistik) })
+                TodayLayer(m: m, day: day, zug: wisch.seneca, heroOverride: heroOverride, reduceMotion: reduceMotion,
+                           openSeneca: { openFromHero(day) }, allowTap: { tapAllowed() })
                     .equatable()
                     .modifier(DayAwayLive(zug: wisch.seiten, m: m, reduceMotion: reduceMotion))
                     .modifier(UnterSenecaLive(zug: wisch.seneca, breite: m.size.width, reduceMotion: reduceMotion))
