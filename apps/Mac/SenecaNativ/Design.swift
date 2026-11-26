@@ -70,7 +70,7 @@ enum Schrift {
     static func grotesk(_ groesse: CGFloat, _ gewicht: Gewicht = .regular) -> Font {
         .custom("SpaceGrotesk-\(gewicht.rawValue)", size: groesse)
     }
-    static func mono(_ groesse: CGFloat) -> Font { .system(size: groesse, design: .monospaced) }
+    static func mono(_ groesse: CGFloat, _ gewicht: Gewicht = .regular) -> Font { .custom("IBMPlexMono-\(gewicht == .medium ? "Medium" : "Regular")", size: groesse) }
 }
 
 enum Kurve {

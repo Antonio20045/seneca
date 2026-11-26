@@ -100,11 +100,7 @@ enum Bildprobe {
                 case "chat":
                     inhalt = chatAnsicht(liste: liste, aufgaben: aufgaben, jetzt: jetzt, env: env)
                 case "heute":
-                    let tag: Tageslauf?
-                    if env["SENECA_BILD_TAGESLAUF"] == "befehl" { tag = await Kindprozess.laufe(TageslaufModell.befehl, ["heute", "--json"], limit: 20).flatMap { Tageslauf.lies($0, jetzt: jetzt) } }
-                    else { tag = env["SENECA_BILD_TAGESLAUF"].flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }.flatMap { Tageslauf.lies($0, jetzt: jetzt) } }
-                    inhalt = AnyView(SnHeuteSeite(quelle: BeispielDaten(), notizen: NotizblockModell(start: BeispielDaten().notizen), liste: liste, tageslauf: tag, tageslaufJetzt: jetzt,
-                                                     aufgaben: aufgaben, aufgabenVoll: offenSet.contains("voll"), agentenOffenZuBeginn: offenSet.contains("agenten"), zuletztOffenZuBeginn: offenSet.contains("zuletzt")))
+                    inhalt = AnyView(HeuteTafelLogik.beispiel().map { SnHeuteTafel(stand: $0, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}) })
                 case "aufgabe":
                     let id = env["SENECA_BILD_AUFGABE"] ?? ""
                     let verlaufDaten: Data?
@@ -191,7 +187,7 @@ struct MessSeite: View {
             case "board": ScrollView { SnBoard(liste: halter.liste, jetzt: jetzt).padding(.horizontal, 60).padding(.top, 60) }
             case "chat": Bildprobe.chatAnsicht(liste: halter.liste, aufgaben: halter.aufgaben, jetzt: jetzt, env: env)
             case "aufgaben-voll": ScrollView { SnAufgabenVoll(liste: halter.aufgaben, jetzt: jetzt, agentenOffenZuBeginn: true, zuletztOffenZuBeginn: true).padding(.horizontal, 60).padding(.top, 60) }
-            default: SnHeuteSeite(quelle: BeispielDaten(), notizen: notizen, liste: halter.liste, tageslaufJetzt: jetzt, aufgaben: halter.aufgaben)
+            default: if let s = HeuteTafelLogik.beispiel() { SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}) }
             }
         }
     }

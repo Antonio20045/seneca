@@ -1,0 +1,97 @@
+import SwiftUI
+
+enum TafelFarbe {
+    static func hex(_ v: UInt32, _ a: Double = 1) -> Color {
+        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255).opacity(a)
+    }
+    static let text = hex(0xE2E4E9)
+    static let leise = hex(0x939EAD)
+    static let zweit = hex(0xBAC1CB)
+    static let akzent = hex(0xCFE4FA)
+    static let aus = hex(0x6B7686)
+    static let bernstein = hex(0xE8B84B)
+    static let gruen = hex(0x6BD98F)
+    static let jetzt = hex(0xF07A5F)
+    static let himmel = hex(0x8FB6E3)
+    static let aufHimmel = hex(0x0A2245)
+}
+
+enum HeuteTafelLogik {
+    static let tagVon = 7.0, tagBis = 21.0
+
+    static func datum(_ ms: Double) -> Date { Date(timeIntervalSince1970: ms / 1000) }
+
+    static func beispiel(_ name: String = "Beispiel-Stand") -> SenecaStand? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(SenecaStand.self, from: roh)
+    }
+
+    static func datumZeile(_ ms: Double) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "EEEE, d. MMMM"
+        return f.string(from: datum(ms))
+    }
+
+    static func uhr(_ ms: Double, _ cal: Calendar = .current) -> String {
+        let k = cal.dateComponents([.hour, .minute], from: datum(ms))
+        return String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)
+    }
+
+    static func stundeAlsWort(_ ms: Double, _ cal: Calendar = .current) -> String {
+        let k = cal.dateComponents([.hour, .minute], from: datum(ms))
+        let woerter = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"]
+        guard k.minute == 0, let h = k.hour else { return uhr(ms, cal) }
+        return woerter[h % 12]
+    }
+
+    static func kommend(_ s: SenecaStand) -> [SenecaStand.Termin] {
+        (s.termine ?? []).filter { $0.ganztag != true && $0.art != "fokus" && $0.art != "bewegung" && $0.start > s.jetzt }.sorted { $0.start < $1.start }
+    }
+
+    static func satz(_ s: SenecaStand) -> (vor: String, akzent: String) {
+        let k = kommend(s)
+        if let r = s.ruhe, r.grund == "fokus", let bis = r.bis {
+            guard let a = k.first else { return ("Fokus bis \(stundeAlsWort(bis)).", "Danach ist der Tag frei.") }
+            return ("Fokus bis \(stundeAlsWort(bis)).", k.count > 1 ? "Danach zuerst \(a.titel), dann \(k[1].titel)." : "Danach \(a.titel).")
+        }
+        guard let a = k.first else { return ("Heute steht", "nichts mehr an.") }
+        return ("\(a.titel) um \(uhr(a.start)),", k.count > 1 ? "dann \(k[1].titel)." : "danach Ruhe.")
+    }
+
+    static func frage(_ s: SenecaStand) -> SenecaStand.Frage? {
+        guard s.ruhe == nil || s.ruhe?.durchbruch == true && s.ruhe?.grund != "fokus" else { return nil }
+        return s.braucht_dich?.first { $0.antwort == nil }
+    }
+
+    static func wartenZeile(_ s: SenecaStand) -> String? {
+        let n = (s.buendel?.fragen?.count ?? 0) + (s.ruhe == nil ? 0 : s.braucht_dich?.count ?? 0)
+        guard let r = s.ruhe, n > 0 else { return nil }
+        let wort = n == 1 ? "1 Frage wartet" : "\(n) Fragen warten"
+        return wort + (r.grund == "fokus" ? ", bis dein Fokus vorbei ist" : ", bis deine Ruhe vorbei ist")
+    }
+
+    static func teamZeile(_ s: SenecaStand) -> String? {
+        guard let m = s.team?.first(where: { $0.zustand == "arbeitet" && $0.satz != nil }), let satz = m.satz else { return nil }
+        let min = m.seit.map { " · \(Int(max(0, s.jetzt - $0) / 60_000)) Min" } ?? ""
+        return "\(m.name) \(satz)\(min)"
+    }
+
+    static func todoZeile(_ t: SenecaStand.Todo) -> String {
+        [t.bereich, t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    static func anteil(_ ms: Double, _ cal: Calendar = .current) -> Double {
+        let k = cal.dateComponents([.hour, .minute], from: datum(ms))
+        return min(1, max(0, (Double(k.hour ?? 0) + Double(k.minute ?? 0) / 60 - tagVon) / (tagBis - tagVon)))
+    }
+
+    static func marke(_ s: SenecaStand) -> (ort: Double, text: String)? {
+        if let r = s.ruhe, r.grund == "fokus", let bis = r.bis, let f = s.termine?.first(where: { $0.art == "fokus" && $0.ende >= bis && $0.start <= s.jetzt }) {
+            return (anteil(f.start), "FOKUS BIS \(uhr(bis))")
+        }
+        guard let a = kommend(s).first(where: { $0.ende - $0.start >= 30 * 60_000 }) else { return nil }
+        let name = a.titel.components(separatedBy: " mit ").last ?? a.titel
+        return (anteil(a.start), "\(uhr(a.start)) \(name.uppercased())")
+    }
+}

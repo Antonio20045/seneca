@@ -4,8 +4,8 @@ cd "$(git rev-parse --show-toplevel)"
 BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|910" "plugin/src/pforte|760" "plugin/src/ausgang|450"
   "plugin/src/lernen|250" "plugin/src/zugang|310" "plugin/src/quellen|350" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
   "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150"
-  "apps/Mac|31255" "apps/iPhone|20941" "apps/SenecaKern|11139")
-TRY_BESTAND=608
+  "apps/Mac|31207" "apps/iPhone|20938" "apps/SenecaKern|11161")
+TRY_BESTAND=602
 ERLAUBT=" openclaw typescript @types/node typebox yaml "
 PF_MAX=12
 MODULE="arbeitsdienst pforte ausgang lernen zugang quellen"

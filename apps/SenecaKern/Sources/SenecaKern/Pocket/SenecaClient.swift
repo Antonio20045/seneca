@@ -47,7 +47,6 @@ final class SenecaStore: ObservableObject {
     @Published private(set) var isConfigured = false
     @Published private(set) var lastSync: Date?
     @Published private(set) var kalenderLang: KalenderLang?
-    @Published private(set) var aufgabenHeute: [SenecaTask] = []
     private(set) var lastLocalChange = Date.distantPast
 
     var clock: () -> Date = { Date() }
@@ -130,44 +129,12 @@ final class SenecaStore: ObservableObject {
 
     var isActive = true { didSet { if isActive { daten?.jetztVersuchen() } } }
 
-    private var aufgabenTakt: Task<Void, Never>?
     private struct KartenAntwort: @unchecked Sendable { let w: [String: Any] }
-
-    func ladeAufgabenHeute() async {
-        guard isConnected, !demo else { return }
-        guard let result = try? await rufe("workboard.cards.list") else { return }
-        let roh = KartenAntwort(w: result), heute = DayLogic.dayKey(clock(), .current), vorher = aufgabenHeute, seit = lastLocalChange
-        let neu = await Task.detached(priority: .utility) { () -> [SenecaTask] in
-            let names = Self.boardNames(roh.w)
-            return AufgabenLogic.heutigeKartenTodos(SenecaPayloadParser.cards(roh.w), heute: heute).map { Self.aufgabe(aus: $0, boardNames: names) }
-        }.value
-        guard aufgabenHeute == vorher, lastLocalChange == seit else { return }
-        if neu != vorher { aufgabenHeute = neu }
-    }
-
-    nonisolated private static func aufgabe(aus card: WorkCard, boardNames: [String: String]) -> SenecaTask {
-        SenecaTask(id: card.id, title: TodoEdits.display(card.title), isDone: card.status == "done", status: card.status,
-                   updatedAt: card.updatedAt, notes: card.notes, priority: card.priority, rawTitle: card.title,
-                   projektId: card.boardId, projektName: boardNames[card.boardId] ?? (card.boardId == "privat" ? "Privat" : nil),
-                   plan: AufgabenLogic.labelTag(card.labels, "plan"), frist: AufgabenLogic.labelTag(card.labels, "frist"))
-    }
 
     func addTodoHeute(_ title: String) {
         addTask(title, plan: DayLogic.dayKey(clock(), .current))
     }
 
-    func startAufgabenTakt(sekunden: Double = 15) {
-        guard aufgabenTakt == nil else { return }
-        aufgabenTakt = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.ladeAufgabenHeute()
-                guard !Task.isCancelled else { return }
-                try? await Task.sleep(for: .seconds(sekunden))
-            }
-        }
-    }
-
-    func stopAufgabenTakt() { aufgabenTakt?.cancel(); aufgabenTakt = nil }
 
     func connect() async {
         guard !demo, isConfigured else { return }
@@ -211,8 +178,7 @@ final class SenecaStore: ObservableObject {
     private var zustandsAbos: Set<AnyCancellable> = []
 
     func zeigeBeispiel(_ name: String) {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return }
-        stand = try? JSONDecoder().decode(SenecaStand.self, from: roh)
+        stand = HeuteTafelLogik.beispiel(name)
     }
 
     func erledige(todo id: String) {
@@ -465,11 +431,6 @@ final class SenecaStore: ObservableObject {
         snap.tasks[index].status = status
         snap.tasks[index].completedAt = done ? clock().timeIntervalSince1970 * 1000 : nil
         today = snap
-        if let i = aufgabenHeute.firstIndex(where: { $0.id == id }) {
-            aufgabenHeute[i].isDone = done
-            aufgabenHeute[i].status = status
-            aufgabenHeute[i].completedAt = snap.tasks[index].completedAt
-        }
         saveFailure = nil
         TodoEdits.setStatus(&outbox, taskId: id, status: status, title: snap.tasks[index].title, expected: before.updatedAt)
         persistOutbox()
@@ -499,7 +460,6 @@ final class SenecaStore: ObservableObject {
         Self.setzeProjekt(&neu, board: board, in: snap)
         snap.tasks.append(neu)
         today = snap
-        if let plan, plan <= DayLogic.dayKey(clock(), .current) { aufgabenHeute.insert(neu, at: 0) }
         lastLocalChange = Date()
         outbox.append(PendingOp(kind: .create, taskId: localID, status: "todo", title: title, plan: plan, frist: frist, board: board))
         persistOutbox()
