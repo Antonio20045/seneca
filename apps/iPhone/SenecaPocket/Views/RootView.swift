@@ -59,11 +59,7 @@ struct RootView: View {
     @State private var inhaltEingang: Double = 0
 
     var body: some View {
-        #if DEBUG
-        if let richtung = EntwurfChat.richtung { EntwurfChatWurzel(richtung: richtung) } else { app }
-        #else
         app
-        #endif
     }
 
     private var app: some View {

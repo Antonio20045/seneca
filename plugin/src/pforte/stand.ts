@@ -1,5 +1,6 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
+import { aufgaben } from "./aufgaben.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -106,8 +107,10 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : "termin" })),
-    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min,
-      geplant_von: t.geplant_von, wiederkehrend: t.wiederkehrend, wichtig: !!t.wichtig, revision: t.revision })),
+    aufgaben: aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt),
+    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
+      tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
+      wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),
     kopplung: [...werte(db, "kopplung:")].filter(([k]) => k !== "kopplung:fenster").map(([k, v]) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(v) }))
       .filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl })),

@@ -56,7 +56,7 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
   um("08:00");
   const termin = (uid: string, von: string, bis: string, titel: string, ort?: string) => ({ uid, start: um(von), ende: um(bis), titel, ort, teilnehmer: [], ganztag: false });
   wertSetzen(p.db, "kalender:2026-11-27", JSON.stringify([termin("a", "08:00", "09:00", "Training"), termin("b", "09:40", "15:30", "Workshop"), termin("c", "17:00", "21:00", "Essen", "Bergstr. 1")]), "kalender");
-  const todo = (titel: string, dauer_min: number) => p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel, dauer_min } });
+  const todo = (titel: string, dauer_min: number) => p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel, dauer_min, tag: "2026-11-27" } });
   um("08:00");
   return Promise.all([todo("Mail an Steuerberater", 20), todo("Angebot schreiben", 20), todo("Ablage sortieren", 90)]).then(() => {
     planenJob(p.db);

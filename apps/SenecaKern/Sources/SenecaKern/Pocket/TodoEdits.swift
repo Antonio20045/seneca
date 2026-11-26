@@ -7,18 +7,6 @@ struct OutboxChange: Equatable, Sendable {
     var inverse: PendingOp?
 }
 
-struct TodoUndo: Equatable, Identifiable, Sendable {
-    enum Kind: Sendable { case park, archive }
-    var id = UUID()
-    var kind: Kind
-    var task: SenecaTask
-    var index: Int
-    var change: OutboxChange
-    var sentence: String {
-        kind == .park ? "„\(task.title)“ ist für später." : "„\(task.title)“ ist gelöscht."
-    }
-}
-
 enum TodoEdits {
     static let prefixPattern = "^\\[[^\\]]*\\]\\s*"
 
@@ -88,34 +76,5 @@ enum TodoEdits {
         change.added = [op.id]
         change.inverse = PendingOp(kind: .update, taskId: taskId, title: previous)
         return change
-    }
-
-    static func archive(_ outbox: inout [PendingOp], taskId: String, title: String, inFlight: String?) -> OutboxChange {
-        var change = OutboxChange()
-        if let i = waiting(outbox, { $0.kind == .create && $0.taskId == taskId }, inFlight: inFlight) {
-            change.removed[i] = outbox.remove(at: i)
-            return change
-        }
-        if taskId.hasPrefix("local-") { return change }
-        let op = PendingOp(kind: .archive, taskId: taskId, title: title, archived: true)
-        outbox.append(op)
-        change.added = [op.id]
-        change.inverse = PendingOp(kind: .archive, taskId: taskId, title: title, archived: false)
-        return change
-    }
-
-    static func undo(_ outbox: inout [PendingOp], _ change: OutboxChange, inFlight: String?) {
-        var sent = false
-        for id in change.added {
-            if let i = waiting(outbox, { $0.id == id }, inFlight: inFlight) { outbox.remove(at: i) } else { sent = true }
-        }
-        for old in change.edited {
-            if let i = waiting(outbox, { $0.id == old.id }, inFlight: inFlight) { outbox[i] = old }
-        }
-        for (index, op) in change.removed.sorted(by: { $0.key < $1.key }) where !outbox.contains(where: { $0.id == op.id }) {
-            let lowest = inFlight == nil ? 0 : min(1, outbox.count)
-            outbox.insert(op, at: min(max(index, lowest), outbox.count))
-        }
-        if sent, let inverse = change.inverse { outbox.append(PendingOp(kind: inverse.kind, taskId: inverse.taskId, title: inverse.title, archived: inverse.archived)) }
     }
 }

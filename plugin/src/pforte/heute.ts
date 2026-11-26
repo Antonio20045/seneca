@@ -10,7 +10,7 @@ type Termin = ReturnType<typeof termineAm>[number];
 
 const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
-function stundeAlsWort(t: number): string {
+export function stundeAlsWort(t: number): string {
   const d = new Date(t);
   return d.getMinutes() === 0 ? STUNDE[d.getHours() % 12] : uhrzeit(t);
 }
@@ -33,8 +33,12 @@ function kurzName(titel: string): string {
 
 function dann(a: Termin, b: Termin): string {
   if (b.start - a.ende < regelMs("satz_ruhe_ab_min")) return `dann ${artikel(b.titel)[0]}.`;
-  const wort = b.titel.split(" ")[0];
-  return `dann Ruhe bis ${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}.`;
+  return `dann Ruhe bis ${zumWort(b.titel)}.`;
+}
+
+export function zumWort(titel: string): string {
+  const wort = titel.split(" ")[0];
+  return `${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}`;
 }
 
 export function heute(db: Register, ruhe: { grund: string; bis: number } | undefined, jetzt: number) {
