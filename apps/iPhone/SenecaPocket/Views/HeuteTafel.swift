@@ -80,7 +80,6 @@ struct HeuteTafel: View {
 
     var body: some View {
         let frage = HeuteTafelLogik.frage(stand)
-        let satz = HeuteTafelLogik.satz(stand)
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(HeuteTafelLogik.datumZeile(stand.jetzt)).mono(12).foregroundStyle(TafelFarbe.leise)
@@ -90,11 +89,13 @@ struct HeuteTafel: View {
                 Button { if allowTap() { oeffne(.gespraeche) } } label: { Text("↑ Gespräche").mono(11).foregroundStyle(TafelFarbe.leise) }
                     .buttonStyle(.plain)
             }
-            (Text(satz.vor + " ").font(Sundartha.serif(40)).foregroundColor(.white)
-                + Text(satz.akzent).font(Sundartha.serif(40, italic: true)).foregroundColor(TafelFarbe.akzent)).tracking(-0.3).zeilenHoehe(43.2, schrift: 40)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 18)
-                .accessibilityIdentifier("heute.satz")
+            if let satz = HeuteTafelLogik.satz(stand, folge: true) {
+                (Text(satz.vor + " ").font(Sundartha.serif(40)).foregroundColor(.white)
+                    + Text(satz.akzent).font(Sundartha.serif(40, italic: true)).foregroundColor(TafelFarbe.akzent)).tracking(-0.3).zeilenHoehe(43.2, schrift: 40)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 18)
+                    .accessibilityIdentifier("heute.satz")
+            }
             TagesLeiste(stand: stand).padding(.top, 26)
             if let frage {
                 frageBlock(frage).padding(.top, 24)

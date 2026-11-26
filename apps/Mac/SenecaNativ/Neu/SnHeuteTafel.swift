@@ -28,8 +28,7 @@ struct SnHeuteTafel: View {
     }
 
     private var haupt: some View {
-        let satz = L.satz(stand)
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 Text("\(L.datumZeile(stand.jetzt)) · \(L.uhr(stand.jetzt))").font(Schrift.mono(13)).tracking(0.4).foregroundStyle(TafelFarbe.zweit)
                 if let r = stand.ruhe, r.grund == "fokus", let bis = r.bis {
@@ -39,8 +38,10 @@ struct SnHeuteTafel: View {
                 }
             }
             .padding(.bottom, 14)
-            (Text(satz.vor + " ").font(Schrift.serif(44)).foregroundColor(.white) + Text(satz.akzent).font(Schrift.serif(44, kursiv: true)).foregroundColor(TafelFarbe.akzent))
-                .tracking(-0.5).hoehe(46.6).fixedSize(horizontal: false, vertical: true)
+            if let satz = L.satz(stand) {
+                (Text(satz.vor + " ").font(Schrift.serif(44)).foregroundColor(.white) + Text(satz.akzent).font(Schrift.serif(44, kursiv: true)).foregroundColor(TafelFarbe.akzent))
+                    .tracking(-0.5).hoehe(46.6).fixedSize(horizontal: false, vertical: true)
+            }
             fragen.padding(.top, 30)
             team.padding(.top, 30)
             todos.padding(.top, 30)
@@ -79,9 +80,9 @@ struct SnHeuteTafel: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if let a = stand.buendel?.abnahmen, !a.isEmpty, let f = stand.buendel?.fenster {
+                if let satz = stand.buendel?.satz, let f = stand.buendel?.fenster {
                     HStack {
-                        Text("Gebündelt für \(L.uhr(f)): \(a.count == 1 ? "1 Abnahme" : "\(a.count) Abnahmen").")
+                        Text("Gebündelt für \(L.uhr(f)): \(satz)")
                         Spacer()
                         Button("Jetzt schon ansehen", action: zuDenFragen).buttonStyle(.plain).font(Schrift.grotesk(14, .medium)).foregroundStyle(TafelFarbe.himmel)
                     }
@@ -94,7 +95,7 @@ struct SnHeuteTafel: View {
     }
 
     private func herkunft(_ f: SenecaStand.Frage) -> some View {
-        let von = f.von ?? "Seneca"
+        let von = [f.von ?? "Seneca", f.projekt].compactMap { $0 }.joined(separator: " · ")
         let frist = f.frist.map { $0 - stand.jetzt < 2 * 86_400_000 ? "Frist morgen" : "Frist \(L.uhr($0))" }
         let seit = f.seit.map { $0 < (stand.tag_beginn ?? 0) ? "seit gestern" : "seit \(L.uhr($0))" } ?? ""
         return (Text(von + " · ").foregroundColor(TafelFarbe.leise) + Text(frist ?? seit).foregroundColor(frist == nil ? TafelFarbe.leise : TafelFarbe.bernstein))
@@ -119,12 +120,14 @@ struct SnHeuteTafel: View {
                             Group {
                                 if fragen > 0 && m.zustand != "arbeitet" {
                                     Text("wartet auf dich ") + Text("· \(fragen == 1 ? "1 Frage" : "\(fragen) Fragen")").foregroundColor(TafelFarbe.leise)
+                                } else if let satz = m.satz {
+                                    Text(satz + " ") + Text(m.projekt.map { "· \($0)" } ?? "").foregroundColor(TafelFarbe.leise)
                                 } else {
-                                    Text(m.satz ?? (m.zustand == "ruht" ? "ruht" : "frei"))
+                                    Text(m.zuletzt?.satz.map { "fertig: \($0)" } ?? (m.zustand == "ruht" ? "ruht" : "frei"))
                                 }
                             }
                             .font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
-                            Text(m.seit.map { m.zustand == "arbeitet" ? "seit \(L.uhr($0))" : L.uhr($0) } ?? "").font(Schrift.mono(12))
+                            Text(rechts(m)).font(Schrift.mono(12))
                                 .foregroundStyle(m.zustand == "arbeitet" ? TafelFarbe.gruen : TafelFarbe.zweit)
                         }
                         .padding(.vertical, 10)
@@ -135,6 +138,11 @@ struct SnHeuteTafel: View {
                 }
             }
         }
+    }
+
+    private func rechts(_ m: SenecaStand.Mitglied) -> String {
+        if m.zustand == "arbeitet" { return m.rest_min.map { "noch \(Int($0)) Min" } ?? m.seit.map { "seit \(L.uhr($0))" } ?? "" }
+        return m.zuletzt?.um.map { L.uhr($0) } ?? ""
     }
 
     @ViewBuilder private func punkt(_ zustand: String, wartet: Bool) -> some View {
@@ -175,6 +183,7 @@ struct SnHeuteTafel: View {
     private var seite: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("DEIN TAG").font(Schrift.mono(12)).tracking(1.4).foregroundStyle(TafelFarbe.zweit).padding(.bottom, 14)
+            if let k = stand.koerper, let bb = k.body_battery { koerper(k, bb).padding(.bottom, 14) }
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(tagesPunkte, id: \.id) { p in
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -203,6 +212,24 @@ struct SnHeuteTafel: View {
         }
     }
 
+    private func koerper(_ k: SenecaStand.Koerper, _ bb: Double) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .bottom, spacing: 16) {
+                Text("\(Int(bb))").font(Schrift.grotesk(56, .medium)).tracking(-1).monospacedDigit().foregroundStyle(.white).hoehe(50.4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(k.titel ?? "Body Battery").font(Schrift.grotesk(15)).hoehe(20).foregroundStyle(TafelFarbe.text)
+                    Text((["Garmin", k.zeit.map { L.uhr($0) }, k.morgens.map { "morgens \(Int($0))" }] as [String?]).compactMap { $0 }.joined(separator: " · "))
+                        .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
+                }
+                .padding(.bottom, 4)
+            }
+            .padding(.bottom, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.10)).frame(height: 1) }
+            if let h = k.hinweis { Text(h).font(Schrift.grotesk(14)).hoehe(21).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true) }
+        }
+    }
+
     private struct Punkt { var id: String; var start: Double; var titel: String; var unter: String?; var farbe: Color; var jetzt: Bool; var vorbei: Bool }
 
     private var tagesPunkte: [Punkt] {
@@ -219,8 +246,7 @@ struct SnHeuteTafel: View {
             return Punkt(id: t.uid, start: t.start, titel: titel, unter: unter, farbe: farbe, jetzt: jetzt, vorbei: vorbei)
         }
         if let f = stand.buendel?.fenster {
-            let n = (stand.buendel?.fragen?.count ?? 0) + (stand.buendel?.abnahmen?.count ?? 0)
-            p.append(Punkt(id: "fenster", start: f, titel: "Entscheidungsfenster", unter: n > 0 ? "\(n) Sachen gebündelt" : nil, farbe: TafelFarbe.bernstein, jetzt: false, vorbei: f < j))
+            p.append(Punkt(id: "fenster", start: f, titel: "Entscheidungsfenster", unter: stand.buendel?.kurz, farbe: TafelFarbe.bernstein, jetzt: false, vorbei: f < j))
         }
         return p.sorted { $0.start < $1.start }.filter { !$0.titel.isEmpty && !($0.vorbei && $0.farbe != TafelFarbe.gruen) || $0.jetzt }
     }
