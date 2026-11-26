@@ -21,7 +21,7 @@ class StartAnsicht extends ListenAnsicht {
     }
 
     function eintraege() as Array<Dictionary> {
-        var training = Training.laeuft() ? "Training · " + Training.saetze().toString() + " Sätze" : "Training";
+        var training = Training.laeuft() ? "Training · " + Training.saetzeText() : "Training";
         var lesen = Lesen.timerLaeuft() ? "Lesen · " + Zeit.dauer(Lesen.timerSekunden()) : "Lesen";
         return [
             {"x" => training, "farbe" => _auswahl == 0 ? Zeichnen.GRUEN : null},

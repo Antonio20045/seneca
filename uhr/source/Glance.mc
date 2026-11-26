@@ -9,9 +9,7 @@ class GlanceAnsicht extends WatchUi.GlanceView {
     }
 
     function onUpdate(dc as Dc) as Void {
-        dc.setColor(0x8FB6E3, Graphics.COLOR_BLACK);
-        dc.drawText(0, dc.getHeight() * 0.25, Graphics.FONT_GLANCE, "SENECA", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(0, dc.getHeight() * 0.7, Graphics.FONT_GLANCE, Zustand.text(), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        Zeichnen.glanceZeile(dc, 0.3, 0x8FB6E3, "SENECA");
+        Zeichnen.glanceZeile(dc, 0.7, Graphics.COLOR_LT_GRAY, Zustand.kurz());
     }
 }
