@@ -130,6 +130,7 @@ test("PF05 j) Live nur mit ausführlichem Ja; Gateway-Neustart nur im Bauablauf 
   assert.equal(p.aufruf(sitzung, "exec", merge), undefined);
   assert.ok(p.aufruf(sitzung, "exec", { command: "systemctl --user restart openclaw-gateway" })?.block);
   assert.ok(p.aufruf(sitzung, "gateway", { action: "restart" })?.block);
+  assert.ok(p.aufruf(sitzung, "exec", { command: "openclaw update --yes" })?.block);
   assert.equal(freigabe(p, "ausfuehrliches_ja"), undefined);
   assert.ok(p.aufruf(sitzung, "exec", { command: "openclaw gateway restart" }, "g1", "engineer")?.block);
   assert.ok(freigabe(p, "ausfuehrliches_ja"));
