@@ -34,13 +34,18 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var ort: String?
         public var teilnehmer: [String]?
         public var ganztag: Bool?
+        public var art: String?
         public var id: String { uid }
     }
     public struct Todo: Codable, Equatable, Sendable, Identifiable {
         public var id: String
         public var titel: String
+        public var bereich: String?
         public var tag: String?
         public var bis_wann: Double?
+        public var dauer_min: Double?
+        public var geplant_von: Double?
+        public var wiederkehrend: String?
         public var wichtig: Bool?
         public var revision: Int?
     }

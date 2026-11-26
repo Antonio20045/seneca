@@ -1,10 +1,5 @@
 import SwiftUI
 
-enum HeuteFarbe {
-    static let deep = Stil.farbe.himmel
-    static let mint = Stil.farbe.gruen
-}
-
 struct HeuteSatzText: View {
     var satz: KopfSatz
 

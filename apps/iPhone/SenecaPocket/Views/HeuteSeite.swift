@@ -52,7 +52,7 @@ extension View {
 
 extension TodayLayer: Equatable {
     static func == (a: TodayLayer, b: TodayLayer) -> Bool {
-        a.m == b.m && a.day == b.day && a.zug === b.zug && a.notice == b.notice
+        a.m == b.m && a.day == b.day && a.zug === b.zug
             && a.heroOverride == b.heroOverride && a.reduceMotion == b.reduceMotion
     }
 }
@@ -61,35 +61,46 @@ struct TodayLayer: View {
     var m: Metrics
     var day: DayState
     var zug: Wisch.Wert<TransitionState>
-    var notice: String?
     var heroOverride: HeroText?
     var reduceMotion: Bool
     var openSeneca: () -> Void
-    var openSettings: () -> Void
-    var retry: () -> Void
-    var toggleTodo: (String) -> Void
-    var toggleRoutine: () -> Void = {}
     var allowTap: () -> Bool
-    var showCalendar: () -> Void = {}
-    var showAreas: () -> Void = {}
-    var showStatistics: () -> Void = {}
 
     @EnvironmentObject private var store: SenecaStore
     @Environment(\.wege) private var wege
-    @ObservedObject private var quelle = TagesablaufQuelle.shared
-    @ObservedObject private var listen = ListenModell.gemeinsam
-    @State private var neuOffen = false
-    @State private var laeuftOffen = false
-    @State private var bereit = false
 
     @State private var fenster: UIEdgeInsets = .zero
     private var oben: CGFloat { max(m.safeTop, fenster.top) }
     private var unten: CGFloat { max(m.safeBottom, fenster.bottom) }
 
     var body: some View {
-        #if DEBUG
-        let _ = (WischMessung.heute += 1)
-        #endif
+        if heroOverride == nil {
+            Group {
+                if let stand = store.stand {
+                    HeuteTafel(stand: stand, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
+                               antworte: { f, wahl in store.antworte(frage: f.id, wahl: wahl) }, oeffne: oeffne, allowTap: allowTap)
+                } else {
+                    HeuteSkelett()
+                }
+            }
+            .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
+            .outEffect(zug, (0, 0.5), lift: 30, reduceMotion: reduceMotion)
+        } else {
+            sprechSeite
+        }
+    }
+
+    private func oeffne(_ z: HeuteTafel.Ziel) {
+        switch z {
+        case .gespraeche: openSeneca()
+        case .aufgaben: wege.oeffne(.aufgaben)
+        case .laeuft: wege.oeffne(.arbeit(.laeuft))
+        case .frage: wege.oeffne(.arbeit(.fragen))
+        case .einstellungen: wege.oeffne(.einstellungen)
+        }
+    }
+
+    private var sprechSeite: some View {
         TimelineView(.periodic(from: .now, by: 20)) { _ in
             let now = store.clock()
             VStack(alignment: .leading, spacing: 0) {
@@ -102,60 +113,19 @@ struct TodayLayer: View {
                         .onTapGesture { if allowTap() { wege.oeffne(.chat()) } }
                         .outEffect(zug, (0.06, 0.52), lift: 40, reduceMotion: reduceMotion)
                         .accessibilityIdentifier("heute.satz")
-                } else {
-                    HeuteJetzt(m: m, day: day, jetzt: now, punkte: quelle.punkte, bereit: bereit, reduceMotion: reduceMotion,
-                               allowTap: allowTap, toggleRoutine: toggleRoutine)
-                        .padding(.top, Stil.abstand.l)
-                        .outEffect(zug, (0.03, 0.5), lift: 30, reduceMotion: reduceMotion)
-                    if let hinweis = hinweisText {
-                        hinweisZeile(hinweis)
-                            .padding(.top, Stil.abstand.m)
-                            .transition(.wechsel)
-                            .outEffect(zug, (0, 0.45), lift: 30, reduceMotion: reduceMotion)
-                    }
-                    HeuteTodos(jetzt: now, allowTap: allowTap, toggleTodo: toggleTodo)
-                        .padding(.top, Stil.abstand.s)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .outEffect(zug, (0, 0.45), lift: 30, reduceMotion: reduceMotion)
-                    fuss(now)
-                        .outEffect(zug, (0, 0.45), lift: 30, reduceMotion: reduceMotion)
                 }
-                if heroOverride != nil { Spacer(minLength: 0) }
+                Spacer(minLength: 0)
             }
-            .bewegt(.wechsel, wert: hinweisText)
             .seitenRand()
         }
         .padding(.top, oben + Stil.kopfOben)
         .padding(.bottom, unten + Stil.unten - Stil.abstand.m)
         .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
-        .ignoresSafeArea(.keyboard)
         .onAppear { DispatchQueue.main.async { fenster = Stil.fensterRaender } }
-        .neueAufgabeBlatt(isPresented: $neuOffen, jetzt: { store.clock() })
-        .senecaBlatt(isPresented: $laeuftOffen, groesse: .halb, titel: "Läuft gerade") {
-            LaeuftInhalt(zeilen: quelle.laeuft ?? [])
-        }
-        #if DEBUG
-        .task {
-            if let r = ProcessInfo.processInfo.environment["SENECA_DEMO_ARBEIT"].flatMap(ArbeitReiter.init(rawValue:)) {
-                try? await Task.sleep(for: .seconds(2.5))
-                wege.oeffne(.arbeit(r == .fragen ? .fragen : r == .board ? .laeuft : .projekte))
-                return
-            }
-            guard ProcessInfo.processInfo.environment["SENECA_DEMO_HEUTE_BLATT"] == "laeuft" else { return }
-            try? await Task.sleep(for: .seconds(2.5))
-            laeuftOffen = true
-        }
-        #endif
-        .task(id: heroOverride == nil) {
-            guard heroOverride == nil else { bereit = false; return }
-            try? await Task.sleep(for: .milliseconds(900))
-            if !Task.isCancelled { bereit = true }
-        }
     }
 
     private func kopf(_ now: Date) -> some View {
-        var zeile = day.dateLine
-        if heroOverride == nil, let g = Tagesablauf.ganztags(quelle.punkte, jetzt: now) { zeile += " · " + g }
+        let zeile = day.dateLine
         return HStack(alignment: .center, spacing: Stil.abstand.s) {
             Text(zeile)
                 .schrift(.klein)
@@ -169,57 +139,11 @@ struct TodayLayer: View {
                 .accessibilityAction(named: "Kalender zeigen") { wege.oeffne(.kalender()) }
                 .accessibilityAction(named: "Aufgaben zeigen") { wege.oeffne(.aufgaben) }
                 .accessibilityAction(named: "Statistik zeigen") { wege.oeffne(.statistik) }
-            Spacer(minLength: Stil.abstand.s)
-            if heroOverride == nil {
-                RundKnopf("plus", beschriftung: "Neu: Aufgabe oder Termin") {
-                    guard allowTap() else { return }
-                    neuOffen = true
-                }
-                .accessibilityIdentifier("heute.neueAufgabe")
-            }
         }
         .frame(minHeight: Stil.tippFlaeche)
         .padding(.trailing, -Stil.abstand.xs)
     }
 
-    private var hinweisText: String? {
-        guard heroOverride == nil, let notice, !notice.hasPrefix("Mac nicht erreichbar") else { return nil }
-        return notice
-    }
-
-    private func hinweisZeile(_ hinweis: String) -> some View {
-        let spaet = hinweis.hasPrefix("Seneca hat")
-        return HinweisZeile(spaet ? "Seneca hat auf deine Frage geantwortet." : hinweis, art: spaet ? .info : .fehler,
-                            aktion: (spaet ? "Lesen" : "Nochmal", { if allowTap() { retry() } }))
-            .accessibilityIdentifier("day.notice")
-    }
-
-    @ViewBuilder
-    private func fuss(_ now: Date) -> some View {
-        let laufen: Int = {
-            if let l = listen.liste { return BoardSicht(l, jetzt: now, gelesen: listen.gelesen).laeuftZeilen.count }
-            return quelle.laeuft?.count ?? 0
-        }()
-        VStack(alignment: .leading, spacing: 0) {
-            HeuteBraucht(jetzt: now, allowTap: allowTap)
-            if laufen > 0 {
-                Button {
-                    guard allowTap() else { return }
-                    if listen.liste != nil { wege.oeffne(.arbeit(.laeuft)) } else { laeuftOffen = true }
-                } label: {
-                    HStack(spacing: Stil.abstand.s) {
-                        LaeuftPunkte()
-                        Text(laufen == 1 ? "1 Arbeit läuft ›" : "\(laufen) Arbeiten laufen ›")
-                    }
-                }
-                .buttonStyle(TextKnopfStil(stufe: .klein))
-                .accessibilityHint("Zeigt, wer woran arbeitet")
-                .accessibilityIdentifier(listen.liste != nil ? "heute.board" : "heute.laeuft")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .bewegt(.wechsel, wert: laufen > 0)
-    }
 }
 
 struct TodayGestures: Equatable {
@@ -247,20 +171,4 @@ extension EnvironmentValues {
 
 extension SenecaStore {
     var macUnerreichbar: Bool { !isConnected && connectionStatus == "Mac nicht erreichbar" && isConfigured }
-
-    func topDreiMitGehaltenen(_ gehalten: Set<String>, anzahl: Int = 3, jetzt: Date? = nil) -> [SenecaTask] {
-        Array(heutigeAufgaben(jetzt: jetzt).filter { !$0.isDone || gehalten.contains($0.id) }.prefix(anzahl))
-    }
-
-    func kommendeAufgaben(nach jetzt: Date, anzahl: Int = 3, _ cal: Calendar = .current) -> [DayLogic.AusblickTag] {
-        let start = cal.startOfDay(for: jetzt)
-        var tage: [DayLogic.AusblickTag] = []
-        var gesamt = 0
-        for n in 1...35 where gesamt < anzahl {
-            guard let tag = cal.date(byAdding: .day, value: n, to: start) else { break }
-            let titel = aufgaben(fuerTag: tag, jetzt: jetzt, cal).filter { !$0.isDone }.prefix(anzahl - gesamt).map { HeuteLogik.anzeigeTitel($0.title) }
-            if !titel.isEmpty { tage.append(DayLogic.AusblickTag(tag: tag, titel: Array(titel))); gesamt += titel.count }
-        }
-        return tage
-    }
 }

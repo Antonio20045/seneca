@@ -57,6 +57,8 @@ final class SenecaStore: ObservableObject {
     private var sharedToken = ""
     private var sessionKey = "agent:main:main"
     private(set) var daten: SenecaDaten?
+    @Published private(set) var stand: SenecaStand?
+    @Published private(set) var wartendeTodos: Set<String> = []
     private var generation = UUID()
     private var answerWaiters: [String: CheckedContinuation<String, Error>] = [:]
     private var asks: [String: AskTracker] = [:]
@@ -197,6 +199,8 @@ final class SenecaStore: ObservableObject {
             guard let self, self.generation == gen else { return }
             self.gatewayEreignis(name == "agent" ? "session.tool" : name, inhalt)
         }
+        d.$stand.sink { [weak self] s in self?.stand = s }.store(in: &zustandsAbos)
+        d.$gestrichelt.sink { [weak self] h in self?.wartendeTodos = Set(h.filter { $0.art == "todo.erledigt" }.compactMap(\.ziel)) }.store(in: &zustandsAbos)
         d.$rechte.dropFirst().sink { [weak self] scopes in
             self?.chat.setAccess(rechte: scopes.compactMap { ["operator.read": "lesen", "operator.write": "schreiben"][$0] }, admin: .notGranted)
         }.store(in: &zustandsAbos)
@@ -205,6 +209,20 @@ final class SenecaStore: ObservableObject {
     }
 
     private var zustandsAbos: Set<AnyCancellable> = []
+
+    func zeigeBeispiel(_ name: String) {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return }
+        stand = try? JSONDecoder().decode(SenecaStand.self, from: roh)
+    }
+
+    func erledige(todo id: String) {
+        guard !demo else { wartendeTodos.insert(id); return }
+        daten?.handeln("todo.erledigt", ziel: id)
+    }
+
+    func antworte(frage id: String, wahl: String) {
+        daten?.handeln("frage.antwort", ziel: id, wert: .objekt(["wahl": .text(wahl)]))
+    }
 
     private func zustandGeaendert(_ z: Verbindungszustand, _ gen: UUID) {
         guard generation == gen else { return }
@@ -1009,6 +1027,7 @@ final class SenecaStore: ObservableObject {
     func loadDemo(now: Date, streak: Int, record: Int, todos: Bool, routineDone: Bool, needs: Bool = false) {
         demo = true
         isConfigured = true
+        zeigeBeispiel(ProcessInfo.processInfo.environment["SENECA_DEMO_STAND"] ?? "Beispiel-Stand")
         let cal = Calendar.current
         let day = cal.startOfDay(for: now)
         func at(_ h: Int, _ m: Int, _ offset: Int = 0) -> Date { cal.date(byAdding: .minute, value: h * 60 + m, to: cal.date(byAdding: .day, value: offset, to: day)!)! }
