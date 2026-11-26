@@ -56,8 +56,8 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S) }),
     (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
-  ["seneca_projekt", "Projekt fortschreiben: Untertitel, Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
-    Type.Object({ name: S, untertitel: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),
+  ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
+    Type.Object({ name: S, untertitel: O(S), worum: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),
     (db, k, p) => {
       const { name, ...rest } = p;
       return { ok: wertSetzen(db, `projekt:${name}`, JSON.stringify(rest), k.agent) > 0 };

@@ -161,6 +161,15 @@ struct EreignisZeileView: View {
     private var kannAuf: Bool { if let t = e.text?.jsTrim, !t.isEmpty, t != e.titel { return true }; return false }
 
     var body: some View {
+        if e.art == .system, !kannAuf, !e.warnung {
+            Text([e.ts.map { Formate.hhmm($0) }, titel].compactMap { $0 }.joined(separator: " · "))
+                .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise).frame(maxWidth: .infinity)
+        } else {
+            zeile
+        }
+    }
+
+    private var zeile: some View {
         VStack(alignment: .leading, spacing: 7) {
             Button { if kannAuf { withAnimation(Kurve.ease(0.3)) { offen.toggle() } } } label: {
                 HStack(spacing: 8) {
@@ -252,7 +261,7 @@ struct AntwortKarteView: View {
                 kopierKnopf.padding(.top, 8)
             }
         }
-        .frame(maxWidth: 680, alignment: .leading)
+        .frame(maxWidth: 760, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .entfaltet(frisch)
         .onHover { ueber = $0 }
@@ -312,8 +321,8 @@ struct AntwortStueck: View, Equatable {
         if erster, platz == 0 {
             let (kern, rest) = Antwortform.kernUndRest(t, folgtMehr: folgtMehr)
             if let kern {
-                Text(MDInline.attributed(kern)).font(Schrift.serif(gross ? 32 : 24)).foregroundStyle(gross ? Farbe.ink1 : Farbe.ink2).lineHeight(.exact(points: gross ? 40 : 30))
-                    .padding(.bottom, rest.isEmpty ? (folgtMehr ? 1 : 0) : 11)
+                Text(MDInline.attributed(kern)).font(Schrift.serif(30)).foregroundStyle(Color.white).lineHeight(.exact(points: 34))
+                    .padding(.bottom, rest.isEmpty ? (folgtMehr ? 1 : 0) : 14)
                     .kernRein(frisch)
             }
             if !rest.isEmpty { inhalt(rest).kernRein(frisch, dauer: 0.7, verzoegerung: 0.34) }
@@ -478,6 +487,7 @@ struct ZugView: View, Equatable {
                         Text(an).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3).padding(.leading, 2)
                             .accessibilityIdentifier("antwort-an")
                     }
+                    Text("\(name.uppercased()) · \(a.ts.map { Formate.hhmm($0) } ?? "")").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
                     AntwortKarteView(text: a.text, ts: a.ts, frisch: frisch == .voll, gross: gross).id(Self.antwortId(zug.id))
                 } else if !nurAntwort, !zug.schritte.isEmpty, zug.widgets.isEmpty {
                     Text("Ohne Abschlussmeldung beendet").font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink4).padding(.leading, 2)
@@ -503,13 +513,13 @@ struct ZugView: View, Equatable {
                 ForEach(Array(teile.namen.enumerated()), id: \.offset) { _, n in SnAnhangChip(name: n) }
                 if !teile.text.isEmpty || teile.namen.isEmpty {
                     Text(teile.text)
-                        .font(Schrift.grotesk(17, .light)).foregroundStyle(Farbe.ink).lineSpacing(3)
+                        .font(Schrift.grotesk(15)).foregroundStyle(Color.white).lineHeight(.exact(points: 22))
                         .textSelection(.enabled)
-                        .padding(.horizontal, 18).padding(.vertical, 12)
-                        .background(Color(hex: 0x142B4C), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .background(Color(hex: 0x142B4C), in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous))
                 }
             }
-            .frame(maxWidth: 440, alignment: .trailing)
+            .frame(maxWidth: 520, alignment: .trailing)
             .opacity(pending && zustand != .fehlgeschlagen ? 0.8 : 1)
             .erscheint(.steigt, wenn: neu)
             if zustand != .fehlgeschlagen, let status {

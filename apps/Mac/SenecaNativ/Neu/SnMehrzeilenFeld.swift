@@ -55,7 +55,7 @@ struct SnMehrzeilenFeldInnen: NSViewRepresentable {
     var escape: () -> Void
     var einfuegenAnhang: (NSPasteboard) -> Bool = { _ in false }
 
-    static let schrift = NSFont(name: "SpaceGrotesk-Light", size: 17) ?? .systemFont(ofSize: 17, weight: .light)
+    static let schrift = NSFont(name: "SpaceGrotesk-Regular", size: 16) ?? .systemFont(ofSize: 16)
     static let zeilenhoehe: CGFloat = NSLayoutManager().defaultLineHeight(for: schrift).rounded(.up)
 
     func makeCoordinator() -> Koordinator { Koordinator(self) }

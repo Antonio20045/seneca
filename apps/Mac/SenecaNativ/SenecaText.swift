@@ -164,12 +164,12 @@ enum Inhaltsabschnitt {
         let out = NSMutableAttributedString()
         for (i, b) in bloecke.enumerated() {
             let para = NSMutableParagraphStyle()
-            para.lineSpacing = 3
+            para.lineSpacing = 4
             para.paragraphSpacingBefore = i == 0 ? 0 : 8
             let stueck: NSMutableAttributedString
             switch b.kind {
             case .paragraph(let t):
-                stueck = inlineNS(t, basis: nsGrotesk(.light, 15), farbe: NSColor(Farbe.ink))
+                stueck = inlineNS(t, basis: nsGrotesk(.regular, 15), farbe: NSColor(TafelFarbe.zweit))
             case .heading(let level, let t):
                 let groesse: CGFloat = level == 1 ? 30 : level == 2 ? 25 : 21
                 stueck = inlineNS(t, basis: nsSerif(groesse), farbe: NSColor(Farbe.ink1))
@@ -185,7 +185,7 @@ enum Inhaltsabschnitt {
                     praefixFarbe = an ? NSColor(Farbe.gruen) : NSColor(Farbe.ink3)
                 }
                 let s = NSMutableAttributedString(string: praefix, attributes: [.font: nsGrotesk(.light, 15), .foregroundColor: praefixFarbe])
-                s.append(inlineNS(t, basis: nsGrotesk(.light, 15), farbe: NSColor(Farbe.ink)))
+                s.append(inlineNS(t, basis: nsGrotesk(.regular, 15), farbe: NSColor(TafelFarbe.zweit)))
                 if case .check(true) = marker { s.addAttribute(.strikethroughStyle, value: 0, range: NSRange(location: 0, length: s.length)) }
                 stueck = s
                 para.headIndent = CGFloat(depth) * 18 + 22
