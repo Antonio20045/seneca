@@ -66,6 +66,8 @@ preis_aus_cent_je_mio_tokens 1500 zu_messen
 woche_tage 7
 bausystem engineer
 wiederholung_worte hab_ich_schon_gesagt,wie_oft_noch,schon_mal_gesagt,habe_ich_doch_gesagt
+lernen_aehnliche 5
+lernen_wort_ab_zeichen 4
 vorschlag_mindestquote_prozent 25 zu_messen
 vorschlag_quote_ab_tage 14
 sensor_sicherheit_prozent 80 vorschlag

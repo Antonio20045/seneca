@@ -83,6 +83,14 @@ export function ereignisse(db: Register, f: { art?: string; auftrag_id?: string;
   return alle(db, `SELECT * FROM ereignis WHERE ${[...bed.map((k) => `${k} = ?`), "zeit >= ?", "nr > ?"].join(" AND ")} ORDER BY nr DESC LIMIT ?`, ...p, f.seit ?? 0, f.nach ?? 0, f.grenze ?? -1);
 }
 
+export function wiederholungenSeit(db: Register, seit: number): number {
+  return ereignisse(db, { art: "korrektur", seit }).filter((e) => JSON.parse(String(e.daten)).wiederholung && !zurueckgenommen(db, Number(e.nr))).length;
+}
+
+export function zurueckgenommen(db: Register, nr: number): boolean {
+  return !!db.prepare("SELECT 1 FROM ereignis WHERE art = 'korrektur.zurueckgenommen' AND json_extract(daten, '$.korrektur_nr') = ?").get(nr);
+}
+
 export function vorschlagDaten(db: Register, auftragId: string): { herkunft?: string; wirkung?: Record<string, unknown> } {
   return JSON.parse(String(ereignisse(db, { art: "auftrag.angelegt", auftrag_id: auftragId, grenze: 1 })[0]?.daten ?? "{}"));
 }

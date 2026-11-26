@@ -136,7 +136,9 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
     [anlassSatz(db, a), false],
     [a.arbeitsart === "rundgang" ? rundgangSicht(db, a, uhr.jetzt()) : "", true],
     [eltern ? `Elternauftrag: ${String(eltern.wortlaut).slice(0, regelZahl("kontext_eltern_zeichen"))}\nZiel: ${eltern.ziel}` : "", false],
-    [ereignisse(db, { art: "befund", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") }).map((b) => `Befund: ${b.satz}`).join("\n"), false],
+    [[...ereignisse(db, { art: "befund", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") }), ...ereignisse(db, { art: "entscheidung", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") })]
+      .sort((x, y) => Number(y.nr) - Number(x.nr)).slice(0, regelZahl("kontext_befunde"))
+      .map((b) => b.art === "befund" ? `Befund: ${b.satz}` : `Antonio (${b.geraet}, Kennung ${b.schluessel}): „${b.satz}“. Gilt das über diesen Auftrag hinaus, rufe seneca_lernen mit dieser Kennung auf.`).join("\n"), true],
     [`Kosten: ${euro(verbraucht)} von ${euro(Number(a.kostenrahmen_cent))}. Stufe ${l.stufe}.`, false],
   ];
   const liste = teile.filter(([t]) => t);
