@@ -1,5 +1,6 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
+import { buendelText, heute, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
@@ -49,7 +50,7 @@ export function uhrTauglich(f: Zeile): boolean {
 
 function frageSicht(db: Register, f: Zeile) {
   return {
-    id: f.id, text: f.text, von: f.von, seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, optionen: JSON.parse(String(f.optionen)),
+    id: f.id, text: f.text, von: f.von, projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, optionen: JSON.parse(String(f.optionen)),
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab,
     zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null,
@@ -58,12 +59,26 @@ function frageSicht(db: Register, f: Zeile) {
 
 function team(db: Register, jetzt: number) {
   const laeufe = aktiveLaeufe(db);
+  const tagBeginn = letzteUhrzeit(regelText("tag_grenze"), jetzt);
   return mitarbeiter().map((name) => {
     const l = laeufe.find((x) => x.mitarbeiter === name);
     const r = wert(db, `ruht:${name}`);
     const ruht = r?.wert === "ja" && (r.gueltig_bis ?? Infinity) > jetzt;
-    return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null };
+    const zuletzt = l ? undefined : beendeteLaeufe(db, name, tagBeginn)[0];
+    return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
+      projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
+      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null };
   });
+}
+
+function buendel(db: Register, braucht: Zeile[], jetzt: number) {
+  const abnahmen = auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio");
+  const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id));
+  return {
+    fenster: regelUhrzeitNach("fenster", jetzt), ...buendelText(abnahmen, offen.length),
+    abnahmen: abnahmen.map((a) => ({ id: a.id, titel: a.titel, projekt: a.projekt ?? a.bereich, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
+    fragen: offen.map((f) => frageSicht(db, f)),
+  };
 }
 
 export function stand(db: Register, eingabe: { geraet: string; revision?: number }, jetzt: number) {
@@ -79,12 +94,9 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min") },
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
+    heute: heute(db, ruhe(db, jetzt), jetzt),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
-    buendel: {
-      fenster: regelUhrzeitNach("fenster", jetzt),
-      abnahmen: auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio").map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-      fragen: fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id)).map((f) => frageSicht(db, f)),
-    },
+    buendel: buendel(db, braucht, jetzt),
     team: team(db, jetzt),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : "termin" })),
