@@ -23,6 +23,18 @@ module Zustand {
         :voll => "Voll · Sätze bleiben in der Aufzeichnung"
     };
 
+    const KNAPP = {
+        :nie => "nie abgeglichen",
+        :abgeglichen => "Abgleich $1$",
+        :sendet => "sendet · $2$ offen",
+        :offline => "offline · $2$ warten",
+        :server => "keine Verbindung",
+        :gesperrt => "Uhr gesperrt",
+        :zuAlt => "Uhr-App zu alt",
+        :fastVoll => "fast voll · $2$",
+        :voll => "Speicher voll"
+    };
+
     function netz() as Number {
         return Speicher.lesen("net", NIE) as Number;
     }
@@ -75,8 +87,16 @@ module Zustand {
     }
 
     function text() as String {
+        return fuellen(TEXTE);
+    }
+
+    function knapp() as String {
+        return fuellen(KNAPP);
+    }
+
+    function fuellen(texte as Dictionary) as String {
         var argumente = [Zeit.uhrzeit(Stand.abgeglichenUm()), Warteschlange.anzahl(), Regeln.grenze()];
-        return Lang.format(TEXTE[aktuell()] as String, argumente);
+        return Lang.format(texte[aktuell()] as String, argumente);
     }
 
     function kurz() as String {

@@ -1,4 +1,3 @@
-import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
@@ -9,45 +8,32 @@ class ListenAnsicht extends Ansicht {
         Ansicht.initialize();
     }
 
-    function kopf() as String {
-        return "";
+    function anzahl() as Number {
+        return 0;
     }
 
-    function eintraege() as Array<Dictionary> {
-        return [];
-    }
-
-    function leer() as String {
-        return "";
-    }
-
-    function mitRueckgaengig() as Boolean {
+    function kreisend() as Boolean {
         return false;
     }
 
-    function runter() as Void {
-        if (_auswahl < eintraege().size() - 1) {
-            _auswahl += 1;
+    function blaettern(schritt as Number) as Void {
+        var gesamt = anzahl();
+        var ziel = _auswahl + schritt;
+        if (kreisend() && gesamt > 0) {
+            ziel = (ziel + gesamt) % gesamt;
+        }
+        if (ziel >= 0 && ziel < gesamt && ziel != _auswahl) {
+            _auswahl = ziel;
+            wechseln(schritt);
         }
         WatchUi.requestUpdate();
+    }
+
+    function runter() as Void {
+        blaettern(1);
     }
 
     function hoch() as Void {
-        if (_auswahl > 0) {
-            _auswahl -= 1;
-        }
-        WatchUi.requestUpdate();
-    }
-
-    function onUpdate(dc as Dc) as Void {
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, kopf());
-        var zeilen = eintraege();
-        if (zeilen.size() == 0) {
-            Zeichnen.text(dc, 0.5, Graphics.FONT_MEDIUM, Zeichnen.GRUEN, leer());
-        } else {
-            Zeichnen.zeilen(dc, zeilen, _auswahl);
-        }
-        Zeichnen.fuss(dc, mitRueckgaengig());
+        blaettern(-1);
     }
 }

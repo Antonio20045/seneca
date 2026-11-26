@@ -1,10 +1,14 @@
 import Toybox.Lang;
 
 module Rueckgaengig {
-    var meldung as String = "";
+    var titel as String = "";
+    var zeile as String = "";
+    var zaehler as Number = 0;
 
-    function melden(text as String) as Void {
-        meldung = text;
+    function melden(ueberschrift as String, text as String) as Void {
+        titel = ueberschrift;
+        zeile = text;
+        zaehler += 1;
         Signal.kurz();
     }
 

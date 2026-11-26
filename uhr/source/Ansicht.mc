@@ -1,9 +1,73 @@
+import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
+class Bewegung extends WatchUi.Drawable {
+    var wert as Float = 1.0;
+
+    function initialize() {
+        Drawable.initialize({});
+    }
+
+    function laufen(dauer as Float, art as WatchUi.AnimationType) as Void {
+        wert = 0.0;
+        WatchUi.animate(self, :wert, art, 0.0, 1.0, dauer, null);
+    }
+}
+
 class Ansicht extends WatchUi.View {
+    protected var _auftritt as Bewegung = new Bewegung();
+    protected var _richtung as Number = 1;
+    private var _pop as Bewegung = new Bewegung();
+    private var _frist as Bewegung = new Bewegung();
+    private var _gemeldet as Number = -1;
+
     function initialize() {
         View.initialize();
+    }
+
+    function auftrittDauer() as Float {
+        return Zeichnen.AUFTRITT_S;
+    }
+
+    function onShow() as Void {
+        Zeichnen.vergessen();
+        _richtung = 1;
+        _auftritt.laufen(auftrittDauer(), WatchUi.ANIM_TYPE_EASE_OUT);
+    }
+
+    function wechseln(richtung as Number) as Void {
+        _richtung = richtung;
+        _auftritt.laufen(Zeichnen.WECHSEL_S, WatchUi.ANIM_TYPE_EASE_OUT);
+    }
+
+    function onUpdate(dc as Dc) as Void {
+        Zeichnen.flaeche(dc);
+        Zeichnen.auftritt(_auftritt.wert, _richtung);
+        zeichnen(dc);
+    }
+
+    function zeichnen(dc as Dc) as Void {
+    }
+
+    function fristAnteil() as Float {
+        if (_gemeldet != Rueckgaengig.zaehler) {
+            _gemeldet = Rueckgaengig.zaehler;
+            _pop.laufen(Zeichnen.POP_S, WatchUi.ANIM_TYPE_EASE_OUT);
+            _frist.laufen(Rueckgaengig.rest().toFloat(), WatchUi.ANIM_TYPE_LINEAR);
+        }
+        return 1.0 - _frist.wert;
+    }
+
+    function bestaetigungZeigen(dc as Dc) as Boolean {
+        if (Rueckgaengig.rest() <= 0) {
+            return false;
+        }
+        var anteil = fristAnteil();
+        Zeichnen.versatz = 0.0;
+        Bildschirm.bestaetigung(dc, Rueckgaengig.titel, Rueckgaengig.zeile, _pop.wert, anteil);
+        Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
+        return true;
     }
 
     function waehlen() as Void {
@@ -74,7 +138,7 @@ module Ansichten {
     }
 
     function ersetzen(ansicht as Ansicht) as Void {
-        WatchUi.switchToView(ansicht, new Bedienung(ansicht), WatchUi.SLIDE_IMMEDIATE);
+        WatchUi.switchToView(ansicht, new Bedienung(ansicht), WatchUi.SLIDE_LEFT);
     }
 
     function schliessen() as Void {

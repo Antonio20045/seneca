@@ -11,6 +11,8 @@ module Regeln {
     const AKKU_KNAPP = 9;
     const TRAINING_FRAGE_S = 1800;
     const TRAINING_ENDE_S = 7200;
+    const PAUSE_S = 90;
+    const GESPEICHERT_MS = 1200;
 
     function reg(schluessel as String, standard as Number) as Number {
         var werte = Stand.reg();

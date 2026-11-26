@@ -2,52 +2,63 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
-class LesenAnsicht extends Ansicht {
-    private var _minuten as Number = 30;
+class LesenAnsicht extends ListenAnsicht {
+    const SCHRITT = 15;
+    const STUFEN = 16;
     private var _gestern as Boolean = false;
 
     function initialize() {
-        Ansicht.initialize();
+        ListenAnsicht.initialize();
+        _auswahl = 2;
     }
 
-    function onUpdate(dc as Dc) as Void {
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, _gestern ? "Lesen · gestern" : "Lesen");
+    function anzahl() as Number {
+        return Lesen.timerLaeuft() ? 0 : STUFEN + 1;
+    }
+
+    function wahl() as Array<String> {
+        var liste = [""] as Array<String>;
+        for (var i = 1; i <= STUFEN; i += 1) {
+            liste.add((i * SCHRITT).toString());
+        }
+        return liste;
+    }
+
+    function ziel() as Number {
+        var minuten = Inhalt.lesenZiel();
+        return minuten > 0 ? minuten : 2 * SCHRITT;
+    }
+
+    function zeichnen(dc as Dc) as Void {
+        if (bestaetigungZeigen(dc)) {
+            return;
+        }
         if (Lesen.timerLaeuft()) {
-            Zeichnen.text(dc, 0.40, Graphics.FONT_NUMBER_HOT, Zeichnen.GRUEN, Zeit.dauer(Lesen.timerSekunden()));
-            Zeichnen.text(dc, 0.66, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = stoppen");
-        } else {
-            Zeichnen.text(dc, 0.32, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, _minuten.toString() + " Min");
-            Zeichnen.text(dc, 0.49, Graphics.FONT_XTINY, Zeichnen.GRAU, Inhalt.buch());
-            Zeichnen.text(dc, 0.56, Graphics.FONT_XTINY, Zeichnen.GRAU, zielText());
-            Zeichnen.text(dc, 0.67, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = eintragen");
+            var sekunden = Lesen.timerSekunden();
+            var minuten = sekunden / Regeln.SEKUNDEN_JE_MINUTE;
+            Zeichnen.ring(dc, _auftritt.wert * sekunden / (ziel() * Regeln.SEKUNDEN_JE_MINUTE).toFloat(), Zeichnen.HIMMEL);
+            var unter = (sekunden % Regeln.SEKUNDEN_JE_MINUTE).toString() + " S · ZIEL " + ziel().toString() + " MIN";
+            var eintrag = minuten < 1 ? 1 : minuten;
+            Bildschirm.lesetimer(dc, Inhalt.buch(), minuten.toString(), unter, "Stoppen trägt " + eintrag.toString() + " Min ein");
+            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_KURZ, Zeichnen.HIMMEL, "stoppen");
+            return;
         }
-        Zeichnen.fuss(dc, true);
-    }
-
-    function zielText() as String {
-        var ziel = Inhalt.lesenZiel();
-        return ziel > 0 ? "heute " + Inhalt.heuteGelesen().toString() + " von " + ziel.toString() + " Min" : "";
-    }
-
-    function hoch() as Void {
-        if (!Lesen.timerLaeuft() && _minuten < 240) {
-            _minuten += 15;
-        }
-        WatchUi.requestUpdate();
-    }
-
-    function runter() as Void {
-        if (!Lesen.timerLaeuft() && _minuten > 15) {
-            _minuten -= 15;
-        }
-        WatchUi.requestUpdate();
+        var kopf = "LESEN · " + (_gestern ? "GESTERN" : "HEUTE " + Inhalt.heuteGelesen().toString() + " VON " + ziel().toString());
+        Bildschirm.lesen(dc, kopf, Inhalt.buch(), wahl(), _auswahl);
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, _auswahl == 0 ? "starten" : "eintragen");
     }
 
     function waehlen() as Void {
-        var gespeichert = Lesen.timerLaeuft() ? Lesen.timerStoppen(_gestern) : Lesen.eintragen(_minuten, _gestern);
+        if (!Lesen.timerLaeuft() && _auswahl == 0) {
+            Lesen.timerStarten();
+            onShow();
+            WatchUi.requestUpdate();
+            return;
+        }
+        var minuten = Lesen.timerLaeuft() ? (Lesen.timerSekunden() + Regeln.SEKUNDEN_JE_MINUTE / 2) / Regeln.SEKUNDEN_JE_MINUTE : _auswahl * SCHRITT;
+        var gespeichert = Lesen.timerLaeuft() ? Lesen.timerStoppen(_gestern) : Lesen.eintragen(_auswahl * SCHRITT, _gestern);
         if (gespeichert) {
-            Rueckgaengig.melden("Lesen eingetragen");
+            Rueckgaengig.melden((minuten < 1 ? 1 : minuten).toString() + " Min gelesen", (_gestern ? "gestern" : "heute") + " · " + Inhalt.buch());
         } else {
             Signal.lang();
         }
