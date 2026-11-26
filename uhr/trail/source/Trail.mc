@@ -2,9 +2,11 @@ import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.UserProfile;
 import Toybox.WatchUi;
 
+(:background)
 class TrailApp extends Application.AppBase {
     function initialize() {
         AppBase.initialize();
@@ -12,6 +14,10 @@ class TrailApp extends Application.AppBase {
 
     function getInitialView() as [Views] or [Views, InputDelegates] {
         return [new Trail()];
+    }
+
+    function getServiceDelegate() as [System.ServiceDelegate] {
+        return [new LaufDienst()];
     }
 }
 
@@ -34,6 +40,22 @@ class Trail extends WatchUi.DataField {
 
     function initialize() {
         DataField.initialize();
+    }
+
+    function onTimerStart() as Void {
+        LaufRuhe.an();
+    }
+
+    function onTimerResume() as Void {
+        LaufRuhe.an();
+    }
+
+    function onTimerStop() as Void {
+        LaufRuhe.aus();
+    }
+
+    function onTimerReset() as Void {
+        LaufRuhe.aus();
     }
 
     function compute(info as Activity.Info) as Void {

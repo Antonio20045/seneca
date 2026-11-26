@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { uhrStand } from "../src/pforte/stand.ts";
+import { ruhe, uhrStand } from "../src/pforte/stand.ts";
 import { ereignisse } from "../src/register/lesen.ts";
 import { wertSetzen } from "../src/register/schreiben.ts";
 import { schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "../src/zugang/uhr.ts";
@@ -64,4 +64,16 @@ test("PF08 Frage an der Uhr: Herkunft und Später-Zeit im Stand, am iPhone schon
   p.methode("seneca.handeln", { kennung: "a1", geraet: "iphone", art: "frage.antwort", ziel: frage, wert: { wahl: "ja" } });
   um("13:51");
   assert.deepEqual(senden([{ id: "u1", t: Math.floor(am / 1000) + 60, a: "frage.antwort", p: { f: frage, w: "nein" } }]).q, [["u1", `sb:ja,iphone,${am}`]]);
+});
+
+test("PF08 Lauf-Ruhe: Trail-Datenfeld hält Seneca still, die App im Hintergrund hebt das nicht auf, nach 12 Min ohne Meldung endet sie", () => {
+  const p = ladePlugin();
+  um("10:00");
+  wertSetzen(p.db, "uhr:uhr4", schluesselHash("geheim-uhr4"), "iphone");
+  const senden = (zs: string) => uhrAbgleich(p.db, Buffer.from(JSON.stringify({ v: 1, g: "uhr4", r: -1, h: [], zs })), { authorization: "Bearer geheim-uhr4" }, (j) => uhrStand(p.db, j)).inhalt as { s?: object };
+  assert.equal(senden("trail").s, undefined);
+  um("10:04");
+  senden("leer");
+  assert.equal(ruhe(p.db, um("10:05"))?.grund, "trail");
+  assert.equal(ruhe(p.db, um("10:13")), undefined);
 });

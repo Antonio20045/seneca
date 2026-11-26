@@ -21,6 +21,17 @@ module Signal {
         vibrieren([200, Regeln.DOPPELT_PAUSE_MS, 200]);
     }
 
+    function dunkler() as Void {
+        if (!(Attention has :backlight)) {
+            return;
+        }
+        try {
+            Attention.backlight(Regeln.AKKU_HELLIGKEIT);
+        } catch (e) {
+            return;
+        }
+    }
+
     function lang() as Void {
         vibrieren([600]);
     }

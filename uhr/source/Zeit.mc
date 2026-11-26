@@ -13,6 +13,11 @@ module Zeit {
         return Lang.format("$1$:$2$", [info.hour.format("%02d"), info.min.format("%02d")]);
     }
 
+    function stunde(sekunden as Number) as String {
+        var info = Gregorian.info(new Time.Moment(sekunden), Time.FORMAT_SHORT);
+        return info.min == 0 ? info.hour.toString() + " Uhr" : uhrzeit(sekunden);
+    }
+
     function dauer(sekunden as Number) as String {
         var s = sekunden < 0 ? 0 : sekunden;
         return Lang.format("$1$:$2$", [(s / 60).format("%d"), (s % 60).format("%02d")]);
