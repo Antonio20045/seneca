@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { faelligeAuftraegeJob, faelligeWirkungenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
+import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
+import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, fragen, hole, laeufe } from "../src/register/lesen.ts";
-import { wertSetzen } from "../src/register/schreiben.ts";
-import { auftragVonAntonio, ladePlugin, spaeter, um } from "./aufbau.ts";
+import { frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
+import { auftragVonAntonio, ladePlugin, regelnMit, spaeter, um } from "./aufbau.ts";
 
 test("PF12 ruhender Mitarbeiter wird nie geweckt und wacht nach dem Ende von selbst auf", async () => {
   const p = ladePlugin();
@@ -76,4 +79,74 @@ test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {
   }
   assert.equal(laeufe(p.db, String(rundgang.id)).length, 10);
   assert.equal(fragen(p.db, "offen").length, 0);
+});
+
+test("PF12 Anstupsen: Folgezug im laufenden Lauf; ohne Schritt danach einmal neu, geht Steuern nicht, sofort neu", async () => {
+  for (const geht of [true, false]) {
+    const p = ladePlugin();
+    um("09:00");
+    const a = auftragVonAntonio(p.db, "Lange Recherche");
+    spaeter(6000);
+    await faelligeAuftraegeJob(p.db, p.starte);
+    const gestupst: string[] = [];
+    const stupse = async (sitzung: string, text: string) => (gestupst.push(`${sitzung}: ${text}`), geht);
+    um("09:40");
+    await laeufePruefenJob(p.db, stupse);
+    const f = fragen(p.db, "offen").find((x) => x.von === "arbeitsdienst:haengt");
+    assert.ok(f);
+    frageBeantworten(p.db, { frage_id: String(f.id), antwort: "anstupsen", geraet: "iphone", kennung: `s-${geht}` });
+    spaeter(10000);
+    faelligeWirkungenJob(p.db);
+    await laeufePruefenJob(p.db, stupse);
+    assert.equal(gestupst.length, 1);
+    assert.equal(laeufe(p.db, a)[0].zustand === "abgebrochen", !geht);
+    if (!geht) continue;
+    um("09:45");
+    await laeufePruefenJob(p.db, stupse);
+    assert.notEqual(laeufe(p.db, a)[0].zustand, "abgebrochen");
+    assert.equal(fragen(p.db, "offen").filter((x) => x.von === "arbeitsdienst:haengt").length, 0);
+    um("09:52");
+    await laeufePruefenJob(p.db, stupse);
+    assert.equal(laeufe(p.db, a)[0].zustand, "abgebrochen");
+    assert.equal(gestupst.length, 1);
+  }
+});
+
+test("PF12 Rechenknoten: AWS-Signatur nach Vorgabe, Start nur bei Bedarf, Stopp nach Leerlauf, ohne Zugang still aus", async () => {
+  const beispiel = signiere({ zugang: "AKIDEXAMPLE", geheimnis: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY" },
+    { host: "iam.amazonaws.com", region: "us-east-1", dienst: "iam", zeit: Date.UTC(2015, 7, 30, 12, 36), query: { Action: "ListUsers", Version: "2010-05-08" } });
+  assert.match(beispiel.kopf.authorization, /Signature=5d672d79c15b13162d9279b0855cfba6789a8edb4c82c400e06b5924a6f2b5d7$/);
+  const aufrufe: string[] = [];
+  const aws = createServer((req, res) => (aufrufe.push(new URL(String(req.url), "http://x").searchParams.get("Action") ?? ""), res.end("<ok/>")));
+  await new Promise<void>((fertig) => aws.listen(0, "127.0.0.1", fertig));
+  const zurueck = regelnMit({ rechenknoten_aws_url: `http://127.0.0.1:${(aws.address() as AddressInfo).port}/` });
+  const p = ladePlugin();
+  const zugang = { zugang: "AKIDTEST", geheimnis: "geheim-test" };
+  const keine = async () => [];
+  um("09:00");
+  await knotenJob(p.db, zugang, keine);
+  assert.deepEqual(aufrufe, []);
+  const a = auftragVonAntonio(p.db, "Formular im Browser ausfüllen", { arbeitsart: "browser" });
+  spaeter(6000);
+  await knotenJob(p.db, {}, keine);
+  assert.deepEqual(aufrufe, []);
+  await knotenJob(p.db, zugang, keine);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.deepEqual(aufrufe, ["StartInstances"]);
+  assert.equal(p.starts.length, 0);
+  await knotenJob(p.db, zugang, async () => [{ name: "rechenknoten", ollama: false }]);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.equal(laeufe(p.db, a)[0].ort, "rechenknoten");
+  assert.match(p.starts[0].message, /exec host=rechenknoten/);
+  p.ende(String(laeufe(p.db, a)[0].sitzung), 100);
+  p.methode("seneca.handeln", { kennung: "v1", geraet: "iphone", art: "auftrag.verwerfen", ziel: a });
+  um("09:20");
+  await knotenJob(p.db, zugang, keine);
+  assert.deepEqual(aufrufe, ["StartInstances"]);
+  um("09:45");
+  await knotenJob(p.db, zugang, keine);
+  await knotenJob(p.db, zugang, keine);
+  assert.deepEqual(aufrufe, ["StartInstances", "StopInstances"]);
+  zurueck();
+  aws.close();
 });

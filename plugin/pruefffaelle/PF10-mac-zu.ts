@@ -20,6 +20,13 @@ test("PF10 Mac zu: Textarbeit mit Stufe lokal läuft auf Haiku am Server, kein D
   assert.equal(l[0].ort, "server");
   assert.match(p.starts[0].model, /haiku/);
   assert.ok(!ereignisse(p.db, { art: "befund" }).some((b) => String(b.satz).includes("Mac")));
+  assert.deepEqual(p.starts[0].werkzeuge, []);
+  wertSetzen(p.db, "knoten", JSON.stringify([{ name: "mac-studio", ollama: true }]), "arbeitsdienst");
+  auftragVonAntonio(p.db, "Fasse das Telefonat zusammen", { verantwortlich: "seneca", arbeitsart: "zusammenfassen" });
+  spaeter(6000);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.deepEqual(p.starts[1].werkzeuge, ["node_inference"]);
+  assert.match(p.starts[1].message, /node_inference/);
 });
 
 test("PF10 „Verschieb den Zahnarzt“ wirkt ohne Mac; Konflikt wird gemeldet, nicht überschrieben", async () => {

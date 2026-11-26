@@ -93,3 +93,10 @@ fokus_worte Fokus,Seneca-Block
 wegzeit_vorlauf_min 60
 ankunft_puffer_min 0
 eine_minute_min 1
+rechenknoten_name rechenknoten zu_messen
+rechenknoten_region eu-north-1 zu_messen
+rechenknoten_instanz offen zu_messen
+rechenknoten_aws_url https://{host}/
+rechenknoten_leerlauf_min 30 vorschlag
+aws_zeitlimit_s 20
+knoten_pruefen_min 1
