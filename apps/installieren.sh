@@ -13,9 +13,9 @@ exec >>"$LOG" 2>&1
 echo "=== $(date '+%Y-%m-%d %H:%M') $ZIEL ==="
 melden() { osascript -e "display notification \"$1\" with title \"Seneca installieren\"" >/dev/null 2>&1; echo "MELDUNG: $1"; }
 
-if [ -d "$QUELLE/.git" ]; then git -C "$QUELLE" fetch -q origin || { echo "GitHub nicht erreichbar"; exit 0; }
+if [ -d "$QUELLE/.git" ]; then git -C "$QUELLE" fetch -q --tags --force origin || { echo "GitHub nicht erreichbar"; exit 0; }
 else git clone -q https://github.com/Antonio20045/seneca.git "$QUELLE" || { echo "GitHub nicht erreichbar"; exit 0; }; fi
-git -C "$QUELLE" checkout -q --force origin/main || { melden "Stand von GitHub nicht lesbar."; exit 1; }
+git -C "$QUELLE" checkout -q --force "refs/tags/$ZIEL-frei" || { melden "Keine freigegebene Fassung: Tag $ZIEL-frei fehlt."; exit 1; }
 regel() { awk -v n="$1" '$1 == n { print $2 }' "$QUELLE/regeln"; }
 TAGE=$(regel app_neu_installieren_tage)
 [ -n "$TAGE" ] || { melden "regeln: app_neu_installieren_tage fehlt."; exit 1; }
