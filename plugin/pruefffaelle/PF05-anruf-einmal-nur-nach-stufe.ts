@@ -20,11 +20,15 @@ async function imLauf(p: ReturnType<typeof ladePlugin>) {
 
 const freigabe = (p: ReturnType<typeof ladePlugin>, art = "freigabe") => fragen(p.db, "offen").find((f) => f.art === art);
 
-test("PF05 a) unbekannte Nummer: 0 Anrufe, Frage nach der Stufe; e) gesperrtes Werkzeug: 0 und Befund", async () => {
+test("PF05 a) unbekannte Nummer, auch über die Shell: 0 Anrufe, Frage nach der Stufe; e) gesperrtes Werkzeug: 0 und Befund", async () => {
   const p = ladePlugin();
   const { sitzung } = await imLauf(p);
   assert.ok(p.aufruf(sitzung, ANRUF, { to: "+49 170 9999999" })?.block);
   assert.ok(p.aufruf(sitzung, ANRUF, { to: "+49 170 9999999" })?.block);
+  assert.ok(p.aufruf(sitzung, "exec", { command: `node bin/hermes-mcp.mjs call place_call '{"to":"+49 170 9999999","objective":"x"}'` })?.block);
+  assert.ok(p.aufruf(sitzung, "exec", { command: "node bin/hermes-mcp.mjs call place_call '{}'" })?.block);
+  assert.equal(p.aufruf(sitzung, "exec", { command: "node bin/hermes-mcp.mjs call list_calls" }), undefined);
+  assert.ok(p.aufruf(sitzung, "exec", { command: "curl -X POST https://api.telegram.org/bot1/sendMessage" })?.block);
   assert.equal(fragen(p.db, "offen").filter((f) => f.art === "stufe_festlegen").length, 1);
   assert.ok(p.aufruf(sitzung, "whatsapp_send", { to: "+491701" })?.block);
   assert.ok(ereignisse(p.db, { art: "befund" }).some((b) => String(b.satz).startsWith("whatsapp_send")));
