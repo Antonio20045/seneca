@@ -110,3 +110,5 @@ verbinden_start_s 1
 verbinden_max_s 30
 anmeldefehler_max 3
 getrennt_nach_s 30
+buendel_abnahme_s 50 vorschlag
+buendel_frage_min 3 vorschlag
