@@ -6,6 +6,7 @@ import Toybox.WatchUi;
 module Zeichnen {
     const ENTWURF = 466.0;
     const MITTE = 233;
+    const SCHWARZ = 0x000000;
     const WEISS = 0xFFFFFF;
     const TEXT = 0xE2E4E9;
     const LEISE = 0xBAC1CB;
@@ -46,7 +47,6 @@ module Zeichnen {
     var s as Float = 1.0;
     var versatz as Float = 0.0;
     var _schriften as Dictionary = {};
-    var _hintergrund as BitmapType? = null;
 
     (:glance)
     function schrift(id as ResourceId) as FontType {
@@ -78,10 +78,8 @@ module Zeichnen {
         if (dc has :setAntiAlias) {
             dc.setAntiAlias(true);
         }
-        if (_hintergrund == null) {
-            _hintergrund = WatchUi.loadResource(Rez.Drawables.Hintergrund) as BitmapType;
-        }
-        dc.drawBitmap(0, 0, _hintergrund as BitmapType);
+        dc.setColor(SCHWARZ, SCHWARZ);
+        dc.clear();
     }
 
     function auftritt(anteil as Float, richtung as Number) as Void {
@@ -143,6 +141,7 @@ module Zeichnen {
         dc.fillRectangle(p(x), p(y + versatz), p(laenge), p(2));
     }
 
+    (:glance)
     function punkt(dc as Dc, x as Numeric, y as Numeric, durchmesser as Numeric, farbe as Number) as Void {
         dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
         dc.fillCircle(p(x), p(y + versatz), p(durchmesser / 2.0));
@@ -220,13 +219,17 @@ module Zeichnen {
             return;
         }
         punkt(dc, x, y, durchmesser, kreisfarbe);
-        var k = durchmesser / 46.0;
-        var punkte = [[-14.0, 1.0], [-5.0, 10.0], [14.0, -9.0]];
-        dc.setColor(strichfarbe, Graphics.COLOR_TRANSPARENT);
+        hakenStrich(dc, x, y, durchmesser * 48 / 92.0, strichfarbe);
+    }
+
+    function hakenStrich(dc as Dc, x as Numeric, y as Numeric, groesse as Numeric, farbe as Number) as Void {
+        var k = groesse / 24.0;
+        var punkte = [[5.0, 12.5], [9.5, 17.0], [19.0, 7.5]];
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < 2; i += 1) {
             var a = punkte[i] as Array<Float>;
             var b = punkte[i + 1] as Array<Float>;
-            balkenRund(dc, [p(x + a[0] * k), p(y + a[1] * k + versatz)], [p(x + b[0] * k), p(y + b[1] * k + versatz)], 5.2 * k);
+            balkenRund(dc, [p(x + (a[0] - 12) * k), p(y + (a[1] - 12) * k + versatz)], [p(x + (b[0] - 12) * k), p(y + (b[1] - 12) * k + versatz)], 2.6 * k);
         }
     }
 

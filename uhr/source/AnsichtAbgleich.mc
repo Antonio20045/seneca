@@ -13,7 +13,7 @@ class AbgleichAnsicht extends Ansicht {
         if (wartend == 0) {
             Bildschirm.abgleich(dc, "0", "Nichts wartet", Zustand.text(), "", farbe);
         } else {
-            Bildschirm.abgleich(dc, wartend.toString(), "warten aufs iPhone", "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()) + " · " + Zustand.kurz(), "sicher auf der Uhr", farbe);
+            Bildschirm.abgleich(dc, wartend.toString(), "warten aufs iPhone", "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()) + " · " + Inhalt.wasWartet(), "sicher auf der Uhr", farbe);
         }
         Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, Abgleich.laeuft ? "sendet …" : "jetzt senden");
         Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.GEDAEMPFT, "zurück");

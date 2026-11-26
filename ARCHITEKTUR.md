@@ -116,6 +116,7 @@ Vorlage ist der Entwurf „Seneca – ein Assistent, drei Geräte“, Seite Garm
 |---|---|
 | Farben, Schriften, Grundformen (Tastenmarke, Ring, Balken, Haken), Bewegung | `uhr/source/Zeichnen.mc`, Klasse `Bewegung` in `uhr/source/Ansicht.mc` |
 | Alle Positionen je Ansicht, in Entwurfs-px, skaliert auf 416, 454 und 466 px | `uhr/source/Bildschirm.mc` |
-| Bitmap-Schriften (BMFont) und Hintergrund je Uhrgröße | `uhr/resources*/gestalt/`, erzeugt mit `python3 uhr/werkzeug/gestalt.py <Ordner mit den TTF von Google Fonts>` (Pillow, fontTools) |
+| Eigene Sätze je Übung, Bestwerte, letztes Training (bleiben auf der Uhr, auch nach dem Abgleich) | `uhr/source/Verlauf.mc` |
+| Bitmap-Schriften (BMFont) und Lichtpunkt je Uhrgröße | `uhr/resources*/gestalt/`, erzeugt mit `python3 uhr/werkzeug/gestalt.py <Ordner mit den TTF von Google Fonts>` (Pillow, fontTools) |
 
-Die Ansichten liefern nur Inhalt und Tastenbelegung. Schriften: IBM Plex Mono, Instrument Serif, Space Grotesk (OFL, `uhr/werkzeug/OFL.txt`).
+App-Ansichten auf Schwarz (#000), wie im Entwurf. Die Ansichten liefern nur Inhalt und Tastenbelegung. Der Uhr-Stand (`uhrStand` in `pforte/stand.ts`) bringt je To-do Bereich und Dauer und `ta` (wie viele im Team arbeiten). Schriften: IBM Plex Mono, Instrument Serif, Space Grotesk (OFL, `uhr/werkzeug/OFL.txt`).

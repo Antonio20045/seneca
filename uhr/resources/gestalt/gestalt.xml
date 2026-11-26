@@ -17,6 +17,7 @@
         <font id="G5_40" filename="G5_40.fnt" antialias="true"/>
         <font id="G5_38" filename="G5_38.fnt" antialias="true"/>
         <font id="G5_36" filename="G5_36.fnt" antialias="true"/>
+        <font id="G5_34" filename="G5_34.fnt" antialias="true" scope="glance"/>
         <font id="G5_30" filename="G5_30.fnt" antialias="true"/>
         <font id="G5_26" filename="G5_26.fnt" antialias="true"/>
         <font id="G4_26" filename="G4_26.fnt" antialias="true"/>
@@ -24,6 +25,7 @@
         <font id="G4_22" filename="G4_22.fnt" antialias="true" scope="glance"/>
         <font id="G4_21" filename="G4_21.fnt" antialias="true"/>
         <font id="G4_20" filename="G4_20.fnt" antialias="true"/>
+        <font id="G4_19" filename="G4_19.fnt" antialias="true"/>
         <font id="G4_18" filename="G4_18.fnt" antialias="true"/>
         <font id="G4_15" filename="G4_15.fnt" antialias="true"/>
         <font id="I_48" filename="I_48.fnt" antialias="true"/>
@@ -31,7 +33,6 @@
         <font id="I_26" filename="I_26.fnt" antialias="true"/>
     </fonts>
     <drawables>
-        <bitmap id="Hintergrund" filename="hintergrund.png" dithering="floyd_steinberg"/>
         <bitmap id="Lichtpunkt" filename="lichtpunkt.png" scope="glance"/>
     </drawables>
 </resources>

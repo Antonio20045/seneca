@@ -50,7 +50,7 @@ module Bildschirm {
         zeile(dc, 372, Rez.Fonts.G4_22, Zeichnen.MATT, zeilen[(auswahl + 2) % zeilen.size()]["klein"] as String, 300);
     }
 
-    function uebungen(dc as Dc, kopf as String, namen as Array<String>, unter as String, auswahl as Number) as Void {
+    function uebungen(dc as Dc, kopf as String, namen as Array<String>, unter as String, auswahl as Number, fuss as String) as Void {
         Zeichnen.gruppe(dc, Zeichnen.MITTE, 66, [[Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, "ÜBUNG"], [Rez.Fonts.M5_15, Zeichnen.GRUEN, kopf]], 10, MITTIG);
         if (auswahl > 0) {
             zeile(dc, 118, Rez.Fonts.G4_22, Zeichnen.MATT, namen[auswahl - 1], 300);
@@ -65,9 +65,10 @@ module Bildschirm {
         if (auswahl + 2 < namen.size()) {
             zeile(dc, 362, Rez.Fonts.G4_22, Zeichnen.MATT, namen[auswahl + 2], 300);
         }
+        Zeichnen.mitte(dc, 404, Rez.Fonts.M4_13W, Zeichnen.STUMM, fuss);
     }
 
-    function satz(dc as Dc, titel as String, kopf as String, kg as String, wiederholungen as String, wartend as String, hinweis as String) as Void {
+    function satz(dc as Dc, titel as String, kopf as String, kg as String, wiederholungen as String, wartend as String, heute as String, hinweis as String) as Void {
         zeile(dc, 62, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, titel.toUpper(), 300);
         Zeichnen.mitte(dc, 88, Rez.Fonts.M4_15, Zeichnen.GRUEN, kopf);
         Zeichnen.gruppe(dc, Zeichnen.MITTE, 176, [[Rez.Fonts.G5_96, Zeichnen.WEISS, kg], [Rez.Fonts.M4_20, Zeichnen.GEDAEMPFT, "kg"]], 8, MITTIG);
@@ -77,6 +78,8 @@ module Bildschirm {
         }
         if (wartend.length() > 0) {
             mitPunkt(dc, 352, Rez.Fonts.M4_14, Zeichnen.GEDAEMPFT, wartend, Zeichnen.GEDAEMPFT, 7, true);
+        } else {
+            zeile(dc, 352, Rez.Fonts.M4_14, Zeichnen.MATT, heute, 330);
         }
         Zeichnen.mitte(dc, 394, Rez.Fonts.M4_13, Zeichnen.STUMM, hinweis);
     }
@@ -107,13 +110,17 @@ module Bildschirm {
         }
     }
 
+    function bestwert(dc as Dc, text as String) as Void {
+        zeile(dc, 318, Rez.Fonts.G4_19, Zeichnen.GRUEN, text, 330);
+    }
+
     function fertigVorher(dc as Dc) as Void {
         Zeichnen.mitte(dc, 366, Rez.Fonts.M4_13, Zeichnen.STUMM, "MENU · verwerfen");
     }
 
     function fertigGespeichert(dc as Dc) as Void {
         var links = Zeichnen.MITTE - (22 + Zeichnen.breite(dc, Rez.Fonts.M5_14W, "GESPEICHERT")) / 2.0;
-        Zeichnen.haken(dc, links + 7, 360, 14, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
+        Zeichnen.hakenStrich(dc, links + 7, 360, 14, Zeichnen.GRUEN);
         Zeichnen.text(dc, links + 22, 360, Rez.Fonts.M5_14W, Zeichnen.GRUEN, "GESPEICHERT", LINKS);
         Zeichnen.mitte(dc, 390, Rez.Fonts.G4_15, Zeichnen.GEDAEMPFT, "Seneca · Garmin Connect");
     }
@@ -152,16 +159,15 @@ module Bildschirm {
         Zeichnen.mitte(dc, 380, Rez.Fonts.M4_13, Zeichnen.STUMM, "BACK · Timer läuft weiter");
     }
 
-    const AUFGABEN_ZEILEN = [
-        [85, 167.5, 30, 2.5, 116, 156.9, 184.4, 211, Rez.Fonts.G5_26, Zeichnen.WEISS, Zeichnen.HIMMEL, Zeichnen.GEDAEMPFT],
-        [82, 248.5, 24, 2, 110, 238, 262.5, 284, Rez.Fonts.G4_21, Zeichnen.LEISE, Zeichnen.STUMM, Zeichnen.MATT],
-        [82, 321.5, 24, 2, 110, 311.1, 335.7, 0, Rez.Fonts.G4_21, Zeichnen.LEISE, Zeichnen.STUMM, Zeichnen.MATT]
-    ];
-
     function todos(dc as Dc, kopf as String, zeilen as Array<Dictionary>, auswahl as Number) as Void {
         Zeichnen.mitte(dc, 66, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, kopf);
+        var plaetze = [
+            [85, 167.5, 30, 2.5, 116, 156.9, 184.4, 211, Rez.Fonts.G5_26, Zeichnen.WEISS, Zeichnen.HIMMEL, Zeichnen.GEDAEMPFT],
+            [82, 248.5, 24, 2, 110, 238, 262.5, 284, Rez.Fonts.G4_21, Zeichnen.LEISE, Zeichnen.STUMM, Zeichnen.MATT],
+            [82, 321.5, 24, 2, 110, 311.1, 335.7, 0, Rez.Fonts.G4_21, Zeichnen.LEISE, Zeichnen.STUMM, Zeichnen.MATT]
+        ];
         for (var i = 0; i < 3 && auswahl + i < zeilen.size(); i += 1) {
-            var z = AUFGABEN_ZEILEN[i] as Array;
+            var z = plaetze[i] as Array;
             var eintrag = zeilen[auswahl + i];
             var meta = eintrag["meta"] as String;
             var erledigt = eintrag["erledigt"] as Boolean;
@@ -196,6 +202,21 @@ module Bildschirm {
         Zeichnen.gruppe(dc, Zeichnen.MITTE, 200, [[Rez.Fonts.G5_96, Zeichnen.WEISS, kg], [Rez.Fonts.M4_20, Zeichnen.GEDAEMPFT, "kg"]], 8, MITTIG);
         Zeichnen.mitte(dc, 288, Rez.Fonts.M4_14, Zeichnen.GEDAEMPFT, "negativ = Unterstützung");
         Zeichnen.mitte(dc, 394, Rez.Fonts.M4_13, Zeichnen.STUMM, "UP/DOWN ±2,5 kg");
+    }
+
+    (:glance)
+    function blick(dc as Dc, breite as Numeric, hoehe as Numeric, satz as String, danach as String) as Void {
+        var mitte = breite / 2.0;
+        var oben = hoehe / 2.0 - 43;
+        var links = mitte - (24 + Zeichnen.breite(dc, Rez.Fonts.M5_16, "SENECA")) / 2.0;
+        Zeichnen.lichtpunkt(dc, links + 7, oben);
+        Zeichnen.text(dc, links + 24, oben, Rez.Fonts.M5_16, Zeichnen.HIMMEL, "SENECA", LINKS);
+        Zeichnen.text(dc, mitte, oben + 42, Rez.Fonts.G5_34, Zeichnen.WEISS, Zeichnen.kuerzen(dc, satz, Rez.Fonts.G5_34, breite), MITTIG);
+        if (danach.length() > 0) {
+            var start = mitte - (19 + Zeichnen.breite(dc, Rez.Fonts.G4_22, danach)) / 2.0;
+            Zeichnen.punkt(dc, start + 4.5, oben + 86, 9, Zeichnen.BERNSTEIN);
+            Zeichnen.text(dc, start + 19, oben + 86, Rez.Fonts.G4_22, Zeichnen.TEXT, danach, LINKS);
+        }
     }
 
     function abgleich(dc as Dc, anzahl as String, was as String, wann as String, sicher as String, wannFarbe as Number) as Void {
