@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { uhr } from "../src/register/lesen.ts";
 import { oeffne, type Register } from "../src/register/schema.ts";
-import { auftragAnlegen, frageStellen, type NeuerAuftrag } from "../src/register/schreiben.ts";
+import { auftragAnlegen, frageStellen, type NeuerAuftrag, wertSetzen } from "../src/register/schreiben.ts";
+import { mitarbeiter } from "../src/team.ts";
 import plugin from "../src/index.ts";
 
 export function frischesRegister(): Register {
@@ -16,6 +17,10 @@ export function um(hhmm: string, tag = "2026-11-27"): number {
   const t = new Date(`${tag}T${hhmm}:00`).getTime();
   uhr.jetzt = () => t;
   return t;
+}
+
+export function nurWach(db: Register, ...namen: string[]): void {
+  for (const m of mitarbeiter()) if (!namen.includes(m)) wertSetzen(db, `ruht:${m}`, "ja", "test");
 }
 
 export function spaeter(ms: number): number {

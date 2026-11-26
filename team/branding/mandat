@@ -1,0 +1,16 @@
+bereich: [Sundartha]
+projekte: [Branding-Konzept]
+ziele:
+  - kennzahl: abgelegte_ergebnisse
+    ziel: ">= 3"
+rundgang: []
+befugnisse:
+  unterauftrag_an: [recherche]
+  werkzeuge: [browser]
+  ablage_schreiben: [Sundartha/Branding]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, recherche: sonnet, synthese: opus }

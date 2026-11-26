@@ -1,0 +1,16 @@
+bereich: [Vodafone]
+projekte: [Telco-Radar]
+ziele:
+  - kennzahl: falsche_preise_live
+    ziel: "0"
+rundgang: []
+befugnisse:
+  unterauftrag_an: [engineer, pruefer, recherche]
+  werkzeuge: [browser, exec]
+  ablage_schreiben: [Vodafone]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, bauen: sonnet, steuern: opus }

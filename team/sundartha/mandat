@@ -1,0 +1,21 @@
+bereich: [Sundartha]
+projekte: [Website, Marketing, Wettbewerb]
+ziele:
+  - kennzahl: angenommene_vorschlaege_prozent
+    ziel: ">= 50"
+signale:
+  - quelle: web:wettbewerb
+    was: "neue Angebote, Preise und Auftritte der Wettbewerber von Hermes"
+  - quelle: register
+    was: "eigene Aufträge ohne Bewegung"
+rundgang: ["09:15"]
+befugnisse:
+  unterauftrag_an: [recherche, branding, produkt]
+  werkzeuge: [browser, exec]
+  ablage_schreiben: [Sundartha]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, recherche: sonnet, steuern: opus }

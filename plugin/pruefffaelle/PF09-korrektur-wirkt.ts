@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { faelligeAuftraegeJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, laeufe, wert } from "../src/register/lesen.ts";
-import { auftragVonAntonio, ladePlugin, spaeter, um } from "./aufbau.ts";
+import { auftragVonAntonio, ladePlugin, nurWach, spaeter, um } from "./aufbau.ts";
 
 const S = "agent:seneca:main";
 
@@ -34,6 +34,7 @@ test("PF09 Korrektur ändert genau eine Stelle, ist zurücknehmbar, Wiederholung
   writeFileSync(join(arbeitsplatz, "skills", "mail_an_kunden", "SKILL.md"), "Schritt 3: kurz, immer mit Link.");
   const a = auftragVonAntonio(p.db, "Mail an Kunden zum Angebot", { arbeitsart: "mail_an_kunden" });
   spaeter(6000);
+  nurWach(p.db, "produkt");
   await faelligeAuftraegeJob(p.db, p.starte);
   assert.ok(p.kontext(String(laeufe(p.db, a)[0].sitzung), arbeitsplatz)?.includes("Schritt 3: kurz, immer mit Link."));
 });
