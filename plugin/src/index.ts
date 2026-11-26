@@ -134,7 +134,7 @@ export default {
       agentEnde(db, ctx.sessionKey ?? "", JSON.stringify(event.messages.at(-1) ?? event.error ?? ""), tokens);
     });
 
-    api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
+    api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
     api.on("before_tool_call", (event, ctx) => dateiRecht({ werkzeug: event.toolName, params: event.params, agent: ctx.agentId ?? "" }));
     api.on("after_tool_call", (event) => nachWerkzeug(db, event.toolCallId, event.error));
     api.on("message_received", (event, ctx) => mitlesen(db, ctx.channelId, event));

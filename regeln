@@ -58,8 +58,10 @@ preis_aus_cent_je_mio_tokens 1500 zu_messen
 woche_tage 7
 bausystem engineer
 wiederholung_worte hab_ich_schon_gesagt,wie_oft_noch,schon_mal_gesagt,habe_ich_doch_gesagt
-aussen_werkzeuge mcp__telefon__anruf/anruf/nummer,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender/einladung/teilnehmer?
+aussen_werkzeuge hermes__place_call/anruf/to,mcp__hermes__place_call/anruf/to,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender/einladung/teilnehmer?
 aussen_gesperrt mcp__whatsapp__send_message,whatsapp_send
+live_muster gh\s+pr\s+merge|git\s+push\b.*\b(main|master)\b|--prod\b|npm\s+publish|(vercel|netlify|fly|wrangler|firebase)\s+deploy|__(trigger_deploy|deploy_\w+|publish_\w+|\w+_publish)(\s|$)
+gateway_muster ^gateway\s(restart|update\.run)|openclaw\s+gateway\s+(restart|stop)|systemctl\s.*openclaw|pkill.*openclaw
 uhr_anfragen_je_std 120
 uhr_handlungen_max 20
 uhr_protokoll 1

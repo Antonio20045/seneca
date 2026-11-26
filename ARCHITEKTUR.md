@@ -81,6 +81,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 34 | Push senden (APNs, Schlüssel nur aus der Plugin-Konfiguration, ohne Schlüssel still aus) | `pforte/push.ts`, aufgerufen nur aus `pforte/zustellen.ts` |
 | 38, 39, 41, 42 | Nach außen nur nach Stufe, 5 s, höchstens einmal | `ausgang/ausgang.ts` · Hook `before_tool_call` |
 | 40 | Stufe je Empfänger | `ausgang/kontakte.ts` |
+| – | Nichts live ohne Antonios ausführliches Ja (Mandatsfeld `live_nur_mit_ja`, Regel `live_muster`); kein Gateway-Neustart außer im Bauablauf mit Ja (Regel `gateway_muster`) | `ausgang/ausgang.ts` · Hook `before_tool_call` |
 | 43, 46, 47 | Korrektur einordnen, Sperre als Auftrag, Wiederholungen | `lernen/lernen.ts` |
 | 44 | Skill ändern | Skill-Werkstatt von OpenClaw (`skill_workshop`), kein Plugin-Code |
 | 48 | Uhr koppeln (Zahlenvergleich, Fenster 10 Min, Schlüssel genau einmal) | `zugang/uhr.ts`; Bestätigung als Handlung in `zugang/handeln.ts` |

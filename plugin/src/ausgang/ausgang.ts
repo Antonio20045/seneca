@@ -3,18 +3,27 @@ import { auftraege, ereignisse, fragen, hole, laufZurSitzung, wert } from "../re
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, befund, ereignis, frageBeantworten, frageStellen } from "../register/schreiben.ts";
 import { regelListe, regelText } from "../regeln.ts";
+import { mandat } from "../team.ts";
 import { normalisiere, stufe } from "./kontakte.ts";
 
-type Aufruf = { werkzeug: string; params: Record<string, unknown>; sitzung: string; aufrufId?: string };
+type Aufruf = { werkzeug: string; params: Record<string, unknown>; sitzung: string; agent: string; aufrufId?: string };
+type Daten = { kanal: string; empfaenger: string[]; stufe: string; werkzeug: string };
 type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 type Urteil = { block: true; blockReason: string } | undefined;
 
 const STRENGE = ["frei", "kurz_fragen", "ausfuehrlich"];
+const WORT: Record<string, string> = { anruf: "Anruf", live: "Live schalten", gateway: "Gateway-Neustart" };
 const gestartet = new Map<string, string>();
 
 function aussenWerkzeug(name: string): { kanal: string; feld: string; freiwillig: boolean } | undefined {
   const z = regelListe("aussen_werkzeuge").map((e) => e.split("/")).find(([w]) => w === name);
   return z ? { kanal: z[1], feld: z[2].replace("?", ""), freiwillig: z[2].endsWith("?") } : undefined;
+}
+
+function liveArt(a: Aufruf): string | undefined {
+  const befehl = [a.werkzeug, a.params.command, a.params.action].filter((x) => typeof x === "string").join(" ");
+  if (new RegExp(regelText("gateway_muster")).test(befehl)) return "gateway";
+  return new RegExp(regelText("live_muster")).test(befehl) ? "live" : undefined;
 }
 
 function sperre(db: Register, a: Aufruf, satz: string, auftragId?: string): Urteil {
@@ -50,6 +59,9 @@ function starten(db: Register, a: Aufruf, schluessel: string, daten: object): Ur
 
 function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   if (regelListe("aussen_gesperrt").includes(a.werkzeug)) return sperre(db, a, "Dieses Werkzeug ist gesperrt.");
+  const live = liveArt(a);
+  if (live === "gateway" && a.agent !== regelText("bausystem")) return sperre(db, a, "Kein Agent startet das Gateway neu. Nur der Bauablauf mit Antonios Ja.");
+  if (live === "gateway" || (live && mandat(a.agent).befugnisse.live_nur_mit_ja)) return freigeben(db, a, bezug(db, a), { kanal: live, empfaenger: [], stufe: "ausfuehrlich", werkzeug: a.werkzeug }, n);
   const w = aussenWerkzeug(a.werkzeug);
   if (!w) return undefined;
   const roh = a.params[w.feld];
@@ -73,23 +85,27 @@ function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
     return sperre(db, a, `Unbekannter Empfänger ${unbekannt}: erst die Stufe festlegen. Nichts wurde gesendet.`, auftragId);
   }
   const strengste = STRENGE[Math.max(...stufen.map((s) => STRENGE.indexOf(String(s))))];
+  return freigeben(db, a, auftragId, { kanal: w.kanal, empfaenger, stufe: strengste, werkzeug: a.werkzeug }, n);
+}
+
+function freigeben(db: Register, a: Aufruf, auftragId: string, daten: Daten, n?: Nachricht): Urteil {
   const inhalt = JSON.stringify(Object.fromEntries(Object.entries(a.params).sort()));
-  const schluessel = createHash("sha256").update([auftragId, w.kanal, empfaenger.join(","), inhalt].join("|")).digest("hex");
-  const daten = { kanal: w.kanal, empfaenger, stufe: strengste, werkzeug: a.werkzeug };
-  if (strengste === "frei") return starten(db, a, schluessel, daten);
+  const schluessel = createHash("sha256").update([auftragId, daten.kanal, daten.empfaenger.join(","), inhalt].join("|")).digest("hex");
+  if (daten.stufe === "frei") return starten(db, a, schluessel, daten);
   const freigabe = freigabeGilt(db, schluessel);
   if (freigabe === "ja") return starten(db, a, schluessel, daten);
   if (freigabe === "wartet") return { block: true, blockReason: "Freigabe ist angefragt. Schreibe fort; nach der Freigabe startet dich der Arbeitsdienst neu." };
-  const ausfuehrlich = strengste === "ausfuehrlich";
+  const ausfuehrlich = daten.stufe === "ausfuehrlich";
+  const ziel = daten.empfaenger.length ? `an ${daten.empfaenger.join(", ")}` : `über ${a.werkzeug}`;
   const frage = frageStellen(db, {
-    auftrag_id: auftragId, von: "ausgang", art: ausfuehrlich ? "ausfuehrliches_ja" : "freigabe", wirkung_aussen: w.kanal, ausgang_schluessel: schluessel,
+    auftrag_id: auftragId, von: "ausgang", art: ausfuehrlich ? "ausfuehrliches_ja" : "freigabe", wirkung_aussen: daten.kanal, ausgang_schluessel: schluessel,
     inhalt_hash: ausfuehrlich ? createHash("sha256").update(inhalt).digest("hex") : undefined, roh: inhalt,
-    text: `${w.kanal === "anruf" ? "Anruf" : "Nachricht"} an ${empfaenger.join(", ")} freigeben?`, was_passiert_ist: String(hole(db, "auftrag", auftragId).letzter_stand || hole(db, "auftrag", auftragId).titel),
+    text: `${WORT[daten.kanal] ?? "Nachricht"} ${ziel} freigeben?`, was_passiert_ist: String(hole(db, "auftrag", auftragId).letzter_stand || hole(db, "auftrag", auftragId).titel),
     wenn_nichts: "Es geht nichts hinaus.", empfehlung: "Freigeben, wenn der Inhalt stimmt.",
     optionen: [{ wert: "ja", text: "Freigeben", folge: "Geht nach 5 Sekunden hinaus." }, { wert: "nein", text: "Nicht senden", folge: "Es geht nichts hinaus." }],
   });
   ereignis(db, { art: "ausgang.vorgemerkt", auftrag_id: auftragId, frage_id: frage, schluessel, daten });
-  const eigenerBefehl = n?.vonAntonio && !ausfuehrlich && empfaenger.some((e) => n.text.toLowerCase().includes(e)) && Object.values(a.params).some((v) => typeof v === "string" && v.length > 3 && n.text.includes(v));
+  const eigenerBefehl = n?.vonAntonio && !ausfuehrlich && daten.empfaenger.some((e) => n.text.toLowerCase().includes(e)) && Object.values(a.params).some((v) => typeof v === "string" && v.length > 3 && n.text.includes(v));
   if (eigenerBefehl && n) frageBeantworten(db, { frage_id: frage, antwort: "ja", geraet: "gespraech", kennung: n.kennung });
   return { block: true, blockReason: eigenerBefehl ? "Dein Befehl gilt als Freigabe. In 5 Sekunden noch einmal aufrufen, dann geht es hinaus." : "Freigabe ist angefragt. Schreibe fort; nach der Freigabe startet dich der Arbeitsdienst neu." };
 }
@@ -98,7 +114,7 @@ export function pruefeAufruf(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   try {
     return vorWerkzeug(db, a, n);
   } catch (fehler) {
-    const betroffen = aussenWerkzeug(a.werkzeug) || regelListe("aussen_gesperrt").includes(a.werkzeug);
+    const betroffen = aussenWerkzeug(a.werkzeug) || regelListe("aussen_gesperrt").includes(a.werkzeug) || liveArt(a);
     return betroffen ? { block: true, blockReason: `Ausgang gesperrt wegen Fehler: ${(fehler as Error).message}` } : undefined;
   }
 }
