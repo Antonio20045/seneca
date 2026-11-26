@@ -7,7 +7,7 @@ enum HealthStatistik {
 
     private static var typen: Set<HKObjectType> {
         [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.bodyMass),
-         HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned)]
+         HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis)]
     }
 
     static func mussFragen() async -> Bool {
@@ -53,6 +53,23 @@ enum HealthStatistik {
                            meter: w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter()))
         }
         return (neu, a.anker)
+    }
+
+    static func schlafLetzteNacht(_ jetzt: Date = Date()) async -> (minuten: Int, ende: Date)? {
+        let pred = HKQuery.predicateForSamples(withStart: jetzt.addingTimeInterval(-18 * 3600), end: jetzt)
+        let proben: [HKCategorySample] = await withCheckedContinuation { c in
+            store.execute(HKSampleQuery(sampleType: HKCategoryType(.sleepAnalysis), predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, s, _ in
+                c.resume(returning: s as? [HKCategorySample] ?? [])
+            })
+        }
+        let schlaf = proben.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value).map(HKCategoryValueSleepAnalysis.allAsleepValues.contains) ?? false }
+        let jeQuelle = Dictionary(grouping: schlaf) { $0.sourceRevision.source.bundleIdentifier }
+        guard let beste = jeQuelle.values.max(by: { dauer($0) < dauer($1) }), let ende = beste.map(\.endDate).max() else { return nil }
+        return (Int(dauer(beste) / 60), ende)
+    }
+
+    private static func dauer(_ proben: [HKCategorySample]) -> TimeInterval {
+        proben.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
     }
 
     private static func grunddaten(_ w: HKWorkout) -> StatLauf? {

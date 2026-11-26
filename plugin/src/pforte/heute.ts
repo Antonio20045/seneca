@@ -68,7 +68,10 @@ export function buendelText(abnahmen: Zeile[], fragen: number) {
 
 export function koerper(db: Register, tagBeginn: number, ruhe: { grund: string; bis: number } | undefined) {
   const k = JSON.parse(wert(db, "koerper")?.wert ?? "null");
-  if (!k || k.zeit < tagBeginn) return null;
+  const s = JSON.parse(wert(db, "koerper:schlaf")?.wert ?? "null");
+  const schlaf = s && s.bis >= tagBeginn ? s : null;
+  if (!schlaf && (!k || k.zeit < tagBeginn)) return null;
+  if (!k || k.zeit < tagBeginn) return { body_battery: null, schlaf };
   const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "null");
   const training = letztesTraining(db, tagBeginn);
   return {
@@ -76,5 +79,6 @@ export function koerper(db: Register, tagBeginn: number, ruhe: { grund: string; 
     titel: `Body Battery${training !== undefined && training < k.zeit ? " nach dem Training" : ""}`,
     hinweis: ruhe?.grund === "fokus" && k.body_battery >= regelZahl("koerper_schwer_ab")
       ? `Gute Zeit für Schweres bis ${stundeAlsWort(ruhe.bis)}. Danach legt Seneca dir Leichtes hin.` : null,
+    schlaf,
   };
 }
