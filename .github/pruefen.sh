@@ -44,6 +44,7 @@ verbot P8 -e '^\s*//' apps uhr -g '*.swift' -g '*.mc'
 for f in $(dateien '*.sh'); do t=$(rg -n '^\s*#' "$f" | rg -v '^1:#!') && melde P8 "$f $t"; done
 
 verbot P9 -e '\*\s*(1000|60)\b' -e 'setTimeout\([^)]*,\s*[0-9]' plugin/src -g '!plugin/src/regeln.ts'
+verbot P9 -e '\*\s*(1000|60)\b' -e '\b(1000|60000|3600)\b' uhr/source -g '!uhr/source/Regeln.mc'
 def=" $(rg -o --no-filename '^[a-z0-9_]+' regeln | tr '\n' ' ')"
 gel=" $(rg -o --no-filename -r '$2' 'regel(Zahl|Text|Ms|Liste|UhrzeitNach)\("([a-z0-9_]+)"' plugin/src | tr '\n' ' ')"
 for n in $def; do [[ $gel == *" $n "* ]] || melde P9 "regeln: $n wird nie gelesen"; done
