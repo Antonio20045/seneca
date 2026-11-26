@@ -92,6 +92,7 @@ private struct DockKugel: View {
 
 struct SnDock: View {
     var offen: Bool
+    var breiteOffen: CGFloat = 720
     var oeffne: () -> Void
     var schliesse: () -> Void
     @ObservedObject var steuerung: SnChatSteuerung
@@ -109,9 +110,9 @@ struct SnDock: View {
                 zu.transition(.opacity)
             }
         }
-        .frame(width: offen ? 720 : SnDockZu<EmptyView>.breite)
+        .frame(width: offen ? breiteOffen : SnDockZu<EmptyView>.breite)
         .frame(minHeight: 56)
-        .snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .snGlas(RoundedRectangle(cornerRadius: offen ? 22 : 28, style: .continuous))
         .overlay(alignment: .top) {
             DiktatDockAnzeige(dienst: DiktatDienst.gemeinsam)
                 .alignmentGuide(.top) { $0[.bottom] + 10 }

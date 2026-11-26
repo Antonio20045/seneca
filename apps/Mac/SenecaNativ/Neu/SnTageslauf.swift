@@ -70,6 +70,9 @@ enum HeuteBild {
                         SnKalenderTafel(stand: s, handeln: { _, _, _ in }, antworte: { _, _ in }, zumChat: { _ in }, rechneWeg: { _ in nil })
                             .onAppear { SnKalenderBild.zeige(env["SENECA_SEITE"] ?? "", s) }
                         SnGeruestBild(stand: s, aktiv: .kalender)
+                    case "gespraeche", "gespraeche-team":
+                        SnGespraecheBild(stand: s, agent: env["SENECA_SEITE"] == "gespraeche" ? Hauptagent.id : "engineer")
+                        SnGeruestBild(stand: s, aktiv: .gespraeche, dock: false)
                     case "entscheiden":
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)
@@ -99,12 +102,13 @@ enum HeuteBild {
 struct SnGeruestBild: View {
     var stand: SenecaStand
     var aktiv: SnOrt = .heute
+    var dock = true
 
     var body: some View {
         VStack {
             SnOrteKapsel(aktiv: aktiv, fragen: SnOrt.fragen(stand), waehle: { _ in })
             Spacer()
-            SnDockZu { SnKugel(groesse: 32, atmet: false) }.snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            if dock { SnDockZu { SnKugel(groesse: 32, atmet: false) }.snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous)) }
         }
         .padding(.top, 28).padding(.bottom, 28)
     }
