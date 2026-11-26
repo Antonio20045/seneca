@@ -58,7 +58,7 @@ preis_aus_cent_je_mio_tokens 1500 zu_messen
 woche_tage 7
 bausystem engineer
 wiederholung_worte hab_ich_schon_gesagt,wie_oft_noch,schon_mal_gesagt,habe_ich_doch_gesagt
-aussen_werkzeuge mcp__telefon__anruf/anruf/nummer,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender_einladen/einladung/teilnehmer
+aussen_werkzeuge mcp__telefon__anruf/anruf/nummer,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender/einladung/teilnehmer?
 aussen_gesperrt mcp__whatsapp__send_message,whatsapp_send
 uhr_anfragen_je_std 120
 uhr_handlungen_max 20
@@ -72,3 +72,10 @@ kopplung_fenster_min 10
 kopplung_anfragen_je_std 30
 ablage_pfad /home/ubuntu/Ablage zu_messen
 datei_werkzeuge read/lesen/path,write/schreiben/path,edit/schreiben/path,Read/lesen/file_path,Write/schreiben/file_path,Edit/schreiben/file_path zu_messen
+caldav_url https://caldav.icloud.com/
+kalender_zeitlimit_s 20
+kalender_vorschau_tage 42
+kalender_abgleich_min 5
+kalender_titel_zeichen 60
+ein_tag_tage 1
+termin_standard_min 60

@@ -2,14 +2,103 @@
   "id": "seneca",
   "name": "Seneca",
   "description": "Register, Arbeitsdienst, Pforte und Ausgang für Seneca und sein Team.",
-  "categories": ["other"],
+  "categories": [
+    "other"
+  ],
   "contracts": {
-    "tools": ["seneca_lesen", "seneca_auftrag", "seneca_fortschreiben", "seneca_frage", "seneca_lernen", "seneca_einstellen", "seneca_anzeige", "seneca_todo", "seneca_eintrag"]
+    "tools": [
+      "seneca_lesen",
+      "seneca_auftrag",
+      "seneca_fortschreiben",
+      "seneca_frage",
+      "seneca_lernen",
+      "seneca_einstellen",
+      "seneca_anzeige",
+      "seneca_todo",
+      "seneca_eintrag",
+      "seneca_kalender"
+    ]
   },
-  "activation": { "onStartup": true },
+  "activation": {
+    "onStartup": true
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": { "ordner": { "type": "string" } }
+    "properties": {
+      "ordner": {
+        "type": "string"
+      },
+      "kalender": {
+        "type": "object",
+        "properties": {
+          "benutzer": {
+            "type": "string"
+          },
+          "passwort": {
+            "type": "string"
+          }
+        }
+      },
+      "push": {
+        "type": "object",
+        "properties": {
+          "schluessel": {
+            "type": "string"
+          },
+          "schluessel_id": {
+            "type": "string"
+          },
+          "team_id": {
+            "type": "string"
+          }
+        }
+      },
+      "github": {
+        "type": "object",
+        "properties": {
+          "geheimnis": {
+            "type": "string"
+          }
+        }
+      },
+      "aws": {
+        "type": "object",
+        "properties": {
+          "zugang": {
+            "type": "string"
+          },
+          "geheimnis": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "configContracts": {
+    "secretInputs": {
+      "paths": [
+        {
+          "path": "kalender.passwort",
+          "expected": "string",
+          "ownerKind": "capability"
+        },
+        {
+          "path": "push.schluessel",
+          "expected": "string",
+          "ownerKind": "capability"
+        },
+        {
+          "path": "github.geheimnis",
+          "expected": "string",
+          "ownerKind": "capability"
+        },
+        {
+          "path": "aws.geheimnis",
+          "expected": "string",
+          "ownerKind": "capability"
+        }
+      ]
+    }
   }
 }
