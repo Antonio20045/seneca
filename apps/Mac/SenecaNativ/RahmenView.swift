@@ -32,7 +32,7 @@ struct RahmenView: View {
                 VersionsHinweisBand(hinweis: versionsHinweis, neuStarten: {
                     versionsHinweis.neuStarten(vorherSpeichern: { chatSteuerung.speichereEntwurfSofort() })
                 })
-                SnOrteKapsel(aktiv: SnOrt.von(modell.route.seite), waehle: { modell.gehe($0.seite) })
+                SnOrteLeiste(aktiv: SnOrt.von(modell.route.seite), store: modell.store, waehle: { modell.gehe($0.seite) })
                 Spacer()
             }
             .padding(.top, 24)

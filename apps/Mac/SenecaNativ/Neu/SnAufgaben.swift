@@ -190,51 +190,6 @@ struct SnAufgabenHinweis: View {
     var body: some View { Text(text).font(Schrift.grotesk(14)).foregroundStyle(Farbe.ink3).padding(.vertical, 6) }
 }
 
-struct SnAufgabenHeute: View {
-    let liste: AufgabenListe?
-    var lesbar = true
-    var wirdGelesen = false
-    var jetzt = Date()
-    var oeffne: (String) -> Void = { _ in }
-    var zeigeVoll: () -> Void = {}
-    private let hoechstens = 3
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 34) {
-            if let liste {
-                let a = liste.antonio
-                if !lesbar { SnAufgabenHinweis(text: "Aufgaben sind gerade nicht lesbar. Du siehst den letzten Stand.") }
-                offeneAbschnitte(liste)
-                if !a.neu.isEmpty { abschnitt("Neu seit deinem letzten Blick", a.neu).snNeuSichtbar("heute", ids: Set(a.neu.map(\.id))) }
-                if !a.istLeer || !liste.agenten.istLeer {
-                    Button(action: zeigeVoll) {
-                        HStack(spacing: 6) {
-                            Text("Alle Aufgaben").font(Schrift.grotesk(13.5))
-                            Image(systemName: "arrow.right").font(.system(size: 10, weight: .semibold))
-                        }
-                        .padding(.vertical, 4).contentShape(Rectangle())
-                    }
-                    .buttonStyle(SnLeiserStil())
-                    .accessibilityIdentifier("aufgaben-alle")
-                }
-            } else {
-                SnAufgabenHinweis(text: wirdGelesen ? "Die Aufgaben werden gelesen." : "Aufgaben sind gerade nicht lesbar.")
-            }
-        }
-        .frame(maxWidth: 680, alignment: .leading)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("aufgaben-heute")
-    }
-
-    @ViewBuilder private func offeneAbschnitte(_ liste: AufgabenListe) -> some View {
-        SnOffeneArbeit(aufgaben: liste.offeneArbeit(), hoechstens: hoechstens, jetzt: jetzt, oeffne: oeffne, zeigeVoll: zeigeVoll)
-    }
-
-    private func abschnitt(_ titel: String, _ z: [Aufgabe], warn: Bool = false) -> some View {
-        SnAufgabenAbschnitt(titel: titel, aufgaben: z, hoechstens: hoechstens, warn: warn, jetzt: jetzt, oeffne: oeffne, zeigeVoll: zeigeVoll)
-    }
-}
-
 struct SnOffeneArbeit: View {
     let aufgaben: [Aufgabe]
     var hoechstens: Int? = nil

@@ -2,15 +2,17 @@ import SwiftUI
 import Combine
 
 enum SnOrt: CaseIterable {
-    case heute, projekte, fragen, kalender
+    case heute, projekte, fragen, kalender, gespraeche
 
     var titel: String {
-        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Fragen"; case .kalender: "Kalender" }
+        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Entscheiden"; case .kalender: "Kalender"; case .gespraeche: "Gespräche" }
     }
 
     var seite: Seite {
-        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender }
+        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .gespraeche: .chat }
     }
+
+    static func fragen(_ s: SenecaStand?) -> Int { (s?.braucht_dich?.count ?? 0) + (s?.buendel?.fragen?.count ?? 0) }
 
     static func von(_ s: Seite) -> SnOrt? {
         switch s {
@@ -18,6 +20,7 @@ enum SnOrt: CaseIterable {
         case .projekte, .projekt, .bereiche, .bereich: .projekte
         case .entscheidungen: .fragen
         case .kalender: .kalender
+        case .chat: .gespraeche
         default: nil
         }
     }
@@ -25,18 +28,17 @@ enum SnOrt: CaseIterable {
 
 struct SnOrteKapsel: View {
     var aktiv: SnOrt?
+    var fragen: Int
     var waehle: (SnOrt) -> Void
-    @ObservedObject private var liste = ListenModell.gemeinsam
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(SnOrt.allCases, id: \.self) { o in SnOrtKnopf(ort: o, an: aktiv == o, zahl: o == .fragen ? (liste.liste.map { $0.fragen.count } ?? 0) : 0) { waehle(o) } }
+            ForEach(SnOrt.allCases, id: \.self) { o in SnOrtKnopf(ort: o, an: aktiv == o, zahl: o == .fragen ? fragen : 0) { waehle(o) } }
         }
-        .padding(4)
+        .padding(5)
         .snGlas(Capsule())
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Orte")
-        .task { await liste.beobachte() }
+        .accessibilityLabel("Bereiche")
         .accessibilityIdentifier("orte-kapsel")
     }
 }
@@ -50,9 +52,12 @@ private struct SnOrtKnopf: View {
 
     var body: some View {
         Button(action: aktion) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Text(ort.titel).font(Schrift.grotesk(14, .medium)).lineHeight(.exact(points: 20))
-                if zahl > 0 { Text("\(zahl)").font(Schrift.mono(11.5)).foregroundStyle(Farbe.bernstein) }
+                if zahl > 0 {
+                    Text("\(zahl)").font(Schrift.grotesk(11)).foregroundStyle(Farbe.nacht)
+                        .padding(.horizontal, 5).frame(minWidth: 18, minHeight: 18).background(Capsule().fill(Farbe.bernstein))
+                }
             }
                 .foregroundStyle(an || hover ? Color.white : Farbe.ink2)
                 .padding(.horizontal, 18).padding(.vertical, 8)
@@ -80,7 +85,7 @@ private struct DockKugel: View {
     }
 
     var body: some View {
-        SnKugel(groesse: 34, atmet: diktiert || nimmtAuf)
+        SnKugel(groesse: 32, atmet: diktiert || nimmtAuf)
             .onReceive(MeetingDienst.gemeinsam.$zustand.map { $0 == .nimmtAuf }.removeDuplicates()) { nimmtAuf = $0 }
     }
 }
@@ -104,7 +109,7 @@ struct SnDock: View {
                 zu.transition(.opacity)
             }
         }
-        .frame(width: offen ? 720 : 280)
+        .frame(width: offen ? 720 : SnDockZu<EmptyView>.breite)
         .frame(minHeight: 56)
         .snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(alignment: .top) {
@@ -117,18 +122,36 @@ struct SnDock: View {
 
     private var zu: some View {
         Button(action: oeffne) {
-            HStack(spacing: 12) {
-                DockKugel()
-                Text("Schreib Seneca …").font(Schrift.grotesk(16)).foregroundStyle(hover ? Color.white : Farbe.ink2)
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, 12).padding(.trailing, 20)
-            .frame(width: 280, height: 56)
-            .contentShape(Capsule())
+            SnDockZu(hover: hover) { DockKugel() }
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
         .animation(Kurve.sn(0.25), value: hover)
         .accessibilityLabel("Chat öffnen")
     }
+}
+
+struct SnDockZu<Kugel: View>: View {
+    static var breite: CGFloat { 360 }
+    var hover = false
+    @ViewBuilder var kugel: Kugel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            kugel
+            Text("Schreib Seneca …").font(Schrift.grotesk(16)).foregroundStyle(hover ? Color.white : Farbe.ink3)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 12).padding(.trailing, 20)
+        .frame(width: Self.breite, height: 56)
+        .contentShape(Capsule())
+    }
+}
+
+struct SnOrteLeiste: View {
+    var aktiv: SnOrt?
+    @ObservedObject var store: SenecaStore
+    var waehle: (SnOrt) -> Void
+
+    var body: some View { SnOrteKapsel(aktiv: aktiv, fragen: SnOrt.fragen(store.stand), waehle: waehle) }
 }
