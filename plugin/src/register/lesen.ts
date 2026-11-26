@@ -69,10 +69,19 @@ export function werte(db: Register, praefix: string): Map<string, string> {
   return new Map(zeilen.map((z) => [String(z.schluessel), JSON.parse(String(z.daten)).wert]));
 }
 
-export function ereignisse(db: Register, f: { art?: string; auftrag_id?: string; frage_id?: string; schluessel?: string; seit?: number; grenze?: number }): Zeile[] {
-  const bed = (["art", "auftrag_id", "frage_id", "schluessel"] as const).filter((k) => f[k] !== undefined);
+export function ereignisse(db: Register, f: { art?: string; auftrag_id?: string; frage_id?: string; schluessel?: string; lauf_id?: string; seit?: number; nach?: number; grenze?: number }): Zeile[] {
+  const bed = (["art", "auftrag_id", "frage_id", "schluessel", "lauf_id"] as const).filter((k) => f[k] !== undefined);
   const p: SQLInputValue[] = bed.map((k) => f[k] ?? null);
-  return alle(db, `SELECT * FROM ereignis WHERE ${[...bed.map((k) => `${k} = ?`), "zeit >= ?"].join(" AND ")} ORDER BY nr DESC LIMIT ?`, ...p, f.seit ?? 0, f.grenze ?? -1);
+  return alle(db, `SELECT * FROM ereignis WHERE ${[...bed.map((k) => `${k} = ?`), "zeit >= ?", "nr > ?"].join(" AND ")} ORDER BY nr DESC LIMIT ?`, ...p, f.seit ?? 0, f.nach ?? 0, f.grenze ?? -1);
+}
+
+export function vorschlagDaten(db: Register, auftragId: string): { herkunft?: string; wirkung?: Record<string, unknown> } {
+  return JSON.parse(String(ereignisse(db, { art: "auftrag.angelegt", auftrag_id: auftragId, grenze: 1 })[0]?.daten ?? "{}"));
+}
+
+export function vorschlaege(db: Register, herkunft: string): Zeile[] {
+  return alle(db, `SELECT a.erstellt, a.zustand, a.titel FROM auftrag a JOIN ereignis e ON e.auftrag_id = a.id AND e.art = 'auftrag.angelegt'
+    WHERE a.quelle = 'vorschlag' AND json_extract(e.daten, '$.herkunft') = ? ORDER BY a.erstellt`, herkunft);
 }
 
 export function kostenSeit(db: Register, seit: number, f: { mitarbeiter?: string; quelle?: string; auftrag_id?: string }): number {

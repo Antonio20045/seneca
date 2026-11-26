@@ -95,21 +95,21 @@ export function uebergang(db: Register, art: Maschine, id: string, nach: string,
 }
 
 export type NeuerAuftrag = {
-  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "dauerauftrag" | "system";
+  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "dauerauftrag" | "system" | "eigener";
   wortlaut: string; wortlaut_quelle: string; titel: string; ziel: string; abnahme: string; abnahme_durch: string;
   pruefer_noetig: boolean; verantwortlich: string; auftraggeber: string; quelle: string; bereich: string; arbeitsart: string;
   eltern_id?: string; projekt?: string; schaetzung_min?: number; frist?: number; naechster_anlass?: number;
   nachricht?: { kennung: string; text: string };
 };
 
-const START = { auftrag: "bereit", unterauftrag: "bereit", dauerauftrag: "bereit", system: "bereit", vorschlag: "vorgeschlagen", idee: "geparkt" };
+const START = { auftrag: "bereit", unterauftrag: "bereit", dauerauftrag: "bereit", system: "bereit", eigener: "bereit", vorschlag: "vorgeschlagen", idee: "geparkt" };
 
 function verbrauchtAls(db: Register, kennung: string): string | undefined {
   const z = db.prepare("SELECT art FROM ereignis WHERE schluessel = ? AND art IN ('auftrag.angelegt', 'nachricht.verbraucht') LIMIT 1").get(kennung);
   return z ? (z.art === "auftrag.angelegt" ? "auftrag" : "antwort") : undefined;
 }
 
-export function auftragAnlegen(db: Register, a: NeuerAuftrag): { id: string; kostenrahmen_cent: number } {
+export function auftragAnlegen(db: Register, a: NeuerAuftrag, zusatz: object = {}): { id: string; kostenrahmen_cent: number } {
   return schritt(db, () => {
     const fehlt = (["wortlaut", "ziel", "abnahme", "verantwortlich", "arbeitsart", "bereich"] as const).filter((f) => !a[f]);
     if (fehlt.length) throw new Error(`Auftrag: ${fehlt.join(", ")} fehlt`);
@@ -128,7 +128,7 @@ export function auftragAnlegen(db: Register, a: NeuerAuftrag): { id: string; kos
       naechster_anlass: a.naechster_anlass ?? (zustand === "bereit" ? t + regelMs("rueckgaengig_s") : null),
     });
     ereignis(db, { art: "auftrag.angelegt", wer: a.auftraggeber, auftrag_id: id, schluessel: nachricht?.kennung, satz: a.titel,
-      daten: { art, quelle: a.quelle, eltern_id: a.eltern_id, zustand } });
+      daten: { art, quelle: a.quelle, eltern_id: a.eltern_id, zustand, ...zusatz } });
     return { id, kostenrahmen_cent: rahmen };
   });
 }
@@ -138,6 +138,21 @@ export function auftragSetzen(db: Register, id: string, felder: Felder, satz?: s
   schritt(db, () => {
     setzen(db, "auftrag", id, { ...felder, geaendert: uhr.jetzt() });
     ereignis(db, { art: "auftrag.geaendert", auftrag_id: id, daten: felder, satz });
+  });
+}
+
+export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; anzeige_weg?: string };
+type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number }; wirkung?: Wirkung };
+
+export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
+  return schritt(db, () => {
+    const { herkunft, frage, wirkung, ...a } = v;
+    const { id } = auftragAnlegen(db, { ...a, art: "vorschlag", quelle: "vorschlag" }, { herkunft, wirkung });
+    frageStellen(db, {
+      auftrag_id: id, von: a.auftraggeber, art: "vorschlag", ...frage, wenn_nichts: "Der Vorschlag verfällt.",
+      optionen: [{ wert: "ja", text: "Ja", folge: wirkung ? "Seneca übernimmt das so." : "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
+    });
+    return id;
   });
 }
 
@@ -334,6 +349,11 @@ export function anzeigeSetzen(db: Register, a: { id?: string; projekt: string; a
     ereignis(db, { art: "anzeige.geaendert", schluessel: id, wer: a.besitzer, daten: { anzeige_id: id, was: zustand } });
     return id;
   });
+}
+
+export function anzeigeEntfernen(db: Register, id: string, wer: string): void {
+  const a = hole(db, "anzeige", id);
+  anzeigeSetzen(db, { id, projekt: String(a.projekt), art: String(a.art), titel: String(a.titel), werte: JSON.parse(String(a.werte)), besitzer: wer, zustand: "entfernt" });
 }
 
 export function korrekturZuruecknehmen(db: Register, nr: number): string {

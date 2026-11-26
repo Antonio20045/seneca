@@ -1,4 +1,4 @@
-import { ereignisse, fragen, hole, kinder, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { ereignisse, fragen, hole, kinder, uhr, vorschlaege, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, ereignis, uebergang } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelUhrzeitNach, regelZahl } from "../regeln.ts";
@@ -26,13 +26,20 @@ function entscheide(db: Register, f: Zeile, jetzt: number): Entscheidung {
   const fenster = regelUhrzeitNach("fenster", jetzt);
   const a = hole(db, "auftrag", String(f.auftrag_id));
   const durchbruch = fest(f, a, jetzt);
-  const eilig = (f.frist !== null && Number(f.frist) < fenster) || durchbruch;
+  const eilig = ((f.frist !== null && Number(f.frist) < fenster) || durchbruch) && !(f.art === "vorschlag" && wenigAngenommen(db, String(f.auftrag_id), jetzt));
   const r = ruhe(db, jetzt);
   const durchsicht = [`aussen:${f.wirkung_aussen}`, `frist:${f.frist ?? "keine"}`, `ruhe:${r?.grund ?? "keine"}`];
   if (r && !(durchbruch && r.durchbruch)) return { was: "zurueckgehalten", grund: r.grund, durchsicht };
   if (!eilig) return { was: "leise", grund: "keine Folge vor dem Fenster", durchsicht };
   const geraet = aktiv(db, "praesenz:mac", jetzt) ? "mac" : aktiv(db, "praesenz:iphone", jetzt) ? "iphone" : uhrTauglich(f) && aktiv(db, "uhr_am_arm", jetzt) ? "uhr" : "iphone";
   return { was: "zugestellt", geraet, grund: durchbruch ? `Durchbruch: Frist heute, blockiert seit über ${regelZahl("durchbruch_h")} Std.` : "Folge vor dem Fenster", durchsicht };
+}
+
+function wenigAngenommen(db: Register, auftragId: string, jetzt: number): boolean {
+  const alle = vorschlaege(db, String(vorschlagDaten(db, auftragId).herkunft));
+  const entschieden = alle.filter((v) => v.zustand !== "vorgeschlagen");
+  if (!alle.length || jetzt - Number(alle[0].erstellt) < regelMs("vorschlag_quote_ab_tage") || !entschieden.length) return false;
+  return entschieden.filter((v) => v.zustand !== "verworfen").length * 100 < regelZahl("vorschlag_mindestquote_prozent") * entschieden.length;
 }
 
 function mitteilungErlaubt(db: Register, f: Zeile, jetzt: number): boolean {
@@ -60,6 +67,7 @@ export async function zustellenJob(db: Register, senden?: Sender): Promise<void>
     if (f.frist !== null && Number(f.frist) < jetzt) {
       uebergang(db, "frage", String(f.id), "abgelaufen", "frist", { grund: "Die Frist ist vorbei, ohne Antwort." });
       if (a.zustand === "wartet") uebergang(db, "auftrag", String(a.id), "bereit", "frist", { naechster_anlass: jetzt });
+      if (a.zustand === "vorgeschlagen") uebergang(db, "auftrag", String(a.id), "verworfen", "abgelaufen");
       continue;
     }
     anrufWennFest(db, f, a, jetzt);

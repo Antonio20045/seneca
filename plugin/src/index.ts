@@ -15,6 +15,7 @@ import { pushSender } from "./pforte/push.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
+import { eingangJob } from "./quellen/eingang.ts";
 import { githubEingang } from "./quellen/github.ts";
 import { kalenderAbgleich, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
@@ -43,7 +44,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     (db, _k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined)],
   ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag, Idee, Abnahme oder Verwerfen.",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
-      an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S) }),
+      an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S) }),
     (db, k, p) => werkzeugAuftrag(db, k, p as AuftragEingabe)],
   ["seneca_fortschreiben", "Pflicht am Ende jedes Laufs: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig.",
     Type.Object({ letzter_stand: S, naechster_schritt: S, ergebnis: S, beleg: O(S), wartet_auf: O(S), folge: O(S), nachfass_um: O(Z), schritt_nr: O(Z),
@@ -168,6 +169,7 @@ export default {
       { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
+      { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderAbgleich(db, kalender), abstand: () => regelMs("kalender_abgleich_min") },
       { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
