@@ -1,3 +1,4 @@
+import Toybox.Graphics;
 import Toybox.Lang;
 
 class StartAnsicht extends ListenAnsicht {
@@ -5,8 +6,12 @@ class StartAnsicht extends ListenAnsicht {
         ListenAnsicht.initialize();
     }
 
-    function kopf() as String {
-        return "Seneca";
+    function anzahl() as Number {
+        return 3;
+    }
+
+    function kreisend() as Boolean {
+        return true;
     }
 
     function offeneTodos() as Number {
@@ -20,14 +25,30 @@ class StartAnsicht extends ListenAnsicht {
         return offen;
     }
 
-    function eintraege() as Array<Dictionary> {
-        var training = Training.laeuft() ? "Training · " + Training.saetzeText() : "Training";
-        var lesen = Lesen.timerLaeuft() ? "Lesen · " + Zeit.dauer(Lesen.timerSekunden()) : "Lesen";
-        return [
-            {"x" => training, "farbe" => _auswahl == 0 ? Zeichnen.GRUEN : null},
-            {"x" => lesen},
-            {"x" => "To-dos · " + offeneTodos().toString()}
-        ];
+    function training() as Dictionary {
+        if (Training.laeuft()) {
+            return {"titel" => "Training", "unter" => "läuft · " + Training.saetzeText() + " · " + Zeit.dauer(Training.dauer()), "klein" => "Training · " + Training.saetzeText(), "buch" => ""};
+        }
+        return {"titel" => "Training", "unter" => Inhalt.uebungen().size().toString() + " Übungen bereit", "klein" => "Training", "buch" => ""};
+    }
+
+    function lesen() as Dictionary {
+        var ziel = Inhalt.lesenZiel();
+        var stand = "heute " + Inhalt.heuteGelesen().toString() + (ziel > 0 ? " von " + ziel.toString() : "") + " Min";
+        var buch = Inhalt.buch();
+        var unter = Lesen.timerLaeuft() ? "Timer läuft · " + Zeit.dauer(Lesen.timerSekunden()) : stand;
+        return {"titel" => "Lesen", "unter" => buch.length() > 0 ? buch + " · " + unter : unter, "klein" => "Lesen", "buch" => buch};
+    }
+
+    function todos() as Dictionary {
+        var offen = offeneTodos();
+        return {"titel" => "To-dos", "unter" => offen == 0 ? "alles erledigt" : offen.toString() + " offen", "klein" => "To-dos · " + offen.toString(), "buch" => ""};
+    }
+
+    function zeichnen(dc as Dc) as Void {
+        var farbe = Zustand.stoerung() ? Zeichnen.GLUT : (Zustand.aktuell() == :abgeglichen ? Zeichnen.GRUEN : Zeichnen.BERNSTEIN);
+        Bildschirm.start(dc, Zustand.knapp(), farbe, [training(), lesen(), todos()], _auswahl);
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "öffnen");
     }
 
     function waehlen() as Void {

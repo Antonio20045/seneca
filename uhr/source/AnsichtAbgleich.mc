@@ -7,17 +7,16 @@ class AbgleichAnsicht extends Ansicht {
         Ansicht.initialize();
     }
 
-    function onUpdate(dc as Dc) as Void {
+    function zeichnen(dc as Dc) as Void {
         var wartend = Warteschlange.anzahl();
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, "Abgleich");
-        Zeichnen.zustand(dc, 0.26, Zustand.stoerung() ? Zeichnen.ROT : Graphics.COLOR_WHITE);
-        Zeichnen.text(dc, 0.46, Graphics.FONT_MEDIUM, Zeichnen.HIMMEL, wartend == 0 ? "Nichts wartet" : wartend.toString() + " warten aufs Netz");
-        if (wartend > 0) {
-            Zeichnen.text(dc, 0.60, Graphics.FONT_XTINY, Zeichnen.GRAU, "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()));
-            Zeichnen.text(dc, 0.67, Graphics.FONT_XTINY, Zeichnen.GRAU, "sicher auf der Uhr");
+        var farbe = Zustand.stoerung() ? Zeichnen.GLUT : Zeichnen.LEISE;
+        if (wartend == 0) {
+            Bildschirm.abgleich(dc, "0", "Nichts wartet", Zustand.text(), "", farbe);
+        } else {
+            Bildschirm.abgleich(dc, wartend.toString(), "warten aufs iPhone", "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()) + " · " + Zustand.kurz(), "sicher auf der Uhr", farbe);
         }
-        Zeichnen.text(dc, 0.82, Graphics.FONT_XTINY, Zeichnen.HIMMEL, Abgleich.laeuft ? "Sendet …" : "START = jetzt senden");
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, Abgleich.laeuft ? "sendet …" : "jetzt senden");
+        Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.GEDAEMPFT, "zurück");
     }
 
     function waehlen() as Void {

@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 class UebungenAnsicht extends ListenAnsicht {
@@ -7,18 +8,20 @@ class UebungenAnsicht extends ListenAnsicht {
         ListenAnsicht.initialize();
     }
 
-    function kopf() as String {
-        return "Training · " + Zeit.dauer(Training.dauer());
+    function anzahl() as Number {
+        return Inhalt.uebungen().size();
     }
 
-    function eintraege() as Array<Dictionary> {
+    function zeichnen(dc as Dc) as Void {
         var uebungen = Inhalt.uebungen();
-        var anzeige = [] as Array<Dictionary>;
+        var namen = [] as Array<String>;
         for (var i = 0; i < uebungen.size(); i += 1) {
-            var u = uebungen[i] as Array;
-            anzeige.add({"x" => (u[1] as String) + " · " + Zeichnen.kg(u[2] as Float) + " × " + (u[3] as Number).toString()});
+            namen.add((uebungen[i] as Array)[1] as String);
         }
-        return anzeige;
+        var u = uebungen[_auswahl] as Array;
+        var kopf = "● TRAINING " + (Training.dauer() / Regeln.SEKUNDEN_JE_MINUTE).toString() + " MIN";
+        Bildschirm.uebungen(dc, kopf, namen, "zuletzt " + Zeichnen.kg(u[2] as Float) + " kg × " + (u[3] as Number).toString(), _auswahl);
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "wählen");
     }
 
     function waehlen() as Void {
@@ -39,6 +42,17 @@ class UebungenAnsicht extends ListenAnsicht {
             Training.abbrechen();
         }
         Ansichten.schliessen();
+    }
+}
+
+module Anzeige {
+    function puls(wert as Number?) as String {
+        return wert == null ? "–" : wert.toString();
+    }
+
+    function wartend() as String {
+        var anzahl = Warteschlange.anzahl();
+        return anzahl > 0 && Zustand.aktuell() != :sendet ? anzahl.toString() + " warten auf iPhone" : "";
     }
 }
 
@@ -63,13 +77,12 @@ class SatzAnsicht extends Ansicht {
         return _kg;
     }
 
-    function onUpdate(dc as Dc) as Void {
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, _uebung[1] as String);
-        Zeichnen.text(dc, 0.38, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, Zeichnen.kg(_kg) + " kg");
-        Zeichnen.text(dc, 0.60, Graphics.FONT_NUMBER_MEDIUM, Zeichnen.GRUEN, "× " + _wiederholungen.toString());
-        Zeichnen.text(dc, 0.76, Graphics.FONT_XTINY, Zeichnen.GRAU, "Satz " + (Training.saetze() + 1).toString());
-        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = eintragen");
+    function zeichnen(dc as Dc) as Void {
+        var kopf = "Satz " + (Training.saetze() + 1).toString() + " seit " + Zeit.dauer(Training.pauseSekunden()) + " · ♥ " + Anzeige.puls(Training.puls());
+        Bildschirm.satz(dc, _uebung[1] as String, kopf, Zeichnen.kg(_kg), _wiederholungen.toString(), Anzeige.wartend(), "UP/DOWN Wdh · MENU Gewicht");
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "eintragen");
+        Zeichnen.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Zeichnen.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
     }
 
     function hoch() as Void {
@@ -89,7 +102,8 @@ class SatzAnsicht extends Ansicht {
             Signal.lang();
             return;
         }
-        Rueckgaengig.melden("Satz eingetragen");
+        var nummer = Training.saetze().toString();
+        Rueckgaengig.melden("Satz " + nummer, "Satz " + nummer + " · " + Zeichnen.kg(_kg) + " × " + _wiederholungen.toString() + " eingetragen");
         Ansichten.ersetzen(new PauseAnsicht(_uebung, _kg, _wiederholungen));
     }
 
@@ -102,7 +116,7 @@ class SatzAnsicht extends Ansicht {
             Ansichten.oeffnen(new GewichtAnsicht(self));
         } else if (auswahl == :loeschen) {
             if (Training.letztenLoeschen()) {
-                Rueckgaengig.melden("Satz gelöscht");
+                Rueckgaengig.melden("Satz gelöscht", _uebung[1] as String);
             } else {
                 Signal.lang();
             }
@@ -122,12 +136,11 @@ class GewichtAnsicht extends Ansicht {
         _kg = satz.kg();
     }
 
-    function onUpdate(dc as Dc) as Void {
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, "Gewicht");
-        Zeichnen.text(dc, 0.5, Graphics.FONT_NUMBER_HOT, Graphics.COLOR_WHITE, Zeichnen.kg(_kg));
-        Zeichnen.text(dc, 0.72, Graphics.FONT_XTINY, Zeichnen.GRAU, "kg · negativ = Unterstützung");
-        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = übernehmen");
+    function zeichnen(dc as Dc) as Void {
+        Bildschirm.gewicht(dc, Zeichnen.kg(_kg));
+        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "übernehmen");
+        Zeichnen.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Zeichnen.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
     }
 
     function hoch() as Void {
@@ -158,13 +171,17 @@ class PauseAnsicht extends Ansicht {
         _wiederholungen = wiederholungen;
     }
 
-    function onUpdate(dc as Dc) as Void {
-        var puls = Training.puls();
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, "Pause · Satz " + Training.saetze().toString());
-        Zeichnen.text(dc, 0.38, Graphics.FONT_NUMBER_HOT, Zeichnen.GRUEN, Zeit.dauer(Training.pauseSekunden()));
-        Zeichnen.text(dc, 0.60, Graphics.FONT_NUMBER_MILD, Zeichnen.KORALLE, puls == null ? "–" : puls.toString());
-        Zeichnen.fuss(dc, true);
+    function zeichnen(dc as Dc) as Void {
+        var sekunden = Training.pauseSekunden();
+        Zeichnen.ring(dc, _auftritt.wert * sekunden / Regeln.PAUSE_S.toFloat(), Zeichnen.GRUEN);
+        Bildschirm.pause(dc, "PAUSE · " + Zeit.dauer(Regeln.PAUSE_S), Zeit.dauer(sekunden), Anzeige.puls(Training.puls()));
+        if (Rueckgaengig.rest() > 0) {
+            Bildschirm.pauseFrisch(dc, Rueckgaengig.zeile, fristAnteil());
+            Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
+        } else {
+            Bildschirm.pauseWeiter(dc, "als Nächstes " + Zeichnen.kg(_kg) + " kg × " + _wiederholungen.toString());
+            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "weiter");
+        }
     }
 
     function waehlen() as Void {
@@ -189,28 +206,50 @@ class PauseAnsicht extends Ansicht {
 }
 
 class FertigAnsicht extends Ansicht {
+    private var _gespeichert as Array<Number>? = null;
+    private var _weiter as Timer.Timer = new Timer.Timer();
+
     function initialize() {
         Ansicht.initialize();
     }
 
-    function onUpdate(dc as Dc) as Void {
+    function auftrittDauer() as Float {
+        return Zeichnen.ZAEHLEN_S;
+    }
+
+    function werte() as Array<Number> {
         var puls = Training.pulsDurchschnitt();
-        Zeichnen.leeren(dc);
-        Zeichnen.titel(dc, "Fertig");
-        Zeichnen.text(dc, 0.34, Graphics.FONT_NUMBER_MEDIUM, Graphics.COLOR_WHITE, Zeit.dauer(Training.dauer()));
-        Zeichnen.text(dc, 0.54, Graphics.FONT_SMALL, Zeichnen.GRUEN, Training.saetzeText() + " · " + Training.bewegt().toString() + " kg");
-        Zeichnen.text(dc, 0.68, Graphics.FONT_SMALL, Zeichnen.KORALLE, "Puls Ø " + (puls == null ? "–" : puls.toString()));
-        Zeichnen.text(dc, 0.84, Graphics.FONT_XTINY, Zeichnen.HIMMEL, "START = speichern");
+        return [Training.dauer(), Training.saetze(), Training.bewegt(), puls == null ? -1 : puls];
+    }
+
+    function zeichnen(dc as Dc) as Void {
+        var w = _gespeichert != null ? _gespeichert : werte();
+        var t = _gespeichert != null ? 1.0 : _auftritt.wert;
+        Zeichnen.versatz = 0.0;
+        Bildschirm.fertig(dc, [Zeit.dauer((w[0] * t).toNumber()), (w[1] * t).toNumber().toString(), Zeichnen.tausend((w[2] * t).toNumber()), w[3] < 0 ? "–" : (w[3] * t).toNumber().toString()]);
+        if (_gespeichert != null) {
+            Bildschirm.fertigGespeichert(dc);
+        } else {
+            Bildschirm.fertigVorher(dc);
+            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "speichern");
+        }
     }
 
     function waehlen() as Void {
+        if (_gespeichert != null) {
+            return;
+        }
+        _gespeichert = werte();
         Training.beenden(true);
         Signal.kurz();
-        Ansichten.zumStart();
+        WatchUi.requestUpdate();
+        _weiter.start(new Lang.Method(Ansichten, :zumStart), Regeln.GESPEICHERT_MS, false);
     }
 
     function menue() as Void {
-        Menue.zeigen("Training", [[:verwerfen, "Verwerfen"]], method(:verwerfenFragen));
+        if (_gespeichert == null) {
+            Menue.zeigen("Training", [[:verwerfen, "Verwerfen"]], method(:verwerfenFragen));
+        }
     }
 
     function verwerfenFragen(auswahl as Object?) as Void {

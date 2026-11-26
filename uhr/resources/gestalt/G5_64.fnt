@@ -1,0 +1,19 @@
+info face="G5_64" size=64 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1
+common lineHeight=82 base=63 scaleW=256 scaleH=256 pages=1 packed=0
+page id=0 file="G5_64.png"
+chars count=15
+char id=48 x=0 y=0 width=44 height=49 xoffset=-1 yoffset=16 xadvance=42 page=0 chnl=15
+char id=49 x=45 y=0 width=29 height=48 xoffset=-1 yoffset=16 xadvance=27 page=0 chnl=15
+char id=50 x=75 y=0 width=40 height=48 xoffset=-1 yoffset=16 xadvance=38 page=0 chnl=15
+char id=51 x=116 y=0 width=41 height=48 xoffset=-1 yoffset=16 xadvance=39 page=0 chnl=15
+char id=52 x=158 y=0 width=43 height=48 xoffset=-1 yoffset=16 xadvance=41 page=0 chnl=15
+char id=53 x=202 y=0 width=41 height=48 xoffset=-1 yoffset=16 xadvance=39 page=0 chnl=15
+char id=54 x=0 y=50 width=42 height=49 xoffset=-1 yoffset=16 xadvance=40 page=0 chnl=15
+char id=55 x=43 y=50 width=37 height=48 xoffset=-1 yoffset=16 xadvance=35 page=0 chnl=15
+char id=56 x=81 y=50 width=40 height=49 xoffset=-1 yoffset=16 xadvance=38 page=0 chnl=15
+char id=57 x=122 y=50 width=42 height=49 xoffset=-1 yoffset=16 xadvance=40 page=0 chnl=15
+char id=58 x=165 y=50 width=21 height=36 xoffset=-1 yoffset=29 xadvance=19 page=0 chnl=15
+char id=8211 x=187 y=50 width=41 height=22 xoffset=-1 yoffset=42 xadvance=39 page=0 chnl=15
+char id=45 x=0 y=100 width=31 height=22 xoffset=-1 yoffset=42 xadvance=29 page=0 chnl=15
+char id=44 x=32 y=100 width=20 height=21 xoffset=-1 yoffset=52 xadvance=18 page=0 chnl=15
+char id=46 x=53 y=100 width=21 height=13 xoffset=-1 yoffset=52 xadvance=19 page=0 chnl=15
