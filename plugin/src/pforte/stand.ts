@@ -71,6 +71,13 @@ function team(db: Register, jetzt: number) {
   });
 }
 
+function koerper(db: Register, tagBeginn: number) {
+  const k = JSON.parse(wert(db, "koerper")?.wert ?? "null");
+  if (!k || k.zeit < tagBeginn) return null;
+  const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "null");
+  return { ...k, morgens: morgens && morgens.zeit >= tagBeginn ? morgens.body_battery : null };
+}
+
 function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   const abnahmen = auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio");
   const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id));
@@ -95,6 +102,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
+    koerper: koerper(db, tagBeginn),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
     buendel: buendel(db, braucht, jetzt),
     team: team(db, jetzt),

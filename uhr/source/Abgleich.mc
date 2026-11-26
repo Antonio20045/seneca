@@ -1,5 +1,8 @@
+import Toybox.ActivityMonitor;
 import Toybox.Communications;
 import Toybox.Lang;
+import Toybox.SensorHistory;
+import Toybox.Time;
 
 (:background)
 module Abgleich {
@@ -22,7 +25,28 @@ module Abgleich {
             var eintrag = gesendet[i];
             handlungen.add({"id" => eintrag["id"], "t" => eintrag["t"], "a" => eintrag["a"], "p" => eintrag["p"], "lokal" => true});
         }
-        return {"v" => Regeln.PROTOKOLL, "g" => Einstellungen.geraet(), "r" => Stand.revision(), "h" => handlungen, "zs" => aktivitaet()};
+        return {"v" => Regeln.PROTOKOLL, "g" => Einstellungen.geraet(), "r" => Stand.revision(), "h" => handlungen, "zs" => aktivitaet(), "k" => koerper()};
+    }
+
+    function koerper() as Dictionary {
+        var k = {} as Dictionary;
+        if ((Toybox has :SensorHistory) && (SensorHistory has :getBodyBatteryHistory)) {
+            var bb = SensorHistory.getBodyBatteryHistory({:period => 1}).next();
+            if (bb != null && bb.data != null && bb.when != null) {
+                k["bb"] = [(bb.data as Numeric).toNumber(), (bb.when as Time.Moment).value()];
+            }
+        }
+        if ((Toybox has :SensorHistory) && (SensorHistory has :getStressHistory)) {
+            var st = SensorHistory.getStressHistory({:period => 1}).next();
+            if (st != null && st.data != null) {
+                k["st"] = (st.data as Numeric).toNumber();
+            }
+        }
+        var schritte = ActivityMonitor.getInfo().steps;
+        if (schritte != null) {
+            k["sc"] = schritte;
+        }
+        return k;
     }
 
     function fertig(ende as (Method() as Void)?) as Void {
