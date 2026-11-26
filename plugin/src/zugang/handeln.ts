@@ -1,4 +1,4 @@
-import { hole, laeufe, revision, uhr } from "../register/lesen.ts";
+import { hole, laeufe, revision, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
   anzeigeSetzen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
@@ -95,6 +95,14 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   praesenz: setze((h) => `praesenz:${h.geraet}`, () => regelMs("praesenz_gilt_min")),
   "push.token": setze((h) => `push:${h.geraet}`),
   "geraet.sperren": setze((h) => `uhr:${h.ziel}`),
+  "geraet.uhr_koppeln": setze(() => "kopplung:fenster", () => regelMs("kopplung_fenster_min")),
+  "geraet.uhr_bestaetigen": (db, h) => {
+    const w = wert(db, `kopplung:${h.ziel}`);
+    const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? JSON.parse(w.wert) : undefined;
+    if (!k || k.zahl !== String(h.wert)) return "abgelehnt:zahl_passt_nicht";
+    wertSetzen(db, `kopplung:${h.ziel}`, JSON.stringify({ ...k, bestaetigt: true }), h.geraet, w?.gueltig_bis);
+    return "angenommen";
+  },
   "eingang.datei": (db, h) => eingang(db, h, "teilen"),
   "eingang.meeting": (db, h) => eingang(db, h, "meeting"),
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),

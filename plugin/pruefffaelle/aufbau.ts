@@ -45,12 +45,13 @@ type Haken = (event: unknown, ctx: unknown) => unknown;
 export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-"))) {
   const werkzeuge = new Map<string, Fabrik>();
   const haken = new Map<string, Haken>();
+  const vorWerkzeug: Haken[] = [];
   const methoden = new Map<string, (o: { params: Record<string, unknown> }) => unknown>();
   const starts: { sessionKey: string; message: string; model: string }[] = [];
   const api = {
     pluginConfig: { ordner },
     registerTool: (f: Fabrik, o: { name: string }) => werkzeuge.set(o.name, f),
-    on: (name: string, h: Haken) => haken.set(name, h),
+    on: (name: string, h: Haken) => (name === "before_tool_call" ? vorWerkzeug.push(h) : haken.set(name, h)),
     registerGatewayMethod: (name: string, h: (o: { params: Record<string, unknown> }) => unknown) => methoden.set(name, h),
     registerService: () => undefined,
     registerHttpRoute: () => undefined,
@@ -61,8 +62,8 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
   const starte = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string }) => api.runtime.subagent.run(p);
   return {
     db, starts, starte, ordner,
-    aufruf: (sitzung: string, toolName: string, params: Record<string, unknown>, toolCallId = `t-${Math.random()}`) =>
-      haken.get("before_tool_call")?.({ toolName, params, toolCallId }, { sessionKey: sitzung, toolName }) as { block: true; blockReason: string } | undefined,
+    aufruf: (sitzung: string, toolName: string, params: Record<string, unknown>, toolCallId = `t-${Math.random()}`, agentId = "produkt") =>
+      vorWerkzeug.map((h) => h({ toolName, params, toolCallId }, { sessionKey: sitzung, toolName, agentId })).find(Boolean) as { block: true; blockReason: string } | undefined,
     nachAufruf: (toolCallId: string) => haken.get("after_tool_call")?.({ toolName: "x", params: {}, toolCallId }, {}),
     werkzeug: async (name: string, sitzung: string, agent: string, p: object) => (await (werkzeuge.get(name) as Fabrik)({ sessionKey: sitzung, agentId: agent }).execute("t", p)).details as Record<string, string>,
     nachricht: (sitzung: string, kennung: string, text: string, vonAntonio = true) => haken.get("before_prompt_build")?.(
