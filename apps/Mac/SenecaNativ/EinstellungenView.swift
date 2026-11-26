@@ -30,6 +30,7 @@ struct EinstellungenView: View {
                 abschnitt("Schnellfrage") { kuerzel }
                 abschnitt("Spracheingabe") { spracheingabe }
                 abschnitt("Mikrofon") { mikrofon }
+                abschnitt("Sensor") { SensorEinstellung() }
                 abschnitt("Mitteilungen") { mitteilungen }
                 abschnitt("Dock") {
                     schalter("Zahl „braucht dich“ am Dock-Symbol", $einst.dockZahl).accessibilityIdentifier("einst-dock")

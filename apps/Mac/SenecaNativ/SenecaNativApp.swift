@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PfadSperre.belege(bei: sperre)
             haeltEinzelinstanzSperre = true
         }
-        Leistungsmessung.starte()
         TageslaufHaken.gemeinsam.starte()
         if Hintergrund.aktiv {
             NSApp.setActivationPolicy(.accessory)
@@ -173,9 +172,6 @@ struct SenecaNativApp: App {
         meeting.uebersicht = modell.uebersicht
         if !MacPfade.nebenher { meeting.starteWache() }
         #if DEBUG
-        if let datei = ProcessInfo.processInfo.environment["SENECA_MEETING_PROBE"], !datei.isEmpty {
-            Task { await MeetingProbe.laufe(datei: URL(fileURLWithPath: datei), dienst: meeting) }
-        }
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] != nil {
             Task { await MenueProbe.laufe(dienste: modell.dienste) }
         }

@@ -383,6 +383,7 @@ final class AppModell: ObservableObject {
             modelle.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })
             gegenueber.stelleWiederHer()
             gegenueber.leiste.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) })
+            if MacPfade.profil == .echt { Sensor.gemeinsam.starte(rufe: { [store] fn, p in try await store.rufe(fn, params: p) }) }
             uebersicht.fensterSichtbar = { [weak self] in
                 guard let w = self?.hauptfenster else { return true }
                 return w.isVisible && w.occlusionState.contains(.visible)
