@@ -198,6 +198,8 @@ final class SenecaStore: ObservableObject {
         daten?.handeln("todo." + aktion, ziel: id, wert: wert)
     }
 
+    func rueckgaengig(_ ziel: String) { daten?.handeln("rueckgaengig", ziel: ziel) }
+
     func antworte(frage id: String, wahl: String) {
         daten?.handeln("frage.antwort", ziel: id, wert: .objekt(["wahl": .text(wahl)]))
     }
