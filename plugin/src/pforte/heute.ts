@@ -1,4 +1,4 @@
-import { hole, termineAm, type Zeile } from "../register/lesen.ts";
+import { hole, letztesTraining, termineAm, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { regelMs, regelZahl } from "../regeln.ts";
 import { istFokus } from "./planen.ts";
@@ -64,4 +64,17 @@ export function buendelText(abnahmen: Zeile[], fragen: number) {
   const teile = [fragen ? `${fragen} ${fragen === 1 ? "Frage" : "Fragen"}` : "", n ? `${n} ${n === 1 ? "Abnahme" : "Abnahmen"}` : ""].filter(Boolean).join(" und ");
   if (!teile) return { dauer_min: 0, satz: null, kurz: null };
   return { dauer_min: minuten, satz: `${teile}${aus}, etwa ${minuten} Minuten.`, kurz: `${teile}, etwa ${minuten} Min` };
+}
+
+export function koerper(db: Register, tagBeginn: number, ruhe: { grund: string; bis: number } | undefined) {
+  const k = JSON.parse(wert(db, "koerper")?.wert ?? "null");
+  if (!k || k.zeit < tagBeginn) return null;
+  const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "null");
+  const training = letztesTraining(db, tagBeginn);
+  return {
+    ...k, morgens: morgens && morgens.zeit >= tagBeginn ? morgens.body_battery : null,
+    titel: `Body Battery${training !== undefined && training < k.zeit ? " nach dem Training" : ""}`,
+    hinweis: ruhe?.grund === "fokus" && k.body_battery >= regelZahl("koerper_schwer_ab")
+      ? `Gute Zeit für Schweres bis ${stundeAlsWort(ruhe.bis)}. Danach legt Seneca dir Leichtes hin.` : null,
+  };
 }

@@ -115,3 +115,8 @@ export function spaeterBis(db: Register, frageId: string, jetzt: number): number
 export function termineAm(db: Register, t: number): { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; ganztag: boolean }[] {
   return JSON.parse(wert(db, kalenderTag(t))?.wert ?? "[]");
 }
+
+export function letztesTraining(db: Register, seit: number): number | undefined {
+  const z = db.prepare("SELECT MAX(zeit) AS zeit FROM eintrag WHERE art IN ('satz', 'training') AND zeit >= ?").get(seit);
+  return z?.zeit === null || z?.zeit === undefined ? undefined : Number(z.zeit);
+}
