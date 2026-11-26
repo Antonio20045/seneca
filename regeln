@@ -100,3 +100,4 @@ rechenknoten_aws_url https://{host}/
 rechenknoten_leerlauf_min 30 vorschlag
 aws_zeitlimit_s 20
 knoten_pruefen_min 1
+app_neu_installieren_tage 5
