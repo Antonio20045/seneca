@@ -883,6 +883,12 @@ enum ChatDemo {
         case "sundartha": return sundartha(now: now)
         default:
             if art == "lang" { return langerFaden(now: now) }
+            if art == "tafel" {
+                return [ChatMessage(id: "demo-t1", role: .seneca, text: "Erledigt. Der Zahnarzt ist jetzt am Dienstag früh, und Nora weiß, dass du zehn Minuten später kommst.",
+                                    date: zeit(now, tage: 0, 10, 5), vermerk: "AM MAC"),
+                        ChatMessage(id: "demo-t2", role: .user, text: "Sag Engineer, er soll die Begrüßung auf unter zehn Sekunden kürzen.", date: zeit(now, tage: 0, 11, 24), fromPhone: true),
+                        ChatMessage(id: "demo-t3", role: .seneca, text: "Engineer übernimmt. Ich sage dir Bescheid, wenn sie fertig ist.", date: zeit(now, tage: 0, 11, 24).addingTimeInterval(20))]
+            }
             var out = history(for: Hauptagent.sitzung, now: now)
             if art == "langeantwort" { out += langeAntwort(now: now) }
             return out

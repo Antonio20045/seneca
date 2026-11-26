@@ -2,17 +2,10 @@ import SwiftUI
 import UIKit
 
 struct Seite<Inhalt: View>: View {
-    enum Kopf {
-        case normal
-        case eineZeile
-    }
-
     var titel: String?
     var zurueck: String?
-    var kopf: Kopf = .normal
     var scrollt = true
     var beimZurueck: (() -> Void)?
-    var titelTipp: (() -> Void)?
     private let inhalt: Inhalt
     private var reiterInhalt: AnyView?
     private var rechtsInhalt: AnyView?
@@ -22,10 +15,10 @@ struct Seite<Inhalt: View>: View {
     @Environment(\.imBlatt) private var imBlatt
     @State private var tastatur = false
 
-    init(titel: String? = nil, zurueck: String? = nil, kopf: Kopf = .normal, scrollt: Bool = true,
-         beimZurueck: (() -> Void)? = nil, titelTipp: (() -> Void)? = nil, @ViewBuilder inhalt: () -> Inhalt) {
-        self.titel = titel; self.zurueck = zurueck; self.kopf = kopf; self.scrollt = scrollt
-        self.beimZurueck = beimZurueck; self.titelTipp = titelTipp
+    init(titel: String? = nil, zurueck: String? = nil, scrollt: Bool = true,
+         beimZurueck: (() -> Void)? = nil, @ViewBuilder inhalt: () -> Inhalt) {
+        self.titel = titel; self.zurueck = zurueck; self.scrollt = scrollt
+        self.beimZurueck = beimZurueck
         self.inhalt = inhalt()
     }
 
@@ -38,7 +31,7 @@ struct Seite<Inhalt: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            kopfTeil
+            kopfNormal
                 .padding(.top, oben)
                 .seitenRand()
             if scrollt {
@@ -78,13 +71,6 @@ struct Seite<Inhalt: View>: View {
         if let beimZurueck { beimZurueck() } else { wege.zurueck() }
     }
 
-    @ViewBuilder private var kopfTeil: some View {
-        switch kopf {
-        case .normal: kopfNormal
-        case .eineZeile: kopfEineZeile
-        }
-    }
-
     private var kopfNormal: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let zurueck {
@@ -116,27 +102,6 @@ struct Seite<Inhalt: View>: View {
         }
     }
 
-    private var kopfEineZeile: some View {
-        HStack(alignment: .center, spacing: Stil.abstand.xs) {
-            if zurueck != nil {
-                Button(action: zurueckTun) {
-                    Image(systemName: "chevron.left")
-                        .font(Stil.symbol(.mittel, gewicht: .medium))
-                        .foregroundStyle(Stil.tinte.zweit)
-                        .frame(width: Stil.tippFlaeche, height: Stil.tippFlaeche, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Zurück zu \(zurueck ?? "")")
-                .accessibilityIdentifier("seite.zurueck")
-            }
-            titelTeil
-            Spacer(minLength: 0)
-            if let rechtsInhalt { rechtsInhalt }
-        }
-        .frame(minHeight: Stil.zeilenHoehe)
-    }
-
     @ViewBuilder private var titelTeil: some View {
         if let titel {
             let text = Text(titel)
@@ -145,21 +110,7 @@ struct Seite<Inhalt: View>: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.isHeader)
-            if let titelTipp {
-                Button(action: titelTipp) {
-                    HStack(alignment: .center, spacing: Stil.abstand.s) {
-                        text
-                        Image(systemName: "chevron.down")
-                            .font(Stil.symbol(.klein, gewicht: .medium))
-                            .foregroundStyle(Stil.tinte.leise)
-                    }
-                    .frame(minHeight: Stil.tippFlaeche)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            } else {
-                text
-            }
+            text
         }
     }
 }

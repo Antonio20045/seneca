@@ -5,7 +5,7 @@ import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
-import { mitarbeiter } from "../team.ts";
+import { anzeigeName, mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
 
@@ -91,6 +91,18 @@ function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   };
 }
 
+const ANZAHL = ["Keine", "Eine", "Zwei", "Drei", "Vier", "Fünf"];
+
+function wartetSatz(db: Register, offen: Zeile[]): string | null {
+  const von = [...new Set(offen.map((f) => String(f.von)))];
+  const viele = von.map((v) => [anzeigeName(v), offen.filter((f) => f.von === v)] as const).sort((a, b) => b[1].length - a[1].length)[0];
+  if (!viele) return null;
+  const [name, fs] = viele;
+  const wo = fs.map((f) => [String(JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}")).kurz ?? "").replace(/\?$/, ""), f] as const)
+    .filter(([k]) => k).sort(([, a], [, b]) => Number(uhrTauglich(b)) - Number(uhrTauglich(a))).map(([k, f]) => uhrTauglich(f) ? `${k} kommt auf die Uhr, sobald du unterwegs bist` : `${k} ins Fenster um ${regelText("fenster").split(" ")[0]}`);
+  return `${ANZAHL[fs.length] ?? fs.length} ${fs.length === 1 ? "Frage" : "Fragen"} von ${name} ${fs.length === 1 ? "wartet" : "warten"} noch.${wo.length ? ` ${wo.join(", ")}.` : ""}`;
+}
+
 export function stand(db: Register, eingabe: { geraet: string; revision?: number }, jetzt: number) {
   const rev = revision(db);
   if (eingabe.revision === rev) return { schema: SCHEMA, revision: rev, jetzt, unveraendert: true };
@@ -105,6 +117,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       verbinden_start_s: regelZahl("verbinden_start_s"), verbinden_max_s: regelZahl("verbinden_max_s"),
       anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min"), los_erinnern_min: regelZahl("los_erinnern_min") },
     zaehler: { braucht: braucht.length },
+    wartet: wartetSatz(db, [...braucht, ...fragen(db, "offen").filter((f) => !braucht.some((x) => x.id === f.id))].filter((f) => f.zustand === "offen")),
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
