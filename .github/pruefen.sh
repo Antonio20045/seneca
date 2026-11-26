@@ -76,7 +76,7 @@ n=$(dateien plugin/pruefffaelle apps/SenecaKern/Tests | rg -o 'PF[0-9]{2}' | sor
 [ "$n" -le $PF_MAX ] || melde P13 "$n Prüffälle, höchstens $PF_MAX"
 verbot P13 -e 'nicht mehr' -e 'gelöscht' -e 'removed' -e 'no longer' plugin/pruefffaelle apps/SenecaKern/Tests
 
-NAMEN='"(seneca[._][a-z_.]+)"|api\.on\("([a-z_]+)"|job: "([a-z_]+)"|path: "([^"]+)"'
+NAMEN='"(seneca[._][a-z_.]+)"|api\.on\("([a-z_]+)"|job: "([a-z_]+)"|route\("([^"]+)"'
 for n in $(rg -o --no-filename -r '$1$2$3$4' "$NAMEN" plugin/src/index.ts 2>/dev/null); do rg -qF "\`$n\`" ARCHITEKTUR.md || melde P14 "$n fehlt in ARCHITEKTUR.md"; done
 for p in $(rg -o --no-filename -r '$1' '`((register|arbeitsdienst|pforte|ausgang|lernen|zugang|quellen)/[a-z]+\.ts|regeln\.ts|team\.ts|index\.ts)`' ARCHITEKTUR.md); do
   [ -f "plugin/src/$p" ] || melde P14 "ARCHITEKTUR.md nennt $p, die Datei fehlt"

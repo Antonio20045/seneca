@@ -47,7 +47,7 @@ test("PF12 Rahmen überschritten: genau eine Frage, nur dieser Auftrag hält", a
 test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
   const p = ladePlugin();
   um("09:00");
-  for (const abo of ["anthropic:konto1", "anthropic:konto2", "anthropic:konto3"]) wertSetzen(p.db, `abo_pause:${abo}`, "ja", "test", um("23:00"));
+  for (const abo of ["anthropic:antonio", "anthropic:sundartha", "anthropic:regius"]) wertSetzen(p.db, `abo_pause:${abo}`, "ja", "test", um("23:00"));
   um("09:00");
   auftragVonAntonio(p.db, "Etwas bauen");
   spaeter(6000);

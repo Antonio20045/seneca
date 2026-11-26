@@ -21,6 +21,10 @@ export function merkeNachricht(sitzung: string, n: Nachricht): void {
   nachrichten.set(sitzung, n);
 }
 
+export function nachrichtVon(sitzung: string): Nachricht | undefined {
+  return nachrichten.get(sitzung);
+}
+
 export function naechsterTermin(a: Zeile, jetzt: number): number {
   const zeiten: Record<string, () => string[]> = {
     rundgang: () => mandat(String(a.verantwortlich)).rundgang,
@@ -34,7 +38,9 @@ export function naechsterTermin(a: Zeile, jetzt: number): number {
 export function zurueckMitWartezeit(db: Register, a: Zeile, anlass: string): void {
   const n = Number(a.fehlversuche) + 1;
   const warten = Math.min(regelMs("lauf_wiederholen_start_min") * 2 ** (n - 1), regelMs("lauf_wiederholen_max_h"));
-  uebergang(db, "auftrag", String(a.id), "bereit", anlass, { naechster_anlass: uhr.jetzt() + warten, fehlversuche: n });
+  const felder = { naechster_anlass: uhr.jetzt() + warten, fehlversuche: n };
+  if (a.zustand === "bereit") auftragSetzen(db, String(a.id), felder, `Neuer Versuch nach ${anlass}.`);
+  else uebergang(db, "auftrag", String(a.id), "bereit", anlass, felder);
 }
 
 function rahmenFrage(db: Register, a: Zeile, art: "auftrag" | "woche", jetzt: number): string {

@@ -10,7 +10,7 @@ const WORTLAUT = "Verschaff dir einen Überblick und setz um, was fehlt";
 test("PF01 Abendauftrag: Wortlaut in jedem Lauf, Teil 2 ohne Eingabe, ohne Stand nie fertig", async () => {
   const p = ladePlugin();
   um("22:43");
-  wertSetzen(p.db, "abo_limit:anthropic:konto2", "90000000", "test");
+  wertSetzen(p.db, "abo_limit:anthropic:sundartha", "90000000", "test");
   p.nachricht("agent:seneca:main", "m1", `Hey Seneca. ${WORTLAUT}. Danke!`);
   const r = await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", {
     art: "auftrag", nachricht_kennung: "m1", wortlaut: WORTLAUT, an: "produkt", ziel: "Fehlendes umgesetzt", abnahme: "Liste mit Belegen", schaetzung_min: 60,
@@ -22,7 +22,7 @@ test("PF01 Abendauftrag: Wortlaut in jedem Lauf, Teil 2 ohne Eingabe, ohne Stand
   await faelligeAuftraegeJob(p.db, p.starte);
   assert.equal(p.starts.length, 1);
   const erster = laeufe(p.db, id)[0];
-  assert.equal(erster.abo, "anthropic:konto2");
+  assert.equal(erster.abo, "anthropic:sundartha");
   assert.ok(p.kontext(p.starts[0].sessionKey)?.includes(WORTLAUT));
   p.ende(p.starts[0].sessionKey);
   assert.equal(hole(p.db, "lauf", String(erster.id)).zustand, "abgebrochen");

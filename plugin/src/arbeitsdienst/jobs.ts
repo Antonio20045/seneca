@@ -2,16 +2,25 @@ import { statfsSync } from "node:fs";
 import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, hole, naechsteFaelligkeit, offeneFrage, uhr, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
-import { auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, uebergang } from "../register/schreiben.ts";
+import { auftragAnlegen, auftragSetzen, befund, frageStellen, frageWirkt, laufEnde, uebergang, wertSetzen } from "../register/schreiben.ts";
 import { regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
 import { naechsterTermin, starteLauf, zurueckMitWartezeit, type Starter } from "./lauf.ts";
+
+async function starteOderBefund(db: Register, a: Zeile, starte: Starter): Promise<void> {
+  try {
+    await starteLauf(db, a, starte);
+  } catch (fehler) {
+    befund(db, { art: "fehler", auftrag_id: String(a.id), satz: `Start nicht möglich: ${(fehler as Error).message}` });
+    zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_fehler");
+  }
+}
 
 export async function faelligeAuftraegeJob(db: Register, starte: Starter): Promise<number | undefined> {
   const jetzt = uhr.jetzt();
   for (const a of faelligeAuftraege(db, jetzt)) {
     const id = String(a.id);
-    if (a.zustand === "bereit") await starteLauf(db, a, starte);
+    if (a.zustand === "bereit") await starteOderBefund(db, a, starte);
     else if (a.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", "nachfassen", { naechster_anlass: jetzt });
     else auftragSetzen(db, id, { naechster_anlass: regelUhrzeitNach("fenster", jetzt) }, "Abnahme rutscht ins nächste Fenster.");
   }
@@ -22,6 +31,7 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   const id = String(a.id);
   const antwort = String(f.antwort);
   if (antwort === "spaeter") return;
+  if (f.art === "stufe_festlegen") wertSetzen(db, `kontakt:${f.ausgang_schluessel}`, antwort, "antonio");
   if (f.art === "vorschlag" && a.zustand === "vorgeschlagen") {
     uebergang(db, "auftrag", id, antwort === "ja" ? "bereit" : "verworfen", "vorschlag", antwort === "ja" ? { naechster_anlass: jetzt } : {});
     return;

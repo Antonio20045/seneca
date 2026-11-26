@@ -1,0 +1,15 @@
+{
+  "id": "seneca",
+  "name": "Seneca",
+  "description": "Register, Arbeitsdienst, Pforte und Ausgang für Seneca und sein Team.",
+  "categories": ["other"],
+  "contracts": {
+    "tools": ["seneca_lesen", "seneca_auftrag", "seneca_fortschreiben", "seneca_frage", "seneca_lernen", "seneca_einstellen", "seneca_anzeige", "seneca_todo", "seneca_eintrag"]
+  },
+  "activation": { "onStartup": true },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": { "ordner": { "type": "string" } }
+  }
+}
