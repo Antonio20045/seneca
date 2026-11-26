@@ -38,10 +38,11 @@ def grotesk(gewicht, tabellarisch):
 
 MONO5, MONO4 = (QUELLE / 'IBMPlexMono-Medium.ttf').read_bytes(), (QUELLE / 'IBMPlexMono-Regular.ttf').read_bytes()
 G5T, G5, G4 = grotesk(500, True), grotesk(500, False), grotesk(400, False)
-IS = (QUELLE / 'InstrumentSerif-Italic.ttf').read_bytes()
+IS, ISR = (QUELLE / 'InstrumentSerif-Italic.ttf').read_bytes(), (QUELLE / 'InstrumentSerif-Regular.ttf').read_bytes()
 
 SCHRIFTEN = {
     'M5_16': (MONO5, 16, 1.5, GROSS, True),
+    'M5_17': (MONO5, 17, 1.5, GROSS, False),
     'M5_15': (MONO5, 15, 1.5, GROSS, False),
     'M5_14': (MONO5, 14, 0.5, VOLL, False),
     'M5_14W': (MONO5, 14, 1.2, GROSS, False),
@@ -51,25 +52,33 @@ SCHRIFTEN = {
     'M4_14': (MONO4, 14, 0, VOLL, False),
     'M4_13': (MONO4, 13, 0, VOLL, False),
     'M4_13W': (MONO4, 13, 1, GROSS, False),
+    'M5_13W': (MONO5, 13, 1, GROSS, False),
     'G5_120': (G5T, 120, -3, ZIFFERN, False),
     'G5_96': (G5T, 96, -2, ZIFFERN, False),
     'G5_72': (G5T, 72, -1, ZIFFERN, False),
-    'G5_64': (G5, 64, 0, ZIFFERN, False),
+    'G5_64': (G5, 64, 0, ZIFFERN, True),
     'G5_40': (G5T, 40, 0, VOLL, False),
     'G5_38': (G5T, 38, 0, VOLL, False),
     'G5_36': (G5, 36, 0, 'Min ', False),
     'G5_34': (G5, 34, 0, VOLL, True),
+    'G5_32': (G5, 32, 0, VOLL, False),
     'G5_30': (G5, 30, 0, VOLL, False),
     'G5_26': (G5, 26, 0, VOLL, False),
+    'G5_22': (G5, 22, 0, VOLL, False),
+    'G5_20': (G5, 20, 0, VOLL, False),
+    'G5_18': (G5, 18, 0, VOLL, False),
+    'G5_15': (G5, 15, 0, VOLL, False),
     'G4_26': (G4, 26, 0, VOLL, False),
     'G4_24': (G4, 24, 0, VOLL, False),
     'G4_22': (G4, 22, 0, VOLL, True),
     'G4_21': (G4, 21, 0, VOLL, False),
-    'G4_20': (G4, 20, 0, VOLL, False),
+    'G4_20': (G4, 20, 0, VOLL, True),
     'G4_19': (G4, 19, 0, VOLL, False),
     'G4_18': (G4, 18, 0, VOLL, False),
+    'G4_17': (G4, 17, 0, VOLL, False),
     'G4_15': (G4, 15, 0, VOLL, False),
     'I_48': (IS, 48, 0, VOLL, False),
+    'IR_42': (ISR, 42, 0, VOLL, False),
     'I_34': (IS, 34, 0, VOLL, False),
     'I_26': (IS, 26, 0, VOLL, False),
 }

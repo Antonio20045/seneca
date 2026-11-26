@@ -67,6 +67,8 @@ http_anfrage_max_kb 512
 uhr_anfragen_fenster_h 1
 uhr_frage_zeichen 90
 uhr_todos 3
+uhr_termine 4
+uhr_verlauf 3
 uhr_warteschlange_max 500
 kopplung_fenster_min 10
 kopplung_anfragen_je_std 30
@@ -90,6 +92,7 @@ fenster_dauer_min 30
 todo_dauer_standard_min 30
 luecke_faktor 1.5
 fokus_worte Fokus,Seneca-Block
+sport_worte Gym,Training,Laufen,Lauf,Yoga,Schwimmen,Rad
 wegzeit_vorlauf_min 60
 ankunft_puffer_min 0
 eine_minute_min 1

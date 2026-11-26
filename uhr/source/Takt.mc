@@ -37,6 +37,7 @@ module Takt {
         if (!akkuKnapp()) {
             Abgleich.automatisch();
         }
+        Hinweise.zeigen(false);
         WatchUi.requestUpdate();
     }
 }

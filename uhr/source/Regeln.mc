@@ -13,6 +13,12 @@ module Regeln {
     const TRAINING_ENDE_S = 7200;
     const PAUSE_S = 90;
     const GESPEICHERT_MS = 1200;
+    const MS_JE_S = 1000;
+    const HINWEIS_VOR_S = 600;
+    const WEITER_S = 1800;
+    const MORGEN_BIS_STUNDE = 12;
+    const VERSION = "1.1";
+    const DOPPELT_PAUSE_MS = 150;
 
     function reg(schluessel as String, standard as Number) as Number {
         var werte = Stand.reg();

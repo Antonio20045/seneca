@@ -178,6 +178,7 @@ class GewichtAnsicht extends Ansicht {
 }
 
 class PauseAnsicht extends Ansicht {
+    private var _gemeldetPause as Boolean = false;
     private var _uebung as Array;
     private var _kg as Float;
     private var _wiederholungen as Number;
@@ -192,6 +193,10 @@ class PauseAnsicht extends Ansicht {
     function zeichnen(dc as Dc) as Void {
         var sekunden = Training.pauseSekunden();
         Zeichnen.ring(dc, _auftritt.wert * sekunden / Regeln.PAUSE_S.toFloat(), Zeichnen.GRUEN);
+        if (sekunden >= Regeln.PAUSE_S && !_gemeldetPause) {
+            _gemeldetPause = true;
+            Signal.doppelt();
+        }
         Bildschirm.pause(dc, "PAUSE · " + Zeit.dauer(Regeln.PAUSE_S), Zeit.dauer(sekunden), Anzeige.puls(Training.puls()));
         if (Rueckgaengig.rest() > 0) {
             Bildschirm.pauseFrisch(dc, Rueckgaengig.zeile, fristAnteil());

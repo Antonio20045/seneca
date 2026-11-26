@@ -47,7 +47,33 @@ module Training {
         }
         Speicher.schreiben("tl", {"s" => Zeit.jetzt(), "n" => 0, "kg" => 0, "l" => Zeit.jetzt()});
         gefragt = false;
-        if (Toybox has :ActivityRecording) {
+        aufzeichnen();
+    }
+
+    function aufzeichnet() as Boolean {
+        return aufzeichnung != null;
+    }
+
+    function fortsetzen() as Void {
+        Speicher.loeschen("te");
+        aufzeichnen();
+    }
+
+    function unterbrechen() as Void {
+        if (laeuft()) {
+            Speicher.schreiben("te", Zeit.jetzt());
+            stopAufzeichnung(true);
+        }
+    }
+
+    function letzteUebung() as String {
+        var werte = zustand();
+        var id = werte == null ? null : werte["u"];
+        return id instanceof String ? Inhalt.uebungName(id) : "";
+    }
+
+    function aufzeichnen() as Void {
+        if (aufzeichnung == null && Toybox has :ActivityRecording) {
             aufzeichnung = ActivityRecording.createSession({
                 :name => "Seneca",
                 :sport => Activity.SPORT_TRAINING,
@@ -144,6 +170,7 @@ module Training {
     }
 
     function beenden(speichern as Boolean) as Void {
+        Speicher.loeschen("te");
         var werte = {"k" => "training", "d" => dauer(), "s" => saetze(), "kg" => bewegt(), "v" => !speichern};
         var puls = pulsDurchschnitt();
         if (puls != null) {

@@ -1,7 +1,7 @@
-import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, revision, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
@@ -97,17 +97,46 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   return inhalt;
 }
 
+function istSport(titel: string): boolean {
+  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
+}
+
+function uhrFrage(db: Register, f: Zeile, jetzt: number) {
+  const a = hole(db, "auftrag", String(f.auftrag_id));
+  const zeichen = regelZahl("uhr_frage_zeichen");
+  return { id: f.id, x: String(f.text).slice(0, zeichen), a: String(a.titel).slice(0, zeichen), v: f.von, k: String(f.was_passiert_ist).slice(0, zeichen), p: a.projekt ?? a.bereich, s: sekundenAusMs(Number(f.gestellt)), sb: sekundenAusMs(spaeterBis(db, String(f.id), jetzt)) };
+}
+
+function uhrTeam(db: Register, jetzt: number) {
+  const laeufe = aktiveLaeufe(db);
+  const offen = fragen(db, "offen");
+  const tagBeginn = letzteUhrzeit(regelText("tag_grenze"), jetzt);
+  return team(db, jetzt).map((t) => {
+    const l = laeufe.find((x) => x.mitarbeiter === t.name);
+    const a = l ? hole(db, "auftrag", String(l.auftrag_id)) : undefined;
+    const ende = a?.schaetzung_min ? Number(l?.gestartet) + msAusMinuten(Number(a.schaetzung_min)) : null;
+    const heute = beendeteLaeufe(db, t.name, tagBeginn);
+    const verlauf = heute.slice(0, regelZahl("uhr_verlauf")).map((x) => [x.titel, sekundenAusMs(Number(x.beendet_um))]);
+    if (l) return [t.name, t.zustand, t.satz, a?.projekt ?? a?.bereich ?? null, ende === null ? null : sekundenAusMs(ende), verlauf];
+    if (offen.some((f) => f.von === t.name)) return [t.name, "wartet", null, null, null, verlauf];
+    if (t.zustand === "frei" && heute.length) return [t.name, "fertig", null, null, sekundenAusMs(Number(heute[0].beendet_um)), verlauf];
+    return [t.name, t.zustand, null, null, null, verlauf];
+  });
+}
+
 export function uhrStand(db: Register, jetzt: number) {
   const braucht = brauchtDich(db, jetzt);
   const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f));
   const r = ruhe(db, jetzt);
   return {
     t: jetzt, n: braucht.length,
-    q: frage ? { id: frage.id, x: String(frage.text).slice(0, regelZahl("uhr_frage_zeichen")) } : null,
+    q: frage ? uhrFrage(db, frage, jetzt) : null,
     h: !frage && braucht.length ? "Wichtige Frage wartet. Lass uns am Mac darüber reden." : null,
     d: todos(db, "offen").slice(0, regelZahl("uhr_todos")).map((t) => [t.id, t.kurz_uhr ?? t.titel, t.bereich, t.dauer_min]),
-    ta: team(db, jetzt).filter((t) => t.zustand === "arbeitet").length,
-    z: r ? { g: r.grund, b: r.bis } : null,
+    tm: uhrTeam(db, jetzt),
+    tg: termineAm(db, jetzt).filter((t) => !t.ganztag && t.ende > jetzt).slice(0, regelZahl("uhr_termine"))
+      .map((t) => [sekundenAusMs(t.start), sekundenAusMs(t.ende), t.titel, t.ort ?? null, istSport(t.titel) ? "s" : istFokus(t) ? "f" : "t"]),
+    z: r ? { g: r.grund, b: sekundenAusMs(r.bis) } : null,
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
   };
 }
