@@ -1,0 +1,15 @@
+bereich: [Sundartha, Vodafone, Boardinghouse]
+ziele:
+  - kennzahl: abnahmen_spaeter_widerlegt
+    ziel: "0"
+rundgang: []
+befugnisse:
+  unterauftrag_an: []
+  werkzeuge: [exec, browser]
+  ablage_schreiben: []
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 0
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, pruefen: sonnet }

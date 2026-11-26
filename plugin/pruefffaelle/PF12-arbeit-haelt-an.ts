@@ -6,7 +6,7 @@ import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, fragen, hole, laeufe } from "../src/register/lesen.ts";
 import { frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
-import { auftragVonAntonio, ladePlugin, regelnMit, spaeter, um } from "./aufbau.ts";
+import { auftragVonAntonio, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
 
 test("PF12 ruhender Mitarbeiter wird nie geweckt und wacht nach dem Ende von selbst auf", async () => {
   const p = ladePlugin();
@@ -64,7 +64,7 @@ test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
 test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {
   const p = ladePlugin();
   um("07:00", "2026-11-30");
-  wertSetzen(p.db, "ruht:seneca", "ja", "test");
+  nurWach(p.db, "produkt");
   pflegenJob(p.db, `${process.env.TMPDIR ?? "/tmp"}/seneca-pf12-sicherung`);
   const rundgang = auftraege(p.db, ["bereit"]).find((a) => a.verantwortlich === "produkt" && a.arbeitsart === "rundgang");
   assert.ok(rundgang);

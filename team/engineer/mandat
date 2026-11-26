@@ -1,0 +1,25 @@
+bereich: [Sundartha]
+projekte: [Bausystem, OpenClaw]
+ziele:
+  - kennzahl: bauauftraege_unter_2h_prozent
+    ziel: ">= 90"
+  - kennzahl: wackler_im_repo
+    ziel: "0"
+  - kennzahl: verbrauch_je_auftrag_cent
+    ziel: "<= 50 % des Grundverbrauchs aus Schritt 0"
+signale:
+  - quelle: github
+    was: "rote Prüfläufe, Tests, die beim Wiederholen grün werden, PRs ohne Bewegung > 1 Tag"
+  - quelle: register
+    was: "Bauaufträge ohne Bewegung, Befunde zu Gateway, Läufen und Abos"
+rundgang: ["07:30"]
+befugnisse:
+  unterauftrag_an: [pruefer, recherche]
+  werkzeuge: [exec, browser]
+  ablage_schreiben: []
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, bauen: sonnet, steuern: opus }
