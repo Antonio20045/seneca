@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { generateKeyPairSync, verify } from "node:crypto";
+import { createServer, type IncomingHttpHeaders, type ServerHttp2Stream } from "node:http2";
+import type { AddressInfo } from "node:net";
 import { test } from "node:test";
+import { pushSender } from "../src/pforte/push.ts";
 import { faelligeWirkungenJob } from "../src/arbeitsdienst/jobs.ts";
 import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { ereignisse } from "../src/register/lesen.ts";
 import { frageBeantworten, uebergang, wertSetzen } from "../src/register/schreiben.ts";
-import { auftragVonAntonio, jaNeinFrage, ladePlugin, spaeter, um } from "./aufbau.ts";
+import { auftragVonAntonio, jaNeinFrage, ladePlugin, regelnMit, spaeter, um } from "./aufbau.ts";
 
 const zahl = (p: ReturnType<typeof ladePlugin>, geraet: string) => (p.methode("seneca.stand", { geraet }) as { zaehler: { braucht: number } }).zaehler.braucht;
 const mitteilungen = (p: ReturnType<typeof ladePlugin>) => ereignisse(p.db, { art: "zustellung" }).filter((e) => JSON.parse(String(e.daten)).was === "zugestellt");
 
-test("PF04 Drehbuch-Tag: 3 · 2 · 1 · 0, überall gleich, im Fokus nichts", () => {
+test("PF04 Drehbuch-Tag: 3 · 2 · 1 · 0, überall gleich, im Fokus nichts", async () => {
   const p = ladePlugin();
   um("09:00");
   const fokusBis = um("11:00") ;
@@ -25,12 +28,12 @@ test("PF04 Drehbuch-Tag: 3 · 2 · 1 · 0, überall gleich, im Fokus nichts", ()
   const angebot = jaNeinFrage(p.db, auftragVonAntonio(p.db, "Angebot an Kunden"), "Angebot so senden?", { wirkung_aussen: "mail", frist: new Date("2026-11-28T12:00:00").getTime() });
   jaNeinFrage(p.db, auftragVonAntonio(p.db, "Logo-Idee"), "Logo blau?");
   um("09:58");
-  zustellenJob(p.db);
+  await zustellenJob(p.db);
   assert.equal(zahl(p, "mac"), 3);
   assert.equal(zahl(p, "iphone"), 3);
   assert.equal(mitteilungen(p).length, 0);
   um("11:00");
-  zustellenJob(p.db);
+  await zustellenJob(p.db);
   assert.equal(mitteilungen(p).length, 1);
   um("11:01");
   frageBeantworten(p.db, { frage_id: anruf, antwort: "ja", geraet: "iphone", kennung: "a1" });
@@ -54,10 +57,45 @@ test("PF04 zehn Fragen: nie mehr als 3; ein geänderter Wert in regeln gilt beim
   for (let i = 0; i < 10; i++) jaNeinFrage(p.db, auftragVonAntonio(p.db, `Aufgabe ${i}`), `Frage ${i}?`, { frist: um("15:00") });
   um("09:00");
   assert.equal(zahl(p, "mac"), 3);
-  const kopie = `${process.env.TMPDIR ?? "/tmp"}/regeln-pf04`;
-  copyFileSync(new URL("../../regeln", import.meta.url).pathname, kopie);
-  writeFileSync(kopie, readFileSync(kopie, "utf8").replace(/^braucht_dich_max \d+/m, "braucht_dich_max 2"));
-  process.env.SENECA_REGELN = kopie;
+  const zurueck = regelnMit({ braucht_dich_max: "2" });
   assert.equal(zahl(p, "mac"), 2);
-  delete process.env.SENECA_REGELN;
+  zurueck();
+});
+
+test("PF04 Push: ohne Schlüssel still aus; mit Schlüssel genau eine signierte Mitteilung; Fokus aus dem Kalender hält zurück", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const angekommen: { kopf: IncomingHttpHeaders; koerper: string }[] = [];
+  const apns = createServer();
+  apns.on("stream", (s: ServerHttp2Stream, kopf: IncomingHttpHeaders) => {
+    let koerper = "";
+    s.on("data", (d) => (koerper += d));
+    s.on("end", () => {
+      angekommen.push({ kopf, koerper });
+      s.respond({ ":status": 200 });
+      s.end();
+    });
+  });
+  await new Promise<void>((fertig) => apns.listen(0, "127.0.0.1", fertig));
+  const zurueck = regelnMit({ apns_url: `http://127.0.0.1:${(apns.address() as AddressInfo).port}` });
+  assert.equal(pushSender({ schluessel_id: "K1", team_id: "T1" }), undefined);
+  const senden = pushSender({ schluessel: String(privateKey.export({ type: "pkcs8", format: "pem" })), schluessel_id: "K1", team_id: "T1" });
+  const p = ladePlugin();
+  um("10:00");
+  wertSetzen(p.db, "push:iphone", "geraet123", "iphone");
+  wertSetzen(p.db, "kalender:2026-11-27", JSON.stringify([{ uid: "f", start: um("10:00"), ende: um("11:00"), titel: "Fokus Drehbuch", teilnehmer: [], ganztag: false }]), "kalender");
+  jaNeinFrage(p.db, auftragVonAntonio(p.db, "Testanruf machen"), "Testanruf freigeben?", { wirkung_aussen: "anruf", frist: um("12:00") });
+  um("10:30");
+  await zustellenJob(p.db, senden);
+  assert.equal(angekommen.length, 0);
+  um("11:00");
+  await zustellenJob(p.db, senden);
+  await zustellenJob(p.db, senden);
+  assert.equal(angekommen.length, 1);
+  const { kopf, koerper } = angekommen[0];
+  assert.equal(kopf[":path"], "/3/device/geraet123");
+  const [k, n, sig] = String(kopf.authorization).replace("bearer ", "").split(".");
+  assert.ok(verify("sha256", Buffer.from(`${k}.${n}`), { key: publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(sig, "base64url")));
+  assert.equal(JSON.parse(koerper).aps.alert.body, "Testanruf freigeben?");
+  zurueck();
+  apns.close();
 });

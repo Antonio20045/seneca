@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -97,4 +97,12 @@ export async function kalenderAttrappe(termine: Map<string, string>) {
   });
   await new Promise<void>((fertig) => server.listen(0, "127.0.0.1", fertig));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, aufrufe, server };
+}
+
+export function regelnMit(werte: Record<string, string>): () => void {
+  const kopie = join(mkdtempSync(join(tmpdir(), "regeln-")), "regeln");
+  const text = Object.entries(werte).reduce((t, [k, v]) => t.replace(new RegExp(`^${k} .*$`, "m"), `${k} ${v}`), readFileSync(new URL("../../regeln", import.meta.url), "utf8"));
+  writeFileSync(kopie, text);
+  process.env.SENECA_REGELN = kopie;
+  return () => delete process.env.SENECA_REGELN;
 }

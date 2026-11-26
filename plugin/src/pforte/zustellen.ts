@@ -2,6 +2,7 @@ import { ereignisse, fragen, hole, kinder, uhr, wert, type Zeile } from "../regi
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, ereignis, uebergang } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import type { Sender } from "./push.ts";
 import { ruhe, uhrTauglich } from "./stand.ts";
 
 type Entscheidung = { was: "zurueckgehalten" | "leise" | "zugestellt"; geraet?: string; grund: string; durchsicht: string[] };
@@ -52,7 +53,7 @@ function anrufWennFest(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   });
 }
 
-export function zustellenJob(db: Register): void {
+export async function zustellenJob(db: Register, senden?: Sender): Promise<void> {
   const jetzt = uhr.jetzt();
   for (const f of fragen(db, "offen")) {
     const a = hole(db, "auftrag", String(f.auftrag_id));
@@ -67,5 +68,6 @@ export function zustellenJob(db: Register): void {
     const e = entscheide(db, f, jetzt);
     if (vorher?.was === e.was || (e.was === "zugestellt" && !mitteilungErlaubt(db, f, jetzt))) continue;
     ereignis(db, { art: "zustellung", frage_id: String(f.id), auftrag_id: String(a.id), geraet: e.geraet, daten: { was: e.was, grund: e.grund, durchsicht: e.durchsicht } });
+    if (senden && e.was === "zugestellt" && e.geraet === "iphone") await senden(db, "iphone", String(f.text), String(f.id));
   }
 }

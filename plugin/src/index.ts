@@ -8,6 +8,8 @@ import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, nachNeust
 import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
+import { planenJob } from "./pforte/planen.ts";
+import { pushSender } from "./pforte/push.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
@@ -106,6 +108,7 @@ export default {
     const ordner = (api.pluginConfig?.ordner as string | undefined) ?? join(homedir(), ".openclaw", "seneca");
     const db = oeffne(join(ordner, "register.sqlite"));
     const kalender = geheim(api, "kalender");
+    const senden = pushSender(geheim(api, "push"));
     const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
       (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3])]];
@@ -158,9 +161,10 @@ export default {
       { job: "faellige_auftraege", ursache: "Aufträge mit fälligem Anlass wecken, nur hier", lauf: () => faelligeAuftraegeJob(db, starte) },
       { job: "faellige_wirkungen", ursache: "Antworten wirken erst nach der Rückgängig-Frist", lauf: () => faelligeWirkungenJob(db) },
       { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db) },
-      { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db) },
+      { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderAbgleich(db, kalender), abstand: () => regelMs("kalender_abgleich_min") },
+      { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
         const r = revision(db);
         if (r !== gesendet) melde?.(r);
