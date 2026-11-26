@@ -16,6 +16,8 @@ ERSATZ = [Path('/System/Library/Fonts/Menlo.ttc'), Path('/System/Library/Fonts/A
 GROSS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789·:%●Ø/.,–-+'
 VOLL = ''.join(chr(c) for c in range(32, 127)) + 'ÄÖÜäöüß·×–—…„“”‘’°♥●○→éÉ± '
 ZIFFERN = '0123456789:–-,.'
+WERTE = ZIFFERN + '\u202f%'
+DATUM = ' ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789.'
 
 
 def grotesk(gewicht, tabellarisch):
@@ -37,7 +39,7 @@ def grotesk(gewicht, tabellarisch):
 
 
 MONO5, MONO4 = (QUELLE / 'IBMPlexMono-Medium.ttf').read_bytes(), (QUELLE / 'IBMPlexMono-Regular.ttf').read_bytes()
-G5T, G5, G4 = grotesk(500, True), grotesk(500, False), grotesk(400, False)
+G5T, G5, G4, G4T = grotesk(500, True), grotesk(500, False), grotesk(400, False), grotesk(400, True)
 IS, ISR = (QUELLE / 'InstrumentSerif-Italic.ttf').read_bytes(), (QUELLE / 'InstrumentSerif-Regular.ttf').read_bytes()
 
 SCHRIFTEN = {
@@ -83,6 +85,39 @@ SCHRIFTEN = {
     'I_26': (IS, 26, 0, VOLL, False),
 }
 
+
+ZIFFERBLATT = {
+    'M5_14': (MONO5, 14, 0.5, VOLL, False),
+    'M5_22D': (MONO5, 22, 2, DATUM, False),
+    'M5_20D': (MONO5, 20, 2, DATUM, False),
+    'M5_16L': (MONO5, 16, 1, GROSS, False),
+    'M5_15L': (MONO5, 15, 1, GROSS, False),
+    'IR_164': (ISR, 164, -2, ZIFFERN, False),
+    'IR_152': (ISR, 152, -2, ZIFFERN, False),
+    'IR_148': (ISR, 148, -2, ZIFFERN, False),
+    'G4_32': (G4T, 32, 0, WERTE, False),
+    'G4_30': (G4T, 30, 0, WERTE, False),
+    'G4_20': (G4, 20, 0, '%', False),
+    'G4_18': (G4, 18, 0, '%', False),
+    'G5_22': (G5, 22, 0, VOLL, False),
+    'G5_24D': (G5, 24, 3, DATUM, False),
+    'G5_132': (G5T, 132, -3, ZIFFERN, False),
+    'G5_124': (G5T, 124, -3, ZIFFERN, False),
+    'G5_36': (G5T, 36, 0, WERTE, False),
+    'G5_32': (G5T, 32, 0, WERTE, False),
+    'G5_20': (G5, 20, 0, '%', False),
+}
+
+TRAIL = {
+    'M5_14': (MONO5, 14, 0.5, VOLL, False),
+    'M5_17W': (MONO5, 17, 1.5, GROSS + 'm', False),
+    'M5_13W': (MONO5, 13, 1, GROSS, False),
+    'G5_88': (G5T, 88, -2, ZIFFERN, False),
+    'G5_72': (G5T, 72, -2, ZIFFERN, False),
+    'G5_48': (G5T, 48, 0, ZIFFERN, False),
+    'G5_40': (G5T, 40, 0, ZIFFERN, False),
+    'G5_20': (G5T, 20, 0, ZIFFERN + ' km', False),
+}
 
 def schnitt(daten, zeichen, px):
     for quelle in [daten] + ERSATZ:
@@ -148,16 +183,38 @@ def lichtpunkt(px):
     return bild
 
 
-for ordner, breite in GERAETE.items():
-    s = breite / ENTWURF
-    ziel = UHR / ordner / 'gestalt'
-    ziel.mkdir(parents=True, exist_ok=True)
-    zeilen = ['<resources>', '    <fonts>']
-    for name, (daten, px, sperrung, zeichen, blick) in SCHRIFTEN.items():
-        schrift(name, daten, px * s, sperrung * s, zeichen, ziel)
-        zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{" scope=\"glance\"" if blick else ""}/>')
-    lichtpunkt(14 * s).save(ziel / 'lichtpunkt.png')
-    zeilen += ['    </fonts>', '    <drawables>',
-               '        <bitmap id="Lichtpunkt" filename="lichtpunkt.png" scope="glance"/>',
-               '    </drawables>', '</resources>', '']
-    (ziel / 'gestalt.xml').write_text('\n'.join(zeilen))
+def hintergrund(n):
+    glanz = [(0, .34), (.11, .18), (.24, .06), (.36, 0)]
+    oben = [(0, (0x12, 0x32, 0x64)), (.55, (0x0A, 0x1F, 0x44)), (1, (0x06, 0x16, 0x32))]
+    weit = math.hypot(.74 * ENTWURF, ENTWURF - .16 * ENTWURF)
+    bild = Image.new('RGB', (n, n))
+    for y in range(n):
+        grund = verlauf(oben, y / n)
+        for x in range(n):
+            a = verlauf([(t, (w,)) for t, w in glanz], math.hypot(x / n - .74, y / n - .16) * ENTWURF / weit)[0]
+            bild.putpixel((x, y), tuple(round(g + (h - g) * a) for g, h in zip(grund, (0x8F, 0xB6, 0xE3))))
+    return bild
+
+
+def gestalt(projekt, schriften, mitHintergrund, mitBlick):
+    for ordner, breite in GERAETE.items():
+        s = breite / ENTWURF
+        ziel = projekt / ordner / 'gestalt'
+        ziel.mkdir(parents=True, exist_ok=True)
+        zeilen = ['<resources>', '    <fonts>']
+        for name, (daten, px, sperrung, zeichen, blick) in schriften.items():
+            schrift(name, daten, px * s, sperrung * s, zeichen, ziel)
+            zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{" scope=\"glance\"" if blick else ""}/>')
+        lichtpunkt(14 * s).save(ziel / 'lichtpunkt.png')
+        umfang = ' scope="glance"' if mitBlick else ''
+        zeilen += ['    </fonts>', '    <drawables>', f'        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"{umfang}/>']
+        if mitHintergrund:
+            hintergrund(breite).save(ziel / 'hintergrund.png')
+            zeilen.append('        <bitmap id="Hintergrund" filename="hintergrund.png"/>')
+        zeilen += ['    </drawables>', '</resources>', '']
+        (ziel / 'gestalt.xml').write_text('\n'.join(zeilen))
+
+
+gestalt(UHR, SCHRIFTEN, False, True)
+gestalt(UHR / 'zifferblatt', ZIFFERBLATT, True, False)
+gestalt(UHR / 'trail', TRAIL, False, False)

@@ -1,0 +1,27 @@
+<resources>
+    <fonts>
+        <font id="M5_14" filename="M5_14.fnt" antialias="true"/>
+        <font id="M5_22D" filename="M5_22D.fnt" antialias="true"/>
+        <font id="M5_20D" filename="M5_20D.fnt" antialias="true"/>
+        <font id="M5_16L" filename="M5_16L.fnt" antialias="true"/>
+        <font id="M5_15L" filename="M5_15L.fnt" antialias="true"/>
+        <font id="IR_164" filename="IR_164.fnt" antialias="true"/>
+        <font id="IR_152" filename="IR_152.fnt" antialias="true"/>
+        <font id="IR_148" filename="IR_148.fnt" antialias="true"/>
+        <font id="G4_32" filename="G4_32.fnt" antialias="true"/>
+        <font id="G4_30" filename="G4_30.fnt" antialias="true"/>
+        <font id="G4_20" filename="G4_20.fnt" antialias="true"/>
+        <font id="G4_18" filename="G4_18.fnt" antialias="true"/>
+        <font id="G5_22" filename="G5_22.fnt" antialias="true"/>
+        <font id="G5_24D" filename="G5_24D.fnt" antialias="true"/>
+        <font id="G5_132" filename="G5_132.fnt" antialias="true"/>
+        <font id="G5_124" filename="G5_124.fnt" antialias="true"/>
+        <font id="G5_36" filename="G5_36.fnt" antialias="true"/>
+        <font id="G5_32" filename="G5_32.fnt" antialias="true"/>
+        <font id="G5_20" filename="G5_20.fnt" antialias="true"/>
+    </fonts>
+    <drawables>
+        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"/>
+        <bitmap id="Hintergrund" filename="hintergrund.png"/>
+    </drawables>
+</resources>
