@@ -1,7 +1,7 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
-import { art, istSport, kalender } from "./kalender.ts";
+import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -54,9 +54,11 @@ function vorschlagAnUhr(db: Register): Zeile | undefined {
   return fragen(db, "offen").find((f) => f.art === "vorschlag" && ereignisse(db, { art: "zustellung", frage_id: String(f.id), grenze: 1 }).some((e) => e.geraet === "uhr"));
 }
 
-function frageSicht(db: Register, f: Zeile) {
+function frageSicht(db: Register, f: Zeile, jetzt: number) {
+  const g = JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}"));
+  const bis = g.zeit_fuer ? erinnernUm(db, jetzt) : undefined;
   return {
-    id: f.id, text: f.text, von: f.von, projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, optionen: JSON.parse(String(f.optionen)),
+    id: f.id, text: f.text, kurz: g.kurz ?? null, zeit: bis ? `Bis ${new Date(bis).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} hast du Zeit für ${g.zeit_fuer}.` : null, von: f.von, projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, optionen: JSON.parse(String(f.optionen)),
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab,
     zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null,
@@ -85,7 +87,7 @@ function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   return {
     fenster: regelUhrzeitNach("fenster", jetzt), ...buendelText(abnahmen, offen.length),
     abnahmen: abnahmen.map((a) => ({ id: a.id, titel: a.titel, projekt: a.projekt ?? a.bereich, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    fragen: offen.map((f) => frageSicht(db, f)),
+    fragen: offen.map((f) => frageSicht(db, f, jetzt)),
   };
 }
 
@@ -106,7 +108,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
-    braucht_dich: braucht.map((f) => frageSicht(db, f)),
+    braucht_dich: braucht.map((f) => frageSicht(db, f, jetzt)),
     buendel: b,
     team: team(db, jetzt),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
@@ -115,7 +117,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
         bis: a.schaetzung_min ? Number(a.erstellt) + msAusMinuten(Number(a.schaetzung_min)) : null, dauer_min: a.schaetzung_min,
         danach: a.abnahme_durch === "antonio" ? `${a.pruefer_noetig ? "Prüfer schaut drüber, dann kommt es" : "Es kommt"} als Abnahme ins Fenster um ${regelText("fenster").split(" ")[0]}` : "Fertig ohne Abnahme" })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: art(t), ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null })),
+    termine: termineAm(db, jetzt).map((t) => terminSicht(db, t)),
     aufgaben: aufg,
     kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,

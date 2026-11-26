@@ -1,4 +1,4 @@
-import { termineAm, todos, wert } from "../register/lesen.ts";
+import { ereignisse, termineAm, todos, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
 import { stundeAlsWort } from "./heute.ts";
@@ -48,14 +48,31 @@ export function kalender(db: Register, ruhe: { grund: string; bis: number } | un
   });
   const termine = tag.filter((t) => art(t) === "termin").length, sport = tag.filter((t) => art(t) === "bewegung").length;
   const vor = `${termine ? `${ZAHL[termine] ?? termine} ${termine === 1 ? "Termin" : "Termine"}` : "Keine Termine"}${sport ? `, ${MAL[sport] ?? `${sport}-mal`} Sport` : ""}.`;
-  const los = tag.find((t) => t.ort && t.start > jetzt && wert(db, `wegzeit:${t.uid}`));
-  const weg = los ? Number(wert(db, `wegzeit:${los.uid}`)?.wert) : 0;
+  const los = losTermin(db, jetzt);
   return {
     satz: [vor, ruhe?.grund === "fokus" ? `Bis ${stundeAlsWort(ruhe.bis)} hält Seneca dir frei.` : termine ? "Dazwischen ist Luft." : "Der Tag gehört dir."],
     eintraege,
-    hinweis: los ? `Zum ${kurz(String(los.ort)).split(" ")[0]} sind es ${weg} Minuten zu Fuß. Ich erinnere dich um ${uhrzeit(Number(wert(db, `ankunft:${los.uid}`)?.wert ?? los.start) - weg * regelMs("eine_minute_min") - regelMs("los_erinnern_min"))}.` : null,
+    hinweis: los ? `Zum ${kurz(String(los.ort)).split(" ")[0]} sind es ${wert(db, `wegzeit:${los.uid}`)?.wert} Minuten zu Fuß. Ich erinnere dich um ${uhrzeit(Number(erinnernUm(db, jetzt)))}.` : null,
     woche: woche(db, jetzt),
   };
+}
+
+function losTermin(db: Register, jetzt: number): Termin | undefined {
+  return termineAm(db, jetzt).find((t) => !t.ganztag && t.ort && t.start > jetzt && wert(db, `wegzeit:${t.uid}`));
+}
+
+export function erinnernUm(db: Register, jetzt: number): number | undefined {
+  const t = losTermin(db, jetzt);
+  return t && Number(wert(db, `ankunft:${t.uid}`)?.wert ?? t.start) - Number(wert(db, `wegzeit:${t.uid}`)?.wert) * regelMs("eine_minute_min") - regelMs("los_erinnern_min");
+}
+
+export function terminSicht(db: Register, t: Termin) {
+  const n = ereignisse(db, { art: "wert.gesetzt", schluessel: `termin_notiz:${t.uid}`, grenze: 1 })[0];
+  const mit = t.teilnehmer.length ? t.teilnehmer : t.titel.split(" mit ").slice(1);
+  return { ...t, art: art(t), mit, ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null,
+    entfernung_m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, kalender_quelle: t.kalender ? regelText("kalender_quelle") : null,
+    notiz: n ? { satz: JSON.parse(String(n.daten)).wert, um: n.zeit } : null,
+    bescheid: n && mit.length ? `${mit.join(", ")} ${mit.length === 1 ? "weiß" : "wissen"} Bescheid, seit ${uhrzeit(Number(n.zeit))}` : null };
 }
 
 function woche(db: Register, jetzt: number) {

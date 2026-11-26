@@ -22,6 +22,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wirkt_ab: Double?
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
+        public var kurz: String?; public var zeit: String?
     }
     public struct Abnahme: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var projekt: String? }
     public struct Buendel: Codable, Equatable, Sendable {
@@ -45,6 +46,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var morgens: Double?; public var titel: String?; public var hinweis: String?; public var schlaf: Schlaf?
     }
     public struct Erledigt: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String }
+    public struct Notiz: Codable, Equatable, Sendable { public var satz: String; public var um: Double? }
     public struct Termin: Codable, Equatable, Sendable, Identifiable {
         public var uid: String
         public var start: Double
@@ -55,6 +57,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var ganztag: Bool?
         public var art: String?
         public var ankunft: Double?; public var weg_min: Double?
+        public var kalender: String?; public var kalender_quelle: String?; public var mit: [String]?; public var entfernung_m: Double?
+        public var notiz: Notiz?; public var bescheid: String?
         public var id: String { uid }
     }
     public struct Kalender: Codable, Equatable, Sendable {
@@ -113,6 +117,11 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var kalender: Kalender?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
+}
+
+public struct Verstanden: Codable, Equatable, Sendable {
+    public var erkannt: Bool; public var titel: String; public var tag: String?; public var von: Double?; public var bis: Double?
+    public var dauer_min: Int?; public var geschaetzt: [String]?; public var bereich: String?; public var wiederkehrend: String?; public var hinweis: String
 }
 
 @MainActor

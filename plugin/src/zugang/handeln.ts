@@ -92,6 +92,12 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     wertSetzen(db, "koerper:schlaf", JSON.stringify({ minuten: Number(w.schlaf_min), bis: Number(w.bis) }), h.geraet);
     return "angenommen";
   },
+  "termin.weg": (db, h) => {
+    const w = h.wert as Wert;
+    wertSetzen(db, `wegzeit:${h.ziel}`, String(Math.round(Number(w.weg_min))), h.geraet);
+    wertSetzen(db, `entfernung:${h.ziel}`, String(Math.round(Number(w.entfernung_m))), h.geraet);
+    return "angenommen";
+  },
   praesenz: setze((h) => `praesenz:${h.geraet}`, () => regelMs("praesenz_gilt_min")),
   "push.token": setze((h) => `push:${h.geraet}`),
   "geraet.sperren": setze((h) => `uhr:${h.ziel}`),

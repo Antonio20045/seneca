@@ -120,6 +120,10 @@ team_schritte 3
 auftrag_quittung_min 10
 los_erinnern_min 6
 eine_minute_min 1
+eine_stunde_min 60
+verstehen_wort_min 6
+bereich_standard Privat
+kalender_quelle Apple-Kalender
 rechenknoten_name rechenknoten zu_messen
 rechenknoten_region eu-north-1 zu_messen
 rechenknoten_instanz offen zu_messen

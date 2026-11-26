@@ -11,6 +11,7 @@ import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werk
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
+import { verstehen } from "./pforte/verstehen.ts";
 import { pushSender } from "./pforte/push.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
@@ -50,16 +51,16 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ letzter_stand: S, naechster_schritt: S, ergebnis: S, beleg: O(S), wartet_auf: O(S), folge: O(S), nachfass_um: O(Z), schritt_nr: O(Z),
       schritt_gesamt: O(Z), befunde: O(Type.Array(S)), stufe: O(S) }),
     (db, k, p) => werkzeugFortschreiben(db, k.sitzung, p as Fortschreibung)],
-  ["seneca_frage", "Frage an Antonio stellen (mit Kontext, Folge und Empfehlung) oder seine Antwort eintragen.",
+  ["seneca_frage", "Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht) oder seine Antwort eintragen.",
     Type.Object({ art: S, auftrag_id: O(S), text: O(S), was_passiert_ist: O(S), wenn_nichts: O(S), empfehlung: O(S), fragenart: O(S),
-      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S) }),
+      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S) }),
     (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
   ["seneca_lernen", "Korrektur von Antonio an genau einem Ort lernen: skill, profil, sperre oder fakt.",
     Type.Object({ nachricht_kennung: S, wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
       aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
     (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
-  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>.", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
+  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>, termin_notiz:<uid> (was du für den Termin getan hast).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
     (db, k, p) => {
       nurSeneca(k);
       return { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 };
@@ -158,6 +159,7 @@ export default {
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
+    api.registerGatewayMethod("seneca.verstehen", ({ params }) => verstehen(db, String(params.satz ?? ""), uhr.jetzt()), { scope: "operator.read" });
     api.registerGatewayMethod("seneca.stand", ({ params }) => stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
     let gesendet = 0;

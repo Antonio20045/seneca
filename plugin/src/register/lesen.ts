@@ -137,7 +137,7 @@ export function spaeterBis(db: Register, frageId: string, jetzt: number): number
   return frist !== null && Number(frist) - regelMs("spaeter_vor_frist_min") < fenster ? Number(frist) - regelMs("spaeter_vor_frist_min") : fenster;
 }
 
-export function termineAm(db: Register, t: number): { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; ganztag: boolean }[] {
+export function termineAm(db: Register, t: number): { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; ganztag: boolean; kalender?: string }[] {
   return JSON.parse(wert(db, kalenderTag(t))?.wert ?? "[]");
 }
 
