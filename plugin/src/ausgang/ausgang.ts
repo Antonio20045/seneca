@@ -16,8 +16,13 @@ const WORT: Record<string, string> = { anruf: "Anruf", live: "Live schalten", ga
 const gestartet = new Map<string, string>();
 
 function trifft(eintrag: string, a: Aufruf): boolean {
-  const [werkzeug, befehl] = eintrag.split("~");
-  return werkzeug === a.werkzeug && (befehl === undefined || new RegExp(befehl, "i").test(String(a.params.command ?? "")));
+  const trenner = eintrag.indexOf("~");
+  const werkzeug = trenner < 0 ? eintrag : eintrag.slice(0, trenner);
+  if (!werkzeug.split("|").includes(a.werkzeug)) return false;
+  const muster = eintrag.slice(trenner + 1);
+  const gross = muster.startsWith("(?i)");
+  const ziel = String(a.params.command ?? a.params.path ?? a.params.file_path ?? "");
+  return trenner < 0 || new RegExp(gross ? muster.slice(4) : muster, gross ? "i" : "").test(ziel);
 }
 
 function gesperrt(a: Aufruf): boolean {
