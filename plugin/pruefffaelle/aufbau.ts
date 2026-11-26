@@ -1,4 +1,6 @@
 import { mkdtempSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { uhr } from "../src/register/lesen.ts";
@@ -42,14 +44,14 @@ type Werkzeug = { execute: (id: string, p: unknown) => Promise<{ details: unknow
 type Fabrik = (ctx: { sessionKey: string; agentId: string }) => Werkzeug;
 type Haken = (event: unknown, ctx: unknown) => unknown;
 
-export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-"))) {
+export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")), mehr: Record<string, unknown> = {}) {
   const werkzeuge = new Map<string, Fabrik>();
   const haken = new Map<string, Haken>();
   const vorWerkzeug: Haken[] = [];
   const methoden = new Map<string, (o: { params: Record<string, unknown> }) => unknown>();
   const starts: { sessionKey: string; message: string; model: string }[] = [];
   const api = {
-    pluginConfig: { ordner },
+    pluginConfig: { ordner, ...mehr },
     registerTool: (f: Fabrik, o: { name: string }) => werkzeuge.set(o.name, f),
     on: (name: string, h: Haken) => (name === "before_tool_call" ? vorWerkzeug.push(h) : haken.set(name, h)),
     registerGatewayMethod: (name: string, h: (o: { params: Record<string, unknown> }) => unknown) => methoden.set(name, h),
@@ -73,4 +75,26 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
     empfangen: (kanal: string, messageId: string, from: string) => haken.get("message_received")?.({ content: "geheim", messageId, from }, { channelId: kanal }),
     methode: (name: string, params: Record<string, unknown>) => (methoden.get(name) as (o: { params: Record<string, unknown> }) => unknown)({ params }),
   };
+}
+
+export async function kalenderAttrappe(termine: Map<string, string>) {
+  const aufrufe: string[] = [];
+  const antwort = (inhalt: string) => `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${inhalt}</d:multistatus>`;
+  const server = createServer(async (req, res) => {
+    let koerper = "";
+    for await (const teil of req) koerper += teil;
+    aufrufe.push(`${req.method} ${req.url}`);
+    const pfad = String(req.url);
+    if (req.method === "PROPFIND" && pfad === "/") res.end(antwort("<d:response><d:href>/</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/p/</d:href></d:current-user-principal></d:prop></d:propstat></d:response>"));
+    else if (req.method === "PROPFIND" && pfad === "/p/") res.end(antwort("<d:response><d:href>/p/</d:href><d:propstat><d:prop><c:calendar-home-set><d:href>/h/</d:href></c:calendar-home-set></d:prop></d:propstat></d:response>"));
+    else if (req.method === "PROPFIND") res.end(antwort("<d:response><d:href>/h/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response><d:response><d:href>/h/k1/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype></d:prop></d:propstat></d:response>"));
+    else if (req.method === "REPORT") res.end(antwort([...termine].map(([uid, ics]) => `<d:response><d:href>/h/k1/${uid}.ics</d:href><d:propstat><d:prop><d:getetag>"e${ics.length}"</d:getetag><c:calendar-data>${ics.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</c:calendar-data></d:prop></d:propstat></d:response>`).join("")));
+    else if (req.method === "PUT") {
+      termine.set(pfad.replace("/h/k1/", "").replace(".ics", ""), koerper);
+      res.statusCode = 201;
+      res.end();
+    } else res.end();
+  });
+  await new Promise<void>((fertig) => server.listen(0, "127.0.0.1", fertig));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, aufrufe, server };
 }

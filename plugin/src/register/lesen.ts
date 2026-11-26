@@ -95,3 +95,12 @@ export function naechsteFaelligkeit(db: Register): number | undefined {
 export function faelligeWirkungen(db: Register, jetzt: number): Zeile[] {
   return alle(db, "SELECT * FROM frage WHERE zustand = 'beantwortet' AND wirkt_ab <= ? AND id NOT IN (SELECT frage_id FROM ereignis WHERE art = 'frage.wirkt' AND frage_id IS NOT NULL)", jetzt);
 }
+
+export function kalenderTag(t: number): string {
+  const d = new Date(t);
+  return `kalender:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function termineAm(db: Register, t: number): { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; ganztag: boolean }[] {
+  return JSON.parse(wert(db, kalenderTag(t))?.wert ?? "[]");
+}

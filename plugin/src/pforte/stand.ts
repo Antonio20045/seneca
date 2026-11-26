@@ -1,4 +1,4 @@
-import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, revision, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, revision, termineAm, todos, uhr, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mitarbeiter } from "../team.ts";
@@ -82,6 +82,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     },
     team: team(db, jetzt),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
+    termine: termineAm(db, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, tag: t.tag, bis_wann: t.bis_wann, wichtig: !!t.wichtig, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),
     kopplung: [...werte(db, "kopplung:")].filter(([k]) => k !== "kopplung:fenster").map(([k, v]) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(v) }))

@@ -12,6 +12,7 @@ import { zustellenJob } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
 import { githubEingang } from "./quellen/github.ts";
+import { kalenderAbgleich, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
@@ -72,12 +73,16 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     }],
 ];
 
+function geheim(api: OpenClawPluginApi, bereich: string): Record<string, string | undefined> {
+  return ((api.pluginConfig ?? {})[bereich] ?? {}) as Record<string, string | undefined>;
+}
+
 function werkzeug(db: Register, [name, description, parameters, ausfuehren]: (typeof WERKZEUGE)[number]) {
   return (ctx: OpenClawPluginToolContext) => ({
     name, label: name, description, parameters,
     async execute(_id: string, p: unknown) {
       try {
-        const ergebnis = ausfuehren(db, { sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "" }, p as Record<string, unknown>);
+        const ergebnis = await ausfuehren(db, { sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "" }, p as Record<string, unknown>);
         return { content: [{ type: "text" as const, text: typeof ergebnis === "string" ? ergebnis : JSON.stringify(ergebnis) }], details: ergebnis };
       } catch (fehler) {
         return { content: [{ type: "text" as const, text: `Abgelehnt: ${(fehler as Error).message}` }], details: { fehler: (fehler as Error).message } };
@@ -100,9 +105,13 @@ export default {
   register(api: OpenClawPluginApi) {
     const ordner = (api.pluginConfig?.ordner as string | undefined) ?? join(homedir(), ".openclaw", "seneca");
     const db = oeffne(join(ordner, "register.sqlite"));
-    for (const w of WERKZEUGE) api.registerTool(werkzeug(db, w), { name: w[0] });
+    const kalender = geheim(api, "kalender");
+    const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
+      Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
+      (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3])]];
+    for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
     const starte = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string }) =>
-      api.runtime.subagent.run({ ...p, toolsAlsoAllow: WERKZEUGE.map((w) => w[0]), deliver: false });
+      api.runtime.subagent.run({ ...p, toolsAlsoAllow: alle.map((w) => w[0]), deliver: false });
 
     api.on("before_prompt_build", (event, ctx) => {
       const sitzung = ctx.sessionKey ?? "";
@@ -139,7 +148,7 @@ export default {
     route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrStand(db, t)));
     route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
-    route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, process.env.SENECA_GITHUB_GEHEIMNIS) }));
+    route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.stand", ({ params }) => stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
@@ -151,6 +160,7 @@ export default {
       { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db) },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
+      { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderAbgleich(db, kalender), abstand: () => regelMs("kalender_abgleich_min") },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
         const r = revision(db);
         if (r !== gesendet) melde?.(r);

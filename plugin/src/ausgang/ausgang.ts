@@ -12,9 +12,9 @@ type Urteil = { block: true; blockReason: string } | undefined;
 const STRENGE = ["frei", "kurz_fragen", "ausfuehrlich"];
 const gestartet = new Map<string, string>();
 
-function aussenWerkzeug(name: string): { kanal: string; feld: string } | undefined {
+function aussenWerkzeug(name: string): { kanal: string; feld: string; freiwillig: boolean } | undefined {
   const z = regelListe("aussen_werkzeuge").map((e) => e.split("/")).find(([w]) => w === name);
-  return z ? { kanal: z[1], feld: z[2] } : undefined;
+  return z ? { kanal: z[1], feld: z[2].replace("?", ""), freiwillig: z[2].endsWith("?") } : undefined;
 }
 
 function sperre(db: Register, a: Aufruf, satz: string, auftragId?: string): Urteil {
@@ -54,7 +54,7 @@ function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   if (!w) return undefined;
   const roh = a.params[w.feld];
   const empfaenger = (Array.isArray(roh) ? roh : [roh]).filter((e): e is string => typeof e === "string" && e.length > 0).map(normalisiere);
-  if (!empfaenger.length) return sperre(db, a, "Empfänger nicht erkennbar.");
+  if (!empfaenger.length) return w.freiwillig ? undefined : sperre(db, a, "Empfänger nicht erkennbar.");
   const auftragId = bezug(db, a);
   const eigene = wert(db, "profil:telefon")?.wert;
   if (hole(db, "auftrag", auftragId).arbeitsart === "anruf_antonio" && eigene && empfaenger.every((e) => e === normalisiere(eigene))) {
