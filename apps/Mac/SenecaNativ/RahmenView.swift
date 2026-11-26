@@ -96,6 +96,7 @@ struct RahmenView: View {
         .onChange(of: chat.lives.isEmpty) { _, _ in
             Task { await store.aktualisiereSitzungen(); await store.aktualisiereKarten() }
         }
+        .task { await SnWeg.gemeinsam.laufe(modell.store) }
         .onPreferenceChange(BreitenKey.self) { b in
             #if DEBUG
             Testlog.masse(b)
@@ -117,7 +118,7 @@ struct RahmenView: View {
             SnProjekteEcht(modell: modell, store: modell.store)
         case .projekt: alteSeite { ProjektBuehneView(modell: modell, rand: 40) }
         case .bereich: alteSeite { BereichBuehneView(modell: modell, rand: 40) }
-        case .kalender: SnEchteSeite(modell: modell) { _, projekte in SnKalenderSeite(projekte: projekte, route: modell.route) }
+        case .kalender: SnKalenderEcht(modell: modell, store: modell.store)
         case .entscheidungen: SnEntscheidenEcht(store: modell.store)
         case .bereiche: alteSeite { BereicheView(modell: modell, rand: 40) }
         case .berichte:

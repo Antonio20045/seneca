@@ -73,7 +73,26 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var teilnehmer: [String]?
         public var ganztag: Bool?
         public var art: String?
+        public var weg: String?
         public var id: String { uid }
+    }
+    public struct TerminDetail: Codable, Equatable, Sendable {
+        public var datum: String; public var ort: String?; public var mit: String?; public var kalender: String?; public var notiz: String?
+        public var da: Double?; public var da_satz: String?; public var weg: String?; public var km: String?; public var los: String?; public var seneca: Notiz?
+    }
+    public struct Notiz: Codable, Equatable, Sendable { public var zeit: Double; public var satz: String }
+    public struct KalBlock: Codable, Equatable, Sendable, Identifiable {
+        public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String
+        public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?
+    }
+    public struct KalMarke: Codable, Equatable, Sendable { public var titel: String; public var zeit: Double }
+    public struct KalTag: Codable, Equatable, Sendable { public var tag: Double; public var bb: Double?; public var ganztag: [String]; public var bloecke: [KalBlock]; public var marken: [KalMarke] }
+    public struct KalWoche: Codable, Equatable, Sendable { public var von: Double; public var titel: String; public var unter: String }
+    public struct KalPlant: Codable, Equatable, Sendable {
+        public var id: String; public var titel: String; public var text: String; public var knopf: String?; public var uid: String; public var start: Double?; public var ende: Double?
+    }
+    public struct Kalender: Codable, Equatable, Sendable {
+        public var wochen: [KalWoche]; public var tage: [KalTag]; public var plant: KalPlant?; public var kalender: [String]; public var standard: String; public var tag_von: Double; public var tag_bis: Double
     }
     public struct Todo: Codable, Equatable, Sendable, Identifiable {
         public var id: String
@@ -107,6 +126,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var termine: [Termin]?
+    public var kalender: Kalender?
     public var todos: [Todo]?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?

@@ -2,6 +2,7 @@ import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, b
 import { istFokus } from "./planen.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import { projekte } from "./projekte.ts";
+import { kalender, weg } from "./kalender.ts";
 import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -97,7 +98,10 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
       gespraech_haengt_hinweis_min: regelZahl("gespraech_haengt_hinweis_min"), gespraech_haengt_stopp_min: regelZahl("gespraech_haengt_stopp_min"),
       verbinden_start_s: regelZahl("verbinden_start_s"), verbinden_max_s: regelZahl("verbinden_max_s"),
-      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min") },
+      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min"),
+      kal_raster_min: regelZahl("kal_raster_min"), kal_raster_fein_min: regelZahl("kal_raster_fein_min"), wegzeit_vorlauf_min: regelZahl("wegzeit_vorlauf_min"),
+      weg_neu_min: regelZahl("weg_neu_min"), weg_zu_fuss_bis_min: regelZahl("weg_zu_fuss_bis_min"), weg_erinnern_vor_min: regelZahl("weg_erinnern_vor_min"),
+      kal_bb_gut_ab: regelZahl("kal_bb_gut_ab") },
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
@@ -109,7 +113,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     team: team(db, jetzt).map((t) => ({ ...t, name: anzeigeName(t.name) })),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin" })),
+    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin", weg: weg(db, t).kurz })),
+    kalender: kalender(db, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min,
       geplant_von: t.geplant_von, wiederkehrend: t.wiederkehrend, wichtig: !!t.wichtig, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),

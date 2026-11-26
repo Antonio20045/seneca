@@ -28,8 +28,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Seneca liest auf deinen Tastendruck, was du im vorderen Programm vor dir hast (die Seite im Browser, die geöffnete Mail, die markierten Dateien), damit du dazu fragen kannst. Es liest nur in diesem Moment und ändert dort nichts.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Seneca zeigt deine Termine aus Apple Kalender und trägt ein, ändert und löscht, was du im Kalender der App selbst anlegst oder bearbeitest. Die Termine bleiben auf diesem Mac.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Seneca rechnet von hier aus, wie lange du zu deinen Terminen brauchst. Der Ort bleibt auf diesem Mac, nur die Minuten gehen an Seneca.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Seneca macht auf deinen Tastendruck ein Foto des vorderen Fensters, wenn es den Inhalt anders nicht lesen kann, und gibt es mit deiner Frage mit.</string>
 	<key>NSMicrophoneUsageDescription</key>

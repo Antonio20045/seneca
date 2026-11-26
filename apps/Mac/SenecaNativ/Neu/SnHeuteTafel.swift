@@ -240,7 +240,7 @@ struct SnHeuteTafel: View {
             let unter: String? = switch t.art {
             case "fokus": "Seneca hält Meldungen zurück"
             case "bewegung": vorbei ? nil : "Seneca schweigt, solange du läufst"
-            default: [t.ort, "\(Int((t.ende - t.start) / 60_000)) Min"].compactMap { $0 }.joined(separator: " · ")
+            default: t.weg ?? [t.ort, "\(Int((t.ende - t.start) / 60_000)) Min"].compactMap { $0 }.joined(separator: " · ")
             }
             let farbe = t.art == "bewegung" && vorbei ? TafelFarbe.gruen : jetzt ? TafelFarbe.himmel : TafelFarbe.zweit
             return Punkt(id: t.uid, start: t.start, titel: titel, unter: unter, farbe: farbe, jetzt: jetzt, vorbei: vorbei)
