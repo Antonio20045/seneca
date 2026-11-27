@@ -18,6 +18,8 @@ final class SchnellfrageModell: ObservableObject {
     @Published var freigabeSatz: String?
     @Published private(set) var strom = ""
     @Published var laufZeile = ""
+    @Published var ausschnitt = ""
+    @Published private(set) var dauer: Double?
     var sendeHier: ((String, [URL]) async throws -> String)?
     var leerFrage: String?
     var erstesZeichen: ((Double) -> Void)?
@@ -35,11 +37,12 @@ final class SchnellfrageModell: ObservableObject {
 
     func abschicken() async {
         var frage = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if frage.isEmpty, let l = leerFrage { frage = l }
+        if frage.isEmpty, let l = leerFrage ?? (zusammenhang?.dateien.isEmpty == false ? "Was siehst du?" : nil) { frage = l }
         guard !frage.isEmpty, !beschaeftigt else { return }
         text = ""
         laufZeile = ""
         phase = .wartet(frage: frage)
+        let start = Date()
         do {
             strom = ""
             for _ in 0..<60 where liest { try? await Task.sleep(for: .milliseconds(50)) }
@@ -47,6 +50,7 @@ final class SchnellfrageModell: ObservableObject {
             let a: String
             if let z = zusammenhang, !z.istLeer, let sendeHier { a = try await sendeHier(z.nachricht(frage: frage), z.dateien) } else { a = try await sende(frage) }
             if let g = gesendetAm { erstesZeichen?(Date().timeIntervalSince(g) * 1000); gesendetAm = nil }
+            dauer = Date().timeIntervalSince(start)
             phase = .antwort(frage: frage, text: a.trimmingCharacters(in: .whitespacesAndNewlines))
         } catch SenecaError.stopped {
             phase = .eingabe
@@ -56,7 +60,9 @@ final class SchnellfrageModell: ObservableObject {
         }
     }
 
-    func zuruecksetzen() { text = ""; phase = .eingabe; strom = ""; zusammenhang = nil; freigabeSatz = nil; liest = false; leerFrage = nil }
+    func zuruecksetzen() { text = ""; phase = .eingabe; strom = ""; zusammenhang = nil; freigabeSatz = nil; liest = false; leerFrage = nil; ausschnitt = "" }
+
+    func neueFrage() { phase = .eingabe; strom = "" }
 
     static func satz(_ e: Error) -> String {
         if case SenecaError.offline = e { return "Seneca ist gerade nicht verbunden." }

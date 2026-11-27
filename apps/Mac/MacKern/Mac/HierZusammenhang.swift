@@ -56,34 +56,9 @@ struct HierZusammenhang: Equatable, Sendable {
         return anWort(t.prefix(anfang), vorn: false) + luecke + anWort(t.suffix(grenze - anfang), vorn: true)
     }
 
+    var sichtKurz: String { [programm, kurzTitel].filter { !$0.isEmpty }.joined(separator: " · ") }
+
     private var kurzTitel: String { Menschlich.kuerzen(titel.trimmingCharacters(in: .whitespacesAndNewlines), 70) }
-
-    var sichtSatz: String {
-        if istLeer { return "Seneca sieht gerade nichts von dem, was du vor dir hast." }
-        if hatBildschirmfoto { return "Seneca sieht: ein Foto deines ganzen Bildschirms" + (programm.isEmpty ? "" : " (vorn: \(programm))") + "." }
-        var was: String
-        switch art {
-        case .browser:
-            was = kurzTitel.isEmpty ? "die Seite in \(programm)" : "„\(kurzTitel)“ in \(programm)"
-            if text.isEmpty { was += adresse.isEmpty ? "" : ", nur Adresse und Titel" }
-        case .mail:
-            was = kurzTitel.isEmpty ? "die geöffnete Mail" : "die Mail „\(kurzTitel)“"
-            if !absender.isEmpty { was += " von \(Self.nurName(absender))" }
-        case .finder:
-            was = dateien.count == 1 ? "die Datei „\(dateien[0].lastPathComponent)“" : "\(ArbeitsplanText.zahl(dateien.count, "eine")) markierte Dateien im Finder"
-            if dateien.isEmpty { was = kurzTitel.isEmpty ? "den Finder" : "den Ordner „\(kurzTitel)“" }
-        case .fenster:
-            was = kurzTitel.isEmpty ? programm : "„\(kurzTitel)“ in \(programm)"
-            if hatFensterfoto { was += ", mit einem Foto des Fensters" }
-        }
-        if !markiert.isEmpty { was = "die markierte Stelle, " + was }
-        return "Seneca sieht: " + was + "."
-    }
-
-    static func nurName(_ absender: String) -> String {
-        let n = absender.replacingOccurrences(of: #"\s*<[^>]*>"#, with: "", options: .regularExpression).trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
-        return n.isEmpty ? absender : n
-    }
 
     var anhangText: String {
         if istLeer { return "" }

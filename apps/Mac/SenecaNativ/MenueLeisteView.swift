@@ -14,7 +14,7 @@ struct MenueLeisteZeichen: View {
     var body: some View {
         let z = zeichen.zeichen
         HStack(spacing: 3) {
-            if z.rot { Image(nsImage: MenueZeichenModell.roterPunkt) } else { Image(systemName: z.symbol) }
+            if let p = z.punkt { Image(nsImage: MenueZeichenModell.punkt(p)) } else { Image(systemName: z.symbol) }
             if let t = z.text { Text(t).monospacedDigit() }
         }
         .accessibilityLabel(z.ansage)
@@ -27,216 +27,236 @@ struct MenueLeisteZeichen: View {
     }
 }
 
+typealias ML = MenueTafelLogik
+
 struct MenueLeisteView: View {
     @ObservedObject var modell: AppModell
     @ObservedObject var dienste: MacDienste
+    @ObservedObject private var meeting = MeetingDienst.gemeinsam
+    @ObservedObject private var diktat = DiktatDienst.gemeinsam
+    @State private var gesendet: (id: String, um: Date)?
 
     var body: some View {
-        let s = dienste.stand
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Seneca").font(Schrift.serif(24, kursiv: true)).foregroundStyle(Farbe.ink1)
+        MenueTafel(stand: modell.store.stand, verbunden: modell.zustand == .bereit, meeting: meeting.nimmtAuf ? (MeetingTranskript.zeit(meeting.dauer), meeting.live.last) : nil,
+                   hoert: diktat.zustand == .hoert, gesendet: gesendet,
+                   antworte: { f, w in modell.store.antworte(frage: f.id, wahl: w); gesendet = w == "spaeter" ? nil : (f.id, Date()) },
+                   zuruecknehmen: { f in modell.store.handle("rueckgaengig", ziel: f.id); gesendet = nil },
+                   oeffne: { r in modell.zeigeFenster(r) }, mehr: { f in modell.zeigeFenster(nil); modell.zeigeMehr(f) },
+                   sprechen: { dienste.sprechen() }, bildschirm: { dienste.zeigeBildschirm() },
+                   meetingSchalten: { meeting.umschalten() }, mitschrift: { openWindow(id: "meeting") },
+                   frage: { SchnellfrageFeld(modell: dienste.schnellfrage, imFenster: { modell.zeigeFenster(Route(.heute), gespraech: true) }) })
+            .background(MenueFensterLeser(geoeffnet: { VorneMerker.gemeinsam.menueGeoeffnet() }))
+    }
+
+    @Environment(\.openWindow) private var openWindow
+}
+
+struct MenueTafel<Feld: View>: View {
+    var stand: SenecaStand?
+    var verbunden: Bool
+    var meeting: (dauer: String, zeile: MeetingSegment?)?
+    var hoert = false
+    var gesendet: (id: String, um: Date)?
+    var antworte: (SenecaStand.Frage, String) -> Void = { _, _ in }
+    var zuruecknehmen: (SenecaStand.Frage) -> Void = { _ in }
+    var oeffne: (Route?) -> Void = { _ in }
+    var mehr: (SenecaStand.Frage) -> Void = { _ in }
+    var sprechen: () -> Void = {}
+    var bildschirm: () -> Void = {}
+    var meetingSchalten: () -> Void = {}
+    var mitschrift: () -> Void = {}
+    @ViewBuilder var frage: () -> Feld
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Seneca").font(Schrift.serif(26)).foregroundStyle(.white)
                 Spacer()
-                Text(verbindung).font(Schrift.grotesk(11.5)).foregroundStyle(Farbe.ink3)
+                if let b = stand.flatMap(ML.fokusBis), meeting == nil { Text("◐ FOKUS BIS \(HeuteTafelLogik.uhr(b))").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.zweit) }
+                if !verbunden { Text("nicht verbunden").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise) }
             }
-            VStack(alignment: .leading, spacing: 6) {
-                if !MacPfade.nebenher { sprechenZeile }
-                grosseZeile(symbol: "display", farbe: Farbe.himmel, titel: "Bildschirm zeigen",
-                            unter: dienste.schnellfrage.beschaeftigt ? "Geht, sobald Senecas Antwort im Fragefeld fertig ist" : "Seneca sieht, was du gerade vor dir hast",
-                            kuerzel: nil, kennung: "menue-bildschirm") { dienste.zeigeBildschirm() }
-                meetingZeile
+            if let s = stand { inhalt(s) }
+            HStack(spacing: 8) {
+                werkzeug(hoert ? "stop.fill" : "mic", "Sprechen", "rechte ⌘", sprechen)
+                werkzeug("display", "Bildschirm", "⌥ Leertaste", bildschirm)
+                werkzeug(meeting == nil ? "record.circle" : "circle.fill", "Meeting", meeting.map { "läuft · \($0.dauer)" } ?? "⌘⇧R", meetingSchalten, an: meeting != nil)
             }
-            zuletzt
-            if modell.zustand == .bereit {
-                VStack(spacing: 6) {
-                    if s.bekannt {
-                        zeile(punkt: s.braucht > 0 ? Farbe.bernstein : Farbe.ink4, text: "\(s.braucht) braucht dich", an: s.braucht > 0, kennung: "menue-braucht") {
-                            modell.zeigeFenster(Route(MacPfade.profil.echteDaten ? .heute : .entscheidungen))
-                        }
-                        zeile(punkt: s.laeuft > 0 ? Farbe.himmel : Farbe.ink4, text: "\(s.laeuft) läuft", an: s.laeuft > 0, kennung: "menue-laeuft") {
-                            modell.zeigeFenster(Route(.heute))
-                        }
-                    } else {
-                        zeile(punkt: Farbe.ink4, text: "Gerade liegt kein Stand vor.", an: false, kennung: "menue-kein-stand") {
-                            modell.zeigeFenster(Route(.heute))
-                        }
-                    }
-                    zeile(punkt: s.ungelesen > 0 ? Farbe.gruen : Farbe.ink4, text: s.ungelesen == 1 ? "1 ungelesener Bericht" : "\(s.ungelesen) ungelesene Berichte", an: s.ungelesen > 0, kennung: "menue-berichte") {
-                        modell.zeigeFenster(Route(.berichte))
-                    }
-                }
-                termin(s.termin)
-                SchnellfrageFeld(modell: dienste.schnellfrage, imFenster: { modell.zeigeFenster(Route(.heute), gespraech: true) })
-            } else {
-                Text(modell.zustand == .einrichten ? "Seneca ist noch nicht eingerichtet." : "Seneca ist gerade nicht verbunden.")
-                    .font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink2)
-            }
-            Divider().overlay(Farbe.linie2)
+            frage()
             HStack {
-                Button("Fenster öffnen") { modell.zeigeFenster(nil) }.buttonStyle(NebenKnopfStil()).fixedSize().accessibilityIdentifier("menue-fenster")
+                Button { oeffne(nil) } label: { (Text("Seneca öffnen ").foregroundColor(TafelFarbe.text) + Text("⌘0").font(Schrift.mono(11)).foregroundColor(TafelFarbe.leise)) }
+                    .buttonStyle(.plain).keyboardShortcut("0", modifiers: .command).accessibilityIdentifier("menue-fenster")
                 Spacer()
-                SettingsLink { Text("Einstellungen") }.buttonStyle(.plain).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink2)
-                Button("Beenden") { NSApp.terminate(nil) }.buttonStyle(.plain).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink3)
+                SettingsLink { Text("Einstellungen") }.buttonStyle(.plain).foregroundStyle(TafelFarbe.leise)
             }
+            .font(Schrift.grotesk(13)).padding(.horizontal, 2).padding(.top, 2)
         }
         .padding(18)
-        .frame(width: 360)
-        .background(MenueFensterLeser(geoeffnet: {
-            VorneMerker.gemeinsam.menueGeoeffnet()
-            AblageZuletztModell.gemeinsam.lade()
-        }))
-        .background(Farbe.papier)
+        .frame(width: 390)
+        .background(ZStack {
+            LinearGradient(colors: [TafelFarbe.hex(0x123264), TafelFarbe.hex(0x061632)], startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [TafelFarbe.himmel.opacity(0.26), TafelFarbe.himmel.opacity(0.11), .clear], center: UnitPoint(x: 0.76, y: 0.1), startRadius: 0, endRadius: 230)
+        })
         .preferredColorScheme(.dark)
     }
 
-    @ObservedObject private var meeting = MeetingDienst.gemeinsam
-    @Environment(\.openWindow) private var openWindow
-
-    @ObservedObject private var diktat = DiktatDienst.gemeinsam
-    @ObservedObject private var vorne = VorneMerker.gemeinsam
-    @ObservedObject private var ablage = AblageZuletztModell.gemeinsam
-
-    private var sprechenZeile: some View {
-        let hoert = diktat.zustand == .hoert, erkennt = diktat.zustand == .erkennt
-        return grosseZeile(symbol: hoert ? "stop.fill" : "mic.fill", farbe: hoert ? Farbe.koralle : Farbe.himmel,
-                           titel: hoert ? "Fertig – Text einfügen" : erkennt ? "Erkenne …" : "Sprechen",
-                           unter: hoert ? "Seneca hört zu · " + vorne.zielSatz : erkennt ? nil : vorne.zielSatz,
-                           kuerzel: "rechte ⌘", kennung: "menue-sprechen") { dienste.sprechen() }
-    }
-
-    private var meetingZeile: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let v = meeting.vorschlag, !meeting.beschaeftigt {
-                Text("Das Mikrofon läuft in \(v). Meeting aufnehmen?").font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink2)
+    @ViewBuilder private func inhalt(_ s: SenecaStand) -> some View {
+        if let m = meeting {
+            aufnahme(m, s)
+            if let z = ML.imFenster(s) { karte(z) }
+            if let z = ML.jetzt(s) { karte(z) }
+        } else if let bis = ML.fokusBis(s) {
+            VStack(alignment: .leading, spacing: 0) {
+                kopf("JETZT")
+                Text("Fokus, noch \(max(0, Int((bis - s.jetzt) / 60_000))) Min").font(Schrift.grotesk(16, .medium)).foregroundStyle(.white)
+                Text("Seneca hält alles zurück, was dich braucht.").font(Schrift.grotesk(13.5)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.leise).padding(.top, 2)
             }
-            grosseZeile(symbol: meeting.nimmtAuf ? "stop.circle.fill" : "record.circle", farbe: meeting.nimmtAuf ? Farbe.koralle : Farbe.himmel,
-                        titel: meetingTitel, unter: meetingUnter, kuerzel: "⌘⇧R", kennung: "menue-meeting") {
-                if !meeting.beschaeftigt || meeting.nimmtAuf { meeting.umschalten() }
-                openWindow(id: "meeting")
+            .modifier(MenueKarte())
+            if let z = ML.danach(s) { karte(z) }
+            if let z = ML.laeuft(s) { karte(z) }
+            if let z = ML.termin(s) { karte(z) }
+        } else {
+            if let f = ML.fragen(s).first { brauchtDich(f, s) }
+            if let z = ML.laeuft(s) { karte(z) }
+            if let z = ML.termin(s) { karte(z) }
+        }
+    }
+
+    private func kopf(_ t: String, _ farbe: Color = TafelFarbe.leise) -> some View {
+        Text(t).font(Schrift.mono(10.5, .medium)).kerning(1.3).foregroundStyle(farbe).padding(.bottom, 6)
+    }
+
+    private func karte(_ z: ML.Zeile) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            kopf(z.kopf, z.punkt == "bernstein" ? TafelFarbe.bernstein : TafelFarbe.leise)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Circle().fill(z.punkt == "gruen" ? TafelFarbe.gruen : z.punkt == "bernstein" ? TafelFarbe.bernstein : Color.white.opacity(0.3)).frame(width: 7, height: 7)
+                    .background { if z.punkt == "gruen" { Circle().fill(TafelFarbe.gruen.opacity(0.18)).frame(width: 15, height: 15) } }
+                (Text(z.text).foregroundColor(TafelFarbe.text) + Text(z.leise.map { " · \($0)" } ?? "").foregroundColor(TafelFarbe.leise))
+                    .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).fixedSize(horizontal: false, vertical: true)
             }
         }
+        .modifier(MenueKarte())
     }
 
-    private var meetingTitel: String {
-        switch meeting.zustand {
-        case .nimmtAuf: return "Meeting beenden · " + MeetingTranskript.zeit(meeting.dauer)
-        case .startet: return "Meeting startet …"
-        case .wertAus: return "Meeting wird ausgewertet …"
-        default: return "Meeting aufnehmen"
-        }
-    }
-
-    private var meetingUnter: String? {
-        switch meeting.zustand {
-        case .nimmtAuf: return "Die Aufnahme läuft"
-        case .wertAus(let schritt): return schritt.isEmpty ? nil : schritt
-        default: return "Mitschrift und Zusammenfassung entstehen auf dem Mac"
-        }
-    }
-
-    @ViewBuilder private var zuletzt: some View {
-        if !ablage.eintraege.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Abschnittstitel(text: ablage.titel)
-                ForEach(ablage.eintraege) { e in AblageZeile(eintrag: e) }
-            }
-            .accessibilityIdentifier("menue-zuletzt")
-        }
-    }
-
-    private func grosseZeile(symbol: String, farbe: Color, titel: String, unter: String?, kuerzel: String?, kennung: String, aktion: @escaping () -> Void) -> some View {
-        Button(action: aktion) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).font(.system(size: 15, weight: .medium)).foregroundStyle(farbe).frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(titel).font(Schrift.grotesk(15, .medium)).foregroundStyle(Farbe.ink).lineLimit(1)
-                    if let unter, !unter.isEmpty { Text(unter).font(Schrift.grotesk(11.5)).foregroundStyle(Farbe.ink3).lineLimit(1) }
+    private func brauchtDich(_ f: SenecaStand.Frage, _ s: SenecaStand) -> some View {
+        let h = GL.haupt(f), n = ML.fragen(s).count
+        return VStack(alignment: .leading, spacing: 0) {
+            kopf(n == 1 ? "1 BRAUCHT DICH" : "\(n) BRAUCHEN DICH", TafelFarbe.bernstein)
+            Text(f.text).font(Schrift.grotesk(16, .medium)).lineHeight(.exact(points: 22)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+            Text(ML.unter(f)).font(Schrift.grotesk(13)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.zweit).padding(.top, 4).padding(.bottom, 12)
+            if let g = gesendet, g.id == f.id {
+                TimelineView(.periodic(from: g.um, by: 0.5)) { t in
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
+                        Text(h?.quittung ?? h?.text ?? "").font(Schrift.grotesk(13, .medium)).foregroundStyle(.white)
+                        Spacer()
+                        if t.date.timeIntervalSince(g.um) < (s.regeln?["rueckgaengig_s"] ?? 5) {
+                            Button("Rückgängig") { zuruecknehmen(f) }.buttonStyle(.plain).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.himmel)
+                        }
+                    }
                 }
-                Spacer(minLength: 6)
-                if let kuerzel { Text(kuerzel).font(Schrift.grotesk(11)).foregroundStyle(Farbe.ink4).fixedSize() }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(Farbe.pille, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(kennung)
-    }
-
-    private var verbindung: String {
-        switch modell.zustand {
-        case .bereit: return "verbunden"
-        case .verbindet: return "verbindet …"
-        case .einrichten: return "nicht eingerichtet"
-        case .fehler: return "nicht verbunden"
-        }
-    }
-
-    private func zeile(punkt: Color, text: String, an: Bool, kennung: String, aktion: @escaping () -> Void) -> some View {
-        Button(action: aktion) {
-            HStack(spacing: 10) {
-                Circle().fill(punkt).frame(width: 7, height: 7)
-                Text(text).font(Schrift.grotesk(14, .medium)).foregroundStyle(an ? Farbe.ink : Farbe.ink3)
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium)).foregroundStyle(Farbe.ink4)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Farbe.pille, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(kennung)
-    }
-
-    private func termin(_ t: MenueStand.NaechsterTermin?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Abschnittstitel(text: t?.jetzt == true ? "Jetzt" : "Nächster Termin")
-            if let t {
-                Text(t.titel).font(Schrift.grotesk(14, .medium)).foregroundStyle(Farbe.ink).lineLimit(2)
-                Text(t.wann).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink2)
             } else {
-                Text("Heute nichts mehr.").font(Schrift.serif(15, kursiv: true)).foregroundStyle(Farbe.ink3)
+                HStack(spacing: 8) {
+                    if let h { Button(h.knopf ?? h.text ?? "Ja") { antworte(f, h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 13)) }
+                    Button("Später") { antworte(f, "spaeter") }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                    Button("Mehr") { mehr(f) }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+                }
+            }
+            if !ML.weitere(s).isEmpty {
+                HStack {
+                    Text(ML.weitere(s)).foregroundStyle(TafelFarbe.zweit).lineLimit(1)
+                    Spacer()
+                    Button("Entscheiden ›") { oeffne(Route(.entscheidungen)) }.buttonStyle(.plain).foregroundStyle(TafelFarbe.text).fixedSize()
+                }
+                .font(Schrift.grotesk(13)).padding(.top, 10)
+                .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }.padding(.top, 12)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("menue-termin")
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(TafelFarbe.bernstein.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(TafelFarbe.bernstein.opacity(0.3), lineWidth: 1))
+    }
+
+    private func aufnahme(_ m: (dauer: String, zeile: MeetingSegment?), _ s: SenecaStand) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Circle().fill(TafelFarbe.jetzt).frame(width: 8, height: 8).background(Circle().fill(TafelFarbe.jetzt.opacity(0.18)).frame(width: 16, height: 16))
+                Text("AUFNAHME · \(m.dauer)").font(Schrift.mono(11)).kerning(1.2).foregroundStyle(.white).monospacedDigit()
+                Spacer()
+                if let t = ML.jetzt(s) { Text(t.text.components(separatedBy: " bis ")[0]).font(Schrift.grotesk(12.5)).foregroundStyle(TafelFarbe.zweit).lineLimit(1) }
+            }
+            .padding(.bottom, 8)
+            if let z = m.zeile {
+                (Text("Sprecher \(z.sprecher + 1) ").foregroundColor(.white).fontWeight(.medium) + Text(z.text).foregroundColor(TafelFarbe.zweit))
+                    .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).lineLimit(2).padding(.bottom, 12)
+            }
+            HStack(spacing: 8) {
+                Button(action: mitschrift) { Text("Mitschrift") }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+                Spacer()
+                Button(action: meetingSchalten) { HStack(spacing: 6) { Text("Beenden"); Text("⌘⇧R").font(Schrift.mono(11)) } }
+                    .buttonStyle(.plain).font(Schrift.grotesk(13, .medium)).foregroundStyle(TafelFarbe.aufHimmel).padding(.horizontal, 14).padding(.vertical, 6).background(Capsule().fill(.white))
+            }
+        }
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(TafelFarbe.jetzt.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.3), lineWidth: 1))
+    }
+
+    private func werkzeug(_ bild: String, _ titel: String, _ kuerzel: String, _ tun: @escaping () -> Void, an: Bool = false) -> some View {
+        Button(action: tun) {
+            VStack(spacing: 6) {
+                Image(systemName: bild).font(.system(size: an ? 8 : 15)).foregroundStyle(an ? TafelFarbe.jetzt : TafelFarbe.akzent).frame(height: 18)
+                Text(titel).font(Schrift.grotesk(13, .medium)).foregroundStyle(TafelFarbe.text).lineLimit(1)
+                Text(kuerzel).font(Schrift.mono(10.5)).foregroundStyle(an ? TafelFarbe.jetzt : TafelFarbe.leise)
+            }
+            .padding(.top, 12).padding(.bottom, 10).padding(.horizontal, 6).frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(LinearGradient(colors: [.white.opacity(0.08), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.1)), lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
-private struct AblageZeile: View {
-    let eintrag: AblageEintrag
-    @State private var hover = false
+struct MenueKarte: ViewModifier {
+    func body(content: Content) -> some View {
+        content.padding(.horizontal, 14).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(LinearGradient(colors: [.white.opacity(0.08), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.1)), lineWidth: 1))
+    }
+}
 
-    private var url: URL { URL(fileURLWithPath: eintrag.pfad) }
+struct SnMenueBild: View {
+    var stand: SenecaStand
+    var art: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(eintrag.name).font(Schrift.grotesk(13, .medium)).foregroundStyle(Farbe.ink).lineLimit(1).truncationMode(.middle)
-                if !eintrag.unter.isEmpty {
-                    Text(eintrag.unter).font(Schrift.grotesk(11)).foregroundStyle(Farbe.ink3).lineLimit(1).truncationMode(.middle)
+        let meeting = art == "menue-meeting" ? ("12:04", MeetingSegment(start: 0, ende: 1, sprecher: 1, text: "Und die Domain, wer verlängert die")) : nil
+        let z = MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: meeting != nil, meetingDauer: 724, meetingArbeitet: false, braucht: stand.zaehler?.braucht ?? 0, fokus: stand.ruhe?.grund == "fokus")
+        ZStack(alignment: .topLeading) {
+            LinearGradient(colors: [TafelFarbe.hex(0x48618A), TafelFarbe.hex(0x1D2A44)], startPoint: .topLeading, endPoint: .bottom)
+            HStack(spacing: 18) {
+                Spacer()
+                HStack(spacing: 6) {
+                    SnKugel(groesse: 12, atmet: false)
+                    if let p = z.punkt { Image(nsImage: MenueZeichenModell.punkt(p)) } else { Image(systemName: z.symbol) }
+                    if let t = z.text { Text(t).monospacedDigit() }
                 }
+                .padding(.horizontal, 8).padding(.vertical, 2).background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.16)))
+                Text("Do. 26. Nov. \(HeuteTafelLogik.uhr(stand.jetzt))").monospacedDigit()
             }
-            Spacer(minLength: 4)
-            Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: {
-                Image(systemName: "magnifyingglass").font(.system(size: 11, weight: .medium)).foregroundStyle(Farbe.ink3)
-                    .frame(width: 24, height: 24).contentShape(Rectangle())
+            .font(Schrift.grotesk(14, .medium)).foregroundStyle(.white).padding(.horizontal, 16).frame(height: 28).background(Color.black.opacity(0.25))
+            MenueTafel(stand: stand, verbunden: true, meeting: meeting) {
+                HStack(spacing: 10) {
+                    SnKugel(groesse: 10, atmet: false)
+                    Text("Frag Seneca etwas").font(Schrift.grotesk(14.5)).foregroundStyle(TafelFarbe.leise)
+                    Spacer()
+                    Image(systemName: "arrow.up").font(.system(size: 12, weight: .medium)).frame(width: 30, height: 30).background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .padding(.leading, 14).padding(.trailing, 8).frame(height: 44).background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.08)))
             }
-            .buttonStyle(.plain)
-            .help("Im Finder zeigen")
-            .accessibilityLabel("Im Finder zeigen")
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous)).shadow(color: .black.opacity(0.7), radius: 35, y: 30)
+            .padding(.leading, 470).padding(.top, 36)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(hover ? Farbe.pilleLauf : Farbe.pille, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(Rectangle())
-        .onHover { hover = $0 }
-        .onTapGesture {
-            if NSEvent.modifierFlags.contains(.option) { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
-        }
-        .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
-        .help("Klick öffnet die Datei · ⌥-Klick zeigt sie im Finder · lässt sich in eine E-Mail ziehen")
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("menue-abgelegt")
     }
 }
