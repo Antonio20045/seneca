@@ -6,7 +6,7 @@ import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plug
 import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
-import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
+import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
 import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
@@ -137,6 +137,7 @@ export default {
     for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
     const starte: Starter = ({ werkzeuge, ...p }) => api.runtime.subagent.run({ ...p, toolsAlsoAllow: [...alle.map((w) => w[0]), ...werkzeuge], deliver: false });
     const stupse = async (sessionKey: string, text: string, idempotencyKey: string) => (await api.session.workflow.steerActiveRun({ sessionKey, text, idempotencyKey })).steered;
+    const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
     const knotenListe = async () => (await api.runtime.nodes.list({ connected: true })).nodes
       .map((k) => ({ name: k.displayName ?? k.nodeId, ollama: (k.invocableCommands ?? []).includes("ollama.chat") }));
 
@@ -198,7 +199,7 @@ export default {
       { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db, stupse) },
       { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
-      { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter", lauf: () => pflegenJob(db, join(ordner, "sicherung")), abstand: () => regelMs("pflegen_h") },
+      { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter, Arbeitsdateien verfallen", lauf: () => pflegenJob(db, join(ordner, "sicherung"), befehl), abstand: () => regelMs("pflegen_h") },
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderJob(db, kalender) },
       { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },

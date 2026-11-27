@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, fragen, hole, laeufe } from "../src/register/lesen.ts";
-import { frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
+import { auftragSetzen, frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
 
 test("PF12 ruhender Mitarbeiter wird nie geweckt und wacht nach dem Ende von selbst auf", async () => {
@@ -149,4 +152,38 @@ test("PF12 Rechenknoten: AWS-Signatur nach Vorgabe, Start nur bei Bedarf, Stopp 
   assert.deepEqual(aufrufe, ["StartInstances", "StopInstances"]);
   zurueck();
   aws.close();
+});
+
+test("PF12 Arbeitsdateien verfallen nach Frist, verknüpfte bleiben; Sicherung einmal am Tag", async () => {
+  const ablage = mkdtempSync(join(tmpdir(), "ablage-"));
+  const passwort = join(ablage, "passwort");
+  writeFileSync(passwort, "x");
+  const zurueck = regelnMit({ ablage_pfad: ablage, sicherung_passwort: passwort });
+  const p = ladePlugin();
+  um("09:00", "2026-12-10");
+  const datei = (rel: string, alt: boolean) => {
+    mkdirSync(dirname(join(ablage, rel)), { recursive: true });
+    writeFileSync(join(ablage, rel), rel);
+    const zeit = new Date(alt ? "2026-12-02" : "2026-12-09");
+    utimesSync(join(ablage, rel), zeit, zeit);
+  };
+  datei("_arbeit/produkt/tmp/roh.txt", true);
+  datei("_arbeit/produkt/ergebnis.md", true);
+  datei("_arbeit/produkt/neu.txt", false);
+  datei("sundartha/alt.md", true);
+  const a = auftragVonAntonio(p.db, "Etwas bauen");
+  auftragSetzen(p.db, a, { ergebnis: "Siehe _arbeit/produkt/ergebnis.md" });
+  const befehle: string[][] = [];
+  const befehl = async (argv: string[]) => (befehle.push(argv), { code: 0, stderr: "" });
+  await pflegenJob(p.db, join(ablage, "sicherung"), befehl);
+  assert.deepEqual(["_arbeit/produkt/tmp/roh.txt", "_arbeit/produkt/ergebnis.md", "_arbeit/produkt/neu.txt", "sundartha/alt.md"].map((r) => existsSync(join(ablage, r))), [false, true, true, true]);
+  assert.equal(existsSync(join(ablage, "_arbeit/produkt/tmp")), false);
+  assert.deepEqual(befehle.map((b) => b.includes("restic") ? b[5] : b[1]), ["backup", "backup", "forget"]);
+  assert.ok(befehle[1].some((x) => x.endsWith(".sqlite")));
+  spaeter(3600000);
+  await pflegenJob(p.db, join(ablage, "sicherung"), befehl);
+  assert.equal(befehle.length, 3);
+  um("09:00", "2026-12-11");
+  await assert.rejects(pflegenJob(p.db, join(ablage, "sicherung"), async () => ({ code: 1, stderr: "kaputt" })), /kaputt/);
+  zurueck();
 });

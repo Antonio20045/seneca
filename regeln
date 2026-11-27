@@ -8,6 +8,14 @@ takt_befund_ab_versuch 5
 register_warten_s 5
 pflegen_h 1
 platte_frei_min_mb 2000
+sicherung_abstand_h 23
+sicherung_max_min 30 zu_messen
+sicherung_ziel /home/ubuntu/Ablage/_sicherung/restic
+sicherung_passwort /home/ubuntu/.config/seneca/restic-passwort
+sicherung_quellen /home/ubuntu/.openclaw/openclaw.json,/home/ubuntu/.openclaw/skills,/home/ubuntu/.openclaw/skill-workshop
+sicherung_tage 30
+sicherung_monate 6
+openclaw_befehl /home/ubuntu/.npm-global/bin/openclaw
 lauf_schritt_abstand_s 60
 lauf_wiederholen_start_min 1
 lauf_wiederholen_max_h 1
@@ -112,7 +120,9 @@ kopplung_fenster_min 10 app
 kopplung_anfragen_je_std 30
 kopplung_modell_zeichen 40
 uhr_lauf_schluessel_min 32
-ablage_pfad /home/ubuntu/Ablage zu_messen
+ablage_pfad /home/ubuntu/Ablage
+ablage_alle_lesen _wissen
+arbeitsdateien_tage 7 vorschlag
 datei_werkzeuge read/lesen/path,write/schreiben/path,edit/schreiben/path,Read/lesen/file_path,Write/schreiben/file_path,Edit/schreiben/file_path zu_messen
 caldav_url https://caldav.icloud.com/
 kalender_zeitlimit_s 20

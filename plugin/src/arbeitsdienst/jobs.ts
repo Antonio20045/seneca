@@ -1,11 +1,12 @@
-import { statfsSync } from "node:fs";
-import { aktiveLaeufe, auftraege, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
+import { existsSync, readdirSync, rmdirSync, rmSync, statfsSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
 } from "../register/schreiben.ts";
-import { regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import { regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
 import { naechsterTermin, starteLauf, zurueckMitWartezeit, type Starter } from "./lauf.ts";
 
@@ -172,12 +173,52 @@ function dauerauftrag(db: Register, wer: string, arbeitsart: string, wortlaut: s
   });
 }
 
-export function pflegenJob(db: Register, sicherungsOrdner: string): void {
-  sichern(db, sicherungsOrdner);
+export type Befehl = (argv: string[], ms: number) => Promise<{ code: number | null; stderr: string }>;
+
+const ZUSTAENDE = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt", "verworfen"];
+
+function arbeitVerfallen(db: Register): void {
+  const ablage = regelText("ablage_pfad");
+  const wurzel = join(ablage, "_arbeit");
+  if (!existsSync(wurzel)) return;
+  const grenze = uhr.jetzt() - regelMs("arbeitsdateien_tage");
+  const eintraege = readdirSync(wurzel, { recursive: true, withFileTypes: true }).map((d) => ({ pfad: join(d.parentPath, d.name), datei: d.isFile() }));
+  const alt = eintraege.filter((e) => e.datei && statSync(e.pfad).mtimeMs < grenze).map((e) => relative(ablage, e.pfad));
+  if (!alt.length) return;
+  const verweise = [...auftraege(db, ZUSTAENDE).map((a) => a.ergebnis), ...ereignisse(db, {}).map((e) => e.beleg), ...["offen", "erledigt"].flatMap((z) => todos(db, z).map((t) => t.anhang))].join("\n");
+  const weg = alt.filter((rel) => !verweise.includes(rel));
+  for (const rel of weg) rmSync(join(ablage, rel));
+  for (const e of eintraege.filter((x) => !x.datei && dirname(x.pfad) !== wurzel).reverse()) if (!readdirSync(e.pfad).length) rmdirSync(e.pfad);
+  if (weg.length) ereignis(db, { art: "ablage.verfallen", daten: { anzahl: weg.length, beispiele: weg.slice(0, 10) } });
+}
+
+async function tagesSicherung(db: Register, register: string, befehl: Befehl): Promise<void> {
+  const jetzt = uhr.jetzt();
+  const passwort = regelText("sicherung_passwort");
+  if (!existsSync(passwort) || Number(wert(db, "sicherung:tag")?.gueltig_bis ?? 0) > jetzt) return;
+  const zustand = join(dirname(register), "openclaw-zustand");
+  const restic = ["restic", "-r", regelText("sicherung_ziel"), "--password-file", passwort];
+  rmSync(zustand, { recursive: true, force: true });
+  for (const schritt of [
+    [regelText("openclaw_befehl"), "backup", "sqlite", "create", "--global", "--repository", zustand],
+    [...restic, "backup", "--tag", "seneca", register, zustand, ...regelListe("sicherung_quellen")],
+    [...restic, "forget", "--tag", "seneca", "--keep-daily", regelText("sicherung_tage"), "--keep-monthly", regelText("sicherung_monate"), "--prune"],
+  ]) {
+    const r = await befehl(schritt, regelMs("sicherung_max_min"));
+    if (r.code !== 0) throw new Error(`Sicherung: ${schritt.slice(0, 4).join(" ")} endet mit ${r.code}: ${r.stderr.slice(0, 300)}`);
+  }
+  rmSync(zustand, { recursive: true, force: true });
+  wertSetzen(db, "sicherung:tag", new Date(jetzt).toISOString(), "arbeitsdienst", jetzt + regelMs("sicherung_abstand_h"));
+}
+
+export async function pflegenJob(db: Register, sicherungsOrdner: string, befehl?: Befehl): Promise<void> {
+  const [, tag] = sichern(db, sicherungsOrdner);
+  arbeitVerfallen(db);
   const frei = statfsSync(sicherungsOrdner);
   if (frei.bavail * frei.bsize < regelZahl("platte_frei_min_mb") * 1e6) befund(db, { art: "risiko", satz: "Die Platte des Servers ist fast voll." });
   for (const wer of mitarbeiter()) {
     if (mandat(wer).rundgang.length) dauerauftrag(db, wer, "rundgang", "Rundgang: Signale des Mandats lesen, eigene Aufträge mit Nutzen anlegen, Anzeigen aufräumen.");
   }
   for (const [art, wortlaut] of Object.entries(DAUERAUFTRAEGE)) dauerauftrag(db, regelText("dauerauftraege_von"), art, wortlaut);
+  if (befehl) await tagesSicherung(db, tag, befehl);
 }
