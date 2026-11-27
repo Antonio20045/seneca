@@ -73,6 +73,8 @@ enum HeuteBild {
                     case "gespraeche", "gespraeche-team":
                         SnGespraecheBild(stand: s, agent: env["SENECA_SEITE"] == "gespraeche" ? Hauptagent.id : "engineer")
                         SnGeruestBild(stand: s, aktiv: .gespraeche, dock: false)
+                    case "g-karten", "g-text", "g-lebenslauf", "g-fehler", "g-bild", "g-anhaenge", "g-verlauf", "g-ziehen":
+                        SnGBild(seite: env["SENECA_SEITE"] ?? "", stand: s)
                     case "entscheiden":
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)

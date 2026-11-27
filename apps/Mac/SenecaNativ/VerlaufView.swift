@@ -62,6 +62,7 @@ struct VerlaufView: View, Equatable {
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
+    @State private var bisher: Int?
 
     static func == (a: VerlaufView, b: VerlaufView) -> Bool {
         a.verlauf === b.verlauf && a.chat === b.chat && a.lauf == b.lauf
@@ -81,7 +82,7 @@ struct VerlaufView: View, Equatable {
     }
 
     private func zeilen(_ bloecke: [ZugBlock]) -> [Zeile] {
-        var tag = ""
+        var vorher: Double?
         return bloecke.map { b in
             let ts: Double?
             switch b {
@@ -89,11 +90,28 @@ struct VerlaufView: View, Equatable {
             case .reset(_, let t): ts = t
             case .zwischen(let g): ts = g.eintraege.first?.ts
             }
-            let d = (ts ?? 0) != 0 ? Formate.tagesLabel(ts!) : ""
-            let neu = !d.isEmpty && d != tag
-            if !d.isEmpty { tag = d }
-            return Zeile(block: b, tag: neu ? d : nil)
+            guard let t = ts, t != 0 else { return Zeile(block: b, tag: nil) }
+            defer { vorher = t }
+            return Zeile(block: b, tag: Formate.trenner(t, vorher: vorher))
         }
+    }
+
+    static var aeltere: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SchimmerFlaeche(radius: 5).frame(width: 312, height: 10)
+            RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.07)).frame(width: 224, height: 10)
+            Text("lädt \(ChatSpeicher.mehrFragen) ältere …").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    static func trenner(_ t: String) -> some View {
+        HStack(spacing: 14) {
+            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+            Text(t).font(Schrift.mono(11)).kerning(1.2).foregroundStyle(TafelFarbe.leise).fixedSize()
+            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+        }
+        .padding(.top, 6)
     }
 
     private func zustand(_ z: Zug) -> ZustellZustand? {
@@ -138,8 +156,7 @@ struct VerlaufView: View, Equatable {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if verlauf.hatMehr {
-                        Button("Ältere laden") { Task { await verlauf.aelterLaden() } }
-                        .buttonStyle(NebenKnopfStil()).frame(maxWidth: .infinity).padding(.bottom, Self.abstand)
+                        Self.aeltere.padding(.bottom, Self.abstand)
                     }
                     let ohneFrage = !alleBloecke.contains { if case .zug(let z) = $0, case .user? = z.start { return true }; return false }
                     if verlauf.laedt && bloecke.isEmpty && lauf == nil {
@@ -151,9 +168,7 @@ struct VerlaufView: View, Equatable {
                     }
                     ForEach(alleZeilen) { zeile in
                         VStack(alignment: .leading, spacing: Self.abstand) {
-                            if let tag = zeile.tag {
-                                Text(tag).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink3).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
-                            }
+                            if let tag = zeile.tag { Self.trenner(tag) }
                             switch zeile.block {
                             case .reset(_, let ts):
                                 kontextstrich(ts)
@@ -207,19 +222,17 @@ struct VerlaufView: View, Equatable {
             .onChange(of: gesendet) { _, _ in halter.ansEnde() }
             .onChange(of: verlauf.bloecke) { _, neu in merker.merkeNeue(neu) }
             .onAppear {
+                halter.obenNah = { [verlauf] in Task { await verlauf.aelterLaden() } }
                 let b = $folgt
                 halter.meldeFolgt = { neu in DispatchQueue.main.async { if b.wrappedValue != neu { withAnimation(Kurve.sn(0.2)) { b.wrappedValue = neu } } } }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .onChange(of: folgt) { _, f in bisher = f ? nil : alleZeilen.count }
+            .overlay(alignment: .bottom) {
                 if !folgt {
-                    Button { halter.ansEnde() } label: {
-                        Label("Zum Ende", systemImage: "arrow.down")
-                            .font(Schrift.grotesk(12.5))
-                            .padding(.horizontal, 14).padding(.vertical, 9)
-                    }
-                    .buttonStyle(.plain)
-                    .snGlas(Capsule())
-                    .padding(.trailing, 20).padding(.bottom, 20)
+                    let n = max(0, alleZeilen.count - (bisher ?? alleZeilen.count))
+                    SnNeuKnopf(n: n) { halter.ansEnde() }
+                    .keyboardShortcut(.downArrow, modifiers: .command)
+                    .padding(.bottom, 8)
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     .accessibilityIdentifier("neuenachrichten")
                 }
@@ -244,4 +257,21 @@ struct VerlaufView: View, Equatable {
 extension Zug {
     var startText: String { if case .user(_, let t, _, _)? = start { return t }; return "" }
     var startTs: Double? { if case .user(_, _, let ts, _)? = start { return ts }; return nil }
+}
+
+struct SnNeuKnopf: View {
+    var n: Int
+    var tun: () -> Void
+    var body: some View {
+        Button(action: tun) {
+            HStack(spacing: 8) {
+                Text(n == 0 ? "Ans Ende" : n == 1 ? "1 neue Nachricht" : "\(n) neue Nachrichten")
+                Image(systemName: "arrow.down").font(.system(size: 11, weight: .semibold))
+            }
+            .font(Schrift.grotesk(14, .medium)).foregroundStyle(TafelFarbe.aufHimmel)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Capsule().fill(TafelFarbe.himmel))
+        }
+        .buttonStyle(.plain)
+    }
 }

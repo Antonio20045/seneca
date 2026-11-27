@@ -86,145 +86,147 @@ enum KartenOrt { case chat, pin, panel }
 struct KarteAnsicht: View {
     var karte: Karte
     var ort: KartenOrt = .chat
-    var kartenId: String?
     var anzeige: AnzeigeInfo?
     var onEntfernen: (() -> Void)?
     @EnvironmentObject private var ansichten: AnsichtModell
     @State private var erledigt: Set<Int> = []
+    @State private var rueckgaengig: [Int: Date] = [:]
 
-    private var hatFuss: Bool { karte.bericht != nil || !karte.aktionen.isEmpty || ort == .chat }
+    private var hatFuss: Bool { karte.bericht != nil || !karte.aktionen.isEmpty || ort != .chat }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             kopf
             if !karte.bausteine.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(Array(karte.bausteine.enumerated()), id: \.offset) { i, b in BausteinAnsicht(baustein: b).steigen(i) }
                 }
-                .padding(.bottom, 12)
-            } else {
-                if !karte.zahlen.isEmpty { zahlen.padding(.bottom, 12) }
-                if let f = karte.fortschritt { fortschritt(f).padding(.bottom, 12) }
             }
-            if let d = karte.diagramm { DiagrammAnsicht(d: d).padding(.bottom, 12) }
-            if !karte.punkte.isEmpty { punkte.padding(.bottom, 6) }
-            if !karte.aufgaben.isEmpty { aufgaben.padding(.bottom, 6) }
-            if let t = karte.tabelle { TabelleAnsicht(t: t).padding(.bottom, 8) }
-            if let t = karte.text {
-                Text(MDInline.attributed(t)).font(Schrift.grotesk(14.5, .light)).foregroundStyle(Farbe.ink).lineSpacing(3).padding(.bottom, 4)
-            }
-            if let a = anzeige { AnzeigeFussView(info: a).padding(.top, 6) }
-            if hatFuss { fuss.padding(.top, 12) }
+            if !karte.zahlen.isEmpty { zahlen }
+            if let f = karte.fortschritt { FortschrittLeiste(anteil: f.von > 0 ? f.wert / f.von : 0, text: f.text ?? "\(BausteinText.zahlKurz(f.wert)) von \(BausteinText.zahlKurz(f.von))") }
+            if let d = karte.diagramm { DiagrammAnsicht(d: d) }
+            if let f = karte.frage { frage(f) }
+            if !karte.punkte.isEmpty { VStack(spacing: 0) { ForEach(Array(karte.punkte.enumerated()), id: \.offset) { i, p in PunktZeile(text: p.text, ton: p.ton ?? .neutral, meta: p.meta, i: i) } } }
+            if !karte.aufgaben.isEmpty { aufgaben }
+            if let t = karte.tabelle { TabelleAnsicht(t: t) }
+            if let t = karte.text { Text(MDInline.attributed(t)).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.text) }
+            if let a = anzeige { AnzeigeFussView(info: a) }
+            if hatFuss { fuss }
         }
-        .padding(.leading, 18).padding(.trailing, 18).padding(.top, 16).padding(.bottom, 14)
+        .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, karte.aufgaben.isEmpty ? 16 : 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farbe.papier, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .innenRand(18)
-        .shadow(color: ort == .chat ? .clear : Farbe.schatten, radius: 15, y: 10)
+        .snFlaeche(16)
         .karteEin()
         .textSelection(.enabled)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("karte")
     }
 
-    private var kopf: some View {
-        Group {
-            if karte.titel != nil || karte.marke != nil || onEntfernen != nil {
-                HStack(alignment: .center, spacing: 10) {
-                    if let t = karte.titel { Text(t).font(Schrift.serif(22)).foregroundStyle(Farbe.ink).lineLimit(2) }
-                    Spacer(minLength: 0)
-                    if let m = karte.marke {
-                        let ton = m.ton ?? .neutral
-                        Text(m.text).font(Schrift.grotesk(12, .medium)).foregroundStyle(ton.farbe)
-                            .padding(.horizontal, 10).padding(.vertical, 4).background(ton.flaeche, in: Capsule())
-                    }
-                    if let weg = onEntfernen {
-                        Button(action: weg) { Image(systemName: "xmark").font(.system(size: 11, weight: .medium)).foregroundStyle(Farbe.ink2).frame(width: 28, height: 28).background(Color.white.opacity(0.06), in: Circle()) }
-                            .buttonStyle(.plain).help("Entfernen").accessibilityLabel("Entfernen")
-                    }
+    private func etikett(_ t: String, _ farbe: Color = TafelFarbe.leise) -> some View {
+        Text(t.uppercased()).font(Schrift.mono(11, .medium)).kerning(1.2).foregroundStyle(farbe).lineLimit(1)
+    }
+
+    @ViewBuilder private var kopf: some View {
+        if let f = karte.frage {
+            HStack(spacing: 8) {
+                Circle().fill(TafelFarbe.bernstein).frame(width: 7, height: 7)
+                etikett("\(f.von) fragt" + (f.seit.map { " · seit \($0)" } ?? ""), TafelFarbe.bernstein)
+            }
+        } else if karte.titel != nil || karte.marke != nil || onEntfernen != nil || karte.diagramm?.rechts != nil {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                if let t = karte.titel { etikett(t) }
+                Spacer(minLength: 0)
+                if let r = karte.diagramm?.rechts { Text(r).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit).monospacedDigit() }
+                if let m = karte.marke { Text(m.text).font(Schrift.grotesk(12, .medium)).foregroundStyle((m.ton ?? .neutral).farbe) }
+                if let weg = onEntfernen {
+                    Button(action: weg) { Image(systemName: "xmark").font(.system(size: 11, weight: .medium)).foregroundStyle(TafelFarbe.zweit).frame(width: 24, height: 24) }
+                        .buttonStyle(.plain).help("Entfernen").accessibilityLabel("Entfernen")
                 }
-                .padding(.bottom, 12)
             }
         }
     }
 
     private var zahlen: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8, alignment: .top)], alignment: .leading, spacing: 8) {
-            ForEach(Array(karte.zahlen.enumerated()), id: \.offset) { i, z in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(z.label).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2).lineLimit(1)
-                    ZaehlerText(text: z.wert).font(Schrift.grotesk(27, .medium))
-                        .foregroundStyle(z.ton == nil || z.ton == .neutral ? Farbe.ink : z.ton!.farbe).lineLimit(1).minimumScaleFactor(0.6)
-                    if let d = z.detail { Text(d).font(Schrift.grotesk(11.5)).foregroundStyle(Farbe.ink2).lineLimit(2) }
+        HStack(alignment: .top, spacing: 18) {
+            ForEach(Array(karte.zahlen.prefix(3).enumerated()), id: \.offset) { i, z in
+                VStack(alignment: .leading, spacing: 6) {
+                    (Text(z.wert).font(Schrift.grotesk(26, .medium)).foregroundColor(z.ton == nil || z.ton == .neutral ? .white : z.ton!.farbe)
+                     + Text([z.von.map { " / " + $0 }, z.einheit.map { " " + $0 }].compactMap { $0 }.joined()).font(Schrift.grotesk(13)).foregroundColor(TafelFarbe.leise))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+                    GeometryReader { g in
+                        if let a = BausteinText.anteil(z.wert, z.von) {
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.white.opacity(0.1))
+                                Capsule().fill(TafelFarbe.gruen).frame(width: g.size.width * a)
+                            }
+                        }
+                    }
+                    .frame(height: 4)
+                    Text(z.label).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
+                    if let d = z.detail { Text(d).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise).lineLimit(2) }
                 }
-                .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Farbe.papier, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .innenRand(14, Color.black.opacity(0.11))
                 .steigen(i)
             }
         }
     }
 
-    private func fortschritt(_ f: Karte.Fortschritt) -> some View {
-        FortschrittLeiste(anteil: f.von > 0 ? f.wert / f.von : 0, text: f.text ?? "\(BausteinText.zahlKurz(f.wert)) von \(BausteinText.zahlKurz(f.von))")
-    }
-
-    private var punkte: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(karte.punkte.enumerated()), id: \.offset) { i, p in
-                PunktZeile(text: p.text, ton: p.ton ?? .neutral, meta: p.meta, i: i)
+    private func frage(_ f: Karte.Frage) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(f.text).font(Schrift.grotesk(17)).lineHeight(.exact(points: 23)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Freigeben") { ansichten.senden("Freigeben: \(f.text)") }.buttonStyle(SnTafelKnopf(groesse: 13))
+                Button("Später") { ansichten.senden("Später: \(f.text)") }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                Button("Mehr") { ansichten.senden("Mehr zu: \(f.text)") }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
             }
         }
     }
 
     private var aufgaben: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(karte.aufgaben.enumerated()), id: \.offset) { i, a in
-                let fertig = a.fertig != erledigt.contains(i)
-                Button {
-                    withAnimation(Kurve.ease(0.25)) { if erledigt.contains(i) { erledigt.remove(i) } else { erledigt.insert(i) } }
-                } label: {
-                    HStack(spacing: 11) {
-                        ZStack {
-                            Circle().strokeBorder(fertig ? .clear : Color.white.opacity(0.3), lineWidth: 1.5)
-                            if fertig { Circle().fill(Farbe.gruen); Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.white) }
+        TimelineView(.periodic(from: .now, by: 1)) { t in
+            VStack(spacing: 0) {
+                ForEach(Array(karte.aufgaben.enumerated()), id: \.offset) { i, a in
+                    let fertig = a.fertig != erledigt.contains(i)
+                    HStack(spacing: 12) {
+                        Button {
+                            withAnimation(Kurve.ease(0.25)) {
+                                if erledigt.contains(i) { erledigt.remove(i); rueckgaengig[i] = nil } else { erledigt.insert(i); rueckgaengig[i] = t.date.addingTimeInterval(5) }
+                            }
+                        } label: {
+                            ZStack {
+                                Circle().strokeBorder(fertig ? .clear : Color.white.opacity(0.5), lineWidth: 1.5)
+                                if fertig { Circle().fill(TafelFarbe.gruen); Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(TafelFarbe.aufHimmel) }
+                            }
+                            .frame(width: 20, height: 20).contentShape(Rectangle())
                         }
-                        .frame(width: 18, height: 18)
-                        Text(MDInline.attributed(a.text)).strikethrough(fertig).opacity(fertig ? 0.5 : 1)
+                        .buttonStyle(.plain)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(MDInline.attributed(a.text)).font(Schrift.grotesk(14)).lineHeight(.exact(points: 19)).foregroundStyle(Color.white).strikethrough(fertig).opacity(fertig ? 0.5 : 1)
+                            let meta = [a.wer, a.bis].compactMap { $0 }.joined(separator: " · ")
+                            if !meta.isEmpty { Text(meta).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise) }
+                        }
                         Spacer(minLength: 8)
-                        let meta = [a.wer, a.bis].compactMap { $0 }.joined(separator: " · ")
-                        if !meta.isEmpty { Text(meta).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2) }
+                        if let bis = rueckgaengig[i], bis > t.date {
+                            Button("Rückgängig") { withAnimation(Kurve.ease(0.25)) { erledigt.remove(i); rueckgaengig[i] = nil } }
+                                .buttonStyle(.plain).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.himmel)
+                        }
                     }
-                    .font(Schrift.grotesk(14.5, .light)).foregroundStyle(Farbe.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 9).contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1) }
                 }
-                .buttonStyle(.plain)
-                .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.067)).frame(height: 1) }
-                .steigen(i, start: 0.16, takt: 0.055, dauer: 0.5)
             }
         }
     }
 
     private var fuss: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            FlussZeile(abstand: 8) {
-                if let b = karte.bericht {
-                    Button("Ganzen Bericht öffnen") { ansichten.oeffne(.datei(pfad: b, titel: karte.titel ?? "Bericht")) }
-                        .buttonStyle(KartenKnopfStil(haupt: true))
-                }
-                ForEach(Array(karte.aktionen.enumerated()), id: \.offset) { _, a in
-                    Button(a.label) { if ort == .chat { ansichten.senden(a.prompt) } else { ansichten.vorschlagen(a.prompt) } }
-                        .buttonStyle(KartenKnopfStil())
-                }
-                if ort == .chat {
-                    PinKnopf(an: ansichten.pinName(fuer: karte) != nil) { await ansichten.heftAn(karte: karte) }
-                }
+        FlussZeile(abstand: 8) {
+            if let b = karte.bericht {
+                Button("Ganzen Bericht öffnen") { ansichten.oeffne(.datei(pfad: b, titel: karte.titel ?? "Bericht")) }.buttonStyle(SnTafelKnopf(groesse: 13))
             }
-            if ort == .chat, let id = kartenId {
-                BewertungsZeile(kartenId: id)
+            ForEach(Array(karte.aktionen.enumerated()), id: \.offset) { _, a in
+                Button(a.label) { if ort == .chat { ansichten.senden(a.prompt) } else { ansichten.vorschlagen(a.prompt) } }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
             }
+            if ort != .chat { PinKnopf(an: ansichten.pinName(fuer: karte) != nil) { await ansichten.heftAn(karte: karte) } }
         }
     }
 }
@@ -415,17 +417,21 @@ struct BewertungsKnopfStil: ButtonStyle {
 
 struct BautKarte: View {
     var body: some View {
-        HStack(spacing: 10) {
-            ForEach(0..<3, id: \.self) { _ in SchimmerFlaeche(radius: 12).frame(width: 44, height: 44) }
-            Text("Baut eine Übersicht …").font(Schrift.grotesk(13.5)).foregroundStyle(Farbe.ink2)
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 8) {
+            GeometryReader { g in
+                VStack(alignment: .leading, spacing: 8) {
+                    SchimmerFlaeche(radius: 5).frame(width: g.size.width * 0.4, height: 10)
+                    RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.07)).frame(width: g.size.width * 0.7, height: 10)
+                }
+            }
+            .frame(height: 28)
+            Text("Karte wird gebaut …").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus)
         }
-        .padding(18).frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-        .background(Farbe.papier, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .innenRand(18)
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .karteEin()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Baut eine Übersicht")
+        .accessibilityLabel("Karte wird gebaut")
         .accessibilityIdentifier("bautkarte")
     }
 }
@@ -434,36 +440,46 @@ struct DiagrammAnsicht: View {
     var d: Karte.Diagramm
     @State private var an = false
 
-    private let h: CGFloat = 170, unten: CGFloat = 26
+    private let h: CGFloat = 90
     private var maxW: Double { max(d.punkte.map(\.wert).max() ?? 0, 0) == 0 ? 1 : max(d.punkte.map(\.wert).max() ?? 0, 0) }
-    private var minW: Double { min(0, d.punkte.map(\.wert).min() ?? 0) }
 
-    private func y(_ v: Double) -> CGFloat {
-        let spanne = maxW - minW == 0 ? 1 : maxW - minW
-        return (h - unten) - CGFloat((v - minW) / spanne) * (h - unten - 14)
-    }
+    private func hoehe(_ v: Double) -> CGFloat { max(0, CGFloat(v / maxW) * (h - 6)) }
     private func fmt(_ v: Double) -> String {
         (v == v.rounded() ? String(Int64(v)) : String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",")) + (d.einheit.map { " " + $0 } ?? "")
     }
 
     var body: some View {
-        let n = d.punkte.count
-        VStack(alignment: .leading, spacing: 6) {
-            if let t = d.titel { Text(t).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink2) }
+        VStack(alignment: .leading, spacing: 12) {
             GeometryReader { g in
-                let schritt = g.size.width / CGFloat(n)
+                let n = CGFloat(d.punkte.count), luecke: CGFloat = 10
+                let bw = max(4, (g.size.width - luecke * (n - 1)) / n)
                 ZStack(alignment: .topLeading) {
-                    Rectangle().fill(Color.white.opacity(0.14)).frame(width: g.size.width, height: 1).offset(y: y(0))
-                    if d.art == .balken { balken(schritt) } else { linie(g.size.width, schritt) }
+                    if d.art == .linie { linie(g.size.width, bw + luecke) }
+                    ForEach(Array(d.punkte.enumerated()), id: \.offset) { i, p in
+                        let x = CGFloat(i) * (bw + luecke)
+                        Group {
+                            if d.art == .linie {
+                                EmptyView()
+                            } else if p.geplant {
+                                RoundedRectangle(cornerRadius: 4).strokeBorder(TafelFarbe.gruen, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])).frame(width: bw, height: hoehe(p.wert))
+                                    .offset(x: x, y: h - hoehe(p.wert))
+                            } else if p.wert <= 0 {
+                                RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.18)).frame(width: bw, height: 2).offset(x: x, y: h - 2)
+                            } else {
+                                RoundedRectangle(cornerRadius: 4).fill(TafelFarbe.gruen).frame(width: bw, height: hoehe(p.wert))
+                                    .scaleEffect(y: an ? 1 : 0, anchor: .bottom)
+                                    .animation(Kurve.feder(0.8).delay(Double(i) * 0.045 + 0.15), value: an)
+                                    .offset(x: x, y: h - hoehe(p.wert))
+                            }
+                        }
+                        .help("\(p.label): \(fmt(p.wert))")
+                        Text(p.label).font(Schrift.mono(11)).foregroundStyle(p.geplant ? Color.white : TafelFarbe.leise).lineLimit(1)
+                            .frame(width: bw).offset(x: x, y: h + 8)
+                    }
                 }
             }
-            .frame(height: h)
-            HStack(spacing: 0) {
-                ForEach(Array(d.punkte.enumerated()), id: \.offset) { i, p in
-                    Text(n <= 12 || i % Int((Double(n) / 12).rounded(.up)) == 0 ? p.label : "")
-                        .font(Schrift.grotesk(11)).foregroundStyle(Farbe.ink2).lineLimit(1).frame(maxWidth: .infinity)
-                }
-            }
+            .frame(height: h + 22)
+            if let s = d.satz { Text(s).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise) }
         }
         .onAppear { an = true }
         .accessibilityElement(children: .ignore)
@@ -471,64 +487,38 @@ struct DiagrammAnsicht: View {
         .accessibilityValue(d.punkte.map { "\($0.label): \(fmt($0.wert))" }.joined(separator: ", "))
     }
 
-    private func balken(_ schritt: CGFloat) -> some View {
-        ForEach(Array(d.punkte.enumerated()), id: \.offset) { i, p in
-            let bw = max(6, schritt * 0.58)
-            let oben = min(y(p.wert), y(0)), hoehe = max(2, abs(y(0) - y(p.wert)))
-            RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Farbe.himmel.opacity(0.86))
-                .frame(width: bw, height: hoehe)
-                .scaleEffect(y: an ? 1 : 0, anchor: p.wert >= 0 ? .bottom : .top)
-                .animation(Kurve.feder(0.8).delay(Double(i) * 0.045 + 0.15), value: an)
-                .offset(x: CGFloat(i) * schritt + (schritt - bw) / 2, y: oben)
-                .help("\(p.label): \(fmt(p.wert))")
-        }
-    }
-
     private func linie(_ breite: CGFloat, _ schritt: CGFloat) -> some View {
-        let pts = d.punkte.enumerated().map { CGPoint(x: CGFloat($0.offset) * schritt + schritt / 2, y: y($0.element.wert)) }
-        return ZStack(alignment: .topLeading) {
-            Path { p in
-                guard let erst = pts.first, let letzt = pts.last else { return }
-                p.move(to: erst); for q in pts.dropFirst() { p.addLine(to: q) }
-                p.addLine(to: CGPoint(x: letzt.x, y: y(minW))); p.addLine(to: CGPoint(x: erst.x, y: y(minW))); p.closeSubpath()
-            }
-            .fill(Color(hex: 0x8FB6E3, deckkraft: 0.09)).opacity(an ? 1 : 0).animation(Kurve.ease(0.8).delay(0.5), value: an)
-            Path { p in
-                guard let erst = pts.first else { return }
-                p.move(to: erst); for q in pts.dropFirst() { p.addLine(to: q) }
-            }
-            .trim(from: 0, to: an ? 1 : 0)
-            .stroke(Farbe.himmel, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-            .animation(Kurve.ease(1.2).delay(0.15), value: an)
-            ForEach(Array(pts.enumerated()), id: \.offset) { i, q in
-                Circle().fill(Color.white).overlay(Circle().stroke(Farbe.himmel, lineWidth: 2)).frame(width: 8, height: 8)
-                    .scaleEffect(an ? 1 : 0)
-                    .animation(Kurve.feder(0.4).delay(Double(i) * 0.05 + 0.7), value: an)
-                    .position(x: q.x, y: q.y)
-                    .help("\(d.punkte[i].label): \(fmt(d.punkte[i].wert))")
-            }
+        let pts = d.punkte.enumerated().map { CGPoint(x: CGFloat($0.offset) * schritt + (schritt - 10) / 2, y: h - hoehe($0.element.wert)) }
+        return Path { p in
+            guard let erst = pts.first else { return }
+            p.move(to: erst); for q in pts.dropFirst() { p.addLine(to: q) }
         }
+        .trim(from: 0, to: an ? 1 : 0)
+        .stroke(TafelFarbe.gruen, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        .animation(Kurve.ease(1.2).delay(0.15), value: an)
     }
 }
 
 struct TabelleAnsicht: View {
     var t: Karte.Tabelle
     var body: some View {
-        VStack(spacing: 0) {
+        Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 0) {
             zeile(t.spalten, kopf: true)
-            ForEach(Array(t.zeilen.enumerated()), id: \.offset) { _, z in zeile(z, kopf: false) }
+            linie(0.14)
+            ForEach(Array(t.zeilen.enumerated()), id: \.offset) { _, z in zeile(z, kopf: false); linie(0.07) }
         }
+        .fixedSize()
+        .monospacedDigit()
     }
     private func zeile(_ z: [String], kopf: Bool) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        GridRow {
             ForEach(Array(z.enumerated()), id: \.offset) { _, c in
-                Text(c).font(Schrift.grotesk(kopf ? 12 : 13.5, kopf ? .medium : .light)).foregroundStyle(kopf ? Farbe.ink2 : Farbe.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(MDInline.attributed(c)).font(kopf ? Schrift.mono(11) : Schrift.grotesk(14)).kerning(kopf ? 0.8 : 0)
+                    .foregroundStyle(kopf ? TafelFarbe.leise : TafelFarbe.text).lineLimit(1).fixedSize().padding(.vertical, 7)
             }
         }
-        .padding(.vertical, 7)
-        .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(kopf ? 0 : 0.067)).frame(height: 1) }
     }
+    private func linie(_ d: Double) -> some View { Rectangle().fill(Color.white.opacity(d)).frame(height: 1).gridCellUnsizedAxes(.horizontal) }
 }
 
 struct BausteinAnsicht: View {

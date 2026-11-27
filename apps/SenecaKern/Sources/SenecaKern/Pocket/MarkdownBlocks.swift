@@ -131,7 +131,7 @@ enum MDParser {
                 let info = trimmed.drop(while: { $0 == "`" }).trimmingCharacters(in: .whitespaces)
                 if !info.contains("`") {
                     flushAll(); endList()
-                    code = (info.split(separator: " ").first.map(String.init), [])
+                    code = (info.isEmpty ? nil : info, [])
                     continue
                 }
             }
