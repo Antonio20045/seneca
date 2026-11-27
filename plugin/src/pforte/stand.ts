@@ -1,11 +1,12 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
+import { art, istSport, kalender } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import { projekte } from "./projekte.ts";
 import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
-import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
+import { buendelFortschritt, entscheiden, fensterStart, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { anzeigeName, mitarbeiter } from "../team.ts";
@@ -103,6 +104,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   const braucht = brauchtDich(db, jetzt);
   const tagBeginn = letzteUhrzeit(regelText("tag_grenze"), jetzt);
   const b = buendel(db, braucht, jetzt);
+  const aufg = aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt);
   const inhalt = {
     schema: SCHEMA, revision: rev, jetzt, erzeugt: jetzt, geraet: eingabe.geraet, tag_beginn: tagBeginn,
     regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
@@ -113,7 +115,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       sensor_modell_s: regelZahl("sensor_modell_s"), sensor_markiert_zeichen: regelZahl("sensor_markiert_zeichen"),
       kal_raster_min: regelZahl("kal_raster_min"), kal_raster_fein_min: regelZahl("kal_raster_fein_min"), wegzeit_vorlauf_min: regelZahl("wegzeit_vorlauf_min"),
       weg_neu_min: regelZahl("weg_neu_min"), weg_zu_fuss_bis_min: regelZahl("weg_zu_fuss_bis_min"), weg_erinnern_vor_min: regelZahl("weg_erinnern_vor_min"),
-      kal_bb_gut_ab: regelZahl("kal_bb_gut_ab") },
+      kal_bb_gut_ab: regelZahl("kal_bb_gut_ab"), los_erinnern_min: regelZahl("los_erinnern_min") },
     zaehler: { braucht: braucht.length },
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
@@ -129,10 +131,11 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
         bis: a.schaetzung_min ? Number(a.erstellt) + msAusMinuten(Number(a.schaetzung_min)) : null, dauer_min: a.schaetzung_min,
         danach: a.abnahme_durch === "antonio" ? `${a.pruefer_noetig ? "Prüfer schaut drüber, dann kommt es" : "Es kommt"} als Abnahme ins Fenster um ${regelText("fenster").split(" ")[0]}` : "Fertig ohne Abnahme" })),
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
-    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin", weg: weg(db, t).kurz })),
+    termine: termineAm(db, jetzt).map((t) => ({ ...t, art: art(t), weg: weg(db, t).kurz, ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null })),
     wochenplan: wochenplan(db, jetzt),
     verlauf: verlauf(db, tagBeginn, jetzt),
-    aufgaben: aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt),
+    aufgaben: aufg,
+    kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision })),

@@ -1,8 +1,9 @@
 import { ereignisse, fragen, hole, termineAm, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelListe, regelText, regelZahl } from "../regeln.ts";
+import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelText, regelZahl } from "../regeln.ts";
 import { anzeigeName } from "../team.ts";
 import { istFokus } from "./planen.ts";
+import { istSport } from "./kalender.ts";
 import { uhrzeit, ZAHLWORT } from "./heute.ts";
 
 const GERAET: Record<string, string> = { iphone: "am iPhone", mac: "am Mac", uhr: "an der Uhr", gespraech: "im Gespräch" };
@@ -11,10 +12,6 @@ const SENDET: Record<string, [string, string]> = { nachricht: ["schickt es", "se
 const ART: Record<string, [string, string, string]> = { text: ["ein", "Text", "Texte"], test: ["ein", "Test", "Tests"], hoerprobe: ["eine", "Hörprobe", "Hörproben"], bau: ["ein", "Bau", "Bauten"] };
 
 type Option = { wert: string; text: string; folge: string; titel?: string; preis?: string; einheit?: string; knopf?: string };
-
-export function istSport(titel: string): boolean {
-  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
-}
 
 export function fensterStart(jetzt: number): number {
   const heute = letzteUhrzeit(regelText("fenster"), jetzt);

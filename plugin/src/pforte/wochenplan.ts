@@ -1,7 +1,8 @@
 import { ereignisse, fragen, kalenderTag, termineAm, todos, vorschlagDaten, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
-import { fensterStart, istSport } from "./entscheiden.ts";
+import { fensterStart } from "./entscheiden.ts";
+import { istSport } from "./kalender.ts";
 import { uhrzeit } from "./heute.ts";
 
 type Termin = ReturnType<typeof termineAm>[number] & { namen?: string[]; notiz?: string; kalender?: string; wartet?: boolean };

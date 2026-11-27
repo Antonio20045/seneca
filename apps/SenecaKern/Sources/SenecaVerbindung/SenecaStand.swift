@@ -82,6 +82,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var ganztag: Bool?
         public var art: String?
         public var weg: String?
+        public var ankunft: Double?; public var weg_min: Double?
         public var id: String { uid }
     }
     public struct TerminDetail: Codable, Equatable, Sendable {
@@ -101,6 +102,16 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     }
     public struct Wochenplan: Codable, Equatable, Sendable {
         public var wochen: [KalWoche]; public var tage: [KalTag]; public var plant: KalPlant?; public var kalender: [String]; public var standard: String; public var tag_von: Double; public var tag_bis: Double
+    }
+    public struct Kalender: Codable, Equatable, Sendable {
+        public struct Eintrag: Codable, Equatable, Sendable {
+            public var uid: String?; public var von: Double?; public var bis: Double?; public var titel: String?; public var unter: String?
+            public var art: String; public var jetzt: Bool?; public var text: String?
+        }
+        public struct Block: Codable, Equatable, Sendable { public var von: Double; public var bis: Double; public var art: String }
+        public struct Tag: Codable, Equatable, Sendable { public var datum: Double; public var kurz: String; public var nr: Int; public var bloecke: [Block]; public var text: String; public var warnung: Bool }
+        public struct Woche: Codable, Equatable, Sendable { public var kopf: String; public var satz: [String]; public var tage: [Tag] }
+        public var satz: [String]?; public var eintraege: [Eintrag]?; public var hinweis: String?; public var woche: Woche?
     }
     public struct Todo: Codable, Equatable, Sendable, Identifiable {
         public var id: String
@@ -154,6 +165,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     }
     public var todos: [Todo]?
     public var aufgaben: Aufgaben?
+    public var kalender: Kalender?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
 }
