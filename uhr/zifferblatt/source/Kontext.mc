@@ -5,12 +5,8 @@ import Toybox.Time.Gregorian;
 
 module Kontext {
     const VORLAUF_S = 5400;
-    const EILIG_S = 600;
-    const ABEND = 19;
-    const VERALTET_S = 7200;
+    const BALD_S = 3600;
     const TAG_S = 86400;
-    const PUNKT = 1;
-    const HAKEN = 2;
 
     function stand() as Dictionary? {
         var wert = Storage.getValue("zs");
@@ -28,11 +24,11 @@ module Kontext {
 
     function uhrzeit(zeit as Number) as String {
         var i = Gregorian.info(new Time.Moment(zeit), Time.FORMAT_SHORT);
-        return (i.hour as Number).format("%02d") + ":" + (i.min as Number).format("%02d");
+        return (i.hour as Number).toString() + ":" + (i.min as Number).format("%02d");
     }
 
     function minuten(sekunden as Number) as String {
-        return ((sekunden + 59) / 60).toString() + " Min";
+        return ((sekunden + 59) / 60).toString() + " MIN";
     }
 
     function termine() as Array {
@@ -65,73 +61,61 @@ module Kontext {
         return t != null && (t[0] as Number) < zeit + VORLAUF_S && start(t[2] as String).find("Tippen") == 0;
     }
 
-    function zeilen(zeit as Number) as Array<Array> {
-        var s = stand();
-        if (s == null) {
-            return [];
+    function bereich(t as Array) as String {
+        return t.size() > 5 && t[5] instanceof String ? t[5] as String : "t".equals(t[3]) ? "a" : "t";
+    }
+
+    function kurz(t as Array) as String {
+        if (t.size() > 6 && t[6] instanceof String) {
+            return (t[6] as String).toUpper();
         }
-        var tag = tagBeginn(zeit);
+        var titel = t[2] as String;
+        var luecke = titel.find(" ");
+        return (luecke == null ? titel : titel.substring(0, luecke) as String).toUpper();
+    }
+
+    function zeile(zeit as Number) as Array? {
+        var morgen = tagBeginn(zeit) + TAG_S;
         var tg = termine();
-        var laufend = null;
-        var naechster = null;
-        var morgen = null;
+        var danach = null;
         for (var i = 0; i < tg.size(); i += 1) {
             var t = tg[i] as Array;
+            var von = t[0] as Number;
             if ((t[1] as Number) <= zeit) {
                 continue;
             }
-            if ((t[0] as Number) <= zeit) {
-                laufend = laufend == null ? t : laufend;
-            } else if ((t[0] as Number) >= tag + TAG_S) {
-                morgen = morgen == null ? t : morgen;
-            } else if (naechster == null && !"tr".equals(t[3])) {
-                naechster = t;
+            var wer = kurz(t);
+            if (von <= zeit) {
+                return ["BIS " + uhrzeit(t[1] as Number) + " · " + wer, bereich(t), false];
             }
-        }
-        var n = s["n"] as Number;
-        var fragen = [n == 1 ? "1 Frage wartet" : n.toString() + " Fragen warten", Zeichnen.TEXT, PUNKT];
-        var training = trainingOffen(zeit);
-        var stunde = Gregorian.info(new Time.Moment(zeit), Time.FORMAT_SHORT).hour as Number;
-        var erste = null;
-        var zweite = null;
-        if (laufend != null) {
-            erste = ["bis " + uhrzeit(laufend[1] as Number) + " · " + laufend[2], Zeichnen.WEISS, 0];
-        } else if (naechster != null && (naechster[0] as Number) - zeit <= VORLAUF_S) {
-            var los = naechster[4] != null ? naechster[4] as Number : naechster[0] as Number;
-            var rest = los - zeit;
-            erste = [naechster[2] + " " + uhrzeit(naechster[0] as Number), Zeichnen.WEISS, 0];
-            zweite = [naechster[4] == null ? "in " + minuten((naechster[0] as Number) - zeit) : rest <= 0 ? "jetzt los" : "los in " + minuten(rest), rest < EILIG_S ? Zeichnen.BERNSTEIN : Zeichnen.LEISE, 0];
-        } else if (training != null) {
-            erste = [uhrzeit(training[0] as Number) + " · " + training[2], Zeichnen.WEISS, 0];
-            zweite = [start(training[2] as String), Zeichnen.LEISE, 0];
-        } else if (s["tf"] != null && stunde < ABEND) {
-            var getan = s["tf"] as Array;
-            erste = ["Training erledigt", Zeichnen.GRUEN, HAKEN];
-            zweite = [minuten((getan[1] as Number) - (getan[0] as Number)), Zeichnen.LEISE, 0];
-        } else if (stunde >= ABEND && morgen != null) {
-            erste = ["Morgen " + uhrzeit(morgen[0] as Number), Zeichnen.WEISS, 0];
-            zweite = [morgen[2] as String, Zeichnen.LEISE, 0];
-        }
-        if (n > 0) {
-            if (erste == null) {
-                erste = fragen;
-            } else if (zweite == null) {
-                zweite = fragen;
+            if (von >= morgen) {
+                danach = danach == null ? t : danach;
+                continue;
             }
+            var rest = t[4] == null ? null : (t[4] as Number) - zeit;
+            if (rest != null && rest <= BALD_S) {
+                return [rest <= 0 ? "JETZT LOS · " + wer : "LOS IN " + minuten(rest) + " · " + wer, bereich(t), true];
+            }
+            if (von - zeit <= BALD_S) {
+                return ["IN " + minuten(von - zeit) + " · " + wer, bereich(t), true];
+            }
+            return [uhrzeit(von) + " " + wer, bereich(t), false];
         }
-        return erste == null ? [] : zweite == null ? [erste] : [erste, zweite];
+        return danach == null ? null : ["MORGEN " + uhrzeit(danach[0] as Number) + " " + kurz(danach), bereich(danach), false];
     }
 
-    function fuss(zeit as Number) as Array<Array> {
-        var teile = [] as Array<Array>;
-        var akku = Werte.akku();
-        if (akku != null && akku < Werte.AKKU_WARNUNG) {
-            teile.add([akku < Werte.AKKU_KRITISCH ? Zeichnen.GLUT : Zeichnen.BERNSTEIN, "AKKU " + akku.toString() + " %"]);
-        }
+    function todos() as [Number, Number]? {
         var s = stand();
-        if (s != null && zeit - (s["zt"] as Number) > VERALTET_S) {
-            teile.add([Zeichnen.GEDAEMPFT, "STAND " + uhrzeit(s["zt"] as Number)]);
+        var td = s == null ? null : s["td"];
+        var live = Werte.offeneTodos();
+        if (!(td instanceof Array) && live == null) {
+            return null;
         }
-        return teile;
+        var getan = td instanceof Array ? td[0] as Number : 0;
+        var offen = live != null ? live[0] : (td as Array)[1] as Number;
+        if (td instanceof Array && ((td as Array)[1] as Number) > offen) {
+            getan += ((td as Array)[1] as Number) - offen;
+        }
+        return getan + offen == 0 ? null : [getan, getan + offen];
     }
 }

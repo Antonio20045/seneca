@@ -25,11 +25,11 @@ import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
-import { eintraegeSeit, revision, termineAm, uhr, wert } from "./register/lesen.ts";
+import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragAendern, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
-import { naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
+import { letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
 type Ausfuehren = (db: Register, k: Kontext, p: Record<string, unknown>) => unknown;
@@ -122,10 +122,17 @@ function skillLeser(wer: string, arbeitsart: string): string | undefined {
 const uebungen = (db: Register) => [...new Set(eintraegeSeit(db, 0).filter((e) => e.art === "satz").map((e) => String(JSON.parse(String(e.werte)).u)).reverse())];
 const uhrSicht = (db: Register, t: number) => ({ ...uhrStand(db, t), tr: uebungen(db).slice(0, regelZahl("uhr_uebungen")).map((u) => uebung(db, t, u)?.uhr).filter(Boolean), l: buch(db, t)?.uhr ?? null });
 const zifferblattSicht = (db: Register, t: number) => {
-  const heute = termineAm(db, t).filter((x) => !x.ganztag), erledigt = heute.find((x) => /^Training: .* ✓$/.test(x.titel));
-  const los = (x: (typeof heute)[number]) => weg(db, x).los_ms, art = (x: (typeof heute)[number]) => (/^Training: /.test(x.titel) ? (x.titel.endsWith(" ✓") ? "te" : "tr") : "t");
-  const eintrag = (x: (typeof heute)[number]) => [sekundenAusMs(x.start), sekundenAusMs(x.ende), x.titel.replace(/^Training: /, "").replace(/ ✓$/, ""), art(x), los(x) === null ? null : sekundenAusMs(Number(los(x)))];
-  return { n: uhrStand(db, t).n, tf: erledigt ? [sekundenAusMs(erledigt.start), sekundenAusMs(erledigt.ende)] : null,
+  type Termin = ReturnType<typeof termineAm>[number];
+  const alle = termineAm(db, t), heute = alle.filter((x) => !x.ganztag), erledigt = heute.find((x) => /^Training: .* ✓$/.test(x.titel));
+  const los = (x: Termin) => weg(db, x).los_ms, art = (x: Termin) => (/^Training: /.test(x.titel) ? (x.titel.endsWith(" ✓") ? "te" : "tr") : "t");
+  const name = (x: Termin) => x.titel.replace(/^Training: /, "").replace(/ ✓$/, ""), passt = (x: Termin, r: string) => new RegExp(r, "i").test(`${x.titel} ${x.kalender ?? ""}`);
+  const bereich = (x: Termin) => (art(x) !== "t" || passt(x, regelText("uhr_bereich_training")) ? "t" : passt(x, regelText("uhr_bereich_sozial")) ? "s" : "a");
+  const kurz = (s: string) => (s.match(/\bmit\s+(\S+)/i)?.[1] ?? s.split(/\s+/)[0]).replace(/[^\p{L}\p{N}-]/gu, "").slice(0, regelZahl("uhr_kurz_zeichen"));
+  const eintrag = (x: Termin) => [sekundenAusMs(x.start), sekundenAusMs(x.ende), name(x), art(x), los(x) === null ? null : sekundenAusMs(Number(los(x))), bereich(x), kurz(name(x))];
+  const fertig = new Set(todos(db, "erledigt").map((x) => x.id)), seit = letzteUhrzeit(regelText("tag_grenze"), t);
+  const getan = new Set(ereignisse(db, { art: "todo.erledigt", seit }).map((e) => e.schluessel).filter((s) => fertig.has(s))).size;
+  return { n: uhrStand(db, t).n, tf: erledigt ? [sekundenAusMs(erledigt.start), sekundenAusMs(erledigt.ende)] : null, gz: alle.find((x) => x.ganztag && x.ende > t)?.titel ?? null,
+    td: [getan, Math.min(todos(db, "offen").length, regelZahl("uhr_todos"))],
     tg: [...heute.filter((x) => x.ende > t), ...termineAm(db, naechsteUhrzeit(regelText("tag_grenze"), t)).filter((x) => !x.ganztag)].slice(0, regelZahl("uhr_termine") + 2).map(eintrag) };
 };
 
