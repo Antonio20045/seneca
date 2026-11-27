@@ -11,6 +11,8 @@ struct SnGespraechLeiste: View {
     var aktiv: String
     var waehle: (String) -> Void
     var neu: () -> Void
+    var zieht = false
+    var ablegen: (String, [URL]) -> Void = { _, _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,11 +22,15 @@ struct SnGespraechLeiste: View {
                 eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: e.zeilen, punkt: e.punkt)
             }
             Spacer(minLength: 20)
-            Button(action: neu) {
-                HStack { Text("Neues Gespräch").font(Schrift.grotesk(13)); Spacer(); Text("⌘N").font(Schrift.mono(12)) }
-                    .foregroundStyle(TafelFarbe.leise).contentShape(Rectangle())
+            if zieht {
+                Text("Auf einen Namen ziehen schickt es dorthin.").font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.zweit).padding(.horizontal, 14)
+            } else {
+                Button(action: neu) {
+                    HStack { Text("Neues Gespräch").font(Schrift.grotesk(13)); Spacer(); Text("⌘N").font(Schrift.mono(12)) }
+                        .foregroundStyle(TafelFarbe.leise).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).padding(.horizontal, 14).keyboardShortcut("n", modifiers: .command)
             }
-            .buttonStyle(.plain).padding(.horizontal, 14).keyboardShortcut("n", modifiers: .command)
         }
         .frame(width: 268, alignment: .topLeading)
     }
@@ -51,6 +57,7 @@ struct SnGespraechLeiste: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .dropDestination(for: URL.self) { urls, _ in ablegen(id, urls.filter(\.isFileURL)); return true }
     }
 }
 
@@ -241,6 +248,32 @@ struct SnGespraecheBild: View {
                 .padding(.leading, 20).padding(.trailing, 16).padding(.vertical, 14).frame(width: sp.breite)
                 .snGlas(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .padding(.leading, sp.links).padding(.top, g.size.height - 40 - 62)
+            }
+        }
+    }
+}
+
+struct SnNichtErreichbar: View {
+    var versuche: () async -> Void
+    @State private var rest = 8
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Circle().strokeBorder(TafelFarbe.leise, lineWidth: 1.5).frame(width: 7, height: 7)
+                Text("Seneca ist nicht erreichbar").font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.text)
+                Spacer()
+                Button("Jetzt versuchen") { Task { await versuche(); rest = 8 } }.buttonStyle(.plain).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.himmel)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.07)))
+            Text("Neuer Versuch in \(rest) s. Der Verlauf bleibt lesbar, Schreiben geht weiter.").font(Schrift.grotesk(13)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.leise)
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                rest -= 1
+                if rest <= 0 { await versuche(); rest = 8 }
             }
         }
     }

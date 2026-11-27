@@ -373,8 +373,7 @@ final class MacDienste: ObservableObject {
                 let live = lives[ChatPartner.seneca.sessionKey(main: modell?.chat.mainKey ?? "")]
                 self?.schnellfrage.setzeStrom(live?.text ?? "")
                 if let live {
-                    self?.schnellfrage.laufZeile = Laufzeile.text(name: "Seneca", phase: live.phase, angekommen: live.phase != .sending, taetigkeit: live.activity, schritte: 0,
-                                                                  schreibt: false, seit: 0, verbunden: modell?.store.isConnected ?? true, mitDauer: false)
+                    self?.schnellfrage.laufZeile = Laufzeile.kurz(name: "Seneca", phase: live.phase, taetigkeit: live.activity, verbunden: modell?.store.isConnected ?? true)
                 }
             }
         }.store(in: &abos)

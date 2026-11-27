@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import AVFoundation
 
 @MainActor
 final class SnEingabeStand: ObservableObject { @Published var text = "" }
@@ -78,6 +79,15 @@ final class SnChatSteuerung: ObservableObject {
         withAnimation(Kurve.sn(0.25)) { anhaenge = neu }
         hinweis = nil
         fokussiere()
+    }
+
+    func standbild(_ a: ChatAnhang) {
+        Task {
+            let g = AVAssetImageGenerator(asset: AVURLAsset(url: a.url)); g.appliesPreferredTrackTransform = true
+            guard let bild = try? await g.image(at: .zero).image, let png = NSBitmapImageRep(cgImage: bild).representation(using: .png, properties: [:]),
+                  let neu = ChatAnhang.ausDaten(png, name: (a.name as NSString).deletingPathExtension + ".png", mime: "image/png") else { return }
+            withAnimation(Kurve.sn(0.25)) { anhaenge = anhaenge.map { $0.id == a.id ? neu : $0 } }
+        }
     }
 
     func entferne(_ id: UUID) { withAnimation(Kurve.sn(0.2)) { anhaenge.removeAll { $0.id == id } } }
@@ -164,7 +174,10 @@ struct SnChatSeite: View {
     @ObservedObject private var chat: ChatService
     @ObservedObject private var ansichten: AnsichtModell
     @ObservedObject private var gegenueber: GegenueberModell
+    @ObservedObject private var store: SenecaStore
     @State private var ziehtZiel = false
+    @State private var ziehSatz = ""
+    @StateObject private var buehne = SnBildBuehne()
     var schliesse: () -> Void
 
     init(modell: AppModell, steuerung: SnChatSteuerung, schliesse: @escaping () -> Void) {
@@ -174,6 +187,7 @@ struct SnChatSeite: View {
         _chat = ObservedObject(wrappedValue: modell.store.chat)
         _ansichten = ObservedObject(wrappedValue: modell.ansichten)
         _gegenueber = ObservedObject(wrappedValue: modell.gegenueber)
+        _store = ObservedObject(wrappedValue: modell.store)
     }
 
     private var key: String { chat.currentKey }
@@ -208,9 +222,11 @@ struct SnChatSeite: View {
             let (links, breite, rand) = Self.spalte(g.size.width, seneca: istSeneca)
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { id in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id) },
-                                  neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) })
+                                  neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) }, zieht: ziehtZiel,
+                                  ablegen: { id, urls in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); steuerung.fuegeHinzu(urls) })
                     .padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
                 VStack(spacing: 24) {
+                    if !store.isConnected { SnNichtErreichbar { await modell.verbinde() } }
                     VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
                                 stand: stand, agent: agent, neuLaden: neuLaden,
@@ -229,17 +245,21 @@ struct SnChatSeite: View {
                     .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
             }
             }
+            SnBildGross(buehne: buehne) { t, png in steuerung.sende(t, anhaenge: [ChatAnhang.ausDaten(png, mime: "image/png")].compactMap { $0 }) }
             if ziehtZiel {
-                RoundedRectangle(cornerRadius: 24).strokeBorder(Farbe.himmel, lineWidth: 3)
-                    .background(RoundedRectangle(cornerRadius: 24).fill(Farbe.himmel.opacity(0.08)))
-                    .padding(12)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                GeometryReader { g in
+                    let (links, breite, _) = Self.spalte(g.size.width, seneca: istSeneca)
+                    SnZiehHinweis(satz: ziehSatz).frame(width: breite + 32, height: g.size.height - 82).padding(.leading, links - 16).padding(.top, 62)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
         }
         .onDrop(of: [UTType.fileURL.identifier, UTType.png.identifier, UTType.tiff.identifier, UTType.jpeg.identifier, UTType.image.identifier],
-                isTargeted: $ziehtZiel) { steuerung.bearbeiteDrop($0) }
+                delegate: SnZiehAblage(ziehtZiel: $ziehtZiel, satz: $ziehSatz, ablegen: { steuerung.bearbeiteDrop($0) }))
         .animation(Kurve.sn(0.15), value: ziehtZiel)
+        .animation(Kurve.sn(0.2), value: buehne.offen)
+        .environment(\.bildBuehne, buehne)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             chat.isShowing = true
@@ -327,7 +347,7 @@ struct SnChatEingabe: View {
     var body: some View {
         VStack(spacing: 8) {
             if !steuerung.anhaenge.isEmpty {
-                SnAnhangReihe(anhaenge: steuerung.anhaenge, entferne: { steuerung.entferne($0) }).padding(.top, 4)
+                SnAnhangReihe(anhaenge: steuerung.anhaenge, entferne: { steuerung.entferne($0) }, standbild: { steuerung.standbild($0) }).padding(.top, 4)
             }
             zeile
         }
@@ -336,6 +356,11 @@ struct SnChatEingabe: View {
 
     private var zeile: some View {
         HStack(alignment: .center, spacing: 14) {
+            Button {
+                let p = NSOpenPanel(); p.allowsMultipleSelection = true
+                if p.runModal() == .OK { steuerung.fuegeHinzu(p.urls) }
+            } label: { Image(systemName: "paperclip").font(.system(size: 14)).foregroundStyle(TafelFarbe.zweit).frame(width: 30, height: 30).contentShape(Circle()) }
+            .buttonStyle(.plain).keyboardShortcut("a", modifiers: [.command, .shift]).help("Datei anhängen · ⌘⇧A").padding(.leading, -6)
             SnAnZeile(name: gegenueber.name, seneca: seneca)
             SnMehrzeilenFeld(text: Binding(get: { steuerung.eingabe }, set: { steuerung.eingabe = $0 }), maxZeilen: 8, fokusAnfrage: steuerung.fokusAnfrage,
                              senden: { steuerung.sendeEingabe() }, escape: { schliesse() },
@@ -356,8 +381,8 @@ struct SnChatEingabe: View {
             }
             if !laeuft || !leer {
                 Button { steuerung.sendeEingabe() } label: {
-                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .medium)).foregroundStyle(Color.white)
-                        .frame(width: 34, height: 34).background(Circle().fill(Color.white.opacity(0.12)))
+                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .medium)).foregroundStyle(leer ? Color.white : TafelFarbe.aufHimmel)
+                        .frame(width: 34, height: 34).background(Circle().fill(leer ? Color.white.opacity(0.12) : TafelFarbe.himmel))
                 }
                 .buttonStyle(.plain)
                 .disabled(leer)
@@ -377,5 +402,49 @@ struct SnAnZeile: View {
     static func platzhalter(seneca: Bool, anhang: Bool = false) -> some View {
         Text(anhang ? "Dazu schreiben …" : seneca ? "Schreib oder halte die rechte ⌘-Taste zum Sprechen …" : "Antworte oder gib einen neuen Auftrag …")
             .font(Schrift.grotesk(16)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
+    }
+}
+
+struct SnZiehAblage: DropDelegate {
+    @Binding var ziehtZiel: Bool
+    @Binding var satz: String
+    var ablegen: ([NSItemProvider]) -> Bool
+
+    func dropEntered(info: DropInfo) {
+        ziehtZiel = true
+        satz = ""
+        let p = info.itemProviders(for: [UTType.fileURL.identifier])
+        Task.detached {
+            var urls: [URL] = []
+            for x in p { if let u = try? await x.loadItem(forTypeIdentifier: UTType.fileURL.identifier) as? Data, let url = URL(dataRepresentation: u, relativeTo: nil) { urls.append(url) } }
+            guard !urls.isEmpty else { return }
+            let groessen = urls.map { (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int) ?? 0 }
+            let klein = urls.enumerated().reduce(0) { s, e in
+                ChatAnhang.mimeTyp(e.element.pathExtension).hasPrefix("image/") ? s + ((try? Data(contentsOf: e.element)).flatMap(ChatAnhang.verkleinert)?.count ?? groessen[e.offset]) : s + groessen[e.offset]
+            }
+            let t = ChatAnhang.ziehSatz(urls.map(\.lastPathComponent), summe: groessen.reduce(0, +), klein: klein)
+            await MainActor.run { satz = t }
+        }
+    }
+    func dropExited(info: DropInfo) { ziehtZiel = false }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .copy) }
+    func performDrop(info: DropInfo) -> Bool {
+        ziehtZiel = false
+        return ablegen(info.itemProviders(for: [UTType.fileURL.identifier, UTType.image.identifier]))
+    }
+}
+
+struct SnZiehHinweis: View {
+    var satz: String
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "arrow.down").font(.system(size: 18, weight: .medium)).foregroundStyle(Color.white).frame(width: 64, height: 64).background(Circle().fill(Color.white.opacity(0.12)))
+            Text("Loslassen, dann hängt es an.").font(Schrift.serif(36)).foregroundStyle(Color.white).padding(.top, 6)
+            Text(satz).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(minHeight: 20)
+            Text("Gesendet wird erst, wenn du Enter drückst").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise).padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(TafelFarbe.hex(0x0B1E3F, 0.82)))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(TafelFarbe.himmel.opacity(0.55), lineWidth: 1.5))
     }
 }
