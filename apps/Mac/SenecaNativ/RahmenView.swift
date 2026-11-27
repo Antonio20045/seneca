@@ -36,15 +36,21 @@ struct RahmenView: View {
                 Spacer()
             }
             .padding(.top, 24)
-            VStack {
-                Spacer()
-                SnDock(offen: modell.route.seite == .chat, oeffne: { modell.zeigeGespraechSeite() }, schliesse: { modell.zeigeGespraechSeite() },
-                       steuerung: chatSteuerung, chat: chat, gegenueber: modell.gegenueber)
-                    .opacity(snFenster.offen ? 0.35 : 1)
-                    .allowsHitTesting(!snFenster.offen)
-                    .animation(Kurve.sn(0.45), value: snFenster.offen)
+            GeometryReader { g in
+                let offen = modell.route.seite == .chat
+                let s = SnChatSeite.spalte(g.size.width, seneca: modell.gegenueber.aktuellerAgent == Hauptagent.id)
+                VStack {
+                    Spacer()
+                    SnDock(offen: offen, breiteOffen: s.breite, oeffne: { modell.zeigeGespraechSeite() }, schliesse: { modell.zeigeGespraechSeite() },
+                           steuerung: chatSteuerung, chat: chat, gegenueber: modell.gegenueber)
+                        .offset(x: offen ? s.links + s.breite / 2 - g.size.width / 2 : 0)
+                        .opacity(snFenster.offen ? 0.35 : 1)
+                        .allowsHitTesting(!snFenster.offen)
+                        .animation(Kurve.sn(0.45), value: snFenster.offen)
+                }
+                .padding(.bottom, offen ? 40 : 28)
+                .frame(width: g.size.width)
             }
-            .padding(.bottom, 28)
             toastSchicht
         }
         .animation(nil, value: modell.route.seite)
