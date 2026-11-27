@@ -35,6 +35,11 @@ export function rolle(name: string): string {
   return readFileSync(join(ordner(), name, "rolle.md"), "utf8");
 }
 
+export function bauregeln(name: string): string {
+  const datei = join(ordner(), name, "bauregeln.md");
+  return existsSync(datei) ? readFileSync(datei, "utf8") : "";
+}
+
 export function mandat(name: string): Mandat {
   const roh = parse(readFileSync(join(ordner(), name, "mandat"), "utf8"));
   const fehlt = ["bereich", "rundgang", "befugnisse", "budget", "modellstufen"].filter((f) => roh?.[f] === undefined);

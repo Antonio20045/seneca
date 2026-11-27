@@ -53,7 +53,7 @@ test("PF12 Rahmen überschritten: genau eine Frage, nur dieser Auftrag hält", a
 test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife, Neu versuchen startet sofort", async () => {
   const p = ladePlugin();
   um("09:00");
-  const a = auftragVonAntonio(p.db, "Rundgang Engineer");
+  const a = auftragVonAntonio(p.db, "Rundgang Engineer", { verantwortlich: "engineer" });
   let versuche = 0;
   const abgelehnt = async () => {
     versuche++;
@@ -74,6 +74,7 @@ test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife,
   await faelligeAuftraegeJob(p.db, p.starte);
   assert.equal(p.starts.length, 1);
   assert.equal(hole(p.db, "auftrag", a).zustand, "laeuft");
+  assert.match(p.kontext(p.starts[0].sessionKey) ?? "", /# Bauregeln/);
 });
 
 test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
