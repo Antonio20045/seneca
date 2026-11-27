@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Register } from "../register/schema.ts";
-import { befund, ereignis, wertSetzen } from "../register/schreiben.ts";
+import { befund, ereignis, uebergang, wertSetzen } from "../register/schreiben.ts";
 import { regelMs, regelText } from "../regeln.ts";
 import { anzeigeName, mandat, mitarbeiter, ordner } from "../team.ts";
 
@@ -22,10 +22,10 @@ export async function mitarbeiterVerwalten(db: Register, befehl: Befehl, p: Eing
   const befugt = (neu: (liste: string[]) => string[]) => writeFileSync(seneca, readFileSync(seneca, "utf8").replace(/(unterauftrag_an: \[)([^\]]*)\]/, (_, a, l) => `${a}${neu(l.split(/,\s*/).filter(Boolean)).join(", ")}]`));
   if (aktion === "ruhen") return wertSetzen(db, `ruht:${name}`, p.ruht === false ? "nein" : "ja", "seneca", p.bis), `${anzeigeName(name)} ${p.ruht === false ? "arbeitet wieder" : "ruht"}.`;
   if (aktion === "loeschen") {
-    if (db.prepare("SELECT 1 FROM auftrag WHERE verantwortlich = ? AND zustand NOT IN ('erledigt', 'verworfen')").get(name)) throw new Error(`${name} hat noch offene Aufträge.`);
-    await gateway("agents.delete", { agentId: name, deleteFiles: true });
-    rmSync(ort, { recursive: true, force: true });
-    befugt((l) => l.filter((x) => x !== name));
+    const offen = db.prepare("SELECT id, zustand FROM auftrag WHERE verantwortlich = ? AND zustand NOT IN ('erledigt', 'verworfen')").all(name) as { id: string; zustand: string }[];
+    if (offen.some((x) => x.zustand === "laeuft")) throw new Error(`${name} arbeitet gerade an einem Auftrag.`);
+    offen.forEach((x) => uebergang(db, "auftrag", x.id, "verworfen", "mitarbeiter_geloescht"));
+    await gateway("agents.delete", { agentId: name, deleteFiles: true }), rmSync(ort, { recursive: true, force: true }), befugt((l) => l.filter((x) => x !== name));
   } else if (aktion === "anlegen" || aktion === "aendern") {
     const alt = DATEIEN.map((f) => (existsSync(join(ort, f)) ? readFileSync(join(ort, f), "utf8") : null)), neu = [p.rolle, p.mandat];
     if (aktion === "anlegen" && neu.some((t) => !t)) throw new Error("Zum Anlegen gehören rolle und mandat.");
