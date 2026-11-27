@@ -168,6 +168,7 @@ export function uebung(db: Register, jetzt: number, name?: string) {
       return [tagVon(t.zeit) === tagVon(jetzt) ? `HEUTE ${new Date(t.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : kurz(t.zeit), `${kgText(t.kg)} kg × ${t.w.join(" · ")}`, neu ? `erstmals ${kgText(t.kg)} kg` : t === l ? voll(t) : "", neu];
     }),
     hinweis: vorschlag && l ? `${gross(vorschlag)}. Nächstes Mal ${kgText(l.kg + regelZahl("kraft_schritt_kg"))} kg im ersten Satz? Die Uhr schlägt es dann vor.` : null,
+    uhr: l ? [u, u, vorschlag ? l.kg + regelZahl("kraft_schritt_kg") : l.kg, l.w[0]] : null,
   };
 }
 
@@ -182,6 +183,6 @@ export function buch(db: Register, jetzt: number, name?: string) {
     prognose: tempo && von > s ? `Bei ${{ 15: "einer Viertelstunde", 30: "einer halben Stunde", 45: "einer Dreiviertelstunde", 60: "einer Stunde" }[z] ?? `${z} Minuten`} am Tag bist du um den ${datum(tagVon(jetzt) + Math.ceil((von - s) / Math.round(tempo)) * regelMs("ein_tag_tage"), { day: "numeric", month: "long" })} durch.` : null,
     zahlen: [[stunden(woche.reduce((a, x) => a + Number(x.w.m ?? 0), 0)), "STD", "diese Woche"], [String(heute), `VON ${z}`, "heute"], tempo ? [String(Math.round(tempo)), `S. / ${z} MIN`, "dein Tempo"] : null].filter(Boolean),
     zuletzt: e.slice(-2).reverse().map((x) => { const i = mit.indexOf(x); return [kurz(x.zeit), `${x.w.m} Min`, i > 0 ? `Seite ${mit[i - 1].w.s} bis ${x.w.s}` : x.w.s ? `bis Seite ${x.w.s}` : ""]; }),
-    notiz: notiz ? { kopf: `DEINE NOTIZ${notiz.w.s ? ` · S. ${notiz.w.s}` : ""} · ${kurz(notiz.zeit)}`, text: String(notiz.w.t) } : null,
+    uhr: { b, h: heute, z }, notiz: notiz ? { kopf: `DEINE NOTIZ${notiz.w.s ? ` · S. ${notiz.w.s}` : ""} · ${kurz(notiz.zeit)}`, text: String(notiz.w.t) } : null,
   };
 }
