@@ -173,7 +173,6 @@ export function uebung(db: Register, jetzt: number, name?: string) {
     uhr: l ? [u, u, vorschlag ? l.kg + regelZahl("kraft_schritt_kg") : l.kg, l.w[0]] : null,
   };
 }
-
 export function buch(db: Register, jetzt: number, name?: string) {
   const les = alle(db, "lesen"), b = name ?? [...les].reverse().find((x) => x.w.b)?.w.b;
   if (!b) return null; const e = les.filter((x) => x.w.b === b), mit = e.filter((x) => x.w.s), z = ziel(db, "lesen_min") || 30, l = mit.at(-1), von = Number(l?.w.von ?? 0), s = Number(l?.w.s ?? 0);
@@ -188,7 +187,4 @@ export function buch(db: Register, jetzt: number, name?: string) {
     uhr: { b, h: heute, z }, notiz: notiz ? { kopf: `DEINE NOTIZ${notiz.w.s ? ` · S. ${notiz.w.s}` : ""} · ${kurz(notiz.zeit)}`, text: String(notiz.w.t) } : null,
   };
 }
-
-export function mitBereich(k: { statistiken?: { titel: string; grund?: string; bereich?: string }[] } | null) {
-  return k && { ...k, statistiken: (k.statistiken ?? []).map((s) => ({ ...s, bereich: lebensbereich(`${s.titel} ${s.grund ?? ""}`, s.bereich) })) };
-}
+export const mitBereich = (k: { statistiken?: { titel: string; grund?: string; bereich?: string }[] } | null) => k && { ...k, statistiken: (k.statistiken ?? []).map((s) => ({ ...s, bereich: lebensbereich(`${s.titel} ${s.grund ?? ""}`, s.bereich) })) };
