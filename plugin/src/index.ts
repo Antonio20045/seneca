@@ -26,7 +26,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
-import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
+import { anzeigeSetzen, eintragSetzen, frageStellen, fragenZurueckziehen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { regelMs, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
@@ -49,15 +49,17 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
       termin: O(Type.Object({ titel: S, start: Z, ende: Z, ort: O(S) })) }),
     (db, k, p) => werkzeugAuftrag(db, k, p as AuftragEingabe)],
-  ["seneca_fortschreiben", "Pflicht am Ende jedes Laufs: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Bei fertig: abnahme_art text, test, hoerprobe oder bau; bei Hörprobe hoerprobe_s. checkliste: was fertig ist und was offen bleibt; bericht: kurz, z. B. „4 Dateien · Tests grün“.",
+  ["seneca_fortschreiben", "Pflicht am Ende jedes Laufs: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Bei fertig: abnahme_art text, test, hoerprobe oder bau; bei Hörprobe hoerprobe_s; abnahme: kursiv (Halbsatz zum Titel), transkript, geaendert, vorher (Datei), vorher_s, unterschied (Text mit [-weg-] {+neu+}, Code als Zeilen mit „+ “/„- “), dateien, folge („Passt: …“), ergebnis (Test in einem Satz). checkliste: was fertig ist und was offen bleibt; bericht: kurz, z. B. „4 Dateien · Tests grün“.",
     Type.Object({ letzter_stand: S, naechster_schritt: S, ergebnis: S, beleg: O(S), wartet_auf: O(S), folge: O(S), nachfass_um: O(Z), schritt_nr: O(Z),
       schritt_gesamt: O(Z), befunde: O(Type.Array(S)), stufe: O(S), abnahme_art: O(S), hoerprobe_s: O(Z),
+      abnahme: O(Type.Object({ kursiv: O(S), transkript: O(S), geaendert: O(S), vorher: O(S), vorher_s: O(Z), unterschied: O(Type.Array(S)), dateien: O(Z), folge: O(S), ergebnis: O(S) })),
       checkliste: O(Type.Array(Type.Object({ text: S, fertig: Type.Boolean() }))), bericht: O(S) }),
     (db, k, p) => werkzeugFortschreiben(db, k.sitzung, p as Fortschreibung)],
-  ["seneca_frage", "Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
+  ["seneca_frage", "Frage zurückziehen (art zurueckziehen, frage_id, text: ein Satz, was jetzt passiert), Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
     Type.Object({ art: S, auftrag_id: O(S), text: O(S), was_passiert_ist: O(S), wenn_nichts: O(S), empfehlung: O(S), fragenart: O(S),
       optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S) }),
     (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
+      : p.art === "zurueckziehen" ? fragenZurueckziehen(db, String(p.frage_id), k.agent, String(p.text))
       : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
   ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
     Type.Object({ name: S, untertitel: O(S), worum: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),

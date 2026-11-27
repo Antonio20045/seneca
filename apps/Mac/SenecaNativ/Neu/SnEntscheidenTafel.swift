@@ -50,9 +50,13 @@ struct SnEntscheidenTafel: View {
 
     @State private var wahl: [String: String] = [:]
     @State private var mehr: Set<String> = []
-    @State private var beantwortet: [String: (wahl: String, um: Date)] = [:]
+    @State var beantwortet: [String: (wahl: String, um: Date)] = [:]
+    @State var spaeter: [String: Date] = [:]
+    @State var zurueck: Set<String> = []
     @State private var nachbessern: String?
     @State private var notiz = ""
+    @State var imBuendel = false
+    @State var pausiert: Date?
 
     private typealias L = HeuteTafelLogik
 
@@ -61,6 +65,15 @@ struct SnEntscheidenTafel: View {
     }
 
     var body: some View {
+        if imBuendel {
+            SnBuendelTafel(stand: stand, handle: handle, pause: { withAnimation(Kurve.sn(0.3)) { imBuendel = false; pausiert = Date() } })
+                .transition(.opacity)
+        } else {
+            seiteFragen
+        }
+    }
+
+    private var seiteFragen: some View {
         GeometryReader { g in
             ScrollView(.vertical, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 84) {
@@ -93,6 +106,7 @@ struct SnEntscheidenTafel: View {
                     .tracking(-0.5).hoehe(46.6).fixedSize(horizontal: false, vertical: true)
             }
             ForEach(fragen) { f in karte(f).padding(.top, 28) }
+            ForEach(stand.vorbei ?? []) { v in vorbei(v).padding(.top, 14) }
             buendel.padding(.top, 26)
         }
     }
@@ -117,6 +131,16 @@ struct SnEntscheidenTafel: View {
             }
             .font(Schrift.mono(11)).tracking(1)
             Text(f.text).font(Schrift.grotesk(22, .medium)).hoehe(30).foregroundStyle(.white).padding(.top, 10).fixedSize(horizontal: false, vertical: true)
+            if f.antwort == nil, let g = f.zustellung?.first(where: { $0.was == "gesehen" && $0.geraet != "mac" }), let z = g.zeit {
+                HStack(spacing: 7) {
+                    Circle().fill(TafelFarbe.leise).frame(width: 5, height: 5)
+                    Text("\(g.geraet == "uhr" ? "an der Uhr" : "am iPhone") gesehen · \(L.uhr(z))")
+                }
+                .font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).padding(.top, 6)
+            }
+            if zurueck.contains(f.id) {
+                Text("Zurückgenommen. Die Frage ist wieder offen.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit).padding(.top, 10).transition(.opacity)
+            }
             if mehr.contains(f.id) {
                 Text([f.kontext?.worum, f.kontext?.wenn_nicht.map { "Wenn nichts passiert: \($0)" }].compactMap { $0 }.joined(separator: "\n"))
                     .font(Schrift.grotesk(14)).hoehe(21).foregroundStyle(TafelFarbe.zweit).padding(.top, 8).fixedSize(horizontal: false, vertical: true)
@@ -130,6 +154,8 @@ struct SnEntscheidenTafel: View {
             }
             if let b = beantwortet[f.id] {
                 quittung(f, b.wahl, seit: b.um).padding(.top, 18)
+            } else if let seit = spaeter[f.id] {
+                spaeterQuittung(f, seit: seit).padding(.top, 18)
             } else {
                 HStack(spacing: 10) {
                     if optionen.contains(where: { $0.titel != nil }) || optionen.count == 1 {
@@ -139,7 +165,7 @@ struct SnEntscheidenTafel: View {
                             Button(o.knopf ?? o.text ?? "") { senden(f, o.wert) }.buttonStyle(SnTafelKnopf(art: i == 0 ? .voll : .rand))
                         }
                     }
-                    Button("Später") { antworte(f.id, "spaeter") }.buttonStyle(SnTafelKnopf(art: .rand))
+                    Button("Später") { zurueck.remove(f.id); spaeter[f.id] = Date() }.buttonStyle(SnTafelKnopf(art: .rand))
                     Button("Mehr") { withAnimation(Kurve.sn(0.3)) { if mehr.contains(f.id) { mehr.remove(f.id) } else { mehr.insert(f.id) } } }
                         .buttonStyle(SnTafelKnopf(art: .leise))
                     Spacer(minLength: 12)
@@ -185,18 +211,60 @@ struct SnEntscheidenTafel: View {
     private func quittung(_ f: SenecaStand.Frage, _ w: String, seit: Date) -> some View {
         let o = f.optionen?.first { $0.wert == w }
         let frist = stand.regeln?["rueckgaengig_s"] ?? 5
-        return HStack(spacing: 14) {
-            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
-            Text(o?.titel?.components(separatedBy: " · ").first ?? o?.text ?? w).font(Schrift.grotesk(15, .medium)).foregroundStyle(.white)
-            TimelineView(.periodic(from: seit, by: 0.1)) { t in
-                let rest = max(0, frist - t.date.timeIntervalSince(seit))
-                if rest > 0 {
-                    Button("Rückgängig") { handle("rueckgaengig", f.id, nil); beantwortet[f.id] = nil }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14))
-                    Capsule().fill(TafelFarbe.himmel.opacity(0.5)).frame(width: 60 * rest / frist, height: 3).frame(width: 60, alignment: .leading)
+        return TimelineView(.periodic(from: seit, by: 0.1)) { t in
+            let rest = max(0, frist - t.date.timeIntervalSince(seit))
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
+                    Text(o?.quittung ?? o?.text ?? w).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white)
+                    Spacer()
+                    if rest > 0 {
+                        Button("Rückgängig") { handle("rueckgaengig", f.id, nil); beantwortet[f.id] = nil; zurueck.insert(f.id) }
+                            .buttonStyle(.plain).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.himmel)
+                    }
                 }
+                GeometryReader { g in
+                    Capsule().fill(Color.white.opacity(0.12)).overlay(alignment: .leading) { Capsule().fill(TafelFarbe.zweit).frame(width: g.size.width * rest / frist) }
+                }
+                .frame(height: 3).opacity(rest > 0 ? 1 : 0)
             }
-            Spacer()
         }
+    }
+
+    private func spaeterQuittung(_ f: SenecaStand.Frage, seit: Date) -> some View {
+        let frist = stand.regeln?["rueckgaengig_s"] ?? 5
+        let um = f.spaeter_bis ?? stand.jetzt
+        let fenster = stand.entscheiden?.fenster.map { L.uhr($0) == L.uhr(um) } ?? false
+        let morgen = Calendar.current.startOfDay(for: L.datum(um)) > Calendar.current.startOfDay(for: L.datum(stand.jetzt))
+        return TimelineView(.periodic(from: seit, by: 0.1)) { t in
+            let rest = max(0, frist - t.date.timeIntervalSince(seit))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Kommt \(morgen ? "morgen " : "")um \(L.uhr(um)) wieder").font(Schrift.grotesk(15, .medium)).foregroundStyle(.white)
+                HStack(spacing: 0) {
+                    Text(fenster ? "im Entscheidungsfenster · " : "vor der Frist · ")
+                    Button("Rückgängig") { spaeter[f.id] = nil }.buttonStyle(.plain).foregroundStyle(TafelFarbe.himmel)
+                }
+                .font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                GeometryReader { g in
+                    Capsule().fill(Color.white.opacity(0.12)).overlay(alignment: .leading) { Capsule().fill(TafelFarbe.zweit).frame(width: g.size.width * rest / frist) }
+                }
+                .frame(height: 3).padding(.top, 6)
+            }
+            .onChange(of: rest == 0) { _, aus in if aus { antworte(f.id, "spaeter"); spaeter[f.id] = nil } }
+        }
+    }
+
+    private func vorbei(_ v: SenecaStand.Vorbei) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if v.zustand == "abgelaufen" {
+                Text((["ABGELAUFEN", v.frist.map { L.frist($0, jetzt: stand.jetzt) }] as [String?]).compactMap { $0 }.joined(separator: " · ").uppercased())
+                    .font(Schrift.mono(11, .medium)).tracking(1).foregroundStyle(TafelFarbe.leise)
+            }
+            Text(v.text).font(Schrift.grotesk(17)).strikethrough().foregroundStyle(TafelFarbe.leise)
+            if let s = v.satz { Text(s).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit) }
+        }
+        .padding(.horizontal, 26).padding(.vertical, 16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
     }
 
     private func senden(_ f: SenecaStand.Frage, _ w: String?) {
@@ -207,6 +275,62 @@ struct SnEntscheidenTafel: View {
 
     @ViewBuilder private var buendel: some View {
         if let b = stand.buendel, let p = b.fortschritt, p.gesamt > 0 {
+            if let z = p.abschluss {
+                Self.ablaufKarte(L.uhr(stand.jetzt), z) {
+                    HStack(spacing: 22) {
+                        ForEach([((p.passt ?? []).count, "PASST"), ((p.zurueck ?? []).count, "NACHBESSERN")], id: \.1) { n, t in
+                            VStack(alignment: .leading, spacing: 0) { Text("\(n)").font(Schrift.grotesk(26, .medium)).foregroundStyle(.white); Text(t).font(Schrift.mono(10)).foregroundStyle(TafelFarbe.leise) }
+                        }
+                    }
+                    Text(stand.entscheiden?.danach_kurz ?? "").font(Schrift.grotesk(12)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.zweit).padding(.top, 10)
+                }
+            } else if let seit = pausiert, let z = p.pause {
+                Self.ablaufKarte("PAUSIERT · " + L.uhr(seit.timeIntervalSince1970 * 1000), z) {
+                    Text(p.pause_satz ?? "").font(Schrift.grotesk(12)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 16)
+                    HStack(spacing: 6) {
+                        Button("Weiter ↩") { withAnimation(Kurve.sn(0.3)) { imBuendel = true } }.buttonStyle(SnTafelKnopf(groesse: 12)).keyboardShortcut(.return, modifiers: [])
+                        Button("Rest auf morgen") { pausiert = nil }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 12))
+                    }
+                }
+            } else if p.fertig == 0, let z = p.start {
+                Self.ablaufKarte([stand.entscheiden?.fenster.map { L.uhr($0) }, "ENTSCHEIDUNGSFENSTER"].compactMap { $0 }.joined(separator: " · "), z) {
+                    Text([p.zaehlung, p.arten].compactMap { $0 }.joined(separator: "\n")).font(Schrift.grotesk(12)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.zweit)
+                    Spacer(minLength: 16)
+                    HStack(spacing: 6) {
+                        Button("Anfangen ↩") { withAnimation(Kurve.sn(0.3)) { imBuendel = true } }.buttonStyle(SnTafelKnopf(groesse: 12)).keyboardShortcut(.return, modifiers: [])
+                        Button("Nach dem Angebot") { pausiert = nil }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 12)).disabled(fragen.isEmpty)
+                    }
+                }
+            } else {
+                laufend(b, p)
+            }
+        }
+    }
+
+    var kartenBild: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(fragen) { f in karte(f) }
+            ForEach(stand.vorbei ?? []) { v in vorbei(v) }
+        }
+        .frame(width: 880)
+    }
+
+    var buendelBild: some View { buendel.frame(width: 424, height: 250, alignment: .topLeading) }
+
+    static func ablaufKarte<Inhalt: View>(_ kicker: String, _ satz: [String], @ViewBuilder inhalt: () -> Inhalt) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(kicker.uppercased()).font(Schrift.mono(10, .medium)).tracking(1.1).foregroundStyle(TafelFarbe.leise).padding(.bottom, 8)
+            (Text((satz.first ?? "") + " ").foregroundColor(.white) + Text(satz.dropFirst().joined(separator: " ")).font(Schrift.serif(22, kursiv: true)).foregroundColor(TafelFarbe.akzent))
+                .font(Schrift.serif(22)).lineHeight(.exact(points: 24.2)).fixedSize(horizontal: false, vertical: true).padding(.bottom, 10)
+            inhalt()
+        }
+        .padding(18).frame(width: 424, height: 250, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.12), location: 0), .init(color: .clear, location: 0.03)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+    }
+
+    private func laufend(_ b: SenecaStand.Buendel, _ p: SenecaStand.Fortschritt) -> some View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("BÜNDEL · " + (p.titel ?? "").uppercased()).font(Schrift.mono(12, .medium)).tracking(1.4).foregroundStyle(TafelFarbe.zweit)
@@ -230,7 +354,6 @@ struct SnEntscheidenTafel: View {
                     .padding(.leading, 32).padding(.top, 10)
                 }
             }
-        }
     }
 
     private func abnahme(_ a: SenecaStand.Abnahme) -> some View {
@@ -252,8 +375,8 @@ struct SnEntscheidenTafel: View {
                     HStack(spacing: 10) {
                         Button("Passt") { handle("abnahme.passt", a.id, nil) }.buttonStyle(SnTafelKnopf(groesse: 14)).keyboardShortcut(.return, modifiers: [])
                         Button("Nachbessern") { notiz = ""; nachbessern = a.id }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14)).keyboardShortcut("n", modifiers: [])
-                        if let s = a.hoerprobe_s, let beleg = a.beleg.flatMap(URL.init(string:)) {
-                            Button("▶ anhören, \(Int(s)) s") { NSWorkspace.shared.open(beleg) }.buttonStyle(.plain)
+                        if let s = a.hoerprobe_s {
+                            Button("▶ anhören, \(Int(s)) s") { withAnimation(Kurve.sn(0.3)) { imBuendel = true } }.buttonStyle(.plain)
                                 .font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.himmel).padding(.leading, 6)
                         }
                     }

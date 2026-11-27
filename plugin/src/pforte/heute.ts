@@ -3,7 +3,7 @@ import type { Register } from "../register/schema.ts";
 import { regelListe, regelMs, regelZahl } from "../regeln.ts";
 import { istFokus } from "./planen.ts";
 
-export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
+export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn", "zwanzig"];
 const STUNDE = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"];
 
 type Termin = ReturnType<typeof termineAm>[number];

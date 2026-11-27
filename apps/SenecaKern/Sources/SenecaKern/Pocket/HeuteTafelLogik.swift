@@ -22,7 +22,7 @@ enum HeuteTafelLogik {
     static func datum(_ ms: Double) -> Date { Date(timeIntervalSince1970: ms / 1000) }
 
     static func beispiel(_ name: String = "Beispiel-Stand") -> SenecaStand? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
+        guard let url = name.hasPrefix("/") ? URL(fileURLWithPath: name) : Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(SenecaStand.self, from: roh)
     }
 

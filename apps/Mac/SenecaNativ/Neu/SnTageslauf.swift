@@ -78,6 +78,12 @@ enum HeuteBild {
                     case "statistik":
                         if let d = HeuteTafelLogik.beispielStatistik() { SnStatistikTafel(daten: d, stand: s.jetzt) }
                         SnGeruestBild(stand: s, aktiv: .statistik, dock: false)
+                    case "buendel":
+                        SnBuendelTafel(stand: s, handle: { _, _, _ in }, pause: {})
+                    case "f-lebenslauf":
+                        SnFrageLebenslaufBild(stand: s)
+                    case "buendel-ablauf":
+                        SnBuendelAblaufBild(stand: s)
                     case "entscheiden":
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)

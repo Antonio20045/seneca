@@ -64,7 +64,7 @@ function frageSicht(db: Register, f: Zeile, jetzt: number) {
   const bis = g.zeit_fuer ? erinnernUm(db, jetzt) : undefined;
   return {
     id: f.id, text: f.text, kurz: g.kurz ?? null, zeit: bis ? `Bis ${new Date(bis).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} hast du Zeit für ${g.zeit_fuer}.` : null, von: anzeigeName(String(f.von)), projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, ...optionenSicht(f),
-    empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab,
+    empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab, spaeter_bis: spaeterBis(db, String(f.id), jetzt),
     zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null, ...bericht(db, String(f.auftrag_id)),
   };
@@ -145,6 +145,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     ruhe: ruhe(db, jetzt) ?? null,
     heute: heute(db, ruhe(db, jetzt), jetzt),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
+    vorbei: ["abgelaufen", "zurueckgezogen"].flatMap((z) => fragen(db, z)).map((f) => ({ id: f.id, text: f.text, zustand: f.zustand, frist: f.frist, satz: f.grund,
+      um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
     braucht_dich: braucht.map((f) => ({ ...frageSicht(db, f, jetzt), mitteilung: mitteilung(db, f, braucht.length - 1) })),
     buendel: b,
     projekte: projekte(db, jetzt, ruhe(db, jetzt)?.grund === "fokus"),
