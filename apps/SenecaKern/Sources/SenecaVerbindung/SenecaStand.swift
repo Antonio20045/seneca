@@ -29,7 +29,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wirkt_ab: Double?
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
-        public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?; public var spaeter_bis: Double?
+        public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?; public var spaeter_bis: Double?; public var zurueckgehalten: String?
         public var grund: String?; public var lage: String?; public var rueckfragen: [String]?; public var haengt: [Haengt]?; public var davor: [Zuletzt]?
         public struct Haengt: Codable, Equatable, Sendable { public var um: Double; public var text: String }
     }

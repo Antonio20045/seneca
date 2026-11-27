@@ -3,7 +3,7 @@ import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
 import { berichte, rueckblick } from "./berichte.ts";
 import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
-import { buendelText, heute, koerper, projektVon, restMin, ungefaehr, uhrzeit, ZAHLWORT } from "./heute.ts";
+import { buendelText, heute, koerper, projektVon, restMin, stundeAlsWort, ungefaehr, uhrzeit, ZAHLWORT } from "./heute.ts";
 import { projekte } from "./projekte.ts";
 import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
@@ -62,12 +62,14 @@ function vorschlagAnUhr(db: Register): Zeile | undefined {
 function frageSicht(db: Register, f: Zeile, jetzt: number) {
   const g = JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}"));
   const bis = g.zeit_fuer ? erinnernUm(db, jetzt) : undefined;
+  const zst = ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: Number(e.zeit), ...JSON.parse(String(e.daten)) }));
+  const halt = zst.find((z) => z.was === "zurueckgehalten"), frei = halt && zst.findLast((z) => z.zeit > halt.zeit && z.was !== "zurueckgehalten");
   return {
     id: f.id, text: f.text, kurz: g.kurz ?? null, zeit: bis ? `Bis ${new Date(bis).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} hast du Zeit für ${g.zeit_fuer}.` : null, von: anzeigeName(String(f.von)), projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, ...optionenSicht(f),
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab, spaeter_bis: spaeterBis(db, String(f.id), jetzt),
-    zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
+    zustellung: zst, rueckfragen: g.rueckfragen ?? [], zurueckgehalten: frei ? `Bis ${stundeAlsWort(frei.zeit)} zurückgehalten${halt.grund === "fokus" ? ", weil du im Fokus warst" : ""}.` : null,
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null, ...bericht(db, String(f.auftrag_id)),
-    grund: g.grund ?? null, lage: g.lage ?? null, rueckfragen: g.rueckfragen ?? [], haengt: g.haengt ?? [],
+    grund: g.grund ?? null, lage: g.lage ?? null, haengt: g.haengt ?? [],
     davor: heuteSaetze(db, String(f.von), letzteUhrzeit(regelText("tag_grenze"), jetzt)).slice(-regelZahl("mehr_davor")),
   };
 }

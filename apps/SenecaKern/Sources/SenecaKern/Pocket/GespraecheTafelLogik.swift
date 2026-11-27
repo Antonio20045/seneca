@@ -84,14 +84,13 @@ enum GespraecheTafelLogik {
     }
 
     static func mehrKopf(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
-        ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, gehalten(f, s).map { "bis \(KalenderLogik.stunde($0.bis)) zurückgehalten" }]
+        ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zurueckgehalten.map { String($0.split(separator: ",")[0]).replacingOccurrences(of: ".", with: "") }]
             .compactMap { $0 }.joined(separator: " · ").uppercased()
     }
 
     static func gehaltenSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> (um: Double, satz: String)? {
-        guard let g = gehalten(f, s), g.bis <= s.jetzt else { return nil }
-        let weil = ["fokus": "du im Fokus warst", "nacht": "Nachtruhe war", "training": "du trainiert hast", "laufen": "du laufen warst", "schlaf": "du geschlafen hast"][g.grund] ?? "du Ruhe wolltest"
-        return (g.bis, "Seneca: Bis \(KalenderLogik.stunde(g.bis)) zurückgehalten, weil \(weil).")
+        guard let g = gehalten(f, s), let t = f.zurueckgehalten else { return nil }
+        return (g.bis, "Seneca: " + t)
     }
 
     static func wennJa(_ f: SenecaStand.Frage) -> String {

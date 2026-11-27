@@ -97,8 +97,10 @@ extension FadenLayer {
 
     private func frage(_ n: ChatMessage, oben: CGFloat, letzte: Bool, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
         let anzeige = FadenLogik.zustandsAnzeige(n.zustand, istLetzteEigene: letzte, antwortFehlt: antwortFehlt)
+        let z = ChatAnhang.zerlege(n.text)
         return VStack(alignment: .trailing, spacing: Stil.abstand.xs) {
-            FadenFrage(text: n.text, breite: m.size.width, zeit: n.date)
+            if !z.namen.isEmpty { AnhangImFaden(namen: z.namen, sendet: n.zustand == .wirdGesendet) }
+            if !z.text.isEmpty, z.text != ChatAnhang.leerText { FadenFrage(text: z.text, breite: m.size.width, zeit: n.date) }
             if let anzeige { FadenFrageZustand(anzeige: anzeige, erneut: { erneutSenden(n, proxy) }) }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -142,10 +144,14 @@ extension FadenLayer {
         }
     }
 
+    private var frageVomPartner: SenecaStand.Frage? { store.stand.flatMap { s in TeamLogik.offeneFragen(s).first { $0.von == partner.kopfName } } }
+
     @ViewBuilder private func endeSatz(faden: ChatFaden, letzteEigene: ChatMessage?) -> some View {
         if partner.id == ChatPartner.seneca.id, let s = store.stand {
             ForEach(s.auftraege_neu ?? []) { ChatAuftragKarte(auftrag: $0).padding(.top, 10) }
             if let w = s.wartet { ChatHinweis(satz: w, farbe: TafelFarbe.bernstein).padding(.top, 18) }
+        } else if let z = frageVomPartner?.zurueckgehalten {
+            Text("Seneca: \(z)").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(19, schrift: 13).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 12)
         }
         if let schluss = model.schluss[partner.id], !faden.messages.isEmpty, letzteEigene?.zustand != .fehlgeschlagen {
             HinweisZeile(schluss, art: schluss == "Die Antwort ist nicht angekommen." ? .fehler : .info)
@@ -156,7 +162,7 @@ extension FadenLayer {
                     .transition(.opacity.animation(Bewegung.wechsel.kurve.delay(0.6)))
             } else if faden.problem != nil && !faden.geladen {
                 HinweisZeile("Das Gespräch konnte gerade nicht geladen werden.", art: .fehler)
-            } else {
+            } else if frageVomPartner == nil {
                 LeerSatz(partner.id == ChatPartner.seneca.id
                          ? "Noch nichts geschrieben. Frag Seneca, was du wissen willst."
                          : "\(partner.satzName) hat dir hier noch nichts geschrieben.")
