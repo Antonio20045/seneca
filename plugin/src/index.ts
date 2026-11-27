@@ -96,11 +96,9 @@ function werkzeug(db: Register, [name, description, parameters, ausfuehren]: (ty
   });
 }
 
-function skillLeser(workspaceDir?: string) {
-  return (_wer: string, arbeitsart: string) => {
-    const pfad = join(workspaceDir ?? "", "skills", arbeitsart, "SKILL.md");
-    return workspaceDir && existsSync(pfad) ? readFileSync(pfad, "utf8") : undefined;
-  };
+function skillLeser(wer: string, arbeitsart: string): string | undefined {
+  const pfad = join(process.env.OPENCLAW_STATE_DIR ?? join(homedir(), ".openclaw"), "agents", wer, "agent", "workshop-skills", arbeitsart.replaceAll("_", "-"), "SKILL.md");
+  return existsSync(pfad) ? readFileSync(pfad, "utf8") : undefined;
 }
 
 export default {
@@ -109,6 +107,11 @@ export default {
   description: "Register, Arbeitsdienst, Pforte und Ausgang für Seneca und sein Team.",
   register(api: OpenClawPluginApi) {
     const ordner = (api.pluginConfig?.ordner as string | undefined) ?? join(homedir(), ".openclaw", "seneca");
+    const repo = api.pluginConfig?.repo as string | undefined;
+    if (repo) {
+      process.env.SENECA_REGELN ??= join(repo, "regeln");
+      process.env.SENECA_TEAM ??= join(repo, "team");
+    }
     const db = oeffne(join(ordner, "register.sqlite"));
     const kalender = geheim(api, "kalender");
     const senden = pushSender(geheim(api, "push"));
@@ -126,12 +129,15 @@ export default {
       if (event.currentUserMessage && event.currentUserMessageId) {
         merkeNachricht(sitzung, { kennung: event.currentUserMessageId, text: event.currentUserMessage, vonAntonio: ctx.inputProvenance?.kind === "external_user" });
       }
-      const text = kontext(db, sitzung, skillLeser(ctx.workspaceDir));
+      const text = kontext(db, sitzung, skillLeser);
       return text ? { prependContext: text } : undefined;
     });
     api.on("agent_end", (event, ctx) => {
-      const nutzung = event.messages.map((m) => (m as { usage?: { input?: number; output?: number } }).usage ?? {});
-      const tokens = { ein: nutzung.reduce((n, u) => n + (u.input ?? 0), 0), aus: nutzung.reduce((n, u) => n + (u.output ?? 0), 0) };
+      type Nutzung = { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } };
+      const nutzung = event.messages.map((m) => (m as { usage?: Nutzung }).usage ?? {});
+      const summe = (f: (u: Nutzung) => number | undefined) => nutzung.reduce((n, u) => n + (f(u) ?? 0), 0);
+      const dollar = nutzung.some((u) => u.cost?.total !== undefined) ? summe((u) => u.cost?.total) : undefined;
+      const tokens = { ein: summe((u) => (u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0)), aus: summe((u) => u.output), cent: dollar === undefined ? undefined : Math.round(dollar * 100) };
       agentEnde(db, ctx.sessionKey ?? "", JSON.stringify(event.messages.at(-1) ?? event.error ?? ""), tokens);
     });
 

@@ -8,7 +8,7 @@ import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { auftragVonAntonio, jaNeinFrage, ladePlugin, spaeter, um } from "./aufbau.ts";
 
 const ANRUF = "hermes__place_call";
-const MAIL = "mcp__zoho-mail__send_mail";
+const MAIL = "mcp__zoho-mail__zoho_mail_send_mail";
 
 async function imLauf(p: ReturnType<typeof ladePlugin>) {
   um("09:00");
@@ -70,7 +70,7 @@ test("PF05 d) Notar: Uhr-Ja 0, ausführliches Ja 1", async () => {
   const p = ladePlugin();
   const { sitzung } = await imLauf(p);
   wertSetzen(p.db, "kontakt:org:@notar-beispiel.de", "ausfuehrlich", "antonio");
-  const mail = { to: "buero@notar-beispiel.de", text: "Termin zur Beurkundung" };
+  const mail = { toAddress: "buero@notar-beispiel.de", content: "Termin zur Beurkundung" };
   assert.ok(p.aufruf(sitzung, MAIL, mail)?.block);
   const f = freigabe(p, "ausfuehrliches_ja");
   assert.equal(frageBeantworten(p.db, { frage_id: String(f?.id), antwort: "ja", geraet: "uhr", kennung: "u1", lokal: true }).ergebnis, "abgelehnt");

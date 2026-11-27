@@ -219,12 +219,12 @@ export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschr
   return { zustand: "notiert" };
 }
 
-export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, tokens: { ein: number; aus: number }): void {
+export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, tokens: { ein: number; aus: number; cent?: number }): void {
   const l = laufZurSitzung(db, sitzung);
   if (!l || !AKTIV.includes(String(l.zustand))) return;
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const jetzt = uhr.jetzt();
-  const verbrauch = { tokens_ein: tokens.ein, tokens_aus: tokens.aus, kosten_cent: kostenCent(tokens.ein, tokens.aus) };
+  const verbrauch = { tokens_ein: tokens.ein, tokens_aus: tokens.aus, kosten_cent: tokens.cent ?? kostenCent(tokens.ein, tokens.aus) };
   if (!l.fortgeschrieben) {
     laufEnde(db, String(l.id), "abgebrochen", { grund: "ohne Stand", ...verbrauch });
     befund(db, { art: "ohne_stand", auftrag_id: String(a.id), lauf_id: String(l.id), satz: "Der Lauf endete ohne Fortschreibung.", daten: { letzte_antwort: letzteAntwort.slice(0, regelZahl("befund_antwort_zeichen")) } });

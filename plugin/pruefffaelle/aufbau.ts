@@ -75,7 +75,7 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
     werkzeug: async (name: string, sitzung: string, agent: string, p: object) => (await (werkzeuge.get(name) as Fabrik)({ sessionKey: sitzung, agentId: agent }).execute("t", p)).details as Record<string, string>,
     nachricht: (sitzung: string, kennung: string, text: string, vonAntonio = true) => haken.get("before_prompt_build")?.(
       { prompt: text, messages: [], currentUserMessage: text, currentUserMessageId: kennung }, { sessionKey: sitzung, inputProvenance: { kind: vonAntonio ? "external_user" : "inter_session" } }),
-    kontext: (sitzung: string, workspaceDir?: string) => (haken.get("before_prompt_build")?.({ prompt: "", messages: [] }, { sessionKey: sitzung, workspaceDir }) as { prependContext?: string } | undefined)?.prependContext,
+    kontext: (sitzung: string) => (haken.get("before_prompt_build")?.({ prompt: "", messages: [] }, { sessionKey: sitzung }) as { prependContext?: string } | undefined)?.prependContext,
     ende: (sitzung: string, ausgabeTokens = 0) => haken.get("agent_end")?.({ messages: [{ role: "assistant", content: "Ich bin fertig.", usage: { input: 0, output: ausgabeTokens } }], success: true }, { sessionKey: sitzung }),
     empfangen: (kanal: string, messageId: string, from: string) => haken.get("message_received")?.({ content: "geheim", messageId, from }, { channelId: kanal }),
     methode: (name: string, params: Record<string, unknown>) => (methoden.get(name) as (o: { params: Record<string, unknown> }) => unknown)({ params }),
