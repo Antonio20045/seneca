@@ -139,10 +139,11 @@ struct RootView: View {
             setSide(SideState())
             if t.p < 0.5 { go(1, quick: false) }
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 950))
-            await TeilenVerarbeiten.fragen { text in
-                conversation.transcript = text
-                conversation.submitTyped()
-                return conversation.transcript.isEmpty
+            await TeilenVerarbeiten.fragen { text, an, bilder in
+                let p = an.flatMap { $0 == "Seneca" ? nil : ChatTafelLogik.partner($0) } ?? .seneca
+                store.chat.waehle(p)
+                for b in bilder { if let d = try? Data(contentsOf: b) { conversation.anhaengen(d, name: nil, mime: "image/jpeg", fuer: p) } }
+                return conversation.senden(text, an: p)
             }
         }
     }

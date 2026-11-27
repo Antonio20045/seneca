@@ -59,6 +59,8 @@ struct SenecaPocketApp: App {
             WidgetPreviewScreen()
         } else if let muster = GrundMusterSeite.ausDemo {
             GrundMusterSeite.ansicht(muster)
+        } else if ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"] == "teilen" {
+            TeilenDemo()
         } else if ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"] == "sinne" {
             SinneView(zurueck: nil)
         } else {

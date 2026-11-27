@@ -12,7 +12,10 @@ final class WidgetBridge {
         guard sink == nil else { return }
         sink = store.$stand.compactMap { $0 }
             .debounce(for: .milliseconds(600), scheduler: RunLoop.main)
-            .sink { [weak self] s in self?.schreiben(WidgetBridge.lage(s)) }
+            .sink { [weak self] s in
+                self?.schreiben(WidgetBridge.lage(s))
+                TeilenEingang.teamMerken((s.team ?? []).map { [$0.name, "\(ChatTafelLogik.punkt($0, s))"] })
+            }
     }
 
     static func lage(_ s: SenecaStand) -> WidgetLage {

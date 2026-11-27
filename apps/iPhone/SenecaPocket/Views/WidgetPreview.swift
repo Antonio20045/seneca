@@ -47,3 +47,31 @@ struct WidgetPreviewScreen: View {
     }
 }
 #endif
+
+#if DEBUG
+struct TeilenDemo: View {
+    @StateObject private var modell = TeilenModell()
+    private let pfad = ProcessInfo.processInfo.environment["SENECA_DEMO_ANHANG"] ?? ""
+
+    var body: some View {
+        GeometryReader { r in
+            ZStack(alignment: .bottom) {
+                Color.black.ignoresSafeArea()
+                if let b = UIImage(contentsOfFile: pfad) { Image(uiImage: b).resizable().scaledToFit().frame(maxHeight: .infinity, alignment: .top).padding(.top, 50).brightness(-0.25) }
+                TeilenBlatt(modell: modell, senden: {}, abbrechen: {}, fokus: false)
+                    .frame(height: r.size.height * 0.73)
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 36, topTrailingRadius: 36))
+            }
+            .ignoresSafeArea(edges: .bottom)
+        }
+        .onAppear {
+            guard let o = TeilenEingang.ordner, let d = FileManager.default.contents(atPath: pfad) else { return }
+            try? FileManager.default.createDirectory(at: o, withIntermediateDirectories: true)
+            try? d.write(to: o.appendingPathComponent("demo.png"))
+            TeilenEingang.teamMerken([["Engineer", "arbeitet"], ["Produkt", "fragt"], ["Prüfer", "arbeitet"]])
+            modell.frage = "Warum geht das nicht?"
+            modell.eintrag = TeilenEintrag(id: "demo", zeit: Date(), dateien: ["demo.png"], bilder: 1)
+        }
+    }
+}
+#endif
