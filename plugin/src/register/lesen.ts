@@ -54,7 +54,7 @@ export function laeufeSeit(db: Register, mitarbeiter: string, seit: number): Zei
 }
 
 export function anzeigen(db: Register, besitzer?: string, projekt?: string): Zeile[] {
-  return alle(db, `SELECT * FROM anzeige WHERE ${projekt ? "projekt = ?" : besitzer ? "besitzer = ? AND projekt NOT LIKE 'gespraech:%'" : "art = 'statistik'"} AND zustand != 'entfernt'`, ...(projekt ?? besitzer ? [projekt ?? besitzer] : []));
+  return alle(db, `SELECT * FROM anzeige WHERE ${projekt ? "projekt = ?" : besitzer ? "besitzer = ? AND projekt NOT LIKE 'gespraech:%'" : "art = 'statistik'"} AND zustand != 'entfernt'`, ...[projekt ?? besitzer].filter((x) => x !== undefined));
 }
 
 export function laeufe(db: Register, auftragId: string): Zeile[] {
