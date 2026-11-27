@@ -39,6 +39,14 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var fenster: Double?; public var abnahmen: [Abnahme]?; public var fragen: [Frage]?
         public var dauer_min: Double?; public var satz: String?; public var kurz: String?; public var fortschritt: Fortschritt?
     }
+    public struct Phase: Codable, Equatable, Sendable { public var name: String; public var zustand: String }
+    public struct ProjektZeile: Codable, Equatable, Sendable { public var art: String; public var id: String; public var text: String; public var wer: String?; public var rechts: String? }
+    public struct Projekt: Codable, Equatable, Sendable, Identifiable {
+        public var name: String; public var untertitel: String?; public var satz: String?; public var phasen: [Phase]?
+        public var zustand: String; public var frist: Double?; public var rechts: [String]?; public var zeilen: [ProjektZeile]?
+        public var id: String { name }
+    }
+    public struct Projekte: Codable, Equatable, Sendable { public var kopf: String?; public var satz: [String]?; public var liste: [Projekt]?; public var ruhen: String? }
     public struct Entschieden: Codable, Equatable, Sendable { public var zeit: Double?; public var titel: String; public var unter: String? }
     public struct Entscheiden: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
@@ -95,6 +103,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var braucht_dich: [Frage]?
     public var buendel: Buendel?
     public var entscheiden: Entscheiden?
+    public var projekte: Projekte?
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var termine: [Termin]?

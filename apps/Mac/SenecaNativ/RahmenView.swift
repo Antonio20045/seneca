@@ -114,7 +114,7 @@ struct RahmenView: View {
             SnChatSeite(modell: modell, steuerung: chatSteuerung, schliesse: { modell.zeigeGespraechSeite() })
                 .transition(.opacity.combined(with: .offset(y: 16)))
         case .projekte:
-            SnProjekteEcht(modell: modell)
+            SnProjekteEcht(modell: modell, store: modell.store)
         case .projekt: alteSeite { ProjektBuehneView(modell: modell, rand: 40) }
         case .bereich: alteSeite { BereichBuehneView(modell: modell, rand: 40) }
         case .kalender: SnEchteSeite(modell: modell) { _, projekte in SnKalenderSeite(projekte: projekte, route: modell.route) }

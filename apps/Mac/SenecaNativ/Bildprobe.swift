@@ -117,8 +117,7 @@ enum Bildprobe {
                     await ZeichenMessung.laufe(env: env, breite: breite, hoehe: hoehe)
                     exit(0)
                 default:
-                    inhalt = AnyView(SnProjektTabSeite(liste: liste, jetzt: jetzt, startBereich: env["SENECA_BILD_BEREICH"].flatMap { $0.isEmpty ? nil : $0 },
-                                                       startProjekt: env["SENECA_BILD_PROJEKT"].flatMap { $0.isEmpty ? nil : $0 }))
+                    inhalt = AnyView(EmptyView())
                 }
             }
             await schreibe(ZStack { SnGrund(fortschritt: 0); inhalt }, breite: breite, hoehe: hoehe)

@@ -1,6 +1,7 @@
 import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
+import { projekte } from "./projekte.ts";
 import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -105,6 +106,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     braucht_dich: braucht.map((f) => frageSicht(db, f)),
     buendel: b,
+    projekte: projekte(db, jetzt, ruhe(db, jetzt)?.grund === "fokus"),
     entscheiden: entscheiden(db, braucht.length + b.fragen.length, b.abnahmen.length > 0, tagBeginn, jetzt),
     team: team(db, jetzt).map((t) => ({ ...t, name: anzeigeName(t.name) })),
     gelernt: ereignisse(db, { art: "korrektur", seit: tagBeginn }).filter((e) => !zurueckgenommen(db, Number(e.nr))).map((e) => ({ nr: e.nr, zeile: e.satz, zeit: e.zeit })),
