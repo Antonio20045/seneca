@@ -56,6 +56,7 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
   const methoden = new Map<string, (o: { params: Record<string, unknown> }) => unknown>();
   const starts: { sessionKey: string; message: string; model: string; werkzeuge: string[] }[] = [];
   const api = {
+    rootDir: new URL("..", import.meta.url).pathname,
     pluginConfig: { ordner, ...mehr },
     registerTool: (f: Fabrik, o: { name: string }) => werkzeuge.set(o.name, f),
     on: (name: string, h: Haken) => (name === "before_tool_call" ? vorWerkzeug.push(h) : haken.set(name, h)),

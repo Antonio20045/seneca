@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { IncomingHttpHeaders } from "node:http";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk/plugin-entry";
 import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
@@ -107,11 +107,9 @@ export default {
   description: "Register, Arbeitsdienst, Pforte und Ausgang für Seneca und sein Team.",
   register(api: OpenClawPluginApi) {
     const ordner = (api.pluginConfig?.ordner as string | undefined) ?? join(homedir(), ".openclaw", "seneca");
-    const repo = api.pluginConfig?.repo as string | undefined;
-    if (repo) {
-      process.env.SENECA_REGELN ??= join(repo, "regeln");
-      process.env.SENECA_TEAM ??= join(repo, "team");
-    }
+    const repo = dirname(api.rootDir ?? dirname(dirname(api.source)));
+    process.env.SENECA_REGELN ??= join(repo, "regeln");
+    process.env.SENECA_TEAM ??= join(repo, "team");
     const db = oeffne(join(ordner, "register.sqlite"));
     const kalender = geheim(api, "kalender");
     const senden = pushSender(geheim(api, "push"));
