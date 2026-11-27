@@ -12,9 +12,7 @@ const orte = new Map<string, Ort>();
 let kalender: Kalender[] = [];
 let zuletzt = 0;
 
-function ics(t: number): string {
-  return new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-}
+const ics = (t: number) => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 function zeit(wert: string): number {
   const [, j, mo, d, h = "00", mi = "00", s = "00", z] = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?/.exec(wert) ?? [];

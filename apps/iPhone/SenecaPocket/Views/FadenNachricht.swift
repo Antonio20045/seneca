@@ -11,26 +11,40 @@ extension FadenLayer {
 
     @ViewBuilder func inhalt(_ proxy: ScrollViewProxy) -> some View {
         let faden = chat.faden(partner)
-        let reihen = FadenLogik.zeilen(faden.messages, now: Date())
+        let reihen = FadenLogik.zeilen(faden.messages.filter { $0.role != .user || $0.geraet == nil }, now: Date()).filter {
+            if case .datum(let t) = $0.inhalt { return !t.hasPrefix("Heute") }
+            return true
+        }
+        let quittungen = quittungen(faden.messages)
         let offene = offeneFragen(faden)
         let letzteEigene = faden.messages.last(where: { $0.role == .user })
         let schnitt = reihen.lastIndex(where: { $0.art == .frage })
         let fehlt = model.schluss[partner.id] == "Die Antwort ist nicht angekommen."
         ForEach(Array(reihen.prefix(schnitt ?? reihen.count).enumerated()), id: \.element.id) { i, r in
             reihe(r, vorher: i > 0 ? reihen[i - 1] : nil, danach: i + 1 < reihen.count ? reihen[i + 1] : nil, offene: offene,
-                  letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, proxy: proxy)
+                  letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, quittungen: quittungen, proxy: proxy)
         }
         VStack(alignment: .leading, spacing: 0) {
             if let schnitt {
                 ForEach(Array(reihen.suffix(from: schnitt).enumerated()), id: \.element.id) { j, r in
                     reihe(r, vorher: schnitt + j > 0 ? reihen[schnitt + j - 1] : nil,
                           danach: schnitt + j + 1 < reihen.count ? reihen[schnitt + j + 1] : nil, offene: offene,
-                          letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, proxy: proxy)
+                          letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, quittungen: quittungen, proxy: proxy)
                 }
             }
             endeSatz(faden: faden, letzteEigene: letzteEigene)
         }
         .frame(minHeight: mindestHoehe(reihen, schnitt: schnitt), alignment: .top)
+    }
+
+    private func quittungen(_ n: [ChatMessage]) -> [String: SenecaStand.Quittung] {
+        var out: [String: SenecaStand.Quittung] = [:]
+        for (i, a) in n.enumerated() where a.role == .seneca {
+            let von = n[..<i].last { $0.role == .user }?.date ?? a.date
+            let bis = n[(i + 1)...].first { $0.role == .user }?.date
+            out[a.id] = VerlaufLogik.quittung(store.stand, sitzung: chat.currentKey, von: von.map { $0.timeIntervalSince1970 * 1000 }, bis: bis.map { $0.timeIntervalSince1970 * 1000 })
+        }
+        return out
     }
 
     private func mindestHoehe(_ reihen: [FadenReihe], schnitt: Int?) -> CGFloat {
@@ -55,7 +69,7 @@ extension FadenLayer {
     }
 
     @ViewBuilder private func reihe(_ r: FadenReihe, vorher: FadenReihe?, danach: FadenReihe?, offene: [(id: String, live: ChatLive?)],
-                                    letzteEigene: String?, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
+                                    letzteEigene: String?, antwortFehlt: Bool, quittungen: [String: SenecaStand.Quittung], proxy: ScrollViewProxy) -> some View {
         Color.clear.frame(height: 0).id("r:" + r.id)
             .background(GeometryReader { g in
                 Color.clear.preference(key: FadenMasseKey.self, value: ["r:" + r.id: g.frame(in: .named("faden-inhalt")).minY])
@@ -71,7 +85,7 @@ extension FadenLayer {
             } else if n.vermerk == nil, n.role != .dritter, vorher?.art == .frage, gewachsen.contains(vorher?.id ?? "") {
                 EmptyView()
             } else {
-                antwort(n).padding(.top, oben)
+                antwort(n, quittung: quittungen[n.id]).padding(.top, oben)
             }
         }
     }
@@ -95,14 +109,15 @@ extension FadenLayer {
         .id(Self.frageZiel(n.id))
     }
 
-    private func antwort(_ n: ChatMessage) -> some View {
+    private func antwort(_ n: ChatMessage, quittung: SenecaStand.Quittung?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if n.role == .dritter {
                 FadenAbsender(name: n.absender ?? "Jemand anderes", fremd: true)
                 FadenAntwort(text: n.text, sprecher: n.absender ?? "Jemand anderes")
             } else {
-                ChatMeta(name: sprecher, zeit: n.date, ort: n.vermerk)
+                ChatMeta(name: sprecher, zeit: n.date, ort: n.vermerk ?? n.geraet)
                 FadenAntwort(text: n.text, sprecher: sprecher)
+                if let quittung { ChatQuittung(quittung: quittung) }
             }
         }
     }
