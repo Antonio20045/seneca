@@ -7,11 +7,9 @@ final class StatHealthSync {
     private(set) var stand: StatHealthStand
     private var laeuft = false
     private let datei = StatHealthStand.standarddatei
-    private var beobachter: [@MainActor (StatHealthStand) -> Bool] = []
+    var melde: ((_ art: String, _ werte: [String: JSONWert], _ zeit: Date) -> Bool)?
 
     private init() { stand = StatHealthStand.laden(von: StatHealthStand.standarddatei) }
-
-    func beobachten(_ f: @escaping @MainActor (StatHealthStand) -> Bool) { beobachter.append(f) }
 
     func abgleichen(grund: StatHealthGrund, fragen: Bool) async {
         guard HealthStatistik.verfuegbar, !laeuft, stand.braucht(grund, jetzt: Date()) else { return }
@@ -44,12 +42,18 @@ final class StatHealthSync {
             s.uebernehmen(details: d)
             setzen(s)
         }
+        s = stand
+        for e in s.zuMelden {
+            let zeit = s.laeufe[e.id]?.start ?? s.gewichte[e.id]?.start ?? jetzt
+            guard melde?(e.art, e.werte, zeit) == true else { break }
+            s.gemeldet.insert(e.id)
+        }
+        setzen(s)
     }
 
     private func setzen(_ neu: StatHealthStand) {
         guard neu != stand else { return }
         stand = neu
         neu.speichern(nach: datei)
-        beobachter = beobachter.filter { $0(neu) }
     }
 }

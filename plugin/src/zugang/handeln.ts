@@ -106,7 +106,8 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "todo.wiederherstellen": todo("wiederherstellen"),
   "eintrag.neu": (db, h) => {
     const w = h.wert as Wert;
-    return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: h.zeit_geraet ?? uhr.jetzt(), quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
+    const zurueck = (w.werte as Wert | undefined)?.tag === "gestern" ? regelMs("ein_tag_tage") : 0;
+    return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: (typeof w.zeit === "number" ? w.zeit : h.zeit_geraet ?? uhr.jetzt()) - zurueck, quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
   },
   "termin.anlegen": (db, h) => {
     const w = h.wert as Wert;
