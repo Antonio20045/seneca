@@ -18,6 +18,7 @@ final class SpeechController: NSObject, ObservableObject {
     private var neustarts: [Date] = []
     private let eingang = AudioEingang()
     var onAudioGenommen: (() -> Void)?
+    var pegel: Float { eingang.pegel }
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "de-DE"))
     private let synthesizer = AVSpeechSynthesizer()
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -547,6 +548,14 @@ extension SpeechController: AVAudioPlayerDelegate {
 final class AudioEingang: @unchecked Sendable {
     private let lock = NSLock()
     private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var spitze: Float = 0
+
+    var pegel: Float {
+        lock.lock(); defer { lock.unlock() }
+        let p = spitze
+        spitze = 0
+        return p
+    }
 
     func setze(_ neu: SFSpeechAudioBufferRecognitionRequest) {
         lock.lock(); defer { lock.unlock() }
@@ -555,7 +564,10 @@ final class AudioEingang: @unchecked Sendable {
     }
 
     func anhaengen(_ buffer: AVAudioPCMBuffer) {
+        let n = Int(buffer.frameLength)
+        let p = buffer.floatChannelData.map { d in (0..<n).reduce(Float(0)) { max($0, abs(d[0][$1])) } } ?? 0
         lock.lock(); defer { lock.unlock() }
+        spitze = max(spitze, p)
         request?.append(buffer)
     }
 

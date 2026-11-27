@@ -30,6 +30,7 @@ struct FadenLayer: View {
     @State var laedtAelteres = false
     @State var gewachsen: Set<String> = []
     @State var abstandSonde: Int?
+    @State var anhangWahl = false
 
     var obenMarke: CGFloat { messung.masse["ende"].map { messung.markeUnten + Self.luftUnten - $0 } ?? .infinity }
     static let luftUnten = Stil.abstand.xl
@@ -135,6 +136,7 @@ struct FadenLayer: View {
             model.pruefeMikrofon()
             #if DEBUG
             if let text = ProcessInfo.processInfo.environment["SENECA_DEMO_ENTWURF"] { feld = text }
+            demoAnhang(ProcessInfo.processInfo.environment)
             if ProcessInfo.processInfo.environment["SENECA_DEMO_FOKUS"] == "1" {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(1.2))

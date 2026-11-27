@@ -97,8 +97,10 @@ extension FadenLayer {
 
     private func frage(_ n: ChatMessage, oben: CGFloat, letzte: Bool, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
         let anzeige = FadenLogik.zustandsAnzeige(n.zustand, istLetzteEigene: letzte, antwortFehlt: antwortFehlt)
+        let z = ChatAnhang.zerlege(n.text)
         return VStack(alignment: .trailing, spacing: Stil.abstand.xs) {
-            FadenFrage(text: n.text, breite: m.size.width, zeit: n.date)
+            if !z.namen.isEmpty { AnhangImFaden(namen: z.namen, sendet: n.zustand == .wirdGesendet) }
+            if !z.text.isEmpty, z.text != ChatAnhang.leerText { FadenFrage(text: z.text, breite: m.size.width, zeit: n.date) }
             if let anzeige { FadenFrageZustand(anzeige: anzeige, erneut: { erneutSenden(n, proxy) }) }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
