@@ -14,16 +14,18 @@ import Toybox.WatchUi;
 module Gesicht {
     const NAVY = 0x000055;
     const HELL = 0xFFFFFF;
-    const KETTE = [0x000055, 0x5555AA, 0xAAAAFF, 0xFFFFFF];
+    const KETTE = [0x000055, 0x0055AA, 0x55AAFF, 0xAAFFFF, 0xFFFFFF];
+    const OBEN = 4;
+    const RUHE = 0.6;
     const VERLAUF_L = 340.0;
     const BOGEN = 60.0;
     const BOGEN_X = 213.0;
     const BOGEN_B = 110.0;
     const STREIFEN_H = 384;
     const SCHEIBE = 32;
-    const AUF_HELL = [[0x000055], [0x555555, 0x000055], [0xAAAAAA, 0x5555AA, 0x000055], [0xAA5500, 0x550000],
-        [0x0055AA, 0x0000AA, 0x000055], [0x55AA55, 0x005500], [0xAA5555, 0xAA0000, 0x550000]];
-    const AUF_DUNKEL = [[0xFFFFFF], [0xAAAAAA, 0xFFFFFF], [0x0055AA, 0xAAAAFF, 0xFFFFFF], [0xFFAA00],
+    const AUF_HELL = [[0x000055], [0x555555, 0x000055], [0x55AAAA, 0x0055AA, 0x000055], [0xAA5500, 0x550000],
+        [0x0055AA, 0x000055], [0x55AA55, 0x005500], [0xAA5555, 0xAA0000, 0x550000]];
+    const AUF_DUNKEL = [[0xFFFFFF], [0xAAAAAA, 0xFFFFFF], [0x0055AA, 0x55AAFF, 0xAAFFFF], [0xFFAA00],
         [0x55AAFF, 0xAAFFFF], [0xAAFFAA], [0xFFAAAA]];
     const MINDEST = [1.0, 7.0, 1.6, 3.0, 2.2, 2.2, 2.2];
     const TINTE = 0;
@@ -118,14 +120,20 @@ module Gesicht {
     function stufe(x as Numeric, y as Numeric) as Float {
         var u = y.toNumber() + _versatz;
         if (u < 0) {
-            return 3.0;
+            return OBEN.toFloat();
         }
         if (u >= STREIFEN_H) {
             return 0.0;
         }
         var t = 1.0 - (u - bogenHoehe(x.toFloat())) / VERLAUF_L;
         t = t < 0.0 ? 0.0 : t > 1.0 ? 1.0 : t;
-        return 3.0 * (0.6 * t + 0.4 * t * t * (3.0 - 2.0 * t));
+        var v = OBEN * (0.6 * t + 0.4 * t * t * (3.0 - 2.0 * t));
+        var i = v.toNumber();
+        if (i >= OBEN) {
+            return v;
+        }
+        var f = (v - i - (1.0 - RUHE) / 2.0) / RUHE;
+        return i + (f < 0.0 ? 0.0 : f > 1.0 ? 1.0 : f);
     }
 
     function kanal(k as Number) as Float {
@@ -143,7 +151,7 @@ module Gesicht {
     function boden(x as Numeric, y as Numeric) as Float {
         var v = stufe(x, y);
         var i = v.toNumber();
-        return i >= 3 ? lum(HELL) : lum(KETTE[i] as Number) * (1.0 - (v - i)) + lum(KETTE[i + 1] as Number) * (v - i);
+        return i >= OBEN ? lum(HELL) : lum(KETTE[i] as Number) * (1.0 - (v - i)) + lum(KETTE[i + 1] as Number) * (v - i);
     }
 
     function aufHell(g as Float) as Boolean {
@@ -164,7 +172,7 @@ module Gesicht {
     function hofFarbe(x as Numeric, y as Numeric) as Number? {
         var v = stufe(x, y);
         var i = v.toNumber();
-        if (i >= 3 || v - i == 0.0) {
+        if (i >= OBEN || v - i <= 0.0 || v - i >= 1.0) {
             return null;
         }
         return aufHell(boden(x, y)) ? KETTE[i + 1] as Number : KETTE[i] as Number;
