@@ -1,6 +1,6 @@
 import { eintraegeSeit, ereignisse, termineAm, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { lebensbereich, letzteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 const TAG = ["M", "D", "M", "D", "F", "S", "S"];
 const KURZ = ["MO", "DI", "MI", "DO", "FR", "SA", "SO"];
@@ -62,8 +62,8 @@ export function woche(db: Register, jetzt: number) {
         anteil: kraftZiel ? kraftTage / kraftZiel : null, rechts: `${heuteE.filter((x) => x.art === "satz").length} SÄTZE HEUTE`, knopf: "Starten" },
       gewicht.length ? { art: "gewicht", titel: "Gewicht", wert: zahl(Number(gewicht.at(-1)?.w.kg), 1), einheit: "KG", tage: karte(e, ["gewicht"], montag, heute, (x) => Number(x.w.kg)), anteil: null,
         rechts: `${zahl(Number(gewicht.at(-1)?.w.kg) - Number(gewicht[0].w.kg), 1).replace("-", "−")} SEIT ${KURZ[(new Date(gewicht[0].zeit).getDay() + 6) % 7]}`, knopf: "+" } : null,
-    ].filter(Boolean),
-    hinweis: lesZiel && lesHeute < lesZiel ? `Lesen fehlt heute noch.${sport ? ` Nach dem ${sport.titel} passt ${MINUTEN[lesZiel - lesHeute] ?? `${lesZiel - lesHeute} Minuten`}.` : ""}` : null,
+    ].map((k) => k && { ...k, bereich: lebensbereich(k.titel) }).filter(Boolean),
+    hinweis: lesZiel && lesHeute < lesZiel ? `Für Wachstum steht heute noch Lesen an.${sport ? ` Nach dem ${sport.titel} passt ${MINUTEN[lesZiel - lesHeute] ?? `${lesZiel - lesHeute} Minuten`}.` : ""}` : null,
   };
 }
 

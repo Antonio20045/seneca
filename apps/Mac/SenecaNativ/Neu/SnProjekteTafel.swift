@@ -47,7 +47,7 @@ struct SnProjekteTafel: View {
         HStack(alignment: .top, spacing: 40) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(p.name).font(Schrift.serif(30)).hoehe(31.5).foregroundStyle(.white)
-                if let u = p.untertitel { Text(u).font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.leise) }
+                (Text(TafelFarbe.bereichWort(p.bereich).map { "\($0) · " } ?? "").foregroundStyle(TafelFarbe.bereich(p.bereich)) + Text(p.untertitel ?? "").foregroundStyle(TafelFarbe.leise)).font(Schrift.grotesk(13)).hoehe(18)
             }
             .frame(width: 240, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {

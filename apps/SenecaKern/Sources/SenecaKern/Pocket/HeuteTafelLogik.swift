@@ -14,6 +14,9 @@ enum TafelFarbe {
     static let jetzt = hex(0xF07A5F)
     static let himmel = hex(0x8FB6E3)
     static let aufHimmel = hex(0x0A2245)
+    static let koralle = hex(0xE88A6B)
+    static func bereich(_ b: String?) -> Color { b == "wachstum" ? gruen : b == "soziales" ? koralle : himmel }
+    static func bereichWort(_ b: String?) -> String? { b.map { $0.prefix(1).uppercased() + $0.dropFirst() } }
 }
 
 enum HeuteTafelLogik {
@@ -118,7 +121,7 @@ enum HeuteTafelLogik {
     }
 
     static func todoZeile(_ t: SenecaStand.Todo) -> String {
-        [t.bereich, t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
+        [TafelFarbe.bereichWort(t.bereich), t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
     }
 
     static func anteil(_ ms: Double, _ cal: Calendar = .current) -> Double {

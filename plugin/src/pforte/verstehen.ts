@@ -1,6 +1,6 @@
 import { termineAm, todos } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { regelMs, regelText, regelZahl } from "../regeln.ts";
+import { lebensbereich, regelMs, regelZahl } from "../regeln.ts";
 
 const TAGE = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
 const TAG_GROSS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -26,7 +26,7 @@ export function verstehen(db: Register, satz: string, jetzt: number) {
   const uhr = /um (\d{1,2})(?::(\d{2}))?|(\d{1,2})(?::(\d{2}))? uhr/.exec(klein);
   const dauer = /(\d+)\s*(min|minuten|std|stunden?)\b/.exec(klein);
   const alle = [...todos(db, "offen"), ...todos(db, "erledigt")];
-  const bereich = [...new Set(alle.map((t) => String(t.bereich ?? "")).filter(Boolean))].find((b) => klein.includes(b.toLowerCase()));
+  const bereich = lebensbereich(satz);
   const worte = klein.split(/[^a-zäöüß]+/).filter((w) => w.length >= regelZahl("verstehen_wort_min"));
   const aehnlich = alle.find((t) => t.dauer_min && worte.some((w) => String(t.titel).toLowerCase().includes(w)));
   const vor = terminZu(db, tag, klein, "vor");
@@ -34,15 +34,15 @@ export function verstehen(db: Register, satz: string, jetzt: number) {
   const nach = terminZu(db, tag, klein, "nach") ?? (vor && !uhr ? tagesTermine.filter((t) => t.ende <= vor.start).at(-1) : undefined);
   const minuten = dauer ? Number(dauer[1]) * (dauer[2].startsWith("s") ? regelZahl("eine_stunde_min") : 1) : Number(aehnlich?.dauer_min ?? regelZahl("todo_dauer_standard_min"));
   const von = tag && uhr ? new Date(tag).setHours(Number(uhr[1] ?? uhr[3]), Number(uhr[2] ?? uhr[4] ?? 0)) : nach?.ende ?? (vor ? vor.start - minuten * regelMs("eine_minute_min") : null);
-  const erkannt = !!(tag || dauer || bereich || vor || nach || /jeden tag|täglich/.test(klein));
+  const erkannt = !!(tag || dauer || vor || nach || /jeden tag|täglich/.test(klein));
   const zeit = von ? new Date(von) : undefined;
   const wann = tag && [tag.getTime() === tagVon("heute", jetzt)?.getTime() ? "heute" : tag.getTime() === tagVon("morgen", jetzt)?.getTime() ? "morgen" : TAG_GROSS[tag.getDay()],
     zeit && `um ${zeit.getHours()}${zeit.getMinutes() ? `:${String(zeit.getMinutes()).padStart(2, "0")}` : ""}`].filter(Boolean).join(" ");
   return {
     erkannt, titel: erkannt && satz.includes(",") ? satz.slice(0, satz.indexOf(",")).trim() : satz.trim(),
     tag: tag ? `${tag.getFullYear()}-${String(tag.getMonth() + 1).padStart(2, "0")}-${String(tag.getDate()).padStart(2, "0")}` : null,
-    von, bis: vor?.start ?? null, dauer_min: minuten, geschaetzt: [...(dauer ? [] : ["dauer"]), ...(bereich ? [] : ["bereich"])],
-    bereich: bereich ?? String(aehnlich?.bereich ?? regelText("bereich_standard")), wiederkehrend: /jeden tag|täglich/.test(klein) ? "taeglich" : null,
+    von, bis: vor?.start ?? null, dauer_min: minuten, geschaetzt: dauer ? [] : ["dauer"],
+    bereich, wiederkehrend: /jeden tag|täglich/.test(klein) ? "taeglich" : null,
     hinweis: `Du bekommst es ${wann ? `${wann} ` : ""}auf die Uhr${nach ? `, nach dem ${nach.titel.split(" ")[0]}` : ""}.`,
   };
 }

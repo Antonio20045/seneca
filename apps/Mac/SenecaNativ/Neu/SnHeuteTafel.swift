@@ -270,11 +270,11 @@ struct SnHeuteTafel: View {
         let w = wartend.contains(t.id)
         let anteil: Double? = t.geplant_von.flatMap { von in t.geplant_bis.flatMap { bis in von <= jetzt && jetzt < bis ? (jetzt - von) / (bis - von) : nil } }
         let frist = L.ueberfaellig(t, stand) ? t.bis_wann.map { L.fristWar($0, stand) } : nil
-        let unter = w ? "wird übertragen" : ([t.bereich, frist ?? (t.geplant_von == nil ? nil : "von Seneca eingeplant")] as [String?]).compactMap { $0 }.joined(separator: " · ")
+        let unter = w ? "wird übertragen" : ([TafelFarbe.bereichWort(t.bereich), frist ?? (t.geplant_von == nil ? nil : "von Seneca eingeplant")] as [String?]).compactMap { $0 }.joined(separator: " · ")
         return Button { if !w { erledige(t.id) } } label: {
             HStack(alignment: .top, spacing: 10) {
                 Text(t.geplant_von.map { L.uhr($0) } ?? "").font(Schrift.mono(12)).foregroundStyle(erste ? TafelFarbe.akzent : TafelFarbe.leise).padding(.top, 2).frame(width: 44, alignment: .leading)
-                Circle().strokeBorder(w ? TafelFarbe.gruen : TafelFarbe.leise, style: StrokeStyle(lineWidth: 1.5, dash: w ? [3, 2.4] : []))
+                Circle().strokeBorder(w ? TafelFarbe.gruen : TafelFarbe.bereich(t.bereich).opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: w ? [3, 2.4] : []))
                     .frame(width: 18, height: 18).frame(width: 22, alignment: .leading)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(t.titel).font(Schrift.grotesk(15)).hoehe(21).strikethrough(w).foregroundStyle(w ? TafelFarbe.aus : TafelFarbe.text).fixedSize(horizontal: false, vertical: true)

@@ -56,7 +56,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Phase: Codable, Equatable, Sendable { public var name: String; public var zustand: String }
     public struct ProjektZeile: Codable, Equatable, Sendable { public var art: String; public var id: String; public var text: String; public var wer: String?; public var rechts: String? }
     public struct Projekt: Codable, Equatable, Sendable, Identifiable {
-        public var name: String; public var untertitel: String?; public var worum: String?; public var satz: String?; public var phasen: [Phase]?
+        public var name: String; public var bereich: String?; public var untertitel: String?; public var worum: String?; public var satz: String?; public var phasen: [Phase]?
         public var zustand: String; public var frist: Double?; public var rechts: [String]?; public var zeilen: [ProjektZeile]?
         public var id: String { name }
     }
@@ -102,7 +102,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var art: String?
         public var weg: String?
         public var ankunft: Double?; public var weg_min: Double?
-        public var kalender: String?; public var kalender_quelle: String?; public var mit: [String]?; public var entfernung_m: Double?
+        public var kalender: String?; public var kalender_quelle: String?; public var bereich: String?; public var mit: [String]?; public var entfernung_m: Double?
         public var notiz: Notiz?; public var bescheid: String?
         public var id: String { uid }
     }
@@ -111,7 +111,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var da: Double?; public var da_satz: String?; public var weg: String?; public var km: String?; public var los: String?; public var seneca: Notiz?
     }
     public struct KalBlock: Codable, Equatable, Sendable, Identifiable {
-        public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String
+        public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String; public var bereich: String?
         public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?; public var andere: [Double]?
     }
     public struct KalMarke: Codable, Equatable, Sendable { public var titel: String; public var zeit: Double }
@@ -272,7 +272,7 @@ public final class StandSpeicher {
 public struct SenecaStatistik: Codable, Equatable, Sendable {
     public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool; public var wert: Double?; public var hoehe: Double? }
     public struct Karte: Codable, Equatable, Sendable, Identifiable {
-        public var art: String; public var titel: String; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
+        public var art: String; public var titel: String; public var bereich: String?; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
         public var tage: [Tag]; public var anteil: Double?; public var rechts: String; public var knopf: String
         public var id: String { art }
     }

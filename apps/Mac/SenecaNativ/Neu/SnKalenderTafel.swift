@@ -307,7 +307,7 @@ struct SnKalenderTafel: View {
                                 .frame(width: 22, height: 22).background(Circle().fill(heute ? TafelFarbe.himmel : .clear))
                             ForEach(t.bloecke.prefix(3)) { b in
                                 HStack(spacing: 5) {
-                                    RoundedRectangle(cornerRadius: 1).fill(SnKalBlock.farbe(b.art)).frame(width: 2, height: 10)
+                                    RoundedRectangle(cornerRadius: 1).fill(SnKalBlock.farbe(b.art, b.bereich)).frame(width: 2, height: 10)
                                     Text(b.titel).font(Schrift.grotesk(11)).foregroundStyle(TafelFarbe.zweit).lineLimit(1)
                                 }
                             }
@@ -364,10 +364,10 @@ struct SnKalenderTafel: View {
                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(TafelFarbe.bernstein.opacity(0.28), lineWidth: 1))
             }
             VStack(alignment: .leading, spacing: 10) {
-                ForEach([("termin", "Termin"), ("seneca", "von Seneca gesetzt"), ("fenster", "Entscheidungsfenster"), ("bewegung", "Sport")], id: \.0) { art, name in
+                ForEach([("termin", "unternehmertum"), ("termin", "wachstum"), ("termin", "soziales"), ("seneca", "von Seneca gesetzt"), ("fenster", "Entscheidungsfenster")], id: \.1) { art, name in
                     HStack(spacing: 10) {
-                        SnKalBlock.grund(art, RoundedRectangle(cornerRadius: 4)).frame(width: 22, height: 12)
-                        Text(name).font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.zweit)
+                        SnKalBlock.grund(art, RoundedRectangle(cornerRadius: 4), bereich: name).frame(width: 22, height: 12)
+                        Text(TafelFarbe.bereichWort(name) ?? name).font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.zweit)
                     }
                 }
             }
@@ -398,7 +398,7 @@ struct SnKalenderTafel: View {
             if let o = d.ort { zeile("WO", o, d.km) }
             if let w = d.weg { zeile("WEG", w, d.los) }
             if let m = d.mit { zeile("MIT", m) }
-            zeile("KALENDER", d.kalender ?? "–", "Apple-Kalender, du kannst ändern")
+            zeile("BEREICH", TafelFarbe.bereichWort(b.bereich) ?? "–", "ordnet Seneca zu")
             zeile("NOTIZ", d.notiz ?? "–")
             if let s = d.seneca {
                 VStack(alignment: .leading, spacing: 0) {
@@ -490,11 +490,11 @@ struct SnKalBlock: View {
     var hoehe: CGFloat
     var gewaehlt = false
 
-    static func farbe(_ art: String) -> Color {
-        art.hasPrefix("bewegung") ? TafelFarbe.gruen : art == "fenster" || art == "zugleich" ? TafelFarbe.bernstein : TafelFarbe.himmel
+    static func farbe(_ art: String, _ bereich: String? = nil) -> Color {
+        art == "termin" ? TafelFarbe.bereich(bereich) : art.hasPrefix("bewegung") ? TafelFarbe.gruen : art == "fenster" || art == "zugleich" ? TafelFarbe.bernstein : TafelFarbe.himmel
     }
 
-    @ViewBuilder static func grund<S: InsettableShape>(_ art: String, _ form: S, laeuft: Bool = false, gewaehlt: Bool = false) -> some View {
+    @ViewBuilder static func grund<S: InsettableShape>(_ art: String, _ form: S, laeuft: Bool = false, gewaehlt: Bool = false, bereich: String? = nil) -> some View {
         let gestrichelt = StrokeStyle(lineWidth: 1, dash: [3, 2])
         switch art {
         case "seneca", "todos":
@@ -515,7 +515,7 @@ struct SnKalBlock: View {
         case "fenster":
             form.fill(TafelFarbe.bernstein.opacity(0.12)).overlay(form.strokeBorder(TafelFarbe.bernstein.opacity(0.55), lineWidth: 1))
         default:
-            let f = farbe(art)
+            let f = farbe(art, bereich)
             form.fill(art == "zugleich" ? f.opacity(0.10) : art == "bewegung" ? f.opacity(0.12) : f.opacity(gewaehlt ? 0.3 : 0.16))
                 .overlay(alignment: .leading) { Rectangle().fill(f).frame(width: 2) }
                 .clipShape(form)
@@ -534,7 +534,7 @@ struct SnKalBlock: View {
 
     var body: some View {
         let form = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        Self.grund(b.art, form, laeuft: b.laeuft == true, gewaehlt: gewaehlt).overlay(alignment: .topLeading) { inhalt }
+        Self.grund(b.art, form, laeuft: b.laeuft == true, gewaehlt: gewaehlt, bereich: b.bereich).overlay(alignment: .topLeading) { inhalt }
             .overlay { if gewaehlt { form.strokeBorder(Color.white, lineWidth: 1.5) } }
             .shadow(color: .black.opacity(gewaehlt ? 0.35 : 0), radius: 12, y: 10)
             .contentShape(form)
@@ -599,12 +599,6 @@ struct SnKalNeu: View {
                     .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).foregroundStyle(Color.white).onSubmit(eintragen)
                 if let w = e.weg { Text(L.wegZeile(w)).font(Schrift.grotesk(12)).lineHeight(.exact(points: 17)).foregroundStyle(TafelFarbe.leise) }
                 else if rechnet { Text("Seneca rechnet den Weg …").font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise) }
-            }
-            zeile("KALENDER") {
-                Menu {
-                    ForEach(k.kalender, id: \.self) { n in Button(n) { z.entwurf?.kalender = n } }
-                } label: { Text("\(e.kalender) ").font(Schrift.grotesk(14)) + Text("▾").font(Schrift.grotesk(9)) }
-                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).foregroundStyle(Color.white).fixedSize().disabled(e.uid != nil)
             }
             if let r = L.erinnerung(e, vorMin: stand.regeln?["weg_erinnern_vor_min"] ?? 6) {
                 zeile("ERINNERUNG") {
