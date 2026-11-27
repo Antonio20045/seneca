@@ -2,14 +2,12 @@ import { ereignisse, fragen, kalenderTag, termineAm, todos, vorschlagDaten, wert
 import type { Register } from "../register/schema.ts";
 import { msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { fensterStart } from "./entscheiden.ts";
-import { istSport } from "./kalender.ts";
+import { istSport, kalenderwoche, MONAT, TAG } from "./kalender.ts";
 import { uhrzeit } from "./heute.ts";
 
 type Termin = ReturnType<typeof termineAm>[number] & { namen?: string[]; notiz?: string; kalender?: string; wartet?: boolean };
 type Block = { id: string; titel: string; unter: string | null; start: number; ende: number; art: string; laeuft?: boolean; frage_id?: string; uid?: string; teile?: string[]; detail?: object; andere?: number[] };
 
-const TAG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
-const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const WEG: Record<string, string> = { fuss: "zu Fuß", rad: "mit dem Rad", auto: "mit dem Auto" };
 
 const komma = (n: number) => n.toFixed(1).replace(".", ",");
@@ -33,12 +31,7 @@ function plusTage(t: number, n: number): number {
 }
 
 function wochenZwischen(a: number, b: number): number {
-  return Math.round((b - a) / (7 * regelMs("ein_tag_h")));
-}
-
-function kalenderwoche(t: number): number {
-  const donnerstag = new Date(plusTage(montag(t), 3));
-  return 1 + wochenZwischen(montag(new Date(donnerstag.getFullYear(), 0, 4).getTime()), montag(t));
+  return Math.round((b - a) / (7 * regelMs("ein_tag_tage")));
 }
 
 function wochenKopf(von: number, jetzt: number) {

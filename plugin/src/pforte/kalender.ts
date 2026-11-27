@@ -1,14 +1,13 @@
 import { ereignisse, termineAm, todos, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
-import { stundeAlsWort } from "./heute.ts";
+import { stundeAlsWort, uhrzeit } from "./heute.ts";
 import { istFokus } from "./planen.ts";
 
 const ZAHL = ["Keine", "Ein", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht"];
 const MAL = ["", "einmal", "zweimal", "dreimal", "viermal"];
-const TAG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
-const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+export const TAG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+export const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 type Termin = ReturnType<typeof termineAm>[number];
 
@@ -96,7 +95,7 @@ function woche(db: Register, jetzt: number) {
   };
 }
 
-function kalenderwoche(t: number): number {
+export function kalenderwoche(t: number): number {
   const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const w1 = new Date(d.getFullYear(), 0, 4);
   return 1 + Math.round(((d.getTime() - w1.getTime()) / regelMs("ein_tag_tage") - 3 + ((w1.getDay() + 6) % 7)) / 7);

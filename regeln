@@ -143,7 +143,6 @@ team_schritte 3
 auftrag_quittung_min 10
 los_erinnern_min 6
 eine_minute_min 1
-ein_tag_h 24
 eine_stunde_min 60
 verstehen_wort_min 6
 bereich_standard Privat

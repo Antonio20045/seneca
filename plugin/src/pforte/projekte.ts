@@ -21,7 +21,7 @@ function sicht(db: Register, name: string, p: Projekt, jetzt: number) {
   const zustand = offen.length ? "braucht" : laeufe.length ? "laeuft" : "wartet";
   const jetztPhase = p.phasen?.find((x) => x.zustand === "jetzt")?.name;
   const frist = offen.map((f) => f.frist).filter((f): f is number => typeof f === "number").sort()[0];
-  const tage = p.start ? Math.round((p.start - naechsteUhrzeit("00:00", jetzt) + regelMs("ein_tag_h")) / regelMs("ein_tag_h")) : null;
+  const tage = p.start ? Math.round((p.start - naechsteUhrzeit("00:00", jetzt) + regelMs("ein_tag_tage")) / regelMs("ein_tag_tage")) : null;
   const rechts = zustand === "braucht" && frist ? [] : p.start ? [`Start ${datum(p.start)}`, `noch ${tage} ${tage === 1 ? "Tag" : "Tage"}`]
     : zustand === "wartet" && p.nach ? [`nach ${p.nach}`] : jetztPhase ? [`${jetztPhase} heute`] : [];
   const zeilen = [
