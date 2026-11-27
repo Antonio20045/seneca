@@ -26,6 +26,7 @@ import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
+import { mitarbeiterVerwalten, type Eingabe } from "./zugang/mitarbeiter.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
@@ -77,10 +78,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
     (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
   ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, name:<nummer oder mail> (Vorname), profil:<feld>, fakt:<thema>, ankunft:<termin-uid> (ms), termin_notiz:<termin-uid> (ein Satz, was Seneca dazu getan hat).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
-    (db, k, p) => {
-      nurSeneca(k);
-      return { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 };
-    }],
+    (db, k, p) => (nurSeneca(k), { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 })],
   ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt). Statistik ohne Code: anzeigenart statistik, werte { metrik: art.feld aus den Einträgen (lauf.km, lauf.pace_s, lauf.h, satz.1rm, satz.volumen, nacht.hrv, tag.ruhepuls, aktivitaet.anzahl …), filter: { u: \"Kniebeuge\" }, zeitraum_tage, gruppe: tag|woche|monat|einzeln, rechnung: summe|schnitt|max|min|anzahl|letzter, diagramm: balken|linie|ring|zahl, einheit, ziel, grund: ein Satz, warum }.", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
   ["seneca_statistik", "Anlass für eine Statistik. art frage: Antonio fragt nach einem Stand („wie läuft X“, „wie weit ist Y“); thema: das Ding in ein, zwei kleinen Wörtern (kniebeuge, wochen-km), satz: seine Frage, an: wer zuständig ist. Beim zweiten Mal in 14 Tagen entsteht ein Auftrag an den Zuständigen. art ziel: Ziel neu oder geändert („100 km bis Juni“), satz: das Ziel. art luecke: Auftrag aus dem Rundgang, satz: was fehlt. art sicht: Ziele, Statistiken mit Besitzer, Grund und zuletzt angesehen, Standfragen.",
@@ -94,10 +92,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       return r;
     }],
   ["seneca_eintrag", "Statistik-Eintrag: Satz, Lesen, Laufen, Gewicht.", Type.Object({ art: S, werte: Frei, zeit: O(Z) }),
-    (db, k, p) => {
-      nurSeneca(k);
-      return { eintrag_id: eintragSetzen(db, { art: String(p.art), werte: p.werte as object, zeit: (p.zeit as number | undefined) ?? uhr.jetzt(), quelle: "seneca" }) };
-    }],
+    (db, k, p) => (nurSeneca(k), { eintrag_id: eintragSetzen(db, { art: String(p.art), werte: p.werte as object, zeit: (p.zeit as number | undefined) ?? uhr.jetzt(), quelle: "seneca" }) })],
 ];
 
 function geheim(api: OpenClawPluginApi, bereich: string): Record<string, string | undefined> {
@@ -152,11 +147,14 @@ export default {
     const db = oeffne(join(ordner, "register.sqlite"));
     const kalender = geheim(api, "kalender");
     const senden = pushSender(geheim(api, "push"));
+    const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
     const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
-      (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)]];
+      (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)],
+    ["seneca_mitarbeiter", "Mitarbeiter anlegen, aendern, ruhen (ruht false weckt wieder, bis in ms), loeschen, erst nach Antonios „passt“. anlegen und aendern: name, rolle (Text von rolle.md: erste Zeile „# Anzeigename“, höchstens 60 Zeilen), mandat (YAML wie team/trainer/mandat). Danach steht der Mitarbeiter im Team und ist im Chat ansprechbar, ohne Neustart; das Repo zieht von selbst nach.",
+      Type.Object({ aktion: S, name: S, rolle: O(S), mandat: O(S), ruht: O(Type.Boolean()), bis: O(Z) }),
+      (db, k, p) => (nurSeneca(k), mitarbeiterVerwalten(db, befehl, p as Eingabe))]];
     for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
-    const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
     let reihe = "";
     const starte: Starter = async ({ werkzeuge, abos, ...p }) => {
       const r = JSON.stringify(abos) === reihe ? undefined : await befehl([regelText("openclaw_befehl"), "config", "set", "auth.order.anthropic", JSON.stringify(abos), "--strict-json"], regelMs("takt_job_haengt_s"));

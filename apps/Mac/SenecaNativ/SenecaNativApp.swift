@@ -121,6 +121,8 @@ struct SenecaNativApp: App {
                     .disabled(modell.zustand != .bereit)
             }
             CommandGroup(after: .sidebar) {
+                Button("Ablage im Finder öffnen") { NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory() + "/Ablage", isDirectory: true)) }
+                    .keyboardShortcut("a", modifiers: [.command, .option])
                 Button(modell.gespraechAn ? "Gespräch ausblenden" : "Gespräch einblenden") { modell.schalteGespraech() }
                     .keyboardShortcut("\\", modifiers: .command)
                     .disabled(modell.zustand != .bereit)
