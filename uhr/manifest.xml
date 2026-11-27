@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
-    <iq:application entry="SenecaApp" id="b7c1f6a24e3d4c589a1f5d2e8f0a6c31" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.AppName" type="watch-app" version="1.1.0">
+    <iq:application entry="SenecaApp" id="b7c1f6a24e3d4c589a1f5d2e8f0a6c31" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.AppName" type="watch-app" version="1.2.0">
         <iq:products>
             <iq:product id="fenix9pro43mm"/>
             <iq:product id="fenix9pro47mm"/>

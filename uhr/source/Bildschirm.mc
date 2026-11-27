@@ -42,6 +42,19 @@ module Bildschirm {
         Zeichnen.text(dc, links + 24, y, id, Zeichnen.HIMMEL, "SENECA", LINKS);
     }
 
+    function zonen(art as Symbol) as Array<Array<Number>> {
+        if (art == :start) {
+            return [[160, 284, 0], [284, 347, 1], [347, 466, 2]];
+        } else if (art == :uebungen) {
+            return [[90, 152, -1], [152, 280, 0], [280, 340, 1], [340, 466, 2]];
+        } else if (art == :team) {
+            return [[90, 151, -1], [151, 299, 0], [299, 360, 1], [360, 466, 2]];
+        } else if (art == :todos) {
+            return [[100, 211, 0], [211, 284, 1], [284, 466, 2]];
+        }
+        return [[170, 218, -2], [218, 270, -1], [270, 340, 0], [340, 390, 1]];
+    }
+
     function start(dc as Dc, status as String, statusFarbe as Number, zeilen as Array<Dictionary>, auswahl as Number) as Void {
         seneca(dc, 66, Rez.Fonts.M5_15);
         mitPunkt(dc, 122, Rez.Fonts.G4_21, Zeichnen.GEDAEMPFT, Zeichnen.kuerzen(dc, status, Rez.Fonts.G4_21, 178), statusFarbe, 8, false);

@@ -154,6 +154,19 @@ module Bildschirm {
         mitPunkt(dc, y, Rez.Fonts.Kopf, Zeichnen.HIMMEL, "SENECA", Zeichnen.HIMMEL, 7);
     }
 
+    function zonen(art as Symbol) as Array<Array<Number>> {
+        if (art == :start) {
+            return [[108, 190, 0], [190, 230, 1], [230, 280, 2]];
+        } else if (art == :uebungen) {
+            return [[60, 108, -1], [108, 188, 0], [188, 228, 1], [228, 280, 2]];
+        } else if (art == :team) {
+            return [[60, 190, 0], [190, 228, 1], [228, 280, 2]];
+        } else if (art == :todos) {
+            return [[60, 186, 0], [186, 240, 1]];
+        }
+        return [[112, 153, -1], [153, 192, 0], [192, 240, 1]];
+    }
+
     function teamLeer(dc as Dc) as Void {
         kopf(dc, "TEAM", Zeichnen.GEDAEMPFT);
         block(dc, 140, Rez.Fonts.Text, Zeichnen.LEISE, "Noch kein Stand vom iPhone", 2, 30);
@@ -389,17 +402,17 @@ module Bildschirm {
 
     (:glance)
     function blick(dc as Dc, breite as Numeric, hoehe as Numeric, satz as String, danach as String) as Void {
-        var mitte = breite / 2.0;
-        var oben = hoehe / 2.0 - 28;
-        var links = mitte - (14 + Zeichnen.breite(dc, Rez.Fonts.Kopf, "SENECA")) / 2.0;
-        Zeichnen.punkt(dc, links + 3.5, oben, 7, Zeichnen.HIMMEL);
-        Zeichnen.text(dc, links + 14, oben, Rez.Fonts.Kopf, Zeichnen.HIMMEL, "SENECA", LINKS);
-        Zeichnen.text(dc, mitte, oben + 28, Rez.Fonts.Haupt, Zeichnen.WEISS, Zeichnen.passt(dc, satz, Rez.Fonts.Haupt, breite), MITTIG);
+        var oben = hoehe / 2.0 - 30;
+        Zeichnen.punkt(dc, 3.5, oben, 7, Zeichnen.HIMMEL);
+        Zeichnen.text(dc, 14, oben, Rez.Fonts.Kopf, Zeichnen.HIMMEL, "SENECA", LINKS);
+        Zeichnen.text(dc, 0, oben + 30, Rez.Fonts.Haupt, Zeichnen.WEISS, Zeichnen.passt(dc, satz, Rez.Fonts.Haupt, breite), LINKS);
         if (danach.length() > 0) {
-            var text = Zeichnen.passt(dc, danach, Rez.Fonts.Klein, breite - 16);
-            var start = mitte - (16 + Zeichnen.breite(dc, Rez.Fonts.Klein, text)) / 2.0;
-            Zeichnen.punkt(dc, start + 4.5, oben + 56, 9, Zeichnen.BERNSTEIN);
-            Zeichnen.text(dc, start + 16, oben + 56, Rez.Fonts.Klein, Zeichnen.TEXT, text, LINKS);
+            var frage = danach.find("Frage") != null;
+            var text = Zeichnen.passt(dc, danach, Rez.Fonts.Klein, breite - (frage ? 16 : 0));
+            if (frage) {
+                Zeichnen.punkt(dc, 4.5, oben + 58, 9, Zeichnen.BERNSTEIN);
+            }
+            Zeichnen.text(dc, frage ? 16 : 0, oben + 58, Rez.Fonts.Klein, frage ? Zeichnen.TEXT : Zeichnen.LEISE, text, LINKS);
         }
     }
 

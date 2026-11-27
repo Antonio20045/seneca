@@ -10,11 +10,12 @@ class Bedienung extends WatchUi.WatchFaceDelegate {
 
     function onPress(klick as WatchUi.ClickEvent) as Boolean {
         var ort = klick.getCoordinates();
-        if (ort[1] < 150 || ort[1] > 235 || Werte.seneca == null || !Kontext.startbar(Kontext.jetzt())) {
+        var ziel = Gesicht.ziel(ort[1] / (System.getDeviceSettings().screenWidth / Zeichnen.ENTWURF));
+        if (ziel == null) {
             return false;
         }
         try {
-            Complications.exitTo(Werte.seneca);
+            Complications.exitTo(ziel);
             return true;
         } catch (e instanceof System.AppNotInstalledException) {
             return false;

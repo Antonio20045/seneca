@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.WatchUi;
 
 class Bewegung extends WatchUi.Drawable {
@@ -73,6 +74,13 @@ class Ansicht extends WatchUi.View {
     function waehlen() as Void {
     }
 
+    function tippen(x as Float, y as Float) as Void {
+        waehlen();
+    }
+
+    function vor() as Void {
+    }
+
     function hoch() as Void {
     }
 
@@ -127,17 +135,41 @@ class Bedienung extends WatchUi.BehaviorDelegate {
         _ansicht.menue();
         return true;
     }
+
+    function onTap(ereignis as WatchUi.ClickEvent) as Boolean {
+        var punkt = ereignis.getCoordinates();
+        var massstab = System.getDeviceSettings().screenWidth / Zeichnen.ENTWURF;
+        _ansicht.tippen(punkt[0] / massstab, punkt[1] / massstab);
+        return true;
+    }
+
+    function onSwipe(ereignis as WatchUi.SwipeEvent) as Boolean {
+        var richtung = ereignis.getDirection();
+        if (richtung == WatchUi.SWIPE_UP) {
+            _ansicht.runter();
+        } else if (richtung == WatchUi.SWIPE_DOWN) {
+            _ansicht.hoch();
+        } else if (richtung == WatchUi.SWIPE_RIGHT) {
+            _ansicht.zurueck();
+        } else {
+            _ansicht.vor();
+        }
+        return true;
+    }
 }
 
 module Ansichten {
     var tiefe as Number = 1;
+    var oben as Ansicht? = null;
 
     function oeffnen(ansicht as Ansicht) as Void {
         tiefe += 1;
+        oben = ansicht;
         WatchUi.pushView(ansicht, new Bedienung(ansicht), WatchUi.SLIDE_LEFT);
     }
 
     function ersetzen(ansicht as Ansicht) as Void {
+        oben = ansicht;
         WatchUi.switchToView(ansicht, new Bedienung(ansicht), WatchUi.SLIDE_LEFT);
     }
 

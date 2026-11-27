@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
-    <iq:application entry="ZifferblattApp" id="d0f1ae91b2e04c6891f30d195f9c1bad" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.Name" type="watchface" version="1.1.0">
+    <iq:application entry="ZifferblattApp" id="d0f1ae91b2e04c6891f30d195f9c1bad" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.Name" type="watchface" version="1.2.0">
         <iq:products>
             <iq:product id="fenix9pro43mm"/>
             <iq:product id="fenix9pro47mm"/>

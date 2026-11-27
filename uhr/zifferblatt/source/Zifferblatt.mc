@@ -8,17 +8,20 @@ class Zifferblatt extends WatchUi.WatchFace {
 
     private var _ruht as Boolean = false;
     private var _schritt as Number = 0;
+    private var _wach as Boolean = true;
 
     function initialize() {
         WatchFace.initialize();
     }
 
     function onEnterSleep() as Void {
+        _wach = false;
         _ruht = Zeichnen.amoled();
         WatchUi.requestUpdate();
     }
 
     function onExitSleep() as Void {
+        _wach = true;
         _ruht = false;
         WatchUi.requestUpdate();
     }
@@ -39,9 +42,9 @@ class Zifferblatt extends WatchUi.WatchFace {
             return;
         }
         if (sportlich()) {
-            Gesicht.sportlich(dc);
+            Gesicht.sportlich(dc, _wach);
             return;
         }
-        Gesicht.elegantAuto(dc);
+        Gesicht.elegantAuto(dc, _wach);
     }
 }

@@ -143,6 +143,19 @@ class EntscheidungAnsicht extends Ansicht {
     private var _frage as Dictionary;
     private var _beantwortet as Boolean = false;
 
+    function tippen(x as Float, y as Float) as Void {
+        var mitte = Zeichnen.MITTE;
+        if (y >= mitte + 30) {
+            if (x < mitte) {
+                runter();
+            } else {
+                zurueck();
+            }
+        } else if (x >= mitte && y < mitte - 20) {
+            waehlen();
+        }
+    }
+
     function initialize(frage as Dictionary) {
         Ansicht.initialize();
         _frage = frage;
@@ -263,6 +276,14 @@ class MorgenAnsicht extends Ansicht {
 }
 
 class TeamAnsicht extends ListenAnsicht {
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:team);
+    }
+
+    function vor() as Void {
+        waehlen();
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
         _auswahl = Inhalt.teamStart();
