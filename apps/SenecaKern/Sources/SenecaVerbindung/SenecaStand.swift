@@ -29,8 +29,9 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wirkt_ab: Double?
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
-        public var kurz: String?; public var zeit: String?
+        public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?
     }
+    public struct Mitteilung: Codable, Equatable, Sendable { public var titel: String; public var text: String }
     public struct Abnahme: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var projekt: String?
         public var art: String?; public var satz: String?; public var hoerprobe_s: Double?; public var an: String?; public var beleg: String?

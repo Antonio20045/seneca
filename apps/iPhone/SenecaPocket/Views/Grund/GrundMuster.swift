@@ -5,16 +5,12 @@ enum GrundMusterSeite {
     static var ausDemo: String? {
         let env = ProcessInfo.processInfo.environment
         guard env["SENECA_DEMO"] == "1", let p = env["SENECA_DEMO_PAGE"],
-              ["grund", "grund-mehr", "grund-schrift", "grund-blatt", "meldung", "meldung-kurz"].contains(p) else { return nil }
+              ["grund", "grund-mehr", "grund-schrift", "grund-blatt"].contains(p) else { return nil }
         return p
     }
 
     @ViewBuilder static func ansicht(_ p: String) -> some View {
-        if p.hasPrefix("meldung") {
-            MeldungVorschau(kurz: p == "meldung-kurz")
-        } else {
-            GrundMuster(teil: p == "grund-schrift" ? .schrift : p == "grund-mehr" ? .mehr : .bausteine, blattOffen: p == "grund-blatt")
-        }
+        GrundMuster(teil: p == "grund-schrift" ? .schrift : p == "grund-mehr" ? .mehr : .bausteine, blattOffen: p == "grund-blatt")
     }
 }
 
@@ -146,31 +142,6 @@ struct GrundMuster: View {
                 }
             }
         }
-    }
-}
-
-private struct MeldungVorschau: View {
-    var kurz: Bool
-    @State private var m: Meldung?
-
-    var body: some View {
-        Stil.farbe.grund.ignoresSafeArea()
-            .sheet(item: $m) { MeldungBlatt(m: $0) }
-            .task {
-                try? await Task.sleep(for: .milliseconds(400))
-                m = kurz
-                    ? Meldung(id: "demo-kurz", zeit: Date(), titel: "Laufen heute?",
-                              text: "Es bleibt bis 17 Uhr trocken. Zwischen 12:00 und 13:00 ist dein Kalender frei.",
-                              knoepfe: ["Ja, um 12", "Später", "Heute nicht"])
-                    : Meldung(id: "demo", zeit: Calendar.current.date(bySettingHour: 7, minute: 12, second: 0, of: Date()),
-                              titel: "Dein Morgen",
-                              text: "Guten Morgen. Um 9:30 beginnt der Wochenstart im Team, danach um 10:15 die Abstimmung zum Angebot. "
-                                + "Hermes wartet seit gestern auf deine Entscheidung zu Instagram; ohne Antwort fängt er nicht an.\n\n"
-                                + "Reporting hat die Zahlen vom Montag gelesen: Die Abweichung bei den Services ist kleiner geworden, "
-                                + "die Erklärung liegt in deinen Berichten. Für heute Nachmittag schlage ich eine Stunde ohne Termine vor, "
-                                + "damit du den Kleinunternehmerstatus mit dem Steuerberater klären kannst.",
-                              knoepfe: [MeldungLogik.ganzLesen, "Passt so", "Später"], dringend: true)
-            }
     }
 }
 #endif

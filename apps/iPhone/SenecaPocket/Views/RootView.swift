@@ -86,8 +86,10 @@ struct RootView: View {
         .onChange(of: wisch.lage.seiteRuht) { _, _ in unmountDayLater(side) }
         .onChange(of: t.p == 0 && !t.dragging) { _, closed in if closed { unmountDayLater(side) } }
         .senecaBlatt(isPresented: $sinneFrage, groesse: .voll, titel: "Orte und Erlaubnisse", fertig: true) { SinneInhalt() }
-        .senecaBlatt(item: Binding(get: { sinne.offeneMeldung }, set: { sinne.offeneMeldung = $0 }), titel: { $0.titel }) {
-            MeldungBlatt(m: $0)
+        .onChange(of: sinne.offeneFrage) { _, id in
+            guard let id else { return }
+            sinne.offeneFrage = nil
+            if let f = store.stand?.braucht_dich?.first(where: { $0.id == id }) { entscheide = f }
         }
         .modifier(TeamWege(store: store, arbeit: $arbeit, entscheide: $entscheide, auftragNeu: $auftragNeu,
                            chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
@@ -857,10 +859,6 @@ struct RootView: View {
             case "bereiche": show(.bereiche)
             case "statistik": show(.statistik)
             case "einstellungen": oeffne(.einstellungen)
-            case "meldung":
-                sinne.offeneMeldung = Meldung(id: "demo", zeit: Calendar.current.date(bySettingHour: 7, minute: 12, second: 0, of: Date()),
-                                              titel: "Dein Morgen", text: "Guten Morgen. Um 9:30 beginnt der Wochenstart im Team, danach um 10:15 die Abstimmung zum Angebot. Hermes wartet seit gestern auf deine Entscheidung.",
-                                              knoepfe: ["Passt so", "Später"], dringend: true)
             case "arbeit": oeffne(.arbeit(.fragen))
             case "laeuft": oeffne(.arbeit(.laeuft))
             case "zurueck": zurueck()
