@@ -393,7 +393,7 @@ struct SnBildschirmBild: View {
         .task {
             modell.zusammenhang = HierZusammenhang(art: .browser, programm: "Safari", titel: "Power BI · Anrufe pro Tag · Oktober", dateien: [foto], hatFensterfoto: true)
             modell.text = "Warum ist der Oktober so niedrig?"
-            if antwort { modell.ausschnitt = "bereich"; modell.sendeHier = { _, _ in try? await Task.sleep(for: .milliseconds(400)); return "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst.\nStelle: 25 22 14 60" }; Task { try? await Task.sleep(for: .milliseconds(100)); modell.zaehle("liest das Bild"); modell.zaehle("prüft den Webhook") }; await modell.abschicken() }
+            if antwort { modell.ausschnitt = "bereich"; modell.sendeHier = { _, _ in try? await Task.sleep(for: .milliseconds(400)); return "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst.\nStelle: 33 25 10 62" }; Task { try? await Task.sleep(for: .milliseconds(100)); modell.zaehle("liest das Bild"); modell.zaehle("prüft den Webhook") }; await modell.abschicken() }
         }
     }
 }

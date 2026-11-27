@@ -546,6 +546,7 @@ final class MeetingDienst: ObservableObject {
         for a in auswahl {
             var w: [String: JSONWert] = a.fuerAntonio ? ["titel": .text(a.alsToDo)] : ["text": .text(a.text), "wer": .text(a.wer.lowercased().replacingOccurrences(of: "ü", with: "ue"))]
             if let b = termin?.kalender { w["bereich"] = .text(b) }
+            if a.fuerAntonio, let m = a.minuten { w["dauer_min"] = .zahl(Double(m)) }
             handle(a.fuerAntonio ? "todo.anlegen" : "auftrag.anlegen", nil, w)
         }
     }

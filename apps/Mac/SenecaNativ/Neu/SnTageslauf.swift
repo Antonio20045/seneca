@@ -109,7 +109,8 @@ enum HeuteBild {
                         }
                     case "start-weiter", "start-antwortet-nicht", "start-wieder":
                         let art = env["SENECA_SEITE"] ?? ""
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {},
+                                     neu: art == "start-wieder" ? Set((s.team ?? []).filter { $0.name == "Prüfer" }.map(SnHeuteTafel.kennung)) : []).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
                         SnGeruestBild(stand: s)
                         SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
                     case "meeting-ergebnis":
@@ -170,7 +171,7 @@ enum SnMeetingProbe {
             (840, 864, 2, "Sundartha verlängert die Domain, das Hosting bleibt bei euch.")].map { MeetingSegment(start: $0.0, ende: $0.1, sprecher: $0.2, text: $0.3) },
             zusammenfassung: "Die Website geht Montag live, wenn Prüfer heute Nacht nichts findet. Danach verlängert Sundartha die Domain.", aufgaben: [], rollen: [1: "Mikrofon, Antonio", 2: "Systemton"],
             entscheidungen: ["Livegang Montag, 30. November, nach dem Test heute Nacht.", "Sundartha verlängert die Domain, das Hosting bleibt bei dir."],
-            alleAufgaben: [MeetingAufgabe(wer: "Antonio", text: "Texte für die Startseite an Jonas schicken", termin: "Freitag"), MeetingAufgabe(wer: "Prüfer", text: "Neue Website von Sundartha testen", termin: "heute Nacht ab 22:00"),
+            alleAufgaben: [MeetingAufgabe(wer: "Antonio", text: "Texte für die Startseite an Jonas schicken", termin: "Freitag", minuten: 30), MeetingAufgabe(wer: "Prüfer", text: "Neue Website von Sundartha testen", termin: "heute Nacht ab 22:00"),
                            MeetingAufgabe(wer: "Antonio", text: "Steuerberater: Kleinunternehmer klären", termin: nil)],
             offeneFragen: ["Braucht die Seite einen Cookie-Hinweis? Jonas klärt das bis Montag."], aufnahme: "probe")
         e.marken = [661]; e.termin = "Telefonat · Jonas · Sundartha"; e.namen = [2: "Jonas"]

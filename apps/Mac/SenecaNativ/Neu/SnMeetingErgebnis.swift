@@ -152,7 +152,7 @@ struct SnMeetingErgebnis: View {
                         if bearbeiten, d == nil { TextField("", text: Binding(get: { texte[i] ?? a.text }, set: { texte[i] = $0 })).textFieldStyle(.plain).font(Schrift.grotesk(15)).foregroundStyle(.white) }
                         else { Text(texte[i] ?? a.text).font(Schrift.grotesk(15)).lineHeight(.exact(points: 21)).foregroundStyle(d == nil ? .white : TafelFarbe.leise) }
                         Text(d.map { ["gibt es schon", HeuteTafelLogik.todoZeile($0), "wird nicht doppelt angelegt"].filter { !$0.isEmpty }.joined(separator: " · ") }
-                             ?? ([a.fuerAntonio ? "To-do" : a.wer] + (a.fuerAntonio ? [e.termin?.components(separatedBy: " · ").last].compactMap { $0 } : []) + [a.termin.map { a.fuerAntonio ? "bis " + $0 : $0 }].compactMap { $0 }).joined(separator: " · "))
+                             ?? ([a.fuerAntonio ? "To-do" : a.wer] + (a.fuerAntonio ? [e.termin?.components(separatedBy: " · ").last].compactMap { $0 } : []) + [a.termin.map { a.fuerAntonio ? "bis " + $0 : $0 }, a.fuerAntonio ? a.minuten.map { "etwa \($0) Min" } : nil].compactMap { $0 }).joined(separator: " · "))
                             .font(Schrift.grotesk(12.5)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.leise)
                     }
                     Spacer(minLength: 0)

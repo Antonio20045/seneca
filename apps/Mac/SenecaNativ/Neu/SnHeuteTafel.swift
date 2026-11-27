@@ -10,8 +10,10 @@ struct SnHeuteTafel: View {
     var erledige: (String) -> Void
     var zuDenFragen: () -> Void
     var zurArbeit: () -> Void
+    var neu: Set<String> = []
 
     private typealias L = HeuteTafelLogik
+    static func kennung(_ m: SenecaStand.Mitglied) -> String { "team:\(m.name):\(m.satz ?? m.zuletzt?.satz ?? m.zustand)" }
     private let linie = Color.white.opacity(0.07)
 
     var body: some View {
@@ -86,9 +88,11 @@ struct SnHeuteTafel: View {
                         HStack(alignment: .firstTextBaseline, spacing: 14) {
                             Text("\(i + 1)").font(Schrift.grotesk(14, .medium)).monospacedDigit().foregroundStyle(TafelFarbe.leise).frame(width: 26, alignment: .leading)
                             Text(f.text).font(Schrift.grotesk(16)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
+                            if neu.contains(f.id) { Text("NEU").font(Schrift.mono(10)).kerning(1).foregroundStyle(TafelFarbe.leise) }
                             herkunft(f)
                         }
                         .padding(.vertical, 10)
+                        .modifier(SnNeuHell(an: neu.contains(f.id)))
                         .overlay(alignment: .top) { linie.frame(height: 1) }
                         .contentShape(Rectangle())
                     }
@@ -141,10 +145,11 @@ struct SnHeuteTafel: View {
                                 }
                             }
                             .font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
-                            Text(rechts(m)).font(Schrift.mono(12))
+                            Text((neu.contains(Self.kennung(m)) ? "NEU · " : "") + rechts(m)).font(Schrift.mono(12))
                                 .foregroundStyle(m.zustand == "arbeitet" ? TafelFarbe.gruen : TafelFarbe.zweit)
                         }
                         .padding(.vertical, 10)
+                        .modifier(SnNeuHell(an: neu.contains(Self.kennung(m))))
                         .overlay(alignment: .top) { linie.frame(height: 1) }
                         .contentShape(Rectangle())
                     }
@@ -276,5 +281,13 @@ struct SnHeuteSkelett: View {
         }
         .padding(.top, 140)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+struct SnNeuHell: ViewModifier {
+    var an: Bool
+    func body(content: Content) -> some View {
+        content.background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(an ? 0.08 : 0)).padding(.horizontal, -10))
+            .animation(Kurve.sn(0.6), value: an)
     }
 }
