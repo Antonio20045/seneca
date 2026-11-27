@@ -29,10 +29,8 @@ struct DayInput {
     var entries: [CalendarEntry]
     var jobs: [AgentJob]
     var leaders: [String: String]
-    var tasks: [SenecaTask]
-    var days: [String: DayRecord]
-    var routineDoneToday: Bool
-    var needs: NeedsInput? = nil
+    var offen = 0
+    var erledigt = 0
 }
 
 struct DayState: Equatable {
@@ -40,14 +38,7 @@ struct DayState: Equatable {
     var dateLine: String
     var agenda: [DayItem]
     var routineDetail: String
-    var routineDone: Bool
-    var todos: [SenecaTask]
-    var doneCount: Int
     var progress: Double
-    var needs: [NeedsItem] = []
-    var needsLine: String? = nil
-    var needsDetail: String? = nil
-    var needsKurz: String? = nil
     var entries: [CalendarEntry] = []
     var jobs: [AgentJob] = []
     var leaders: [String: String] = [:]
@@ -149,10 +140,6 @@ enum DayLogic {
         return out.sorted { $0.start != $1.start ? $0.start < $1.start : ($0.kind == .termin && $1.kind == .lauf) }
     }
 
-    static let priorityRank = ["urgent": 0, "high": 1, "normal": 2, "low": 3]
-    static func todosToday(_ tasks: [SenecaTask], dayStart: Date, _ cal: Calendar = .current) -> [SenecaTask] {
-        AufgabenLogic.heutigeAufgaben(tasks, jetzt: dayStart, cal)
-    }
     static func routineDetail(window: (Date, Date)?, _ cal: Calendar) -> String {
         guard let window else { return "" }
         return "\(hm(window.0, cal)) bis \(hm(window.1, cal))"
@@ -171,30 +158,15 @@ enum DayLogic {
 
     static func state(_ input: DayInput) -> DayState {
         let cal = input.calendar, now = input.now
-        let dayStart = cal.startOfDay(for: now)
         let today = items(on: now, input)
-        let todos = todosToday(input.tasks, dayStart: dayStart, cal)
-        let doneTodos = todos.filter(\.isDone).count
-        let done = (input.routineDoneToday ? 1 : 0) + doneTodos
         let routine = today.filter(\.isRoutine)
         let window = routine.isEmpty ? nil : (routine.map(\.start).min()!, routine.map(\.end).max()!)
-        var needsInput = input.needs
-        needsInput?.now = now
-        let needs = needsInput.map(NeedsYou.items) ?? []
-        let needsHero = needsInput.flatMap { NeedsYou.hero(needs, $0) }
         return DayState(
             dayKey: dayKey(now, cal),
             dateLine: dateLine(now, cal),
             agenda: Array(today.filter { $0.start > now }.prefix(3)),
             routineDetail: routineDetail(window: window, cal),
-            routineDone: input.routineDoneToday,
-            todos: todos,
-            doneCount: done,
-            progress: Double(done) / Double(1 + todos.count),
-            needs: needs,
-            needsLine: needsHero.map { "\($0.line1) \($0.line2Prefix)\($0.emphasis)\($0.line2Suffix)" },
-            needsDetail: needsHero?.sub,
-            needsKurz: needsInput.flatMap { NeedsYou.mintZeile(needs, $0) },
+            progress: Double(input.erledigt) / Double(max(1, input.erledigt + input.offen)),
             entries: input.entries,
             jobs: input.jobs,
             leaders: input.leaders)

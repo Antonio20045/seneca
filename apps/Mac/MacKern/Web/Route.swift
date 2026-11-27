@@ -1,32 +1,22 @@
 import Foundation
 
 enum Seite: String, CaseIterable {
-    case heute, entscheidungen, projekte, projekt, kalender, berichte, bereiche, bereich, chat, statistik
+    case heute, entscheidungen, projekte, kalender, chat, statistik
 
-    static let leiste: [Seite] = [.heute, .kalender, .entscheidungen, .projekte, .bereiche, .berichte]
+    static let leiste: [Seite] = [.heute, .kalender, .entscheidungen, .projekte]
 
     var titel: String {
         switch self {
         case .heute, .chat: return "Heute"
         case .kalender: return "Kalender"
         case .entscheidungen: return "Entscheiden"
-        case .projekte, .projekt: return "Projekte"
-        case .bereiche, .bereich: return "Bereiche"
-        case .berichte: return "Berichte"
+        case .projekte: return "Projekte"
         case .statistik: return "Statistik"
         }
     }
 
-    var leistenEintrag: Seite {
-        switch self {
-        case .projekte, .projekt, .bereich: return .bereiche
-        case .chat: return .heute
-        default: return self
-        }
-    }
-
     static func vonGTaste(_ t: String) -> Seite? {
-        ["h": .heute, "k": .kalender, "e": .entscheidungen, "r": .bereiche, "p": .projekte, "b": .berichte, "s": .statistik][t.lowercased()]
+        ["h": .heute, "k": .kalender, "e": .entscheidungen, "p": .projekte, "s": .statistik][t.lowercased()]
     }
 }
 

@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PfadSperre.belege(bei: sperre)
             haeltEinzelinstanzSperre = true
         }
-        TageslaufHaken.gemeinsam.starte()
         if Hintergrund.aktiv {
             NSApp.setActivationPolicy(.accessory)
             for versuch in 0..<6 {

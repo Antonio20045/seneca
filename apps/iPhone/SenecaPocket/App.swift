@@ -15,7 +15,6 @@ struct SenecaPocketApp: App {
         FadenBruecke.shared.verbinde(store.chat)
         store.chat.speicher.oeffne(store.chat.currentKey)
         Sinne.shared.starten(store: store)
-        TagesablaufQuelle.shared.starten(store: store)
         Hintergrund.anmelden()
         UIWindow.appearance().overrideUserInterfaceStyle = .dark
     }
@@ -28,6 +27,7 @@ struct SenecaPocketApp: App {
                 .tint(Sundartha.himmel)
                 .statusBarHidden(false)
                 .task { WidgetBridge.shared.attach(store) }
+                .onReceive(store.$stand.compactMap { $0?.team }) { if !store.demo, GespraechsPartner.setze(team: $0) { store.chat.objectWillChange.send() } }
                 .task { Eingang.nachtragen(store) }
                 .task {
                     StatHealthSync.shared.melde = { art, werte, zeit in
@@ -84,8 +84,6 @@ enum Hintergrund {
                 let arbeit = Task { @MainActor in
                     await Sinne.shared.abgleichen()
                     await TeilenVerarbeiten.merken()
-                    await TagesablaufQuelle.shared.auffrischen(sofort: true)
-                    Sinne.shared.hintergrundEnde()
                     if !fertig { fertig = true; aufgabe.setTaskCompleted(success: true) }
                 }
                 aufgabe.expirationHandler = {

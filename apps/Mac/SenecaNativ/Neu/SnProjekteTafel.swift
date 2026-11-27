@@ -7,7 +7,6 @@ private extension View {
 struct SnProjekteTafel: View {
     var stand: SenecaStand
     var zuDenFragen: () -> Void
-    var oeffne: (String) -> Void
 
     private let linie = Color.white.opacity(0.10)
 
@@ -63,8 +62,6 @@ struct SnProjekteTafel: View {
         }
         .padding(.top, offen ? 24 : 22).padding(.bottom, offen ? 20 : 22)
         .overlay(alignment: .bottom) { linie.frame(height: 1) }
-        .contentShape(Rectangle())
-        .onTapGesture { oeffne(p.name) }
     }
 
     private func phasen(_ p: SenecaStand.Projekt) -> some View {
@@ -133,7 +130,7 @@ struct SnProjekteEcht: View {
 
     var body: some View {
         if let s = store.stand {
-            SnProjekteTafel(stand: s, zuDenFragen: { modell.gehe(Route(.entscheidungen)) }, oeffne: { modell.oeffneProjekt($0) })
+            SnProjekteTafel(stand: s, zuDenFragen: { modell.gehe(Route(.entscheidungen)) })
         } else {
             SnHeuteSkelett()
         }

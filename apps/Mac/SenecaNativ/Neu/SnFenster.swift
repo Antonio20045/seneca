@@ -419,9 +419,6 @@ struct SnHeuteMitFenster: View {
     @ObservedObject private var notizen: NotizblockModell
     @ObservedObject private var uebersicht: OverviewStore
     @ObservedObject private var store: SenecaStore
-    @ObservedObject private var tageslauf = TageslaufModell.gemeinsam
-    @ObservedObject private var liste = ListenModell.gemeinsam
-    @ObservedObject private var aufgaben = AufgabenModell.gemeinsam
     @ObservedObject private var meeting = MeetingDienst.gemeinsam
     @State private var zeiger = SnZeigerKasten()
     @State private var wieder: Int?

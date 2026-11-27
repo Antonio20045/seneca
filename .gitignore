@@ -4,3 +4,4 @@ uhr/bin/
 *.pem
 *.p12
 *.mobileprovision
+.build/

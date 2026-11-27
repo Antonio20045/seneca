@@ -17,12 +17,11 @@ enum SnOrt: CaseIterable {
     static func von(_ s: Seite) -> SnOrt? {
         switch s {
         case .heute: .heute
-        case .projekte, .projekt, .bereiche, .bereich: .projekte
+        case .projekte: .projekte
         case .entscheidungen: .fragen
         case .kalender: .kalender
         case .statistik: .statistik
         case .chat: .gespraeche
-        default: nil
         }
     }
 }

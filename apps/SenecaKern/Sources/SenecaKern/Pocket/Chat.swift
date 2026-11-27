@@ -274,13 +274,6 @@ enum ChatLogic {
         key == Hauptagent.id || (AreasLogic.agentID(of: key) == Hauptagent.id && key.hasSuffix(":main"))
     }
 
-    static func kontextNeuParams(key: String, expectedSessionId: String? = nil) -> [String: Any] {
-        let voll = key.hasPrefix("agent:") ? key : "agent:main:\(key)"
-        var params: [String: Any] = ["key": voll, "agentId": AreasLogic.agentID(of: voll)]
-        if let id = expectedSessionId, !id.isEmpty { params["expectedSessionId"] = id }
-        return params
-    }
-
     static func isTechnicalText(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if isBackgroundUserText(t) || (t.hasPrefix("[") && !t.contains("](")) { return true }
@@ -514,7 +507,6 @@ final class ChatService: ObservableObject {
     var currentKey: String { partner.sessionKey(main: mainKey) }
     var messages: [ChatMessage] { speicher.nachrichten(currentKey) }
     var fill: ChatFill? { fuellstand[currentKey] }
-    var canReset: Bool { grantedRechte.contains("admin") }
     var isMainConversation: Bool { ChatLogic.isSenecaMain(currentKey) }
 
     var isShowing = false {
@@ -673,36 +665,15 @@ final class ChatService: ObservableObject {
     func reset(_ p: ChatPartner? = nil) async -> Bool {
         let p = p ?? partner
         let key = p.sessionKey(main: mainKey)
-        if demo {
-            speicher.leere(key)
-            fuellstand[key] = ChatFill(used: 0, window: fuellstand[key]?.window ?? 1_000_000)
-            resets += 1
-            return true
+        if !demo {
+            guard let store, store.isConnected else { problem = "Der Mac ist gerade nicht erreichbar."; return false }
+            store.handle("gespraech.neu", ziel: key.hasPrefix("agent:") ? key : "agent:main:\(key)")
         }
-        guard let store else { problem = "Der Mac ist gerade nicht erreichbar."; return false }
-        var sessionId: String?
-        if let described = try? await store.rufe("sessions.describe", params: ["key": key]) {
-            sessionId = ((described["session"] as? [String: Any]) ?? described)["sessionId"] as? String
-        }
-        let params = ChatLogic.kontextNeuParams(key: key, expectedSessionId: sessionId)
-        do {
-            do {
-                _ = try await store.rufe("seneca.kontext.neu", params: params)
-            } catch where canReset {
-                var direkt = params
-                direkt["reason"] = "new"
-                _ = try await store.rufe("sessions.reset", params: direkt)
-            }
-            speicher.leere(key)
-            problem = nil
-            resets += 1
-            await speicher.nachholen(key, grund: .hand)
-            await refreshFill(p)
-            return true
-        } catch {
-            problem = (error as? LocalizedError)?.errorDescription ?? "Leeren hat nicht geklappt."
-            return false
-        }
+        speicher.leere(key)
+        fuellstand[key] = ChatFill(used: 0, window: fuellstand[key]?.window ?? 1_000_000)
+        problem = nil
+        resets += 1
+        return true
     }
 
     func setLives(_ values: [ChatLive]) {

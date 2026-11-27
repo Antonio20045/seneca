@@ -295,9 +295,6 @@ struct WidgetKarte: View {
                 if anzeige == nil {
                     Button("Groß ansehen") { gross() }.buttonStyle(KartenKnopfStil(leise: true)).accessibilityIdentifier("gross-ansehen")
                 }
-                if modus == .chat, let h = html {
-                    PinKnopf(an: ansichten.pins.contains { $0.art == .widget && $0.html == h }) { await ansichten.heftAn(AngeheftetesPin.setzen(html: h, titel: titel)) }
-                }
                 if let weg = onEntfernen {
                     Button(action: weg) { Image(systemName: "xmark").font(.system(size: 11, weight: .medium)).foregroundStyle(Farbe.ink2).frame(width: 28, height: 28) }
                         .buttonStyle(.plain).help("Entfernen").accessibilityLabel("Entfernen")

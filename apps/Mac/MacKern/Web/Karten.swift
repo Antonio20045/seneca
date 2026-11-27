@@ -487,44 +487,6 @@ struct WidgetPromptRegel {
     }
 }
 
-struct AngeheftetesPin: Equatable, Identifiable, Sendable {
-    enum Art: String, Sendable { case karte, widget, datei }
-    var name: String
-    var art: Art
-    var titel: String
-    var von: String?
-    var karte: Karte?
-    var html: String?
-    var pfad: String?
-    var aktualisiert: Double
-    var anzeige: AnzeigeInfo?
-    var id: String { name }
-
-    static func lesen(_ antwort: [String: Any]) -> [AngeheftetesPin] {
-        (antwort["pins"] as? [Any] ?? []).compactMap { e in
-            guard let p = e as? [String: Any], let name = p["name"] as? String, !name.isEmpty, let art = (p["art"] as? String).flatMap(Art.init(rawValue:)) else { return nil }
-            let titel = KartenLesen.str(p["titel"], 140)
-            var pin = AngeheftetesPin(name: name, art: art, titel: titel.isEmpty ? "Übersicht" : titel, von: (p["von"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                                      karte: nil, html: p["html"] as? String, pfad: p["pfad"] as? String,
-                                      aktualisiert: KartenLesen.zahl(p["aktualisiert"]) ?? 0, anzeige: AnzeigeInfo.aus(p["anzeige"]))
-            switch art {
-            case .karte: guard let k = karteAus(p["karte"]) else { return nil }; pin.karte = k
-            case .widget: guard let h = pin.html, !h.isEmpty else { return nil }
-            case .datei: guard let f = pin.pfad, !f.isEmpty else { return nil }
-            }
-            return pin
-        }
-    }
-
-    static func setzen(karte k: Karte, titel: String?) -> [String: Any] {
-        var d: [String: Any] = ["art": "karte", "titel": titel ?? k.titel ?? "Übersicht", "karte": k.alsJSON]
-        if let n = k.name { d["name"] = n }
-        return d
-    }
-    static func setzen(html: String, titel: String) -> [String: Any] { ["art": "widget", "titel": titel, "html": html] }
-    static func setzen(pfad: String, titel: String) -> [String: Any] { ["art": "datei", "titel": titel, "pfad": pfad] }
-}
-
 struct AnzeigeInfo: Equatable, Sendable {
     var zweck: String
     var endeArt: String?
@@ -567,41 +529,5 @@ struct AnzeigeInfo: Equatable, Sendable {
     private static func tagIso(_ d: Date, _ k: Calendar) -> String {
         let c = k.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
-    }
-}
-
-struct BewertungsStand: Equatable, Sendable {
-    enum Urteil: String, Sendable { case passt, passtNicht = "passt_nicht" }
-    struct Zaehlung: Equatable, Sendable { var passt: Int; var passtNicht: Int; var anzahl: Int; var quote: Int? }
-    struct Agent: Equatable, Sendable { var agentId: String; var tage7: Zaehlung?; var liste: [String: Urteil] }
-    var agenten: [String: Agent] = [:]
-
-    static func lesen(_ antwort: [String: Any]) -> BewertungsStand {
-        var s = BewertungsStand()
-        for e in antwort["agenten"] as? [Any] ?? [] {
-            guard let a = e as? [String: Any], let id = a["agentId"] as? String else { continue }
-            var liste: [String: Urteil] = [:]
-            for z in a["liste"] as? [Any] ?? [] {
-                if let m = z as? [String: Any], let k = m["kartenId"] as? String, let u = (m["urteil"] as? String).flatMap(Urteil.init(rawValue:)) { liste[k] = u }
-            }
-            var t7: Zaehlung?
-            if let t = a["tage7"] as? [String: Any] {
-                t7 = Zaehlung(passt: Int(KartenLesen.zahl(t["passt"]) ?? 0), passtNicht: Int(KartenLesen.zahl(t["passtNicht"]) ?? 0),
-                              anzahl: Int(KartenLesen.zahl(t["anzahl"]) ?? 0), quote: KartenLesen.zahl(t["quote"]).map { Int($0) })
-            }
-            s.agenten[id] = Agent(agentId: id, tage7: t7, liste: liste)
-        }
-        return s
-    }
-
-    func urteil(agentId: String, kartenId: String) -> Urteil? { agenten[agentId]?.liste[kartenId] }
-
-    func quoteText(agentId: String) -> String {
-        guard let z = agenten[agentId]?.tage7, z.anzahl > 0, let q = z.quote else { return "" }
-        return "Trefferquote 7 Tage: \(q) % (\(z.passt) von \(z.anzahl))"
-    }
-
-    static func aufruf(agentId: String, kartenId: String, urteil: Urteil, quelle: String = "app") -> [String: Any] {
-        ["agentId": agentId, "kartenId": kartenId, "urteil": urteil.rawValue, "quelle": quelle]
     }
 }

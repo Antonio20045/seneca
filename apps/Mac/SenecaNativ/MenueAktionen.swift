@@ -148,7 +148,7 @@ enum MenueFenster {
     }
 
     static func statusKnoepfe() -> [NSStatusBarButton] {
-        NSApp.windows.filter { $0.className.contains("StatusBar") }.compactMap { finde($0.contentView) }.filter { !($0.target is TagesBegleiter) }
+        NSApp.windows.filter { $0.className.contains("StatusBar") }.compactMap { finde($0.contentView) }
     }
 
     private static func finde(_ v: NSView?) -> NSStatusBarButton? {
@@ -293,7 +293,7 @@ enum MenueProbe {
         }
         w["breite"] = breite
         w["knopfSchrift"] = k.font?.fontName ?? ""
-        dienste.zeichen.probeSetze(MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.stand.braucht))
+        dienste.zeichen.probeSetze(MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.braucht))
         return w
     }
 

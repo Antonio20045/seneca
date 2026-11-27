@@ -175,6 +175,11 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   },
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
   "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
+  "gespraech.neu": (db, h) => {
+    if (!/^agent:[a-z0-9_-]+:[^\s]+$/.test(String(h.ziel))) return "abgelehnt:sitzung_unbekannt";
+    wertSetzen(db, `gespraech:neu:${h.kennung}`, String(h.ziel), h.geraet);
+    return "angenommen";
+  },
   "anzeige.weg": (db, h) => {
     anzeigeEntfernen(db, String(h.ziel), h.geraet);
     return "angenommen";

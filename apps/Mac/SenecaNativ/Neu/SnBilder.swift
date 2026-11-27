@@ -41,7 +41,7 @@ final class SnBilder: NSObject {
         if ProcessInfo.processInfo.environment["SENECA_MESSUNG_UEBERGANG"] == "seiten" {
             Messung.notiere("# Seitenwechsel")
             for i in 1...runden {
-                for s in [Seite.projekte, .kalender, .entscheidungen, .berichte, .chat, .heute] {
+                for s in [Seite.projekte, .kalender, .entscheidungen, .chat, .heute] {
                     m.starte(w); modell.gehe(s == .heute ? .heute : Route(s))
                     try? await Task.sleep(for: .seconds(0.9)); m.beende("\(s.rawValue) \(i)")
                     try? await Task.sleep(for: .seconds(0.4))

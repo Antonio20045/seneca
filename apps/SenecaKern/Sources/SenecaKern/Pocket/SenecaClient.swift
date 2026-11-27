@@ -4,51 +4,22 @@ import CryptoKit
 import Security
 import OSLog
 
-struct PendingOp: Codable, Identifiable, Equatable, Sendable {
-    enum Kind: String, Codable, Sendable { case move, create, day, update, archive, seen }
-    var id = UUID().uuidString
-    var kind: Kind
-    var taskId: String? = nil
-    var status: String? = nil
-    var title: String? = nil
-    var dayKey: String? = nil
-    var day: DayRecord? = nil
-    var archived: Bool? = nil
-    var ids: [String]? = nil
-    var expected: Double? = nil
-    var plan: String? = nil
-    var frist: String? = nil
-    var board: String? = nil
-}
-
 let tempoLog = Logger(subsystem: "de.antonio.senecapocket", category: "Tempo")
 func tempo(_ step: String) {
     let ms = Int64(Date().timeIntervalSince1970 * 1000)
     tempoLog.notice("[TEMPO] \(ms, privacy: .public) \(step, privacy: .public)")
 }
 
-struct KalenderLang: Equatable {
-    var termine: [KalenderTermin]
-    var checkedAt: Date?
-    var loadedAt: Date
-}
-
 @MainActor
 final class SenecaStore: ObservableObject {
     @Published var today: TodaySnapshot?
-    @Published private(set) var days: [String: DayRecord] = [:]
-    @Published private(set) var outbox: [PendingOp] = []
-    @Published private(set) var localSeen: [String: Double] = [:]
     @Published var connectionStatus = "Nicht verbunden"
     @Published var error: String?
-    @Published private(set) var saveFailure: String?
     @Published var isConnected = false
     @Published private(set) var getrenntSeit: Date?
     @Published var isLoading = false
     @Published private(set) var isConfigured = false
     @Published private(set) var lastSync: Date?
-    @Published private(set) var kalenderLang: KalenderLang?
-    private(set) var lastLocalChange = Date.distantPast
 
     var clock: () -> Date = { Date() }
     var demo = false
@@ -66,7 +37,6 @@ final class SenecaStore: ObservableObject {
     private var generation = UUID()
     private var answerWaiters: [String: CheckedContinuation<String, Error>] = [:]
     private var asks: [String: AskTracker] = [:]
-    private var flushing = false
     private var delivering: Set<String> = []
     private var subscribeRetry: Set<String> = []
     nonisolated static let alleRechte = ["lesen", "schreiben", "admin"]
@@ -75,12 +45,6 @@ final class SenecaStore: ObservableObject {
     private let defaults = UserDefaults.standard
 
     init() {
-        if let data = defaults.data(forKey: "seneca-pocket.days"), let saved = try? JSONDecoder().decode([String: DayRecord].self, from: data) { days = saved }
-        outbox = Self.outboxAblage.lies([PendingOp].self) ?? []
-        if let data = defaults.data(forKey: "seneca-pocket.seen"), let saved = try? JSONDecoder().decode([String: Double].self, from: data) {
-            let cutoff = Date().timeIntervalSince1970 * 1000 - 45 * 86_400_000
-            localSeen = saved.filter { $0.value > cutoff }
-        }
         chat.store = self
     }
 
@@ -126,7 +90,7 @@ final class SenecaStore: ObservableObject {
         if endpointChanged {
             today = nil
             if let cached = gemerkterTag() {
-                today = applyOutbox(to: cached)
+                today = cached
                 lastSync = cached.updatedAt
             }
         }
@@ -138,6 +102,12 @@ final class SenecaStore: ObservableObject {
         addTask(title, plan: DayLogic.dayKey(clock(), .current))
     }
 
+    func addTask(_ title: String, plan: String? = nil) {
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        todo("anlegen", nil, ["titel": .text(t)].merging(plan.map { ["tag": JSONWert.text($0)] } ?? [:]) { a, _ in a })
+    }
+
 
     func connect() async {
         guard !demo, isConfigured else { return }
@@ -145,7 +115,6 @@ final class SenecaStore: ObservableObject {
         guard let daten else { return }
         if daten.zustand == .aus { daten.starten() } else { daten.jetztVersuchen() }
         if await daten.verbindung.warteVerbunden(frist: daten.verbindung.regeln.antwortFristS), isConnected {
-            await flushOutbox()
             await loadToday()
         }
     }
@@ -272,7 +241,6 @@ final class SenecaStore: ObservableObject {
         targetSessions = []
         for key in chat.partnerSitzungen { await subscribeSession(key) }
         await resumeAsks()
-        await flushOutbox()
         await loadToday()
     }
 
@@ -337,53 +305,24 @@ final class SenecaStore: ObservableObject {
             return
         }
         let current = generation
-        let started = Date()
         let destination = cacheKey
         isLoading = true
         defer { if generation == current { isLoading = false } }
         var failures: [String] = []
         var snapshot = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
         do {
-            let result = try await rufe("seneca.kalender")
-            snapshot.calendarStatus = SenecaPayloadParser.calendarStatus(result)
-            if result["ok"] as? Bool != false { snapshot.calendar = SenecaPayloadParser.calendar(result) }
-            else { failures.append("Kalender") }
-        } catch {
-            snapshot.calendarStatus = nil
-            failures.append("Kalender")
-        }
-        if kalenderLang.map({ Date().timeIntervalSince($0.loadedAt) >= 120 }) ?? true { await loadKalenderLang() }
-        do {
             snapshot.jobs = SenecaPayloadParser.jobs(try await rufe("cron.list"))
         } catch { failures.append("Mitarbeiter") }
-        if let result = try? await rufe("seneca.bereiche") {
-            snapshot.leaders = SenecaPayloadParser.leaders(result)
-            snapshot.areas = SenecaPayloadParser.areas(result)
-        }
-        if let result = try? await rufe("seneca.projekte") {
-            snapshot.projects = SenecaPayloadParser.projects(result)
-            snapshot.projectDue = SenecaPayloadParser.projectDue(result)
-        }
-        let window = AufgabenLogic.fenster(jetzt: clock())
-        let plugin = (try? await rufe("seneca.aufgaben", params: ["von": window.von, "bis": window.bis])).flatMap { SenecaPayloadParser.aufgaben($0) }
-        snapshot.tasks = AufgabenLogic.angereichert(snapshot.tasks, plugin: plugin, projects: snapshot.projects, due: snapshot.projectDue, areas: snapshot.areas?.areas)
-        if let result = try? await rufe("seneca.fortschritt") { mergeDays(SenecaPayloadParser.days(result)) }
         if let result = try? await rufe("sessions.list", params: ["limit": 200, "configuredAgentsOnly": true]) {
             snapshot.sessions = SenecaPayloadParser.sessions(result)
         }
-        if let result = try? await rufe("seneca.gesehen"), let seen = SenecaPayloadParser.seen(result) { snapshot.seen = seen }
         if let result = try? await rufe("agents.list") { snapshot.agentNames = SenecaPayloadParser.agentNames(result) }
         guard generation == current else { return }
-        if lastLocalChange > started, let local = today?.tasks {
-            snapshot.tasks = local
-            reloadAgain = true
-        }
         snapshot.updatedAt = Date()
         merkeTag(snapshot, kennung: destination)
-        today = applyOutbox(to: snapshot)
+        today = snapshot
         lastSync = snapshot.updatedAt
         error = failures.isEmpty ? nil : "Nicht geladen: " + failures.joined(separator: ", ")
-        syncTodayRecord()
         if reloadAgain {
             reloadAgain = false
             isLoading = false
@@ -392,300 +331,17 @@ final class SenecaStore: ObservableObject {
     }
 
     var kalenderTermine: [KalenderTermin] {
-        KalenderLogic.gemeinsam(kurz: today?.calendar ?? [], lang: kalenderLang?.termine,
-                                kurzAm: today?.calendarStatus?.checkedDate, langAm: kalenderLang?.checkedAt)
+        (stand?.wochenplan?.tage ?? []).flatMap { t in
+            t.bloecke.filter { $0.art == "termin" }.map {
+                KalenderTermin(id: $0.uid ?? $0.id, title: $0.titel, start: Date(timeIntervalSince1970: $0.start / 1000), end: Date(timeIntervalSince1970: $0.ende / 1000),
+                               calendar: $0.detail?.kalender, place: $0.detail?.ort, note: $0.detail?.notiz)
+            } + t.ganztag.map { KalenderTermin(id: "\(t.tag)-\($0)", title: $0, start: Date(timeIntervalSince1970: t.tag / 1000), end: Date(timeIntervalSince1970: t.tag / 1000 + 86_400), isAllDay: true) }
+        }
     }
     var kalenderEintraege: [CalendarEntry] { KalenderParser.eintraege(kalenderTermine) }
-    var kalenderStand: Date? { [calendarCheckedAt, kalenderLang?.checkedAt].compactMap { $0 }.max() }
-
-    @discardableResult
-    func loadKalenderLang(vergangen: Int? = nil) async -> [String: Any]? {
-        guard !demo else { return nil }
-        var params: [String: Any] = ["tage": KalenderLogic.horizon]
-        if let vergangen { params["vergangen"] = vergangen }
-        guard let result = try? await rufe("seneca.kalender", params: params), result["ok"] as? Bool != false else { return nil }
-        kalenderLang = KalenderLang(termine: KalenderParser.termine(result), checkedAt: SenecaPayloadParser.date(result["geprueftAm"]), loadedAt: Date())
-        return result
-    }
-
-    func addEvent(titel: String, start: Date, ende: Date, kalender: String, ort: String) async throws {
-        guard isConnected else { throw SenecaError.offline }
-        let result: [String: Any]
-        do {
-            result = try await rufe("seneca.kalender.anlegen",
-                                       params: TerminEingabeLogik.params(titel: titel, start: start, ende: ende, kalender: kalender, ort: ort),
-                                       timeout: 45)
-        } catch SenecaError.offline {
-            throw SenecaError.message("Keine Antwort vom Mac. Sieh im Kalender nach, ob der Termin schon steht, bevor du es noch einmal versuchst.")
-        }
-        if result["ok"] as? Bool != false {
-            var snap = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
-            snap.calendarStatus = SenecaPayloadParser.calendarStatus(result)
-            snap.calendar = SenecaPayloadParser.calendar(result)
-            today = snap
-            syncTodayRecord()
-        }
-        Task { await loadKalenderLang() }
-    }
-
-    var calendarCheckedAt: Date? {
-        guard let today else { return nil }
-        return today.calendarStatus?.checkedDate ?? (today.updatedAt == .distantPast ? nil : today.updatedAt)
-    }
-    func calendarStandText(now: Date? = nil) -> String? {
-        CalendarFreshness.standText(checkedAt: calendarCheckedAt, now: now ?? clock())
-    }
 
     private var reloadAgain = false
 
-    func toggleTask(_ id: String) {
-        guard var snap = today, let index = snap.tasks.firstIndex(where: { $0.id == id }) else { return }
-        let before = snap.tasks[index]
-        snap.tasks[index].isDone.toggle()
-        lastLocalChange = Date()
-        let done = snap.tasks[index].isDone
-        if done, !before.isDone { statusVorErledigt[id] = before.status }
-        let status = TodoEdits.statusNachHaken(done: done, previous: statusVorErledigt[id])
-        snap.tasks[index].status = status
-        snap.tasks[index].completedAt = done ? clock().timeIntervalSince1970 * 1000 : nil
-        today = snap
-        saveFailure = nil
-        TodoEdits.setStatus(&outbox, taskId: id, status: status, title: snap.tasks[index].title, expected: before.updatedAt)
-        persistOutbox()
-        syncTodayRecord()
-        Task { await flushOutbox() }
-    }
-
-    private var statusVorErledigt: [String: String] = [:]
-
-    private static func setzeProjekt(_ task: inout SenecaTask, board: String?, in snap: TodaySnapshot) {
-        guard let z = NeueAufgabeLogik.ziel(board: board, boardNames: snap.boardNames, projects: snap.projects,
-                                            areas: snap.areas?.areas, tasks: snap.tasks) else { return }
-        task.projektId = z.board
-        task.projektName = z.projektName
-        task.bereichId = z.bereichId
-        task.bereichName = z.bereichName
-    }
-
-    func addTask(_ title: String, plan: String? = nil, frist: String? = nil, board: String? = nil) {
-        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        let localID = "local-" + UUID().uuidString
-        var snap = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
-        var neu = SenecaTask(id: localID, title: title, isDone: false, status: "todo", updatedAt: clock().timeIntervalSince1970 * 1000)
-        neu.plan = plan
-        neu.frist = frist
-        Self.setzeProjekt(&neu, board: board, in: snap)
-        snap.tasks.append(neu)
-        today = snap
-        lastLocalChange = Date()
-        outbox.append(PendingOp(kind: .create, taskId: localID, status: "todo", title: title, plan: plan, frist: frist, board: board))
-        persistOutbox()
-        syncTodayRecord()
-        Task { await flushOutbox() }
-    }
-
-    private var inFlightOp: String? { flushing ? outbox.first?.id : nil }
-
-    func renameTask(_ id: String, to text: String) {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, var snap = today, let i = snap.tasks.firstIndex(where: { $0.id == id }), snap.tasks[i].title != text else { return }
-        let raw = TodoEdits.renamedTitle(snap.tasks[i].fullTitle, to: text)
-        let previous = snap.tasks[i].fullTitle
-        snap.tasks[i].rawTitle = raw
-        snap.tasks[i].title = text
-        var box = outbox
-        _ = TodoEdits.setTitle(&box, taskId: id, title: raw, previous: previous, inFlight: inFlightOp)
-        commitTaskChange(snap, box)
-    }
-
-    private func commitTaskChange(_ snap: TodaySnapshot, _ box: [PendingOp]) {
-        today = snap
-        outbox = box
-        saveFailure = nil
-        lastLocalChange = Date()
-        persistOutbox()
-        syncTodayRecord()
-        Task { await flushOutbox() }
-    }
-
-    func setRoutine(_ done: Bool) {
-        let key = DayLogic.dayKey(clock(), .current)
-        var record = days[key] ?? DayRecord(routine: false, erledigt: 0, aktualisiert: 0)
-        record.routine = done
-        days[key] = record
-        lastLocalChange = Date()
-        syncTodayRecord(force: true)
-    }
-
-    func routineDone(on date: Date) -> Bool { days[DayLogic.dayKey(date, .current)]?.routine ?? false }
-
-    func syncTodayRecord(force: Bool = false) {
-        let now = clock()
-        let cal = Calendar.current
-        let key = DayLogic.dayKey(now, cal)
-        let doneTodos = DayLogic.todosToday(today?.tasks ?? [], dayStart: cal.startOfDay(for: now)).filter(\.isDone).count
-        var record = days[key] ?? DayRecord(routine: false, erledigt: 0, aktualisiert: 0)
-        let erledigt = (record.routine ? 1 : 0) + doneTodos
-        guard force || record.erledigt != erledigt || record.aktualisiert == 0 else { return }
-        guard force || today != nil else { return }
-        record.erledigt = erledigt
-        record.aktualisiert = now.timeIntervalSince1970 * 1000
-        days[key] = record
-        persistDays()
-        outbox.removeAll { $0.kind == .day && $0.dayKey == key }
-        outbox.append(PendingOp(kind: .day, dayKey: key, day: record))
-        persistOutbox()
-        Task { await flushOutbox() }
-    }
-
-    private func mergeDays(_ remote: [String: DayRecord]) {
-        var merged = days
-        for (key, value) in remote where (merged[key]?.aktualisiert ?? -1) <= value.aktualisiert {
-            if outbox.contains(where: { $0.kind == .day && $0.dayKey == key }) { continue }
-            merged[key] = value
-        }
-        days = merged
-        persistDays()
-    }
-
-    private func applyOutbox(to snapshot: TodaySnapshot) -> TodaySnapshot {
-        var snap = snapshot
-        for op in outbox {
-            switch op.kind {
-            case .move:
-                if let i = snap.tasks.firstIndex(where: { $0.id == op.taskId }) {
-                    let done = op.status == "done"
-                    if snap.tasks[i].isDone != done {
-                        snap.tasks[i].isDone = done
-                        snap.tasks[i].status = op.status ?? "todo"
-                        snap.tasks[i].completedAt = done ? clock().timeIntervalSince1970 * 1000 : nil
-                    }
-                }
-            case .create:
-                if let id = op.taskId, !snap.tasks.contains(where: { $0.id == id }) {
-                    let raw = op.title ?? ""
-                    var neu = SenecaTask(id: id, title: TodoEdits.display(raw), isDone: op.status == "done", status: op.status ?? "todo",
-                                         isParked: TodoEdits.isParked(raw),
-                                         completedAt: op.status == "done" ? clock().timeIntervalSince1970 * 1000 : nil, rawTitle: raw)
-                    neu.plan = op.plan
-                    neu.frist = op.frist
-                    Self.setzeProjekt(&neu, board: op.board, in: snap)
-                    snap.tasks.append(neu)
-                }
-            case .update:
-                if let raw = op.title, let i = snap.tasks.firstIndex(where: { $0.id == op.taskId }) {
-                    snap.tasks[i].rawTitle = raw
-                    snap.tasks[i].title = TodoEdits.display(raw)
-                    snap.tasks[i].isParked = TodoEdits.isParked(raw)
-                }
-            case .archive:
-                if op.archived == false {
-                    if let id = op.taskId, let raw = op.title, !snap.tasks.contains(where: { $0.id == id }) {
-                        snap.tasks.append(SenecaTask(id: id, title: TodoEdits.display(raw), isDone: false, isParked: TodoEdits.isParked(raw), rawTitle: raw))
-                    }
-                } else {
-                    snap.tasks.removeAll { $0.id == op.taskId }
-                }
-            case .day, .seen: break
-            }
-        }
-        return snap
-    }
-
-    func flushOutbox() async {
-        guard !demo, isConnected, !flushing, !outbox.isEmpty else { return }
-        flushing = true
-        defer { flushing = false }
-        var reload = false
-        while let op = outbox.first, isConnected {
-            do {
-                switch op.kind {
-                case .move:
-                    var params: [String: Any] = ["id": op.taskId ?? "", "status": op.status ?? "todo"]
-                    if let expected = op.expected { params["expectedUpdatedAt"] = expected }
-                    let moved = try await rufe("workboard.cards.move", params: params)
-                    let card = moved["card"] as? [String: Any] ?? moved
-                    let fresh = (card["updatedAt"] as? NSNumber)?.doubleValue
-                    TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: fresh)
-                    if let fresh, let i = today?.tasks.firstIndex(where: { $0.id == op.taskId }) { today?.tasks[i].updatedAt = fresh }
-                    reload = true
-                case .create:
-                    let created = try await rufe("workboard.cards.create", params: TodoEdits.createParams(title: op.title ?? "", plan: op.plan, frist: op.frist, board: op.board, key: op.id))
-                    let card = created["card"] as? [String: Any] ?? created
-                    let status = outbox.first(where: { $0.id == op.id })?.status ?? op.status
-                    if status == "done", let newID = card["id"] as? String {
-                        _ = try await rufe("workboard.cards.move", params: ["id": newID, "status": "done"])
-                    }
-                    reload = true
-                case .update:
-                    let updated = try await rufe("workboard.cards.update", params: ["id": op.taskId ?? "", "patch": ["title": op.title ?? ""]])
-                    TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: ((updated["card"] as? [String: Any] ?? updated)["updatedAt"] as? NSNumber)?.doubleValue)
-                    reload = true
-                case .archive:
-                    let archived = try await rufe("workboard.cards.archive", params: ["id": op.taskId ?? "", "archived": op.archived ?? true])
-                    TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: ((archived["card"] as? [String: Any] ?? archived)["updatedAt"] as? NSNumber)?.doubleValue)
-                    reload = true
-                case .seen:
-                    let result = try await rufe("seneca.gesehen.setzen", params: ["ids": op.ids ?? []])
-                    if let seen = SenecaPayloadParser.seen(result) { today?.seen = seen }
-                case .day:
-                    if let key = op.dayKey, let day = op.day {
-                        let result = try await rufe("seneca.fortschritt.setzen", params: ["tag": key, "routine": day.routine, "erledigt": day.erledigt, "aktualisiert": day.aktualisiert])
-                        let remote = SenecaPayloadParser.days(result)
-                        outbox.removeAll { $0.id == op.id }; persistOutbox()
-                        mergeDays(remote)
-                        continue
-                    }
-                }
-                outbox.removeAll { $0.id == op.id }
-                persistOutbox()
-            } catch SenecaError.offline {
-                break
-            } catch SenecaError.refused(let refusal) where op.kind == .move && refusal.isConflictAlreadyAt(op.status ?? "todo") {
-                TodoEdits.adoptUpdatedAt(&outbox, taskId: op.taskId ?? "", updatedAt: refusal.cardUpdatedAt)
-                if let fresh = refusal.cardUpdatedAt, let i = today?.tasks.firstIndex(where: { $0.id == op.taskId }) { today?.tasks[i].updatedAt = fresh }
-                outbox.removeAll { $0.id == op.id }
-                persistOutbox()
-                reload = true
-            } catch {
-                let failed = op
-                outbox.removeAll { $0.id == op.id }
-                persistOutbox()
-                if failed.kind == .seen { continue }
-                saveFailure = failed.kind == .day ? "Dein Tagesstand wurde nicht gespeichert." : "„\(failed.title ?? "To-do")“ wurde nicht gespeichert. Tippe zum Wiederholen."
-                reload = true
-            }
-        }
-        if reload && outbox.allSatisfy({ $0.kind == .day }) { await loadToday() }
-    }
-
-    private static let outboxAblage = Ablage(MacPfade.datenOrdner, "outbox.json")
-
-    private func persistOutbox() {
-        guard !demo else { return }
-        Self.outboxAblage.schreibe(outbox)
-    }
-    private func persistDays() {
-        guard !demo else { return }
-        if let data = try? JSONEncoder().encode(days) { defaults.set(data, forKey: "seneca-pocket.days") }
-    }
-
-    func markSeen(_ keys: [String]) {
-        let fresh = keys.filter { localSeen[$0] == nil && today?.seen?[$0] == nil }
-        guard !fresh.isEmpty else { return }
-        let now = Date().timeIntervalSince1970 * 1000
-        for k in fresh { localSeen[k] = now }
-        if !demo, let data = try? JSONEncoder().encode(localSeen) { defaults.set(data, forKey: "seneca-pocket.seen") }
-        for start in stride(from: 0, to: fresh.count, by: 50) {
-            outbox.append(PendingOp(kind: .seen, ids: Array(fresh[start..<min(start + 50, fresh.count)])))
-        }
-        persistOutbox()
-        Task { await flushOutbox() }
-    }
-
-
-    nonisolated static let connectCaps = ["chat-only-assistant-text", "tool-events"]
 
     #if os(iOS)
     nonisolated static let phoneHint = "\n\n[Vom iPhone: erst ein kurzer Ergebnissatz, dann knapp; Termine als „HH:MM Titel“.]"
@@ -977,123 +633,25 @@ final class SenecaStore: ObservableObject {
     }
 
     #if DEBUG
-    func loadDemo(now: Date, streak: Int, record: Int, todos: Bool, routineDone: Bool, needs: Bool = false) {
+    func loadDemo(now: Date) {
         demo = true
         isConfigured = true
         zeigeBeispiel(ProcessInfo.processInfo.environment["SENECA_DEMO_STAND"] ?? "Beispiel-Stand")
         let cal = Calendar.current
-        let day = cal.startOfDay(for: now)
-        func at(_ h: Int, _ m: Int, _ offset: Int = 0) -> Date { cal.date(byAdding: .minute, value: h * 60 + m, to: cal.date(byAdding: .day, value: offset, to: day)!)! }
-        var entries: [CalendarEntry] = []
-        for offset in [0, 1] {
-            for (t, s, e) in [("Aufwachen", (5, 0), (5, 15)), ("Laufen", (5, 30), (6, 30)), ("Lesen", (6, 30), (7, 30)), ("Programmieren lernen", (7, 30), (8, 0)), ("To-Dos sichten", (8, 0), (8, 15))] {
-                entries.append(CalendarEntry(id: "\(offset)\(t)", title: t, start: at(s.0, s.1, offset), end: at(e.0, e.1, offset), calendar: "Routine"))
-            }
-        }
+        let weekday = cal.component(.weekday, from: now) - 1
         func job(_ id: String, _ name: String, _ agent: String, _ expr: String) -> AgentJob {
             AgentJob(id: id, name: name, agentId: agent, enabled: true, kind: "cron", expr: expr, tz: TimeZone.current.identifier)
         }
-        let weekday = cal.component(.weekday, from: now) - 1
         let jobs = [
             job("a", "Sundartha Planung", "sundartha", "45 6 * * *"),
             job("b", "Morgen-Briefing mit Anruf", Hauptagent.id, "30 7 * * *"),
-            job("c", "Wettbewerber CALL-E — täglicher Check", "sundartha", "30 8 * * *"),
             job("d", "Sundartha Ideen", "sundartha", "0 17 * * \(weekday)"),
-            job("e", "Vodafone Ideen", "powerbi", "15 17 * * \(weekday)"),
-            job("f", "Sundartha Status", "sundartha", "30 18 * * *"),
             job("g", "🌙 Abendbericht", Hauptagent.id, "0 19 * * *"),
         ]
-        let demoEnv = ProcessInfo.processInfo.environment
-        let aufgaben = AufgabenLogic.demo(now: now, cal)
-        let useAufgaben = demoEnv["SENECA_DEMO_AUFGABEN"] != "0"
-        let tasks = !todos ? [] : useAufgaben ? aufgaben.tasks : AufgabenLogic.vorgaben()
-        var jobList = jobs
-        var cards: [WorkCard]? = nil
-        if needs {
-            let run = at(6, 45) < now ? at(6, 45) : at(6, 45, -1)
-            jobList[0].lastRunAtMs = run.timeIntervalSince1970 * 1000
-            jobList[0].lastRunStatus = "error"
-            jobList[0].lastError = "Job execution timed out after 600000ms"
-            jobList[0].lastDurationMs = 600_000
-            cards = [WorkCard(id: "demo-review", title: "Website-Texte prüfen", status: "review", agentId: "sundartha", sessionKey: "agent:sundartha:main",
-                              boardId: "sundartha", updatedAt: now.addingTimeInterval(-7200).timeIntervalSince1970 * 1000)]
-        }
-        let (areas, areaCards) = Self.demoAreas(now: now, cal)
-        let seenAreaCards = Dictionary(uniqueKeysWithValues: areaCards.map { (NeedsYou.cardKey($0), now.timeIntervalSince1970 * 1000) })
-        today = TodaySnapshot(calendar: entries, tasks: tasks, briefings: [], updatedAt: now, jobs: jobList, leaders: ["sundartha": "Sundartha", "powerbi": "Vodafone"],
-                              cards: (cards ?? []) + areaCards, sessions: needs ? [] : nil, seen: seenAreaCards, agentNames: needs ? [Hauptagent.id: "Seneca"] : nil,
-                              areas: areas, projects: useAufgaben ? aufgaben.projects : nil, projectDue: useAufgaben ? aufgaben.due : nil)
-        localSeen = [:]
-        var history: [String: DayRecord] = [:]
-        for i in 0..<streak { history[DayLogic.dayKey(cal.date(byAdding: .day, value: -(i + 1), to: day)!, cal)] = DayRecord(routine: true, erledigt: 1, aktualisiert: 1) }
-        history[DayLogic.dayKey(cal.date(byAdding: .day, value: -(streak + 2), to: day)!, cal)] = DayRecord(routine: false, erledigt: record, aktualisiert: 1)
-        history[DayLogic.dayKey(day, cal)] = DayRecord(routine: routineDone, erledigt: routineDone ? 1 : 0, aktualisiert: 1)
-        days = history
-        outbox = []
+        today = TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: now, jobs: jobs, leaders: ["sundartha": "Sundartha", "powerbi": "Vodafone"])
         lastSync = now
         isConnected = false
-        connectionStatus = "Demo"
-        let env = ProcessInfo.processInfo.environment
-        if let s = env["SENECA_DEMO_STAND"], case let p = s.split(separator: ":").compactMap({ Int($0) }), p.count == 2 {
-            let stand = at(p[0], p[1])
-            today?.updatedAt = stand
-            today?.calendarStatus = CalendarStatus(ok: true, checkedAt: ISO8601DateFormatter().string(from: stand))
-            lastSync = stand
-        }
-        if env["SENECA_DEMO_OFFLINE"] == "1" { connectionStatus = "Mac nicht erreichbar" }
-    }
-
-    static func demoAreas(now: Date, _ cal: Calendar) -> (AreaRegistry, [WorkCard]) {
-        let day = cal.startOfDay(for: now)
-        let status = cal.date(bySettingHour: 12, minute: 30, second: 0, of: day)! < now
-            ? cal.date(bySettingHour: 12, minute: 30, second: 0, of: day)!
-            : cal.date(bySettingHour: 18, minute: 30, second: 0, of: cal.date(byAdding: .day, value: -1, to: day)!)!
-        let earlier = cal.date(byAdding: .day, value: -1, to: status)!
-        func stamp(_ d: Date, time: Bool) -> String {
-            let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = time ? "dd.MM.yyyy, HH:mm" : "dd.MM.yyyy"
-            return "Stand " + f.string(from: d) + ":"
-        }
-        func due(_ days: Int) -> String {
-            let f = DateFormatter(); f.dateFormat = "dd.MM."
-            return f.string(from: cal.date(byAdding: .day, value: days, to: day)!)
-        }
-        let registry = AreaRegistry(areas: [
-            Area(id: "sundartha", name: "Sundartha", leader: "sundartha", leaderName: "Sundartha",
-                 specialists: ["sp-newsletter", "sp-website", "sp-security"],
-                 summary: .init(exists: true, lines: [
-                    "\(stamp(status, time: true)) Der Ideenlauf ist vollständig gelaufen und hat zwei neue Entscheidungen (E-8 ElevenLabs-Speicherfrist, E-9 fehlende Widerrufs-Einwilligung im Checkout) in die Inbox gelegt.",
-                    "Der CALL-E-Tagescheck lief ohne Abschlussantwort; die heutige Beobachtung fällt dadurch aus.",
-                    "Bei Antonio liegen weiterhin E-6 und E-7."], changedAt: status.timeIntervalSince1970 * 1000)),
-            Area(id: "vodafone", name: "Vodafone", leader: "powerbi", leaderName: "Vodafone",
-                 specialists: ["sp-reporting", "sp-marktanalyse"],
-                 summary: .init(exists: true, lines: [
-                    "\(stamp(earlier, time: false)) Power BI ruht auf Antonios Anweisung und wartet auf die einmalige Anmeldung.",
-                    "Vier Abnahmen (P-32, P-3, P-2b, P-28) stehen noch auf NEEDS_WORK."], changedAt: earlier.timeIntervalSince1970 * 1000)),
-        ], shared: ["researcher", "claude", "pruefer"])
-        let t = now.timeIntervalSince1970 * 1000
-        func card(_ id: String, _ title: String, _ status: String, _ agent: String?, _ board: String, notes: String? = nil, ago: Double) -> WorkCard {
-            WorkCard(id: id, title: title, status: status, agentId: agent, boardId: board, updatedAt: t - ago * 3_600_000, notes: notes)
-        }
-        let cards = [
-            card("s1", "Widerrufs-Einwilligung im Checkout ergänzen", "review", "sundartha", "sundartha", ago: 3),
-            card("s2", "Newsletter Oktober entwerfen", "running", "sp-newsletter", "sundartha", notes: "Frist \(due(3))", ago: 1),
-            card("s3", "ElevenLabs-Speicherfrist klären bis \(due(5))", "todo", "sundartha", "hermes", ago: 20),
-            card("s4", "Preisseite auf sundartha.com überarbeiten", "todo", "sp-website", "default", ago: 30),
-            card("s5", "Rufnummernweg absichern", "ready", "sp-security", "sundartha", ago: 40),
-            card("s6", "Alte Landingpage archivieren", "done", "sp-website", "sundartha", ago: 2),
-            card("v1", "Power-BI-Anmeldung durch Antonio", "blocked", "powerbi", "powerbi", ago: 50),
-            card("v2", "OneNumber-Report für KW 42, fällig \(due(4))", "todo", "sp-reporting", "vodafone", ago: 10),
-            card("v3", "Telco-Radar: Tarife der Wettbewerber vergleichen", "todo", "sp-marktanalyse", "telco-radar", ago: 26),
-            card("p1", "Steuererklärung abgeben", "todo", nil, "privat", ago: 5),
-        ]
-        return (registry, cards)
-    }
-
-    func loadDemoManyTodos() {
-        let titles = ["Steuererklärung abgeben", "Friseurtermin vereinbaren", "Geschenk für Mama besorgen", "Fahrrad zur Inspektion bringen",
-                      "Handyvertrag kündigen", "Stromrechnung prüfen", "Bücher in die Bibliothek bringen", "Reifenwechsel buchen",
-                      "Passfoto machen lassen", "Wohnungsübergabe vorbereiten", "Datenbankzugang schließen"]
-        today?.tasks = titles.enumerated().map { SenecaTask(id: "m\($0.offset)", title: $0.element, isDone: false) }
+        connectionStatus = ProcessInfo.processInfo.environment["SENECA_DEMO_OFFLINE"] == "1" ? "Mac nicht erreichbar" : "Demo"
     }
     #endif
 }

@@ -209,7 +209,6 @@ struct KarteAnsicht: View {
             ForEach(Array(karte.aktionen.enumerated()), id: \.offset) { _, a in
                 Button(a.label) { if ort == .chat { ansichten.senden(a.prompt) } else { ansichten.vorschlagen(a.prompt) } }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
             }
-            if ort != .chat { PinKnopf(an: ansichten.pinName(fuer: karte) != nil) { await ansichten.heftAn(karte: karte) } }
         }
     }
 }
@@ -313,88 +312,6 @@ struct FlussLayout: Layout {
             v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
             x += s.width + abstand; zeile = max(zeile, s.height)
         }
-    }
-}
-
-struct PinZeichen: Shape {
-    func path(in r: CGRect) -> Path {
-        let k = min(r.width, r.height) / 16
-        func p(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: r.minX + x * k, y: r.minY + y * k) }
-        var s = Path()
-        s.move(to: p(9.5, 2.5)); s.addLine(to: p(13.5, 6.5)); s.addLine(to: p(11.5, 7.5)); s.addLine(to: p(9, 10)); s.addLine(to: p(8.5, 13))
-        s.addLine(to: p(6.5, 11)); s.addLine(to: p(3, 14.5))
-        s.move(to: p(6.5, 9.5)); s.addLine(to: p(4.5, 7.5)); s.addLine(to: p(7.5, 7)); s.addLine(to: p(10, 4.5)); s.addLine(to: p(9.5, 2.5))
-        return s
-    }
-}
-
-struct PinKnopf: View {
-    var an: Bool
-    var aktion: () async -> Void
-    @State private var laeuft = false
-
-    var body: some View {
-        Button {
-            laeuft = true
-            Task { await aktion(); laeuft = false }
-        } label: {
-            HStack(spacing: 6) {
-                PinZeichen().stroke(style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round)).frame(width: 15, height: 15)
-                Text(an ? "Angeheftet" : "Anheften")
-            }
-            .foregroundStyle(an ? Farbe.gruen : Farbe.ink2)
-        }
-        .buttonStyle(KartenKnopfStil(leise: true))
-        .disabled(laeuft || an)
-        .help(an ? "Liegt unter Angeheftet" : "Anheften")
-        .accessibilityIdentifier("pinknopf")
-    }
-}
-
-struct BewertungsZeile: View {
-    var kartenId: String
-    @EnvironmentObject private var ansichten: AnsichtModell
-    @State private var laeuft = false
-
-    var body: some View {
-        let aktuell = ansichten.bewertungen.urteil(agentId: ansichten.agentId, kartenId: kartenId)
-        let quote = ansichten.bewertungen.quoteText(agentId: ansichten.agentId)
-        HStack(spacing: 8) {
-            knopf("Passt", .passt, aktuell)
-            knopf("Passt nicht", .passtNicht, aktuell)
-            if !quote.isEmpty { Text(quote).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2).padding(.leading, 4) }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("War das Ergebnis richtig?")
-        .task { await ansichten.ladeBewertungen() }
-    }
-
-    private func knopf(_ titel: String, _ u: BewertungsStand.Urteil, _ aktuell: BewertungsStand.Urteil?) -> some View {
-        let gewaehlt = aktuell == u
-        return Button(titel) {
-            guard !laeuft else { return }
-            laeuft = true
-            Task { await ansichten.bewerte(kartenId: kartenId, urteil: u); laeuft = false }
-        }
-        .buttonStyle(BewertungsKnopfStil(gewaehlt: gewaehlt, nein: u == .passtNicht))
-        .disabled(laeuft)
-        .accessibilityAddTraits(gewaehlt ? .isSelected : [])
-        .accessibilityIdentifier(u == .passt ? "bewertung-passt" : "bewertung-passt-nicht")
-    }
-}
-
-struct BewertungsKnopfStil: ButtonStyle {
-    var gewaehlt: Bool
-    var nein: Bool
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Schrift.grotesk(13, gewaehlt && nein ? .medium : .regular))
-            .foregroundStyle(gewaehlt ? (nein ? Farbe.ink1 : Farbe.nacht) : Farbe.ink2)
-            .padding(.horizontal, 12).padding(.vertical, 3)
-            .background(gewaehlt && !nein ? Color.white : Color.clear, in: Capsule())
-            .overlay(Capsule().strokeBorder(gewaehlt && nein ? Color.white.opacity(0.7) : Color.white.opacity(0.237), lineWidth: 1))
-            .opacity(configuration.isPressed ? 0.75 : 1)
-            .animation(Kurve.ease(0.2), value: gewaehlt)
     }
 }
 

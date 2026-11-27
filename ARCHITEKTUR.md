@@ -104,6 +104,8 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 56 | Mail lesen | vorhandenes Zoho-Mail-Werkzeug, kein Plugin-Code |
 | 57 | WhatsApp mitlesen (nie senden) | `quellen/whatsapp.ts` · Hook `message_received` |
 | 58, 59, 63 | Eingang Meeting, Sensor, Datei: Ereignis `eingang`; Meeting und Datei werden ein Auftrag an Seneca, Sensor ein Vorschlag (nur sicher, höchstens 3 am Tag) oder ein Eintrag `tagesspur` | `zugang/handeln.ts` → `quellen/eingang.ts` · Job `eingang` |
+| 79 | Datei aus der Ablage zeigen (Gespräch, Bericht): Vorschau nur innerhalb `ablage_pfad`, ohne `_sicherung` | `quellen/ablage.ts` · `dateiVorschau`, über `seneca.stand` mit `sicht: datei` |
+| 80 | Gespräch neu beginnen (Handlung `gespraech.neu`; das Admin-Recht hat nur der Server) | `zugang/handeln.ts` → `arbeitsdienst/jobs.ts` · Job `gespraeche` |
 | 60 | Vorschlag → ein Tipp → Auftrag, To-do, Wert oder Parken (ein Weg für alle Quellen, Herkunft je Vorschlag) | `register/schreiben.ts` · `vorschlagAnlegen`; Wirkung nach Ja: `arbeitsdienst/jobs.ts` · Job `faellige_wirkungen` |
 | 60a | Vorschläge einer Quelle mit wenig Ja kommen nur noch ins Fenster; Vorschlag mit Frist verfällt | `pforte/zustellen.ts` |
 | 67 | Plugin ausliefern | offen (`ausliefern.yml` nach dem Update auf 11.10) |
@@ -120,7 +122,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call`, `subagent_spawned` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |
 | Verlauf je Gespräch: Quittung (was Seneca getan hat, Ergebnis, „Termin zurücklegen“), Gerät je Nachricht (Schlüssel `<geraet>-<uuid>`), Antworten ohne eigene Frage | `pforte/verlauf.ts` → `seneca.stand.verlauf`; Apps: `SenecaKern/Pocket/VerlaufLogik.swift` |
-| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `kalender_wache` (Vorschläge verfallen still, „Zu spät“ fragt einmal), `laeufe_pruefen`, `pflegen` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
+| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `kalender_wache` (Vorschläge verfallen still, „Zu spät“ fragt einmal), `laeufe_pruefen`, `pflegen`, `gespraeche` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
 
 ## Uhr-App: Aussehen
 

@@ -123,6 +123,8 @@ uhr_lauf_schluessel_min 32
 todo_vorschlag_min 120 app
 ablage_pfad /home/ubuntu/Ablage
 ablage_alle_lesen _wissen
+datei_vorschau_max_kb 8192
+datei_text_endungen txt,json,yaml,yml,csv,log,swift,ts,js,py,sh
 arbeitsdateien_tage 7 vorschlag
 datei_werkzeuge read/lesen/path,write/schreiben/path,edit/schreiben/path,Read/lesen/file_path,Write/schreiben/file_path,Edit/schreiben/file_path zu_messen
 caldav_url https://caldav.icloud.com/

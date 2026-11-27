@@ -10,9 +10,7 @@ struct ChatEintrag: Equatable {
 }
 
 enum SucheAktion: Equatable {
-    case chat(key: String, agentId: String, bereich: String?)
-    case projekt(id: String, karte: String?)
-    case entscheidung(id: String)
+    case chat(key: String, agentId: String)
     case seite(Route)
     case neuerChat
     case modellwahl
@@ -30,10 +28,10 @@ struct SucheTreffer: Identifiable, Equatable {
 enum Suche {
     private static let laerm = #":(cron|subagent|spawn|acp|eval|e\d+-|test|probe)"#
 
-    static func chats(_ ov: OvDaten) -> [ChatEintrag] {
+    static func chats(_ ov: OvDaten, team: Set<String>) -> [ChatEintrag] {
         func titel(_ s: OvSitzung) -> String { [s.label, s.derivedTitle, s.displayName].compactMap { $0 }.first { !$0.isEmpty }?.jsTrim ?? "" }
         func ok(_ s: OvSitzung) -> Bool {
-            if s.archiviert || s.imHintergrund || Gegenueber.istHelfer(ov, s.agentId) { return false }
+            if s.archiviert || s.imHintergrund || !team.contains(s.agentId ?? "") { return false }
             let haupt = HeuteLogik.istHauptschluessel(s.key)
             if ["spawn", "cron", "internal"].contains(s.erzeugtDurch ?? "") { return haupt }
             if s.key.passt(laerm, "i") && !haupt { return false }
@@ -47,7 +45,7 @@ enum Suche {
             return ChatEintrag(key: s.key, agentId: s.agentId ?? "", titel: haupt ? "Hauptchat" : (t.isEmpty ? "Chat" : t), haupt: haupt,
                                zuletzt: s.letzteAktion ?? s.updatedAt ?? 0, aktiv: s.live)
         }
-        for a in ov.agents where !Gegenueber.istHelfer(ov, a.id) && !liste.contains(where: { $0.key == "agent:\(a.id):main" }) {
+        for a in ov.agents where team.contains(a.id) && !liste.contains(where: { $0.key == "agent:\(a.id):main" }) {
             liste.append(ChatEintrag(key: "agent:\(a.id):main", agentId: a.id, titel: "Hauptchat", haupt: true, zuletzt: 0, aktiv: false))
         }
         func rang(_ c: ChatEintrag) -> (Int, Int) { (c.agentId == ov.defaultAgent && c.haupt ? 0 : 1, c.haupt ? 0 : 1) }
@@ -59,45 +57,20 @@ enum Suche {
         }.map(\.element)
     }
 
-    static func treffer(_ ov: OvDaten, entscheidungen: [OvEntscheidung] = [], eingabe: String, aktuellerKey: String, aktuellerAgent: String,
+    static func treffer(_ ov: OvDaten, personen: [Person], eingabe: String, aktuellerKey: String, aktuellerAgent: String,
                         modellVon: (_ key: String, _ agentId: String) -> String = { _, _ in "" }) -> [SucheTreffer] {
         let s = eingabe.lowercased().jsTrim
         var r: [(g: String, em: String, tx: String, sm: String, a: SucheAktion)] = []
         func hat(_ t: String) -> Bool { t.lowercased().contains(s) }
-        let ziele = Gegenueber.zieleVon(ov)
-        for z in ziele {
-            let b = Gegenueber.bereichVon(ov, z.id)
-            if s.isEmpty || hat("\(z.wer) \(b?.name ?? "seneca stabschef") \(b?.id ?? "") bereich leiter") {
-                let sm = [z.key == aktuellerKey ? "offen" : "", b.map { "Bereich \($0.name)" } ?? "", modellVon(z.key, z.agentId)].filter { !$0.isEmpty }.joined(separator: " · ")
-                r.append(("Bereiche", z.em, "Mit \(z.wer) sprechen", sm, .chat(key: z.key, agentId: z.agentId, bereich: z.id)))
-            }
+        for p in personen where s.isEmpty || Gegenueber.passt(p, s) {
+            let sm = [p.key == aktuellerKey ? "offen" : "", modellVon(p.key, p.id)].filter { !$0.isEmpty }.joined(separator: " · ")
+            r.append(("Team", "◦", "Mit \(p.wer) sprechen", sm, .chat(key: p.key, agentId: p.id)))
         }
-        let alleChats = chats(ov)
-        for c in alleChats {
-            if Gegenueber.istBereichsChat(c.key, ov) { continue }
-            let wer = ov.label(c.agentId)
-            if s.isEmpty ? c.haupt : hat("\(wer) \(c.titel)") {
-                let em = ov.emoji(c.agentId)
+        for c in chats(ov, team: Set(personen.map(\.id))) where !c.haupt {
+            let wer = personen.first { $0.id == c.agentId }?.wer ?? ov.label(c.agentId)
+            if s.isEmpty || hat("\(wer) \(c.titel)") {
                 let sm = [c.key == aktuellerKey ? "offen" : (c.aktiv ? "arbeitet" : ""), modellVon(c.key, c.agentId)].filter { !$0.isEmpty }.joined(separator: " · ")
-                r.append(("Chats", em.isEmpty ? "◦" : em, "\(wer) · \(c.titel)", sm, .chat(key: c.key, agentId: c.agentId, bereich: nil)))
-            }
-        }
-        if !s.isEmpty {
-            let bekannt = Set(ziele.map(\.id) + alleChats.map(\.agentId))
-            for ag in ov.agents where !bekannt.contains(ag.id) && hat("\(ov.label(ag.id)) \(ag.id)") {
-                let em = ov.emoji(ag.id)
-                r.append(("Chats", em.isEmpty ? "◦" : em, "Mit \(ov.label(ag.id)) sprechen", "noch kein Gespräch", .chat(key: "agent:\(ag.id):main", agentId: ag.id, bereich: nil)))
-            }
-        }
-        for p in HeuteLogik.projekte(ov) where s.isEmpty || hat("\(p.name) \(p.kontext)") {
-            r.append(("Projekte", "◦", p.name + (p.kontext.isEmpty ? "" : " · \(p.kontext)"), "\(p.offen) offen", .projekt(id: p.id, karte: nil)))
-        }
-        if !s.isEmpty {
-            for e in entscheidungen where hat("\(e.frage) \(HeuteLogik.boardName(ov, e.boardId))") {
-                r.append(("Entscheidungen", "◇", e.frage, HeuteLogik.boardName(ov, e.boardId), .entscheidung(id: e.id)))
-            }
-            for c in ov.cards where c.title.lowercased().contains(s) || Menschlich.klartext(c.title).lowercased().contains(s) {
-                r.append(("Aufgaben", c.status == "done" ? "✓" : "○", Menschlich.klartext(c.title), HeuteLogik.boardName(ov, c.boardId), .projekt(id: c.boardId, karte: c.id)))
+                r.append(("Chats", "◦", "\(wer) · \(c.titel)", sm, .chat(key: c.key, agentId: c.agentId)))
             }
         }
         let wen = ov.label(aktuellerAgent)
@@ -136,7 +109,7 @@ final class SucheModell: ObservableObject {
     func rechne() {
         guard offen else { treffer = []; return }
         let m = modelle
-        treffer = Suche.treffer(uebersicht.daten, entscheidungen: uebersicht.entscheidungen, eingabe: eingabe, aktuellerKey: gegenueber.aktuellerKey,
+        treffer = Suche.treffer(uebersicht.daten, personen: gegenueber.personen.alle, eingabe: eingabe, aktuellerKey: gegenueber.aktuellerKey,
                                 aktuellerAgent: gegenueber.aktuellerAgent) { key, agent in
             guard let s = m.stand(fuer: key, agentId: agent) else { return "" }
             return Modelle.kurzName(s.name) + (s.konto.art == .key ? " · API-Key" : "")

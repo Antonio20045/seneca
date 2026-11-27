@@ -1,5 +1,12 @@
 import SwiftUI
 
+struct KopfSatz: Equatable {
+    var vor = ""
+    var akzent = ""
+    var nach = ""
+    var leise = ""
+}
+
 struct HeuteSatzText: View {
     var satz: KopfSatz
 
@@ -37,7 +44,8 @@ enum HeuteLogik {
     }
 
     static func anzeigeTitel(_ titel: String) -> String {
-        AufgabenLogic.anzeigeTitel(titel)
+        let bereinigt = titel.replacingOccurrences(of: #"\s*\([A-Z]{1,2}-\d+[a-z]*\)\s*$"#, with: "", options: .regularExpression)
+        return bereinigt.isEmpty ? titel : bereinigt
     }
 
     static func kontext(_ t: SenecaTask) -> (lang: String, kurz: String)? {
@@ -51,7 +59,19 @@ enum HeuteLogik {
 
     static func seit(_ d: Date?, jetzt: Date) -> String? {
         guard let d, d < jetzt else { return nil }
-        return "seit " + Tagesablauf.seitText(d, jetzt: jetzt).replacingOccurrences(of: " Uhr", with: "")
+        return "seit " + seitText(d, jetzt: jetzt).replacingOccurrences(of: " Uhr", with: "")
+    }
+    static func seitText(_ seit: Date, jetzt: Date, _ cal: Calendar = .current) -> String {
+        let tage = cal.dateComponents([.day], from: cal.startOfDay(for: seit), to: cal.startOfDay(for: jetzt)).day ?? 0
+        switch tage {
+        case ...0: return uhr(seit, cal)
+        case 1: return "gestern"
+        case 2: return "vorgestern"
+        default:
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "de_DE"); f.calendar = cal; f.timeZone = cal.timeZone; f.dateFormat = "EEEE"
+            return f.string(from: seit)
+        }
     }
     static func datum(_ zahl: Double) -> Date? {
         if zahl > 1e12 { return Date(timeIntervalSince1970: zahl / 1000) }

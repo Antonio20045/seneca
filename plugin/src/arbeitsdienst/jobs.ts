@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import {
@@ -210,6 +210,14 @@ async function tagesSicherung(db: Register, register: string, befehl: Befehl): P
   }
   rmSync(zustand, { recursive: true, force: true });
   wertSetzen(db, "sicherung:tag", new Date(jetzt).toISOString(), "arbeitsdienst", jetzt + regelMs("sicherung_abstand_h"));
+}
+
+export async function gespraecheJob(db: Register, befehl: Befehl): Promise<void> {
+  for (const [schluessel, key] of [...werte(db, "gespraech:neu:")].filter(([, k]) => k)) {
+    const r = await befehl([regelText("openclaw_befehl"), "gateway", "call", "sessions.reset", "--json", "--params", JSON.stringify({ key, reason: "new" })], regelMs("takt_job_haengt_s"));
+    wertSetzen(db, schluessel, "", "arbeitsdienst");
+    wertSetzen(db, "hinweis:gespraech", r.code === 0 ? "" : `Das Gespräch ließ sich nicht neu beginnen: ${r.stderr.slice(0, 200)}`, "arbeitsdienst");
+  }
 }
 
 export async function pflegenJob(db: Register, sicherungsOrdner: string, befehl?: Befehl): Promise<void> {

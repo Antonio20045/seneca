@@ -1,13 +1,5 @@
 import SwiftUI
 
-@MainActor
-final class KalenderVorrat {
-    static let shared = KalenderVorrat()
-    var vergangen: [KalenderTermin]?
-    var vergangenAb: Date?
-    var loadedAt: Date?
-}
-
 enum KalenderTeil: Hashable { case tag, woche, monat }
 
 struct KalenderLayer: View {
@@ -26,10 +18,6 @@ struct KalenderLayer: View {
     @State private var tagWahl: Date? = KalenderStart.wert.tag
     @State private var offen: String?
     @State private var offenDemoTitel: String? = KalenderStart.wert.offen
-    @State private var vergangen: [KalenderTermin]? = KalenderVorrat.shared.vergangen
-    @State private var vergangenAb: Date? = KalenderVorrat.shared.vergangenAb
-
-    private var lang: [KalenderTermin]? { store.kalenderLang?.termine }
     private var cal: Calendar { input.calendar }
     private var env: [String: String] {
         #if DEBUG
@@ -53,11 +41,13 @@ struct KalenderLayer: View {
                                termineBis: cal.date(byAdding: .day, value: KalenderLogic.horizon, to: heute))
         }
         #endif
-        return AgendaInput(now: now, calendar: cal, termine: store.kalenderTermine, vergangen: vergangen, vergangenAb: vergangenAb,
-                           termineBis: cal.date(byAdding: .day, value: lang == nil ? 2 : KalenderLogic.horizon, to: heute))
+        let tage = store.stand?.wochenplan?.tage ?? []
+        return AgendaInput(now: now, calendar: cal, termine: store.kalenderTermine, vergangen: store.kalenderTermine.filter { $0.start < heute },
+                           vergangenAb: tage.first.map { Date(timeIntervalSince1970: $0.tag / 1000) },
+                           termineBis: tage.last.map { Date(timeIntervalSince1970: $0.tag / 1000 + 86_400) })
     }
 
-    private var ohneDaten: Bool { !demo && store.today == nil && lang == nil }
+    private var ohneDaten: Bool { !demo && store.stand?.wochenplan == nil }
 
     private var agendaAnsicht: AgendaAnsicht {
         switch teil {
@@ -92,7 +82,6 @@ struct KalenderLayer: View {
             .accessibilityIdentifier("kalender")
             .accessibilityAction(.escape) { escape() }
             .onAppear { gesturesChanged(PageGestures(holdsBack: false)) }
-            .task(id: store.isConnected) { if teil == .monat { await laden() } }
             .onChange(of: kalenderTag, initial: true) { _, tag in if tag != nil { teil = .tag } }
         } else {
             HeuteSkelett()
@@ -125,23 +114,6 @@ struct KalenderLayer: View {
 
     private func escape() {
         if offen != nil || offenDemoTitel != nil { Bewegung.mit(.blatt) { offen = nil; offenDemoTitel = nil } } else { back() }
-    }
-
-    private func laden() async {
-        guard !demo, store.isConnected else { return }
-        if let at = KalenderVorrat.shared.loadedAt, Date().timeIntervalSince(at) < 120, lang != nil { return }
-        let heute = cal.startOfDay(for: now)
-        let ab = min(KalenderLogic.monthStart(now, cal), KalenderLogic.weekStart(now, cal))
-        let tage = min(62, max(1, KalenderLogic.dayOffset(of: heute, from: ab, cal)))
-        guard let result = await store.loadKalenderLang(vergangen: tage) else { return }
-        KalenderVorrat.shared.loadedAt = Date()
-        if let v = result["vergangen"] as? [String: Any], v["ok"] as? Bool == true, let ab = SenecaPayloadParser.date(v["ab"]) {
-            let alte = KalenderParser.termine(v)
-            KalenderVorrat.shared.vergangen = alte
-            KalenderVorrat.shared.vergangenAb = ab
-            vergangen = alte
-            vergangenAb = ab
-        }
     }
 }
 

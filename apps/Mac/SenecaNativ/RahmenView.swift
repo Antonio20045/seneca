@@ -78,7 +78,6 @@ struct RahmenView: View {
                                schliessen: { modell.modellwahlOffen = false })
             }
         }
-        .overlay { SnAufgabeDetailSchicht(modell: modell, detail: modell.aufgabeDetail) }
         .overlay { SnKopplungSchicht(stand: modell.store.stand) }
         .overlay { TastenhilfeDialog(modell: modell) }
         .overlay(alignment: .topTrailing) {
@@ -95,11 +94,6 @@ struct RahmenView: View {
             ChatPartner.agentNamen = Dictionary(modell.gegenueber.personen.alle.map { ($0.id, $0.wer) }, uniquingKeysWith: { a, _ in a })
         }
         .onChange(of: ansichten.panel != nil) { _, offen in fensterAnpassen(offen: offen) }
-        .onChange(of: ansichten.zeigtProjektKarte) { _, an in
-            if !an, modell.route.seite == .projekt, modell.route.q["karte"] != nil {
-                var r = modell.route; r.q["karte"] = nil; modell.gehe(r)
-            }
-        }
         .onChange(of: chat.lives.isEmpty) { _, _ in
             Task { await store.aktualisiereSitzungen() }
         }
@@ -115,20 +109,11 @@ struct RahmenView: View {
                 .transition(.opacity.combined(with: .offset(y: 16)))
         case .projekte:
             SnProjekteEcht(modell: modell, store: modell.store)
-        case .projekt: alteSeite { ProjektBuehneView(modell: modell, rand: 40) }
-        case .bereich: alteSeite { BereichBuehneView(modell: modell, rand: 40) }
         case .kalender: SnKalenderEcht(modell: modell, store: modell.store)
         case .entscheidungen: SnEntscheidenEcht(store: modell.store)
         case .statistik: SnStatistikEcht(store: modell.store)
-        case .bereiche: alteSeite { BereicheView(modell: modell, rand: 40) }
-        case .berichte:
-            if let id = modell.route.id, !id.isEmpty { alteSeite { BerichteView(modell: modell, rand: 40) } } else { SnBerichteEcht(modell: modell) }
         } }
         .environment(\.mehrZu) { modell.zeigeMehr($0) }
-    }
-
-    private func alteSeite<V: View>(@ViewBuilder _ inhalt: () -> V) -> some View {
-        inhalt().padding(.top, 84)
     }
 
     private var toastSchicht: some View {

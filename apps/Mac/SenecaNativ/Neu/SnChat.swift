@@ -150,7 +150,6 @@ final class SnChatSteuerung: ObservableObject {
         gesendet += 1
         let istBefehl = anhaenge.isEmpty && ChatCommand.parse(text) != nil
         let p = partner
-        if !istBefehl { modell.gegenueber.leiste.schreibe(an: modell.gegenueber.aktuellerAgent) }
         Task {
             do {
                 let antwort = try await chat.send(text, an: p, anhaenge: anhaenge)

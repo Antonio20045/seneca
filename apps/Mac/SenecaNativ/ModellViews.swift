@@ -163,7 +163,7 @@ struct ModellwahlView: View {
         .onAppear {
             q = ""; alle = Self.startAlle; sel = -1; reset = .nein
             fokus = .kasten
-            Task { await modelle.ladeKatalog(); await modelle.ladeKonten(); await modelle.ladeNutzung() }
+            Task { await modelle.ladeKatalog(); await modelle.ladeNutzung() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("modellwahl")

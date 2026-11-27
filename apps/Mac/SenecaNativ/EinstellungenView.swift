@@ -183,7 +183,6 @@ struct EinstellungenView: View {
             .accessibilityIdentifier("einst-mitteilungen")
         Group {
             schalter("Neue Entscheidung", $einst.artEntscheidung)
-            schalter("Fertiger Lauf mit Bericht", $einst.artBericht)
             schalter("Störung", $einst.artStoerung)
         }
         .padding(.leading, 18).disabled(!einst.mitteilungenAn)

@@ -52,6 +52,10 @@ test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau 
   assert.equal(trail({ zs: "trail" }), 200);
   assert.equal(trail({ zs: "leer" }), 403);
   assert.equal(trail({ zs: "trail", h: [{ id: "t1", t: 1, a: "todo.anlegen", p: { x: "x" } }] }), 403);
+  p.methode("seneca.handeln", { kennung: "k4", geraet: "iphone", art: "geraet.uhr_koppeln" });
+  uhrKoppeln(p.db, json({ g: "uhr3" }));
+  um("11:00");
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "iphone" }) as { kopplung: object[] }).kopplung, []);
 });
 
 test("PF08 Frage an der Uhr: Herkunft und Später-Zeit im Stand, am iPhone schon beantwortet meldet Wahl, Gerät, Zeit", () => {

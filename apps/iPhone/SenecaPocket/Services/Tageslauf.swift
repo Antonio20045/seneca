@@ -234,29 +234,6 @@ enum TrainingLogik {
     }
 }
 
-struct TageslaufHeute: Equatable {
-    struct Kommt: Equatable { var titel: String; var zeit: Date?; var ganztags = false }
-    struct Wartet: Equatable { var wer: String; var worum: String = "" }
-    var kommt: [Kommt] = []
-    var wartet: [Wartet] = []
-
-    static func lesen(_ json: [String: Any]) -> TageslaufHeute? {
-        if json["ok"] as? Bool == false { return nil }
-        guard json["kommt"] != nil || json["wartet_auf_antwort"] != nil || json["ereignisse"] != nil else { return nil }
-        var h = TageslaufHeute()
-        for roh in json["kommt"] as? [[String: Any]] ?? [] {
-            guard let titel = (roh["titel"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !titel.isEmpty else { continue }
-            let ganztags = (roh["detail"] as? [String: Any])?["ganztags"] as? Bool ?? false
-            h.kommt.append(Kommt(titel: titel, zeit: TageslaufZeit.lesen(roh["zeit"]), ganztags: ganztags))
-        }
-        for z in FuerDich.zeilen(json["fuer_dich"]) ?? [] where z.art == .antwort && !z.von.isEmpty {
-            if h.wartet.contains(where: { $0.wer == z.von }) { continue }
-            h.wartet.append(Wartet(wer: z.von, worum: z.satz))
-        }
-        return h
-    }
-}
-
 enum Heimkehr {
     static let vonStunde = 15
     static let bisStunde = 22
@@ -268,21 +245,12 @@ enum Heimkehr {
         return zuletzt != TageslaufZeit.tag(zeit, cal)
     }
 
-    static func satz(_ heute: TageslaufHeute, jetzt: Date, _ cal: Calendar) -> String {
-        let offen = heute.kommt.filter { k in
-            guard let z = k.zeit else { return true }
-            return cal.isDate(z, inSameDayAs: jetzt) && (k.ganztags || z > jetzt)
-        }
-        return ansteht(offen.map { ($0.titel, $0.ganztags ? nil : $0.zeit) }, cal) + ", und " + wartet(heute.wartet.map(\.wer)) + "."
-    }
-
     static func satzAusKalender(_ termine: [GeraetTermin], jetzt: Date, _ cal: Calendar) -> String {
         let offen = termine.filter { cal.isDate($0.start, inSameDayAs: jetzt) && !$0.ganztags && $0.start > jetzt }.sorted { $0.start < $1.start }
-        return ansteht(offen.map { ($0.titel, $0.start) }, cal) + ". " + ohneMac
+        return ansteht(offen.map { ($0.titel, $0.start) }, cal) + "."
     }
 
-    static let ohneMac = "Deinen Mac erreiche ich gerade nicht."
-    static let ohneWissen = "Du bist zu Hause. Deinen Mac erreiche ich gerade nicht, und deinen Kalender darf ich auf dem iPhone nicht lesen."
+    static let ohneWissen = "Du bist zu Hause. Deinen Kalender darf ich auf dem iPhone nicht lesen."
 
     private static func ansteht(_ k: [(titel: String, zeit: Date?)], _ cal: Calendar) -> String {
         func eins(_ e: (titel: String, zeit: Date?)) -> String {
@@ -295,17 +263,6 @@ enum Heimkehr {
         default:
             let rest = k.count - 2
             return "Heute stehen noch \(eins(k[0])), \(eins(k[1])) und \(rest == 1 ? "ein weiterer Termin" : "\(rest) weitere Termine") an"
-        }
-    }
-
-    private static func wartet(_ wer: [String]) -> String {
-        switch wer.count {
-        case 0: return "niemand wartet auf eine Antwort von dir"
-        case 1: return "\(wer[0]) wartet auf deine Antwort"
-        case 2: return "\(wer[0]) und \(wer[1]) warten auf deine Antwort"
-        default:
-            let rest = wer.count - 2
-            return "\(wer[0]), \(wer[1]) und \(rest == 1 ? "eine weitere Person" : "\(rest) weitere") warten auf deine Antwort"
         }
     }
 }

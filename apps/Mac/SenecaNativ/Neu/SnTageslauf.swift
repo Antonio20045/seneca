@@ -1,50 +1,5 @@
 import SwiftUI
 
-@MainActor
-final class TageslaufModell: ObservableObject {
-    static let gemeinsam = TageslaufModell()
-    static var befehl: URL { TageslaufHaken.ordner.appendingPathComponent("tageslauf") }
-    static var erlaubt: Bool { MacPfade.profil.echteDaten && !Hintergrund.aktiv && !MacPfade.pruefinstanz }
-
-    @Published private(set) var tag: Tageslauf?
-    @Published private(set) var gelesen = Date()
-    @Published private(set) var einmalGelesen = false
-    private var laedt = false
-    private var zuletztGut: Date?
-
-    func beobachte() async {
-        guard Self.erlaubt else { return }
-        while !Task.isCancelled {
-            await lade()
-            try? await Task.sleep(for: .seconds(60))
-        }
-    }
-
-    @discardableResult
-    func lade() async -> Tageslauf? {
-        guard !laedt else { return tag }
-        laedt = true
-        defer { laedt = false }
-        let daten = await Kindprozess.laufe(Self.befehl, ["heute", "--json"], limit: 20)
-        let alt = tag
-        let ergebnis = await Task.detached(priority: .utility) { () -> (Tageslauf, Bool)? in
-            guard let daten, let n = Tageslauf.lies(daten) else { return nil }
-            return (n, n != alt)
-        }.value
-        let neu = ergebnis?.0
-        if let (neu, geaendert) = ergebnis, !neu.istLeer {
-            if geaendert { tag = neu }
-            zuletztGut = Date()
-        } else if let z = zuletztGut, Date().timeIntervalSince(z) > 15 * 60 {
-            tag = nil
-            zuletztGut = nil
-        }
-        gelesen = Date()
-        einmalGelesen = true
-        return neu
-    }
-}
-
 enum HeuteBild {
     nonisolated static var ziel: String? {
         let env = ProcessInfo.processInfo.environment
@@ -75,7 +30,7 @@ enum HeuteBild {
                         SnKopplungTafel(code: Kopplungscode(adresse: "https://seneca.beispiel.ts.net", schluessel: "beispiel", name: "MacBook Pro von Antonio", bis: Date().addingTimeInterval(582)), iphone: false, neu: {})
                             .frame(maxHeight: .infinity, alignment: .top)
                     case "projekte":
-                        SnProjekteTafel(stand: s, zuDenFragen: {}, oeffne: { _ in })
+                        SnProjekteTafel(stand: s, zuDenFragen: {})
                         SnGeruestBild(stand: s, aktiv: .projekte)
                     case "kalender", "kalender-detail", "kalender-neu", "kalender-vorschlag":
                         SnKalenderTafel(stand: s, handeln: { _, _, _ in }, antworte: { _, _ in }, zumChat: { _ in }, rechneWeg: { _ in nil })

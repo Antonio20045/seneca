@@ -42,8 +42,6 @@ final class Sinne: NSObject, ObservableObject {
     private let schlange = TageslaufSchlange()
     private let defaults = UserDefaults.standard
     private let log = Logger(subsystem: "de.antonio.senecapocket", category: "Sinne")
-    private var eigen: Verbindung?
-    private var fehlschlag: Date?
     private var gestartet = false
     private var gleichtAb = false
     private var meldetHeimkehr = false
@@ -55,7 +53,6 @@ final class Sinne: NSObject, ObservableObject {
         static let heimkehr = "seneca-pocket.sinne.heimkehr-tag"
         static let gefragt = "seneca-pocket.sinne.gefragt"
         static let immerGefragt = "seneca-pocket.sinne.immer-gefragt"
-        static let ortsTag = "seneca-pocket.sinne.orts-tag"
         static let schlaf = "seneca-pocket.sinne.schlaf-bis"
         static let mitteilungen = "seneca-pocket.sinne.fragen-gemeldet"
         static let knoepfe = "seneca-pocket.sinne.fragen-knoepfe"
@@ -215,14 +212,12 @@ final class Sinne: NSObject, ObservableObject {
         let aufgabe = UIApplication.shared.beginBackgroundTask(withName: "seneca.sinne")
         defer { UIApplication.shared.endBackgroundTask(aufgabe) }
         schlange.hinzufuegen([OrtsLogik.ereignis(ort, ankunft: dort, zeit: zeit)])
-        ortMerken(ort, dort: dort, zeit: zeit)
         wartend = schlange.ereignisse.count
         await abgleichen()
         await senden()
         if dort, Heimkehr.faellig(ort: ort.id, zeit: zeit, zuletzt: defaults.string(forKey: Merk.heimkehr), .current) {
             await heimkehrMelden(zeit)
         }
-        verbindungSchliessen()
     }
 
     func abgleichen() async {
@@ -289,19 +284,6 @@ final class Sinne: NSObject, ObservableObject {
 
     fileprivate func frageGewaehlt(_ id: String, wahl: String?) {
         if let wahl { store?.antworte(frage: id, wahl: wahl) } else { offeneFrage = id }
-        hintergrundEnde()
-    }
-
-    func termine(_ von: Date, _ bis: Date) -> [GeraetTermin]? { Self.stumm ? nil : geraetTermine(von, bis) }
-
-    func orteHeute(_ jetzt: Date = Date()) -> [AblaufPunkt] {
-        guard let daten = defaults.data(forKey: Merk.ortsTag), let alle = try? JSONDecoder().decode([AblaufPunkt].self, from: daten) else { return [] }
-        return alle.filter { Calendar.current.isDate($0.zeit, inSameDayAs: jetzt) }
-    }
-
-    private func ortMerken(_ ort: SinnOrt, dort: Bool, zeit: Date) {
-        let heute = orteHeute(zeit) + [AblaufPunkt(zeit: zeit, art: dort ? "ort_ankunft" : "ort_abfahrt", titel: ort.name)]
-        if let daten = try? JSONEncoder().encode(Array(heute.suffix(40))) { defaults.set(daten, forKey: Merk.ortsTag) }
     }
 
     private func geraetTermine(_ von: Date, _ bis: Date) -> [GeraetTermin]? {
@@ -355,71 +337,32 @@ final class Sinne: NSObject, ObservableObject {
         schlange.hinzufuegen(ereignisse)
         wartend = schlange.ereignisse.count
         await senden()
-        hintergrundEnde()
-    }
-
-    func hintergrundEnde() {
-        if UIApplication.shared.applicationState != .active { verbindungSchliessen() }
     }
 
     private func senden() async {
         defer { wartend = schlange.ereignisse.count }
-        guard !schlange.istLeer else { return }
+        guard let daten = store?.daten, !schlange.istLeer else { return }
         let zone = TimeZone.current
         var angekommen = 0
-        await schlange.abarbeiten { teil in
-            do {
-                let antwort = try await self.rufe("seneca.tageslauf.melde", ["ereignisse": teil.map { $0.json(zone) }], zeitlimit: 10)
-                if antwort["ok"] as? Bool == false { throw SenecaError.nichtGesendet }
-                angekommen += teil.count
-            } catch {
-                self.letzterFehler = SinneBericht.grund(error)
-                self.letzterFehlerZeit = Date()
-                self.defaults.set(self.letzterFehler, forKey: SinneBericht.fehlerKey)
-                self.defaults.set(self.letzterFehlerZeit, forKey: SinneBericht.fehlerZeitKey)
-                self.log.info("Melden gescheitert: \(self.letzterFehler ?? "", privacy: .public)")
-                throw error
+        _ = await schlange.abarbeiten { teil in
+            for e in teil {
+                let wert = (try? JSONSerialization.data(withJSONObject: e.json(zone))).flatMap { try? JSONDecoder().decode(JSONWert.self, from: $0) }
+                guard daten.handeln(e.quelle == "iphone-teilen" ? "eingang.datei" : "eingang.sensor", ziel: e.schluessel, wert: wert) != nil else {
+                    self.letzterFehler = SinneBericht.grund(SenecaError.nichtGesendet)
+                    self.letzterFehlerZeit = Date()
+                    self.defaults.set(self.letzterFehler, forKey: SinneBericht.fehlerKey)
+                    self.defaults.set(self.letzterFehlerZeit, forKey: SinneBericht.fehlerZeitKey)
+                    throw SenecaError.nichtGesendet
+                }
             }
+            angekommen += teil.count
         }
         if angekommen > 0 {
             letzterErfolg = Date()
             letzterErfolgAnzahl = angekommen
             defaults.set(letzterErfolg, forKey: SinneBericht.erfolgKey)
             defaults.set(angekommen, forKey: SinneBericht.erfolgAnzahlKey)
-            log.info("Am Mac angekommen: \(angekommen, privacy: .public)")
         }
-    }
-
-    func rufe(_ fn: String, _ params: [String: Any], zeitlimit: Double) async throws -> [String: Any] {
-        if UIApplication.shared.applicationState == .active {
-            guard let store, store.isConnected else { throw SenecaError.offline }
-            return try await store.rufe(fn, params: params, timeout: zeitlimit)
-        }
-        let weg = try await eigenerWeg()
-        do { return try await weg.rufe(fn, params, frist: zeitlimit) }
-        catch let f as VerbindungsFehler { throw f.alsSenecaFehler }
-    }
-
-    private func eigenerWeg() async throws -> Verbindung {
-        if let eigen { return eigen }
-        if let fehlschlag, Date().timeIntervalSince(fehlschlag) < 60 { throw SenecaError.offline }
-        let adresse = defaults.string(forKey: "gatewayURL") ?? ""
-        guard !adresse.isEmpty else { throw SenecaError.offline }
-        let weg = Verbindung(.init(adresse: adresse, token: CredentialStore.load(), ablage: KernAblage(), sperre: { try SimulatorSperre.pruefe(adresse: $0) }))
-        weg.starten()
-        guard await weg.warteVerbunden(frist: 8) else {
-            fehlschlag = Date()
-            weg.stoppen()
-            log.info("Server im Hintergrund nicht erreichbar")
-            throw SenecaError.offline
-        }
-        eigen = weg
-        return weg
-    }
-
-    private func verbindungSchliessen() {
-        eigen?.stoppen()
-        eigen = nil
     }
 
     private func heimkehrMelden(_ zeit: Date) async {
@@ -428,13 +371,8 @@ final class Sinne: NSObject, ObservableObject {
         defer { meldetHeimkehr = false }
         let recht = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
         guard recht == .authorized || recht == .provisional else { return }
-        let text: String
-        if let antwort = try? await rufe("seneca.tageslauf.heute", [:], zeitlimit: 6), let heute = TageslaufHeute.lesen(antwort) {
-            text = Heimkehr.satz(heute, jetzt: zeit, .current)
-        } else {
-            let f = TerminLogik.fenster(jetzt: zeit, .current)
-            text = geraetTermine(f.von, f.bis).map { Heimkehr.satzAusKalender($0, jetzt: zeit, .current) } ?? Heimkehr.ohneWissen
-        }
+        let f = TerminLogik.fenster(jetzt: zeit, .current)
+        let text = geraetTermine(f.von, f.bis).map { Heimkehr.satzAusKalender($0, jetzt: zeit, .current) } ?? Heimkehr.ohneWissen
         defaults.set(TageslaufZeit.tag(zeit, .current), forKey: Merk.heimkehr)
         mitteilen(text, nach: nil)
     }

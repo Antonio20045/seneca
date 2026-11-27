@@ -32,32 +32,12 @@ final class AppModell: ObservableObject {
     weak var hauptfenster: NSWindow?
     var fensterOeffner: (() -> Void)?
     var einstellungenOeffner: (() -> Void)?
-    private var snEcht: Bool { MacPfade.profil.echteDaten }
-    var snDaten: any SenecaDatenQuelle { snEcht ? echteDaten() : BeispielDaten() }
-    var snProjekte: any SnProjekteQuelle { snEcht ? echteDaten() : BeispielDaten() }
-    private var echteDatenStand: (daten: SnEchteDaten, ab: Date)?
-    private var echteDatenAbo: AnyCancellable?
-    private var listenAbo: AnyCancellable?
-    private func echteDaten() -> SnEchteDaten {
-        if let c = echteDatenStand, Date().timeIntervalSince(c.ab) < 30 { return c.daten }
-        let n = SnEchteDaten(ov: uebersicht)
-        echteDatenStand = (n, Date())
-        if echteDatenAbo == nil {
-            echteDatenAbo = uebersicht.objectWillChange.sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.echteDatenStand = nil }
-            }
-        }
-        return n
-    }
+    var snDaten: any SenecaDatenQuelle { BeispielDaten() }
     let snNotizblock: NotizblockModell
     let snFenster: SnFensterModell
-    let aufgabeDetail = AufgabeDetailModell()
     var chatEntwurfNeuLaden: (() -> Void)?
     var fortschrittTest: Double?
-    private var demoGateway: DemoGateway?
     #if DEBUG
-    var demoAnfragen: [(fn: String, daten: [String: Any])] { demoGateway?.empfangeneAnfragen() ?? [] }
-    func demoNeueEntscheidung() { demoGateway?.legeNeueEntscheidungAn() }
     #endif
     private var gestartet = false
 
@@ -76,10 +56,11 @@ final class AppModell: ObservableObject {
         let echt = MacPfade.profil.echteDaten
         snNotizblock = echt ? NotizblockModell(start: [], speicher: MacPfade.datenOrdner?.appendingPathComponent("notizblock.json"))
                             : NotizblockModell(start: BeispielDaten().notizen)
-        snFenster = SnFensterModell(quelle: echt ? SnEchtesFenster(ov: ov) : BeispielFenster())
+        snFenster = SnFensterModell(quelle: BeispielFenster())
         let mo = ModellStore(uebersicht: ov)
         modelle = mo
         let gg = GegenueberModell(uebersicht: ov, chat: s.chat, defaults: Hintergrund.defaults())
+        gg.team = { [weak s] in s?.stand?.team ?? [] }
         gegenueber = gg
         suche = SucheModell(uebersicht: ov, modelle: mo, gegenueber: gg)
         let gemerkt = Fensterstand.lies()
@@ -100,31 +81,6 @@ final class AppModell: ObservableObject {
         gg.stelleWiederHer()
         verdrahteOberflaeche()
         dienste.starte(modell: self)
-        if TageslaufModell.erlaubt {
-            listenAbo = ListenModell.gemeinsam.$liste.sink { [weak ov] l in Task { @MainActor in ov?.setzeListe(l) } }
-            Task { await ListenModell.gemeinsam.beobachte() }
-            Task { await AufgabenModell.gemeinsam.beobachte() }
-        }
-    }
-
-    func oeffneAufgabe(_ id: String, anker: CGPoint? = nil) {
-        aufgabeDetail.oeffne(id)
-    }
-
-    func oeffneChatZuAufgabe(_ a: Aufgabe, entwurf: Bool) {
-        guard let agent = a.agent else { return }
-        aufgabeDetail.schliesse()
-        oeffneChat(key: "agent:\(agent):main", agentId: agent)
-        let chat = store.chat, partner = gegenueber.partner
-        if chat.entwurf(fuer: partner).isEmpty {
-            chat.setzeEntwurf("Zu „\(a.titel)“ \(Self.verweis(a)): ", fuer: partner)
-            chatEntwurfNeuLaden?()
-        }
-    }
-
-    static func verweis(_ a: Aufgabe) -> String {
-        if let k = a.quelle.kette, !k.isEmpty { return "(Bau-Lauf \(k))" }
-        return "(Karte \(String(a.id.prefix(8))))"
     }
 
     func zeigeGespraech() {
@@ -147,8 +103,7 @@ final class AppModell: ObservableObject {
     }
 
     private func verdrahteOberflaeche() {
-        modelle.chatNeuLaden = { [weak self] _ in Task { await self?.chat.loadHistory() } }
-        gegenueber.oeffneSuche = { [weak self] in self?.oeffneSuche() }
+        modelle.neuBeginnen = { [weak self] key in await self?.chat.reset(ChatPartner(id: key, kopfName: "", nominativ: "", dativ: "", platzhalter: "", festerSchluessel: key)) ?? false }
         suche.fuehreAus = { [weak self] a in self?.fuehreAus(a) }
     }
 
@@ -158,7 +113,6 @@ final class AppModell: ObservableObject {
     }
 
     func oeffneSuche() {
-        gegenueber.zu()
         modellwahlOffen = false
         suche.auf()
     }
@@ -166,7 +120,6 @@ final class AppModell: ObservableObject {
     func oeffneModellwahl() {
         guard zustand == .bereit else { return }
         suche.zu()
-        gegenueber.zu()
         modellwahlOffen = true
     }
 
@@ -177,9 +130,7 @@ final class AppModell: ObservableObject {
 
     private func fuehreAus(_ a: SucheAktion) {
         switch a {
-        case .chat(let key, let agentId, let bereich): oeffneChat(key: key, agentId: agentId, bereich: bereich)
-        case .projekt(let id, let karte): oeffneProjekt(id, karte: karte)
-        case .entscheidung: gehe(Seite.entscheidungen)
+        case .chat(let key, let agentId): oeffneChat(key: key, agentId: agentId)
         case .seite(let r):
             if r.seite == .chat { zeigeGespraech() } else { gehe(r) }
         case .neuerChat: Task { await neuerChat() }
@@ -191,10 +142,6 @@ final class AppModell: ObservableObject {
         let agent = (agentId?.isEmpty == false ? agentId : nil) ?? uebersicht.daten.defaultAgent
         oeffneChat(key: "agent:\(agent):main", agentId: agent, bereich: bereichId)
         ansichten.vorschlagen(vorlage)
-    }
-
-    func oeffneProjekt(_ id: String, karte: String? = nil, tab: String = "board") {
-        gehe(Route(.projekt, id: id, tab: tab, q: karte.map { ["karte": $0] } ?? [:]))
     }
 
     func neuerChat() async {
@@ -315,18 +262,8 @@ final class AppModell: ObservableObject {
         guard !gestartet else { return }
         gestartet = true
         let env = ProcessInfo.processInfo.environment
-        if MacPfade.profil == .demo, env["SENECA_DEMO_GATEWAY"] != "0" {
-            let gw = DemoGateway(modus: env["SENECA_DEMO_MODUS"] == "kopplung" ? .kopplung : .normal,
-                                 schrittPause: env["SENECA_DEMO_SCHRITTPAUSE"].flatMap { Double($0) } ?? 1.2,
-                                 vorlauf: env["SENECA_DEMO_VERLAUF"].flatMap { Int($0) } ?? 0,
-                                 ansichten: env["SENECA_DEMO_ANSICHTEN"] != "0", speicher: MacPfade.datenOrdner,
-                                 leer: env["SENECA_DEMO_LEER"] == "1")
-            let port = env["SENECA_DEMO_PORT"].flatMap { UInt16($0) }
-            if let ordner = MacPfade.datenOrdner { try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true) }
-            do { try gw.starte(port: port); demoGateway = gw; adresse = gw.url } catch { zustand = .fehler(.nichtErreichbar) }
-        }
         if let url = env["SENECA_URL"], !url.isEmpty { adresse = url }
-        if let gespeichert = Zugang.adresse, env["SENECA_URL"] == nil, MacPfade.profil != .demo || demoGateway == nil { adresse = gespeichert }
+        if let gespeichert = Zugang.adresse, env["SENECA_URL"] == nil { adresse = gespeichert }
         let messAdresse = Hintergrund.aktiv ? env["SENECA_TEST_ADRESSE"] : nil
         if messAdresse?.isEmpty == false {
             await verbinde()
@@ -368,7 +305,7 @@ final class AppModell: ObservableObject {
         let gelesen = (testAdresse?.isEmpty == false) ? "messung" : await Zugang.schluesselAbseits()
         guard let schluessel = gelesen else { zustand = .einrichten; return }
         zustand = .verbindet
-        var ziel = demoGateway != nil ? adresse : (Zugang.adresse ?? adresse)
+        var ziel = Zugang.adresse ?? adresse
         if let test = testAdresse, !test.isEmpty { ziel = test }
         ansichten.gateway = ziel
         store.configure(url: ziel, token: schluessel)
@@ -386,7 +323,6 @@ final class AppModell: ObservableObject {
             store.aufPraesenz = { SnKopplung.gemeinsam.praesenz($0) }
             modelle.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })
             gegenueber.stelleWiederHer()
-            gegenueber.leiste.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) })
             if MacPfade.profil == .echt { Sensor.gemeinsam.starte(rufe: { [store] fn, p in try await store.rufe(fn, params: p) }) }
             uebersicht.fensterSichtbar = { [weak self] in
                 guard let w = self?.hauptfenster else { return true }
@@ -396,9 +332,7 @@ final class AppModell: ObservableObject {
                 await uebersicht.starte(); uebersicht.startTakt()
                 gegenueber.pruefeBereich()
                 await modelle.starte()
-                await gegenueber.leiste.starte(uebersicht: uebersicht)
             }
-            await ansichten.ladePins()
             #if DEBUG
             testHaken()
             #endif
@@ -416,10 +350,6 @@ final class AppModell: ObservableObject {
             Task { [ansichten] in
                 try? await Task.sleep(for: .seconds(2))
                 switch p {
-                case "angeheftet": ansichten.oeffne(.angeheftet)
-                case "anheften":
-                    await ansichten.heftAn(AngeheftetesPin.setzen(karte: Karte(titel: "Neu angeheftet", text: "Von der Prüfung angeheftet."), titel: nil))
-                    ansichten.oeffne(.angeheftet)
                 case "widget": ansichten.oeffne(.widget(titel: "Wochenverbrauch", docId: "demo-verbrauch"))
                 case "bericht": ansichten.oeffne(.datei(pfad: "Berichte/woche-45.md", titel: "Woche 45"))
                 default: break

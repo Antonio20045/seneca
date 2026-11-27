@@ -70,7 +70,7 @@ struct RootView: View {
                 let now = context.date.addingTimeInterval(clockOffset)
                 let stand = tag.stand(now: now, store: store) { dayInput($0) }
                 screen(m, day: stand.day, input: stand.input, now: now)
-                    .onChange(of: stand.day.dayKey) { _, _ in Task { await store.loadToday(); store.syncTodayRecord() } }
+                    .onChange(of: stand.day.dayKey) { _, _ in Task { await store.loadToday() } }
             }
         }
         .ignoresSafeArea()
@@ -375,7 +375,7 @@ struct RootView: View {
                 .opacity(lichtEingang)
             if dayMounted {
                 TodayLayer(m: m, day: day, zug: wisch.seneca, heroOverride: heroOverride, reduceMotion: reduceMotion,
-                           openSeneca: { openFromHero(day) }, allowTap: { tapAllowed() })
+                           openSeneca: { go(1, quick: false) }, allowTap: { tapAllowed() })
                     .equatable()
                     .modifier(DayAwayLive(zug: wisch.seiten, m: m, reduceMotion: reduceMotion))
                     .modifier(UnterSenecaLive(zug: wisch.seneca, breite: m.size.width, reduceMotion: reduceMotion))
@@ -478,14 +478,11 @@ struct RootView: View {
         .simultaneousGesture(drag(m))
     }
 
-    private func dayState(_ now: Date) -> DayState { DayLogic.state(dayInput(now)) }
 
     private func dayInput(_ now: Date) -> DayInput {
         let snap = store.today
         return DayInput(now: now, calendar: .current, entries: store.kalenderEintraege, jobs: snap?.jobs ?? [],
-                             leaders: snap?.leaders ?? [:], tasks: snap?.tasks ?? [], days: store.days,
-                             routineDoneToday: store.routineDone(on: now),
-                             needs: snap.map { NeedsInput(now: now, calendar: .current, snapshot: $0, localSeen: store.localSeen) })
+                             leaders: snap?.leaders ?? [:], offen: store.stand?.aufgaben?.heute?.count ?? 0, erledigt: store.stand?.aufgaben?.erledigt?.count ?? 0)
     }
 
     private var heroOverride: HeroText? {
@@ -496,33 +493,12 @@ struct RootView: View {
     }
 
     private var notice: String? {
-        if let failure = store.saveFailure { return failure }
         if conversation.lateAnswer != nil { return "Seneca hat auf deine Frage geantwortet. Tippe hier, um die Antwort zu lesen." }
         guard store.isConfigured, !store.demo || store.connectionStatus == "Mac nicht erreichbar", store.today != nil else { return nil }
         if !store.isConnected && store.connectionStatus == "Mac nicht erreichbar" {
-            let waiting = store.outbox.filter { $0.kind != .day && $0.kind != .seen }.count
-            return DayLogic.offlineSatz(stand: store.lastSync, now: Date(), wartend: waiting, .current)
+            return DayLogic.offlineSatz(stand: store.lastSync, now: Date(), wartend: store.wartendeTodos.count + store.neueTodos.count, .current)
         }
         return store.isConnected ? store.error : nil
-    }
-
-    private func openFromHero(_ day: DayState) {
-        if heroOverride == nil, reading == nil, let erste = day.needs.first, erste.kind == .results, erste.lines.count > 1 {
-            berichte.tab = .berichte
-            show(.bereiche)
-            return
-        }
-        openChat(day)
-    }
-
-    private func openChat(_ day: DayState) {
-        go(1, quick: false)
-        guard heroOverride == nil, !day.needs.isEmpty else { return }
-        let keys = NeedsYou.keys(day.needs)
-        Task {
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.25 : 0.9))
-            store.markSeen(keys)
-        }
     }
 
     private var senecaZurueckZiel: String {
@@ -745,10 +721,7 @@ struct RootView: View {
                 let offset = clockOffset
                 store.clock = { Date().addingTimeInterval(offset) }
             }
-            store.loadDemo(now: now, streak: Int(env["SENECA_DEMO_STREAK"] ?? "") ?? 11, record: Int(env["SENECA_DEMO_REKORD"] ?? "") ?? 3,
-                           todos: env["SENECA_DEMO_AUFGABEN"] != "0", routineDone: env["SENECA_DEMO_ROUTINE"] != "0",
-                           needs: env["SENECA_DEMO_NEEDS"] == "1")
-            if env["SENECA_DEMO_AUFGABEN"] == "many" { store.loadDemoManyTodos() }
+            store.loadDemo(now: now)
             store.chat.loadDemo(now: now, admin: env["SENECA_DEMO_ADMIN"] ?? "1")
             store.chat.demoPace = env["SENECA_DEMO_LIVE"] ?? "normal"
             store.chat.demoQueued = env["SENECA_DEMO_WARTESCHLANGE"] == "1"
@@ -832,9 +805,8 @@ struct RootView: View {
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             let action = String(parts[0])
             switch action {
-            case "routine": store.setRoutine(!store.routineDone(on: store.clock()))
             case "open": go(1, quick: false)
-            case "hero": openFromHero(dayState(store.clock()))
+            case "hero": go(1, quick: false)
             case "close": go(0, quick: false)
             case "kalender", "morgen": show(.kalender)
             case "bereiche": show(.bereiche)
@@ -854,9 +826,6 @@ struct RootView: View {
                 conversation.submitTyped()
             default:
                 if action.hasPrefix("ask:") { conversation.transcript = String(action.dropFirst(4)); conversation.submitTyped() }
-                else if action.hasPrefix("offen:"), let n = Int(action.dropFirst(6)) {
-                    for t in store.heutigeAufgaben().filter({ !$0.isDone }).dropFirst(n) { store.toggleTask(t.id) }
-                }
                 else if action.hasPrefix("wisch:"), let ebene = Page(rawValue: String(action.dropFirst(6))) { await kunstWisch(ebene) }
                 else if action.hasPrefix("seitlich=") { t = TransitionState(p: Double(action.dropFirst(9)) ?? 0.5, dragging: true, seitlich: true) }
                 else if action.hasPrefix("mit:") { store.chat.waehle(ChatTafelLogik.partner(String(action.dropFirst(4)))) }
@@ -870,11 +839,7 @@ struct RootView: View {
                 }
                 else if action.hasPrefix("p=") { t = TransitionState(p: Double(action.dropFirst(2)) ?? 0, dragging: true, dir: 1, quick: false) }
                 else if action.hasPrefix("add:") { store.addTask(String(action.dropFirst(4))) }
-                else if action.hasPrefix("todo:"), let n = Int(action.dropFirst(5)) {
-                    let todos = dayState(store.clock()).todos
-                    if n < todos.count { store.toggleTask(todos[n].id) }
-                }
-                else { store.toggleTask(action) }
+                else { store.erledige(todo: action) }
             }
         }
     }

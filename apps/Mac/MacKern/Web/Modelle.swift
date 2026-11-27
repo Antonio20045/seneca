@@ -28,37 +28,6 @@ struct KatalogModell: Equatable {
     }
 }
 
-struct KontenAnbieter: Equatable {
-    var art: String
-    var email: String?
-    var problem: String?
-}
-
-struct Konten: Equatable {
-    struct Claude: Equatable { var angemeldet: Bool; var art: String?; var abo: String?; var email: String? }
-    var anbieter: [String: KontenAnbieter] = [:]
-    var routenLaufzeit: [String: String] = [:]
-    var claude: Claude?
-    var standard: String?
-    var ausweich: [String] = []
-
-    init() {}
-    init(json j: [String: Any]) {
-        for (k, v) in (j["anbieter"] as? [String: Any]) ?? [:] {
-            guard let a = v as? [String: Any] else { continue }
-            anbieter[k] = KontenAnbieter(art: (a["art"] as? String) ?? "unbekannt", email: a["email"] as? String, problem: a["problem"] as? String)
-        }
-        for (k, v) in (j["routen"] as? [String: Any]) ?? [:] {
-            if let r = (v as? [String: Any])?["runtime"] as? String { routenLaufzeit[k] = r }
-        }
-        if let c = j["claude"] as? [String: Any] {
-            claude = Claude(angemeldet: (c["angemeldet"] as? Bool) == true, art: c["art"] as? String, abo: c["abo"] as? String, email: c["email"] as? String)
-        }
-        standard = j["standard"] as? String
-        ausweich = (j["ausweich"] as? [Any])?.compactMap { $0 as? String } ?? []
-    }
-}
-
 struct Nutzung: Equatable {
     struct Fenster: Equatable { var label: String; var usedPercent: Double }
     struct Anbieter: Equatable {
@@ -156,11 +125,7 @@ enum Modelle {
         return "\(Int(n))"
     }
 
-    private static func istClaudeWeg(_ provider: String, _ laufzeit: String?, _ k: Konten?) -> Bool {
-        provider == "claude-cli" || laufzeit == "claude-cli" || (provider == "anthropic" && k?.anbieter["anthropic"] == nil && k?.routenLaufzeit["anthropic"] == "claude-cli")
-    }
-
-    static func kontoFuer(_ provider: String, _ laufzeit: String?, _ k: Konten?, _ u: Nutzung?, lokal: Bool = false) -> Konto {
+    static func kontoFuer(_ provider: String, _ laufzeit: String?, _ u: Nutzung?, lokal: Bool = false) -> Konto {
         let nutz = u?.providers.first { $0.provider == provider || (provider == "openai-codex" && $0.provider == "openai") }
         var quote: String?
         if let w = nutz?.windows, !w.isEmpty {
@@ -171,37 +136,22 @@ enum Modelle {
         }
         if lokal { return Konto(schluessel: "lokal", name: "Lokal auf deinem Mac", kurz: "Lokal", art: .lokal, zeile: "kostet nichts extra") }
 
-        if istClaudeWeg(provider, laufzeit, k) {
-            let c = k?.claude
-            let abo = (c?.abo).map(gross) ?? ""
-            let zeile = ["über Claude Code", c?.email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-            return Konto(schluessel: "claude", name: abo.isEmpty ? "Claude-Abo" : "Claude \(abo)-Abo", kurz: abo.isEmpty ? "Abo" : "\(abo)-Abo", art: .abo,
-                         zeile: zeile, warnung: (c != nil && c!.angemeldet == false) ? "Claude Code ist auf dem Mac nicht angemeldet." : nil)
+        if provider == "claude-cli" || laufzeit == "claude-cli" {
+            return Konto(schluessel: "claude", name: "Claude-Abo", kurz: "Abo", art: .abo, zeile: "über Claude Code")
         }
 
-        let a = k?.anbieter[provider] ?? (provider == "openai-codex" ? k?.anbieter["openai"] : nil)
-        let email = a?.email ?? nutz?.accountEmail
         if provider == "openai" || provider == "openai-codex" {
-            if a?.art == "api_key" {
-                return Konto(schluessel: "openai-key", name: "OpenAI · API-Key", kurz: "API-Key", art: .key, zeile: "zahlt pro Anfrage", warnung: a?.problem)
-            }
             let plan = (nutz?.plan).map(gross) ?? ""
             return Konto(schluessel: "openai", name: plan.isEmpty ? "ChatGPT-Abo" : "ChatGPT \(plan)-Abo", kurz: plan.isEmpty ? "Abo" : "\(plan)-Abo",
-                         art: (a != nil || nutz != nil) ? .abo : .offen, zeile: email, nutzung: quote, warnung: a?.problem)
+                         art: nutz != nil ? .abo : .offen, zeile: nutz?.accountEmail, nutzung: quote)
         }
         if provider == "zai" {
             if nutz?.windows.isEmpty == false { return Konto(schluessel: "zai", name: "Z.ai Coding-Abo", kurz: "Coding-Abo", art: .abo, nutzung: quote) }
             let ohnePlan = (nutz?.error ?? "").passt(#"coding\s*plan"#, "i")
-            return Konto(schluessel: "zai", name: "Z.ai · API-Key", kurz: "API-Key", art: a?.art == "oauth" ? .abo : .key,
-                         zeile: a?.art == "api_key" ? "API-Schlüssel hinterlegt" : nil,
-                         warnung: ohnePlan ? "Z.ai meldet für diesen Schlüssel keinen aktiven Coding-Plan. Prüf im Z.ai-Konto, ob der Schlüssel zu deinem Abo gehört – sonst wird über Guthaben abgerechnet." : a?.problem)
+            return Konto(schluessel: "zai", name: "Z.ai · API-Key", kurz: "API-Key", art: .key,
+                         warnung: ohnePlan ? "Z.ai meldet für diesen Schlüssel keinen aktiven Coding-Plan. Prüf im Z.ai-Konto, ob der Schlüssel zu deinem Abo gehört – sonst wird über Guthaben abgerechnet." : nil)
         }
-        let n = anbieterName(provider)
-        if a?.art == "api_key" { return Konto(schluessel: provider, name: "\(n) · API-Key", kurz: "API-Key", art: .key, zeile: "zahlt pro Anfrage", warnung: a?.problem) }
-        if let a, ["oauth", "token", "login"].contains(a.art) {
-            return Konto(schluessel: provider, name: "\(n)-Abo", kurz: "Abo", art: .abo, zeile: email, nutzung: quote, warnung: a.problem)
-        }
-        return Konto(schluessel: provider, name: n, kurz: "Konto offen", art: .offen, zeile: k != nil ? "Kein Konto hinterlegt" : nil)
+        return Konto(schluessel: provider, name: anbieterName(provider), kurz: "Konto offen", art: .offen)
     }
 
     enum Stufe: Int, CaseIterable, Equatable {
@@ -259,9 +209,9 @@ enum Modelle {
         return id == m.id && (p == m.provider || (claude.contains(p) && claude.contains(m.provider)))
     }
 
-    static func gruppen(_ katalog: [KatalogModell], _ k: Konten?, _ u: Nutzung?, primaer: String? = nil, ausweich: [String]? = nil) -> [Gruppe] {
-        let prim = primaer ?? k?.standard ?? ""
-        let aus = ausweich ?? k?.ausweich ?? []
+    static func gruppen(_ katalog: [KatalogModell], _ u: Nutzung?, primaer: String? = nil, ausweich: [String]? = nil) -> [Gruppe] {
+        let prim = primaer ?? ""
+        let aus = ausweich ?? []
         var reihenfolge: [String] = []
         var nachKonto: [String: Gruppe] = [:]
         var gesehen: [String: Option] = [:]
@@ -273,7 +223,7 @@ enum Modelle {
         var gesperrt: [(Konto, KatalogModell)] = []
         for m in katalog {
             if m.id.passt("mythos", "i") { continue }
-            let konto = kontoFuer(m.provider, m.laufzeit, k, u, lokal: m.lokal)
+            let konto = kontoFuer(m.provider, m.laufzeit, u, lokal: m.lokal)
             if m.manuellErlaubt == false { gesperrt.append((konto, m)); continue }
             let schluessel = konto.schluessel + "|" + m.id
             if let v = gesehen[schluessel] {
@@ -321,7 +271,7 @@ enum Modelle {
         }
     }
 
-    static func standFuer(_ row: OvSitzung?, primaer: String?, standard: OvSitzungsStandard?, _ katalog: [KatalogModell], _ k: Konten?, _ u: Nutzung?) -> Stand? {
+    static func standFuer(_ row: OvSitzung?, primaer: String?, standard: OvSitzungsStandard?, _ katalog: [KatalogModell], _ u: Nutzung?) -> Stand? {
         var provider = row?.modellAnbieter
         var id = row?.modell
         var laufzeit = row?.laufzeit
@@ -339,7 +289,7 @@ enum Modelle {
         let aktuell = (row?.effort).flatMap { $0.isEmpty ? nil : $0 }
         let std = (row?.effortStandard).flatMap { $0.isEmpty ? nil : $0 }
         return Stand(ref: "\(provider)/\(id)", provider: provider, id: id, name: schoenerName(m?.name, id), laufzeit: laufzeit,
-                     konto: kontoFuer(provider, laufzeit, k, u, lokal: m?.lokal == true), standard: quelle == nil || quelle == "" || quelle == "default",
+                     konto: kontoFuer(provider, laufzeit, u, lokal: m?.lokal == true), standard: quelle == nil || quelle == "" || quelle == "default",
                      gesperrt: row?.modellGesperrt == true,
                      effort: Effort(aktuell: aktuell, standard: std, optionen: row?.effortStufen ?? []),
                      kontextTokens: (row?.tokens != nil && row?.tokensFrisch != false) ? row?.tokens : nil,

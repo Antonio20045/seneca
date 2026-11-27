@@ -6,7 +6,7 @@ import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plug
 import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
-import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
+import { faelligeAuftraegeJob, faelligeWirkungenJob, gespraecheJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
 import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
@@ -16,6 +16,7 @@ import { pushSender } from "./pforte/push.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen, unteragentEnde, unteragentMerken } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
+import { dateiVorschau } from "./quellen/ablage.ts";
 import { eingangJob } from "./quellen/eingang.ts";
 import { githubEingang } from "./quellen/github.ts";
 import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
@@ -188,7 +189,7 @@ export default {
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.verstehen", ({ params }) => verstehen(db, String(params.satz ?? ""), uhr.jetzt()), { scope: "operator.read" });
-    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined) }
+    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "datei" ? dateiVorschau(String(params.pfad ?? "")) : params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined) }
       : stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
     let gesendet = 0;
@@ -201,6 +202,7 @@ export default {
       { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter, Arbeitsdateien verfallen", lauf: () => pflegenJob(db, join(ordner, "sicherung"), befehl), abstand: () => regelMs("pflegen_h") },
+      { job: "gespraeche", ursache: "Neu beginnen braucht das Admin-Recht des Servers, die Apps haben es nicht", lauf: () => gespraecheJob(db, befehl) },
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderJob(db, kalender) },
       { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },

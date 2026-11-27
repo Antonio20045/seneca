@@ -15,7 +15,8 @@ melden() { osascript -e "display notification \"$1\" with title \"Seneca install
 
 if [ -d "$QUELLE/.git" ]; then git -C "$QUELLE" fetch -q --tags --force origin || { echo "GitHub nicht erreichbar"; exit 0; }
 else git clone -q https://github.com/Antonio20045/seneca.git "$QUELLE" || { echo "GitHub nicht erreichbar"; exit 0; }; fi
-git -C "$QUELLE" checkout -q --force "refs/tags/$ZIEL-frei" || { melden "Keine freigegebene Fassung: Tag $ZIEL-frei fehlt."; exit 1; }
+FREI=$(git -C "$QUELLE" tag -l "$ZIEL-frei-*" | awk -F- '$NF ~ /^[0-9]+$/ { print $NF, $0 }' | sort -n | tail -1 | cut -d" " -f2)
+git -C "$QUELLE" checkout -q --force "refs/tags/${FREI:-$ZIEL-frei-1}" || { melden "Keine freigegebene Fassung: Tag $ZIEL-frei-<n> fehlt."; exit 1; }
 regel() { awk -v n="$1" '$1 == n { print $2 }' "$QUELLE/regeln"; }
 TAGE=$(regel app_neu_installieren_tage)
 [ -n "$TAGE" ] || { melden "regeln: app_neu_installieren_tage fehlt."; exit 1; }

@@ -87,45 +87,6 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
         return ["lesen", "öffnen", "ansehen", "zeigen"].contains { k.contains($0) }
     }
 
-    var oeffneAufgabe: ((String) -> Void)?
-
-    func zeigeAufgabe(_ m: AufgabenMeldung) async -> Bool {
-        var stand = await status()
-        if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
-        let c = UNMutableNotificationContent()
-        c.title = m.titel
-        c.body = m.text
-        c.userInfo = ["pfad": "#/heute", "aufgabe": m.aufgabe]
-        c.threadIdentifier = "seneca.aufgaben"
-        c.sound = nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "aufgabe." + m.id, content: c, trigger: nil)); return true } catch { return false }
-    }
-
-    var wahl: ((String, String) -> Void)?
-
-    func zeigeMeldung(_ m: TageslaufMeldung) async -> Bool {
-        var stand = await status()
-        if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
-        if let g = m.gruppe {
-            var alle = await zentrale.notificationCategories()
-            if !alle.contains(where: { $0.identifier == g }) {
-                let aktionen = m.knoepfe.enumerated().map { UNNotificationAction(identifier: TageslaufMeldung.knopfKennung($0.offset), title: $0.element, options: Self.oeffnet($0.element) ? [.foreground] : []) }
-                alle.insert(UNNotificationCategory(identifier: g, actions: aktionen, intentIdentifiers: [], options: []))
-                zentrale.setNotificationCategories(alle)
-            }
-        }
-        let c = UNMutableNotificationContent()
-        c.title = m.titel
-        c.body = m.text
-        c.userInfo = ["pfad": "#/heute", "meldung": m.id, "knoepfe": m.knoepfe]
-        c.threadIdentifier = "seneca.meldung"
-        if let g = m.gruppe { c.categoryIdentifier = g }
-        c.sound = m.dringend ? .default : nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "meldung." + m.id, content: c, trigger: nil)); return true } catch { return false }
-    }
-
     var meetingWahl: ((String, Int) -> Void)?
 
     func zeigeMeeting(_ kennung: String, _ titel: String, _ text: String, _ knoepfe: [String]) async {
@@ -151,15 +112,6 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
-        if let id = info["meldung"] as? String, let knoepfe = info["knoepfe"] as? [String],
-           let w = TageslaufMeldung.wahl(aktion: response.actionIdentifier, knoepfe: knoepfe) {
-            await MainActor.run { self.wahl?(id, w) }
-            return
-        }
-        if let a = info["aufgabe"] as? String, !a.isEmpty {
-            await MainActor.run { self.oeffneAufgabe?(a) }
-            return
-        }
         if let k = info["meeting"] as? String {
             let i = Int(response.actionIdentifier.dropFirst()) ?? -1
             await MainActor.run { self.meetingWahl?(k, i) }
@@ -362,7 +314,7 @@ final class MacDienste: ObservableObject {
     var meetingWertetAus = false
     var meetingGemeldet: Set<String> = []
     private(set) var panel: SchnellfragePanel!
-    @Published private(set) var stand = MenueStand(braucht: 0, laeuft: 0, ungelesen: 0, termin: nil)
+    @Published private(set) var braucht = 0
     @Published var mitteilungsHinweis: String?
     private weak var modell: AppModell?
     private var abos: Set<AnyCancellable> = []
@@ -404,33 +356,11 @@ final class MacDienste: ObservableObject {
             default: modell?.meetingOffen = true; modell?.zeigeFenster(Route(.heute))
             }
         }
-        mitteilungen.oeffneAufgabe = { [weak modell] id in
-            guard let modell else { return }
-            modell.zeigeFenster(nil)
-            modell.oeffneAufgabe(id, anker: nil)
-        }
-        AufgabenMelder.gemeinsam.einstellungen = einstellungen
-        AufgabenMelder.gemeinsam.zustellen = { [weak self] m in await self?.mitteilungen.zeigeAufgabe(m) ?? false }
         waechter.zentrale = self
-        TagesBegleiter.gemeinsam.starte(mitteilungen: mitteilungen, oeffneHeute: { [weak modell] in modell?.zeigeFenster(Route(.heute)) },
-                                        oeffneBerichte: { [weak modell] in
-                                            guard let modell else { return }
-                                            modell.zeigeFenster(Route(.berichte))
-                                            Task {
-                                                await modell.uebersicht.ladeBerichte(erzwingen: true)
-                                                let heute = Menschlich.tagStart(Date().timeIntervalSince1970 * 1000)
-                                                if let b = modell.uebersicht.berichte.liste.filter({ $0.zeit >= heute }).max(by: { $0.zeit < $1.zeit }) {
-                                                    modell.zeigeFenster(Route(.berichte, id: b.id))
-                                                }
-                                            }
-                                        })
         waechter.aktiv = { [einstellungen] in einstellungen.meldet($0) }
         if !(MacPfade.profil == .demo || MacPfade.nebenher) { mitteilungen.melde() }
         modell.uebersicht.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         einstellungen.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        ListenModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        AufgabenModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        TageslaufModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         aktualisiere()
         zeichen.starte(dienste: self, store: modell.store)
         VorneMerker.gemeinsam.starte()
@@ -441,15 +371,13 @@ final class MacDienste: ObservableObject {
     func aktualisiere() {
         guard let modell else { return }
         let u = modell.uebersicht
-        let neu = MacPfade.profil.echteDaten
-            ? MenueStand.aus(u, fragen: ListenModell.gemeinsam.liste.map { $0.fragen.count }, laeuft: AufgabenModell.gemeinsam.liste?.laeuftInsgesamt)
-            : MenueStand.aus(u)
-        if neu != stand { stand = neu }
-        let zahl = einstellungen.dockZahl ? DockZahl.text(neu.braucht) : nil
+        let neu = SnOrt.fragen(modell.store.stand)
+        if neu != braucht { braucht = neu }
+        let zahl = einstellungen.dockZahl ? DockZahl.text(neu) : nil
         if zahl != letzteZahl || NSApp.dockTile.badgeLabel != zahl { letzteZahl = zahl; NSApp.dockTile.badgeLabel = zahl }
         guard !MacPfade.nebenher else { return }
         kuerzel.setze(einstellungen.kuerzel)
-        if modell.zustand == .bereit { waechter.pruefe(u); schreibeWidgetStand() }
+        if modell.zustand == .bereit { waechter.pruefe(u, stand: modell.store.stand); schreibeWidgetStand() }
     }
 
     private func schreibeWidgetStand() {

@@ -201,7 +201,7 @@ enum KalenderLogic {
         let who = DayLogic.agentName(id, leaders)
         if who == "ein Mitarbeiter" { return "von einem deiner Agenten" }
 #if os(iOS)
-        if who.hasPrefix("der ") { return "vom " + NeedsYou.dativ(String(who.dropFirst(4))) }
+        if who.hasPrefix("der ") { return "vom " + who.dropFirst(4) + (who.hasSuffix("Agent") ? "en" : "") }
 #else
         if who.hasPrefix("der ") { return "vom " + who.dropFirst(4) }
 #endif
