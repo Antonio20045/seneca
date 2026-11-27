@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 final class BerichteModel: ObservableObject {
-    enum Tab { case aufgaben, berichte }
+    enum Tab { case aufgaben, berichte, projekte }
     @Published var tab: Tab = .aufgaben
 }
 
