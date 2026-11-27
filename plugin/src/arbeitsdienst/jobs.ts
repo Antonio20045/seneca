@@ -57,6 +57,7 @@ function vorschlagWirkt(db: Register, id: string, ja: boolean, jetzt: number): v
   if (w.wert) wertSetzen(db, w.wert.schluessel, w.wert.wert, "antonio");
   if (w.parken && ["bereit", "laeuft", "wartet"].includes(String(hole(db, "auftrag", w.parken).zustand))) uebergang(db, "auftrag", w.parken, "geparkt", "vorschlag");
   if (w.anzeige_weg) anzeigeEntfernen(db, w.anzeige_weg, "antonio");
+  if (w.termin) wertSetzen(db, `kalender:schreiben:${id}`, JSON.stringify({ aktion: "anlegen", uid: `${id}-seneca`, kalender: regelText("kalender_seneca"), ...w.termin }), "antonio");
   uebergang(db, "auftrag", id, "erledigt", "vorschlag");
 }
 

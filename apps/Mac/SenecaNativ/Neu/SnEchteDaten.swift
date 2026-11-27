@@ -108,7 +108,7 @@ final class SnEchteDaten: SenecaDatenQuelle, SnProjekteQuelle {
 
         let heute0 = Menschlich.tagStart(jetzt), morgen0 = Menschlich.addTage(heute0, 1)
         var gesehen = Set<String>()
-        let heutige = ov.kalenderSicht.termine
+        let heutige = (ov.daten.kalender?.termine ?? [])
             .filter { !$0.ganztags && $0.start >= heute0 && $0.start < morgen0 && $0.ende > jetzt && gesehen.insert($0.id).inserted }
             .sorted { $0.start < $1.start }
             .prefix(5)
@@ -168,31 +168,6 @@ final class SnEchteDaten: SenecaDatenQuelle, SnProjekteQuelle {
                          meta: p.bereichName, agentId: p.agent.isEmpty ? d.defaultAgent : p.agent,
                          zustand: zustand, zustandText: [wort, grund].filter { !$0.isEmpty }.joined(separator: " "), ziel: p.beschreibung, kriterien: [], stand: nil,
                          meilensteine: [], risiken: [], phasen: [], zeitSatz: "")
-    }
-
-    var kalender: SnKalenderDaten {
-        var gesehen = Set<String>()
-        let t = ov.kalenderSicht.termine.filter { gesehen.insert($0.id).inserted }.map {
-            SnKalenderTermin(id: $0.id, titel: $0.titel, start: SnZeit.datum($0.start), ende: SnZeit.datum($0.ende), ganztaegig: $0.ganztags)
-        }
-        return SnKalenderDaten(jetzt: SnZeit.datum(jetzt), termine: t)
-    }
-
-    func lade() async { await ov.ladeKalenderLang() }
-
-    func lege(titel: String, start: Date, ende: Date) async -> Bool {
-        guard let k = ov.kalenderSicht.kal?.schreibbar.first ?? ov.daten.kalender?.schreibbar.first else {
-            _ = ov.hinweis("Termin nur hier gemerkt: Kein Kalender erlaubt das Eintragen.")
-            return false
-        }
-        do {
-            try await ov.terminAnlegen(titel: titel, start: start, ende: ende, kalender: k)
-            await ov.ladeKalenderLang()
-            return true
-        } catch {
-            _ = ov.hinweis("Termin ging nicht: \(OverviewStore.fehlertext(error))")
-            return false
-        }
     }
 }
 

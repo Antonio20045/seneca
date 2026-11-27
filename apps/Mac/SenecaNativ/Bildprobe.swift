@@ -74,9 +74,6 @@ enum Bildprobe {
                     tag = env["SENECA_BILD_TAGESLAUF"].flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }.flatMap { Tageslauf.lies($0, jetzt: jetzt) }
                 }
                 inhalt = AnyView(SnBerichteSeite(ergebnisse: tag.map { TageslaufSicht($0, jetzt: jetzt) }?.ergebnisse ?? []))
-            case let s where s.hasPrefix("kalender"):
-                await SnKalenderBild.laufe(s, breite: breite, hoehe: hoehe)
-                exit(0)
             case "hier":
                 inhalt = AnyView(VStack(alignment: .leading, spacing: 0) {
                     HierKarte(modell: BildprobeDaten.hier(antwort: false))

@@ -194,6 +194,10 @@ final class SenecaStore: ObservableObject {
         daten?.handeln(art, ziel: ziel, wert: text.map { .text($0) })
     }
 
+    func handle(_ art: String, ziel: String?, wert: [String: JSONWert]) {
+        daten?.handeln(art, ziel: ziel, wert: .objekt(wert))
+    }
+
     private func zustandGeaendert(_ z: Verbindungszustand, _ gen: UUID) {
         guard generation == gen else { return }
         switch z {

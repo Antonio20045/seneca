@@ -102,6 +102,21 @@ kalender_zeitlimit_s 20
 kalender_vorschau_tage 42
 kalender_abgleich_min 5
 kalender_titel_zeichen 60
+kalender_standard Privat
+kalender_seneca Seneca
+kal_wochen_zurueck 1
+kal_wochen_vor 4
+kal_marke_bis_min 10
+kal_tag_von 08:00
+kal_tag_bis 20:00
+kal_suche_schritt_min 60
+kal_suche_schritte 3
+weg_erinnern_vor_min 6
+weg_neu_min 5
+weg_zu_fuss_bis_min 20 vorschlag
+kal_raster_min 15
+kal_raster_fein_min 5
+kal_bb_gut_ab 60 vorschlag
 ein_tag_tage 1
 termin_standard_min 60
 apns_url https://api.push.apple.com

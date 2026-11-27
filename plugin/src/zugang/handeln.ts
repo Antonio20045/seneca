@@ -1,9 +1,9 @@
-import { hole, laeufe, revision, spaeterBis, uhr, wert } from "../register/lesen.ts";
+import { hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeEntfernen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
-import { regelMs } from "../regeln.ts";
+import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Handlung = { kennung: string; geraet: string; art: string; ziel?: string; wert?: unknown; zeit_geraet?: number; gesehen_revision?: number };
 type Wert = Record<string, unknown>;
@@ -55,6 +55,28 @@ function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
   };
 }
 
+function wegSetzen(db: Register, uid: string, w: Wert, geraet: string): void {
+  wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.min))), geraet);
+  wertSetzen(db, `wegstrecke:${uid}`, JSON.stringify({ m: Math.round(Number(w.m)), art: String(w.art ?? "fuss") }), geraet);
+}
+
+const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+function terminVerschieben(db: Register, kennung: string, uid: string, w: Wert): string {
+  const [start, ende] = [Number(w.start), Number(w.ende)];
+  const t = termineAm(db, start).find((x) => x.uid === uid) ?? termineAm(db, uhr.jetzt()).find((x) => x.uid === uid);
+  if (!t) return "abgelehnt:termin_unbekannt";
+  if (!t.teilnehmer.length) {
+    wertSetzen(db, `kalender:schreiben:${kennung}`, JSON.stringify({ aktion: "verschieben", uid, titel: w.titel ?? t.titel, ort: w.ort, start, ende }), "antonio");
+    return "angenommen";
+  }
+  const wortlaut = `Termin „${t.titel}“ auf ${uhrzeit(start)} verschieben. Erst die anderen fragen, dann verschieben.`;
+  auftragAnlegen(db, { art: "system", wortlaut, wortlaut_quelle: `handlung:${kennung}`, titel: `${t.titel} auf ${uhrzeit(start)}`.slice(0, regelZahl("titel_zeichen")),
+    ziel: `${t.titel} liegt um ${uhrzeit(start)}`, abnahme: "Zusage der anderen und Termin verschoben", abnahme_durch: "beleg", pruefer_noetig: false,
+    verantwortlich: regelText("dauerauftraege_von"), auftraggeber: "antonio", quelle: "du", bereich: "Privat", arbeitsart: "steuern" });
+  return "angenommen";
+}
+
 const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "frage.antwort": antwort,
   "frage.gesehen": (db, h) => {
@@ -85,6 +107,25 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     const w = h.wert as Wert;
     return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: h.zeit_geraet ?? uhr.jetzt(), quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
   },
+  "termin.anlegen": (db, h) => {
+    const w = h.wert as Wert;
+    if (!w?.titel || !Number.isFinite(Number(w.start)) || !(Number(w.ende) > Number(w.start))) return "abgelehnt:termin_unvollstaendig";
+    const uid = `${h.kennung}-${h.geraet}`;
+    wertSetzen(db, `kalender:schreiben:${h.kennung}`, JSON.stringify({ aktion: "anlegen", uid, titel: w.titel, start: Number(w.start), ende: Number(w.ende), ort: w.ort || undefined, kalender: w.kalender }), h.geraet);
+    if (w.weg) wegSetzen(db, uid, w.weg as Wert, h.geraet);
+    return "angenommen";
+  },
+  "termin.verschieben": (db, h) => {
+    const w = h.wert as Wert;
+    return terminVerschieben(db, h.kennung, String(h.ziel), w ?? {});
+  },
+  "termin.wegzeit": (db, h) => {
+    const w = h.wert as Wert;
+    if (!(Number(w?.min) >= 0) || !(Number(w?.m) >= 0)) return "abgelehnt:wegzeit_fehlt";
+    wegSetzen(db, String(h.ziel), w, h.geraet);
+    return "angenommen";
+  },
+  "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),
   "geraet.aktivitaet": setze(() => "aktivitaet"),
   koerper: (db, h) => {
     const w = h.wert as Wert;
