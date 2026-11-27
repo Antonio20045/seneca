@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sqlite3
 import sys
@@ -359,6 +360,52 @@ def kmzeiten(api, aktivitaet_id):
     return [round(r["duration"]) for r in runden if abs((r.get("distance") or 0) - 1000) < 30]
 
 
+def vereinfachen(pkte, eps):
+    behalten, stapel = {0, len(pkte) - 1}, [(0, len(pkte) - 1)]
+    while stapel:
+        a, b = stapel.pop()
+        (ax, ay), (bx, by) = pkte[a], pkte[b]
+        n = math.hypot(bx - ax, by - ay)
+        abstand = lambda i: abs((by - ay) * (pkte[i][0] - ax) - (bx - ax) * (pkte[i][1] - ay)) / n if n > 1e-6 else math.hypot(pkte[i][0] - ax, pkte[i][1] - ay)
+        weit = max(range(a + 1, b), key=abstand, default=None)
+        if weit is not None and abstand(weit) > eps:
+            behalten.add(weit)
+            stapel += [(a, weit), (weit, b)]
+    return sorted(behalten)
+
+
+def meter_xy(p):
+    lat0 = p[0][0]
+    return [(lon * math.cos(math.radians(lat0)) * 111320, lat * 110540) for lat, lon in p]
+
+
+def form(p, punkte=150):
+    xy = meter_xy(p)
+    xs, ys = [x for x, _ in xy], [y for _, y in xy]
+    seite = max(max(xs) - min(xs), max(ys) - min(ys)) or 1
+    xy = [xy[i] for i in vereinfachen(xy, seite / punkte)]
+    mx, my = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+    return [[round(50 + (x - mx) * 100 / seite), round(50 - (y - my) * 100 / seite)] for x, y in xy]
+
+
+def spur(api, aktivitaet_id, plan_tag):
+    d = api.get_activity_details(aktivitaet_id, maxchart=4000, maxpoly=8000) or {}
+    idx = {m["key"]: m["metricsIndex"] for m in d.get("metricDescriptors") or []}
+    zeilen = [z["metrics"] for z in d.get("activityDetailMetrics") or []]
+    feld = lambda z, k: z[idx[k]] if k in idx and idx[k] < len(z) else None
+    roh = [(feld(z, "directLatitude"), feld(z, "directLongitude")) for z in zeilen]
+    p = [[round(la, 5), round(lo, 5)] for la, lo in roh if la is not None and lo is not None] or [[x["lat"], x["lon"]] for x in tiefer(d, "geoPolylineDTO", "polyline") or [] if x.get("lat")]
+    r, schritt, zuletzt = [], max(50, (feld(zeilen[-1], "sumDistance") or 0) / 300) if zeilen else 50, -1e9
+    for z in zeilen:
+        m = feld(z, "sumDistance")
+        if m is not None and m - zuletzt >= schritt:
+            zuletzt = m
+            r.append([round(feld(z, "sumDuration") or 0), round(m), feld(z, "directHeartRate"), round(feld(z, "directElevation"), 1) if feld(z, "directElevation") is not None else None])
+    geplant = next((w for w in versuche("plan", lambda: plan(api, plan_tag, plan_tag)) if isinstance(w, dict) and w.get("sport") == "running" and w.get("workout_id")), None)
+    trainer = versuche("workout", lambda: api.get_workout_by_id(geplant["workout_id"])).get("description") if geplant else None
+    return ohne_leere({"p": [p[i] for i in vereinfachen(meter_xy(p), 4)] if len(p) > 2 else [], "r": r, "trainer": f"{geplant['name']}: {trainer}" if trainer else None, "quelle": "Garmin"})
+
+
 def aktivitaet(api, a):
     typ = tiefer(a, "activityType", "typeKey") or "sonstiges"
     k, zeit = f"garmin:akt:{a['activityId']}", utc_ms(a["startTimeGMT"])
@@ -367,7 +414,8 @@ def aktivitaet(api, a):
                     "te_aerob": a.get("aerobicTrainingEffect"), "te_anaerob": a.get("anaerobicTrainingEffect"), "last": a.get("activityTrainingLoad"), "vo2max": a.get("vO2MaxValue"),
                     "kadenz": a.get("averageRunningCadenceInStepsPerMinute"), "quelle": "Garmin"})
     if "running" in typ:
-        return [(k, "lauf", zeit, w | ohne_leere({"km_s": kmzeiten(api, a["activityId"])}))]
+        sp = versuche("spur", lambda: spur(api, a["activityId"], tag_von(zeit).isoformat()))
+        return [(k, "lauf", zeit, w | ohne_leere({"km_s": kmzeiten(api, a["activityId"])}))] + ([(f"{k}:spur", "spur", zeit, sp)] if "fehler" not in sp else [])
     if typ != "strength_training":
         return [(k, "aktivitaet", zeit, w)]
     saetze = uebungssaetze(api, a["activityId"])
@@ -482,6 +530,10 @@ def kennzahlen(e, anzeigen, prognose, jetzt):
     for x in saetze:
         if x["zeit"] >= jetzt - 28 * TAG_MS:
             volumen[muskel(x["w"]["u"])] = round(volumen.get(muskel(x["w"]["u"]), 0) + (x["w"].get("kg") or 0) * (x["w"].get("w") or 0))
+    spuren = sorted(art("spur"), key=lambda x: x["quelle"] == "garmin")
+    spur_zu = lambda x: next((sp["w"] for sp in reversed(spuren) if abs(sp["zeit"] - x["zeit"]) < 120_000), {})
+    liste = [ohne_leere({"id": x["id"] or x["kennung"], "zeit": x["zeit"], "km": x["w"]["km"], "s": x["w"].get("dauer_s"), "puls": x["w"].get("puls"), "hm": x["w"].get("hm"), "titel": x["w"].get("titel"),
+                         "form": form(spur_zu(x)["p"]) if len(spur_zu(x).get("p", [])) > 2 else None}) for x in reversed(laeufe) if x["zeit"] >= jetzt - 400 * TAG_MS]
     reihe = lambda xs, *felder: [[tag_von(x["zeit"]).isoformat(), *[x["w"].get(f) for f in felder]] for x in xs if x["zeit"] >= jetzt - 90 * TAG_MS]
     return {
         "wochen": [w.isoformat() for w in wochen],
@@ -490,7 +542,8 @@ def kennzahlen(e, anzeigen, prognose, jetzt):
                  "laengster": [weit["w"]["km"], tag_von(weit["zeit"]).isoformat()] if weit else None, "serie": serien({tag_von(x["zeit"]) for x in laeufe}, heute),
                  "pace_monat": [[m.isoformat(), schnitt(mit(m, lambda w: w["dauer_s"] / w["km"])), schnitt([v for v in mit(m, effizienz) if v])] for m in monate],
                  "schnellster_km": [km_beste[0], tag_von(km_beste[1]["zeit"]).isoformat()] if km_beste else None, "prognose": prognose if "fehler" not in prognose else {},
-                 "aufbau": aufbau(montag, max(lang[-4:] + [8]), max(sum(km[-5:-1]) / 4, 15))},
+                 "aufbau": aufbau(montag, max(lang[-4:] + [8]), max(sum(km[-5:-1]) / 4, 15)),
+                 "liste": liste, "puls_max": max([x["w"].get("puls_max") or 0 for x in laeufe] + [max((z[2] or 0 for sp in spuren for z in sp["w"].get("r", [])), default=0)]) or None},
         "kraft": {"tage": tage_je_woche(saetze + [x for x in akt if x["w"].get("typ") == "strength_training"]), "volumen_4w": volumen, "bestwerte": rm},
         "mobility": {"tage": tage_je_woche([x for x in akt if any(m in x["w"].get("typ", "") for m in MOBILITY)])},
         "koerper": {"nacht": reihe(art("nacht"), "gesamt_h", "tief_h", "rem_h", "leicht_h", "wach_h", "wert", "hrv", "bb_morgens", "bereitschaft"),
@@ -514,7 +567,14 @@ def abgleich(api, pfad, tage):
     garmin = [x["zeit"] for x in gesamt if x["quelle"] == "garmin" and x["art"] in ("lauf", "aktivitaet")]
     loeschen = {x["id"] for x in gesamt if x["art"] == "lauf" and x["quelle"] == "iphone" and any(abs(x["zeit"] - z) < NAH_MS for z in garmin)}
     jetzt = int(datetime.now(timezone.utc).timestamp() * 1000)
-    return {"eintraege": eintraege, "loeschen": sorted(loeschen), "kennzahlen": kennzahlen([x for x in gesamt if x["id"] not in loeschen], anzeigen, versuche("prognose", lambda: prognosen(api)), jetzt)}
+    k = kennzahlen([x for x in gesamt if x["id"] not in loeschen], anzeigen, versuche("prognose", lambda: prognosen(api)), jetzt)
+    k["lauf"]["naechster"] = versuche("naechster", lambda: naechster(api, heute + timedelta(days=1 if any(tag_von(x["zeit"]) == heute for x in gesamt if x["art"] == "lauf") else 0)))
+    return {"eintraege": eintraege, "loeschen": sorted(loeschen), "kennzahlen": k}
+
+
+def naechster(api, ab):
+    w = min((w for w in plan(api, ab.isoformat(), (ab + timedelta(days=14)).isoformat()) if w.get("sport") == "running" and w.get("datum")), key=lambda w: w["datum"], default=None)
+    return ohne_leere(w | {"beschreibung": api.get_workout_by_id(w["workout_id"]).get("description") if w.get("workout_id") else None}) if w else {}
 
 
 def pruefe_datum(text):
