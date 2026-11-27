@@ -70,7 +70,7 @@ module Anzeige {
 
     function wartend() as String {
         var anzahl = Warteschlange.anzahl();
-        return anzahl > 0 && Zustand.aktuell() != :sendet ? anzahl.toString() + " warten auf iPhone" : "";
+        return anzahl > 0 && Zustand.aktuell() != :sendet ? anzahl.toString() + " warten aufs iPhone" : "";
     }
 }
 

@@ -53,6 +53,7 @@ module Takt {
         if (!akkuKnapp()) {
             Abgleich.automatisch();
         }
+        Kopplung.takt();
         Hinweise.zeigen(false);
         WatchUi.requestUpdate();
     }

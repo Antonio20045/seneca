@@ -41,12 +41,17 @@ test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau 
   assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
   assert.match((p.methode("seneca.handeln", { kennung: "k2", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: "0000x" }) as { ergebnis: string }).ergebnis, /zahl_passt_nicht/);
   p.methode("seneca.handeln", { kennung: "k3", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: k.zahl });
-  const a = uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen }));
+  const lauf = "l".repeat(48);
+  const a = uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen, lauf }));
   assert.equal(a.status, 200);
   assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
   const schluessel = (a.inhalt as { schluessel: string }).schluessel;
   const abgleich = uhrAbgleich(p.db, json({ v: 1, g: "uhr2", r: 0, h: [] }), { authorization: `Bearer ${schluessel}` }, (j) => uhrStand(p.db, j));
   assert.equal(abgleich.status, 200);
+  const trail = (o: object) => uhrAbgleich(p.db, json({ v: 1, g: "trail", r: 0, h: [], ...o }), { authorization: `Bearer ${lauf}` }, (j) => uhrStand(p.db, j)).status;
+  assert.equal(trail({ zs: "trail" }), 200);
+  assert.equal(trail({ zs: "leer" }), 403);
+  assert.equal(trail({ zs: "trail", h: [{ id: "t1", t: 1, a: "todo.anlegen", p: { x: "x" } }] }), 403);
 });
 
 test("PF08 Frage an der Uhr: Herkunft und Später-Zeit im Stand, am iPhone schon beantwortet meldet Wahl, Gerät, Zeit", () => {

@@ -77,7 +77,7 @@ module Bildschirm {
             Zeichnen.gruppe(dc, Zeichnen.MITTE, 288, [[Rez.Fonts.G5_72, Zeichnen.WEISS, wiederholungen], [Rez.Fonts.M4_20, Zeichnen.GEDAEMPFT, "Wdh"]], 8, MITTIG);
         }
         if (wartend.length() > 0) {
-            mitPunkt(dc, 352, Rez.Fonts.M4_14, Zeichnen.GEDAEMPFT, wartend, Zeichnen.GEDAEMPFT, 7, true);
+            mitPunkt(dc, 352, Rez.Fonts.M4_14, Zeichnen.GEDAEMPFT, wartend, Zeichnen.GEDAEMPFT, 7, false);
         } else {
             zeile(dc, 352, Rez.Fonts.M4_14, Zeichnen.MATT, heute, 330);
         }
@@ -352,6 +352,18 @@ module Bildschirm {
             [[282, Rez.Fonts.G4_20, Zeichnen.LEISE, "Dann steht hier eine Zahl."]]);
         Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, "erneut", 107);
         Zeichnen.tasteMit(dc, Zeichnen.BACK, Zeichnen.GEDAEMPFT, Rez.Fonts.G5_18, Zeichnen.LEISE, "zurück", 359);
+    }
+
+    function kopplung(dc as Dc, zahl as String) as Void {
+        var ziffern = zahl.toCharArray();
+        var text = "";
+        for (var i = 0; i < ziffern.size(); i += 1) {
+            text += (i > 0 ? " " : "") + ziffern[i].toString();
+        }
+        Zeichnen.mitte(dc, 150, Rez.Fonts.M5_22W, Zeichnen.HIMMEL, "SENECA");
+        Zeichnen.mitte(dc, 240, Rez.Fonts.G5_80, Zeichnen.WEISS, text);
+        Zeichnen.mitte(dc, 320, Rez.Fonts.G4_24, Zeichnen.LEISE, "Steht das am iPhone?");
+        Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, "ja", 107);
     }
 
     function weitermachen(dc as Dc, kopf as String, saetze as String, wann as String) as Void {

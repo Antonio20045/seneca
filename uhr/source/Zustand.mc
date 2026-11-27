@@ -17,7 +17,7 @@ module Zustand {
         :sendet => "Wird gesendet · $2$ offen",
         :offline => "Offline · wird später abgeglichen",
         :server => "Wartet auf Verbindung",
-        :gesperrt => "Uhr gesperrt · Schlüssel prüfen",
+        :gesperrt => "Uhr gesperrt · neu koppeln",
         :zuAlt => "Uhr-App zu alt",
         :fastVoll => "Speicher fast voll · $2$ von $3$",
         :voll => "Voll · Sätze bleiben in der Aufzeichnung"

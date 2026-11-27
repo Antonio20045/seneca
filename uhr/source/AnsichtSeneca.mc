@@ -61,8 +61,8 @@ module Hinweise {
             Speicher.schreiben("vn", Regeln.VERSION);
             return new GrenzfallAnsicht(:neu);
         }
-        if (!Einstellungen.verbunden() && einmal(:gekoppelt)) {
-            return new GrenzfallAnsicht(:gekoppelt);
+        if ((!Einstellungen.verbunden() || Zustand.netz() == Zustand.GESPERRT) && einmal(:gekoppelt)) {
+            return new KopplungAnsicht();
         }
         if (Inhalt.nacht() && einmal(:nacht)) {
             return new GrenzfallAnsicht(:nacht);
@@ -319,8 +319,6 @@ class GrenzfallAnsicht extends Ansicht {
             var tage = stats has :batteryInDays ? stats.batteryInDays : 0.0;
             var stunden = (tage * Gregorian.SECONDS_PER_DAY / Gregorian.SECONDS_PER_HOUR).toNumber();
             Bildschirm.akku(dc, stats.battery.toNumber(), stunden > 0 ? "reicht noch etwa " + stunden.toString() + " Std" : "");
-        } else if (_art == :gekoppelt) {
-            Bildschirm.ungekoppelt(dc);
         } else if (_art == :weiter) {
             var zuletzt = Training.letzteUebung();
             var ende = Speicher.lesen("te", Zeit.jetzt() - Training.pauseSekunden()) as Number;
@@ -345,9 +343,6 @@ class GrenzfallAnsicht extends Ansicht {
             Training.fortsetzen();
             Ansichten.ersetzen(new UebungenAnsicht(false));
             return;
-        }
-        if (_art == :gekoppelt) {
-            Abgleich.senden(new Lang.Method(WatchUi, :requestUpdate));
         }
         if (_art != :nacht) {
             Ansichten.schliessen();

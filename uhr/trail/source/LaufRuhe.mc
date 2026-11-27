@@ -1,4 +1,3 @@
-import Toybox.Application;
 import Toybox.Background;
 import Toybox.Communications;
 import Toybox.Lang;
@@ -10,13 +9,8 @@ module LaufRuhe {
     const ABSTAND_S = 300;
     const PROTOKOLL = 1;
 
-    function text(name as String) as String {
-        var wert = Application.Properties.getValue(name);
-        return wert instanceof String ? wert : "";
-    }
-
     function an() as Void {
-        if (text("adresse").length() > 0 && text("schluessel").length() > 0) {
+        if (Adresse.SERVER.length() > 0) {
             Background.registerForTemporalEvent(new Time.Duration(ABSTAND_S));
         }
     }
@@ -26,11 +20,11 @@ module LaufRuhe {
     }
 
     function melden(ende as Method(code as Number, daten as Dictionary or String or Null) as Void) as Void {
-        Communications.makeWebRequest(text("adresse") + "/seneca/uhr/v1/abgleich",
-            {"v" => PROTOKOLL, "g" => text("geraet"), "r" => -1, "h" => [], "zs" => "trail"},
+        Communications.makeWebRequest(Adresse.SERVER + "/seneca/uhr/v1/abgleich",
+            {"v" => PROTOKOLL, "g" => "trail", "r" => -1, "h" => [], "zs" => "trail"},
             {
                 :method => Communications.HTTP_REQUEST_METHOD_POST,
-                :headers => {"Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON, "Authorization" => "Bearer " + text("schluessel")},
+                :headers => {"Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON, "Authorization" => "Bearer " + Adresse.LAUF},
                 :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
             },
             ende);

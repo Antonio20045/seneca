@@ -57,7 +57,7 @@ export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
 }
 
 export function uhrAbholen(db: Register, roh: Buffer): Antwort {
-  const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string };
+  const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string; lauf?: string };
   const w = wert(db, `kopplung:${d.g}`);
   const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? (JSON.parse(w.wert) as Kopplung) : undefined;
   if (begrenzt("abholen", regelZahl("kopplung_anfragen_je_std")) || !k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
@@ -65,6 +65,7 @@ export function uhrAbholen(db: Register, roh: Buffer): Antwort {
   }
   const schluessel = randomBytes(32).toString("base64url");
   wertSetzen(db, `uhr:${d.g}`, schluesselHash(schluessel), "uhr");
+  if (typeof d.lauf === "string" && d.lauf.length >= regelZahl("uhr_lauf_schluessel_min")) wertSetzen(db, `uhr:${LAUF}`, schluesselHash(d.lauf), "uhr");
   wertSetzen(db, `kopplung:${d.g}`, JSON.stringify({ ...k, abgeholt: true }), "uhr", uhr.jetzt());
   return { status: 200, inhalt: { schluessel } };
 }
@@ -76,6 +77,7 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   const token = String(kopf.authorization ?? "").replace(/^Bearer /, "");
   if (!gespeichert || gespeichert === "gesperrt" || schluesselHash(token) !== gespeichert) return { status: 401, inhalt: { f: gespeichert === "gesperrt" ? "gesperrt" : "unbekannt" } };
   if (d.v !== regelZahl("uhr_protokoll")) return { status: 426, inhalt: { f: "Uhr-App zu alt" } };
+  if (geraet === LAUF && (d.zs !== LAUF || (d.h ?? []).length > 0)) return { status: 403, inhalt: { f: "nur Lauf-Ruhe" } };
   const jetzt = uhr.jetzt();
   if (begrenzt(geraet, regelZahl("uhr_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" }, kopf: { "retry-after": String(regelMs("uhr_anfragen_fenster_h") / msAusSekunden(1)) } };
   if ((d.h ?? []).length > regelZahl("uhr_handlungen_max")) return { status: 413, inhalt: { f: "zu viele Handlungen" } };
