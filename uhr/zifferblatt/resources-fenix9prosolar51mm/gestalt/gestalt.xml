@@ -1,14 +1,7 @@
 <resources>
     <fonts>
-        <font id="Datum" filename="Datum.fnt" antialias="true"/>
-        <font id="Marke" filename="Marke.fnt" antialias="true"/>
-        <font id="Wert" filename="Wert.fnt" antialias="true"/>
-        <font id="Prozent" filename="Prozent.fnt" antialias="true"/>
-        <font id="Zeile" filename="Zeile.fnt" antialias="true"/>
-        <font id="Zeit" filename="Zeit.fnt" antialias="true"/>
-        <font id="ZeitKlein" filename="ZeitKlein.fnt" antialias="true"/>
-        <font id="Sport" filename="Sport.fnt" antialias="true"/>
-        <font id="SportDatum" filename="SportDatum.fnt" antialias="true"/>
-        <font id="SportWert" filename="SportWert.fnt" antialias="true"/>
+        <font id="Uhr" filename="Uhr.fnt" antialias="true"/>
+        <font id="Mono" filename="Mono.fnt" antialias="true"/>
+        <font id="MonoKlein" filename="MonoKlein.fnt" antialias="true"/>
     </fonts>
 </resources>

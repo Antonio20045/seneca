@@ -140,16 +140,9 @@ MIP_APP = {
 }
 
 MIP_ZIFFERBLATT = {
-    'Datum': (MONO5, 18, 1.5, DATUM, False),
-    'Marke': (G5, 16, 1, GROSS, False),
-    'Wert': (G6T, 26, 0, WERTE, False),
-    'Prozent': (G5, 16, 0, '%', False),
-    'Zeile': (G5, 21, 0, VOLL, False),
-    'Zeit': (ISR, 112, -2, ZIFFERN, False),
-    'ZeitKlein': (ISR, 100, -2, ZIFFERN, False),
-    'Sport': (G6T, 92, -2, ZIFFERN, False),
-    'SportDatum': (G6, 19, 2, DATUM, False),
-    'SportWert': (G6T, 30, 0, WERTE, False),
+    'Uhr': (ISR, 92, 0, '0123456789:', False),
+    'Mono': (MONO4, 11, 2, GROSS + '?', False),
+    'MonoKlein': (MONO4, 10, 1.8, GROSS, False),
 }
 
 MIP_TRAIL = {

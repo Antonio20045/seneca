@@ -22,6 +22,11 @@ class ZifferblattApp extends Application.AppBase {
         return [new Zifferblatt(), new Bedienung()];
     }
 
+    (:mip)
+    function getSettingsView() as [Views] or [Views, InputDelegates] or Null {
+        return [new Farbwahl(), new FarbwahlBedienung()];
+    }
+
     function getServiceDelegate() as [System.ServiceDelegate] {
         return [new Hintergrund()];
     }

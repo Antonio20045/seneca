@@ -109,6 +109,9 @@ uhr_anfragen_fenster_h 1
 uhr_frage_zeichen 90
 uhr_todos 3
 uhr_termine 4
+uhr_kurz_zeichen 9
+uhr_bereich_training training|lauf|gym|kraft|rad|schwimm|yoga|sport|spanisch|kurs|lesen
+uhr_bereich_sozial geburtstag|abendessen|mittagessen|eltern|mama|papa|familie|freund|party|kino|kaffee|besuch|privat
 uhr_verlauf 3
 uhr_uebungen 12
 uhr_starten_min 10

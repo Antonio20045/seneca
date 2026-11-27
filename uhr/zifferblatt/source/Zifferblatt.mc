@@ -26,10 +26,18 @@ class Zifferblatt extends WatchUi.WatchFace {
         WatchUi.requestUpdate();
     }
 
+    (:mip)
+    function onUpdate(dc as Dc) as Void {
+        Zeichnen.flaeche(dc);
+        Gesicht.zeichnen(dc);
+    }
+
+    (:rund)
     function sportlich() as Boolean {
         return Application.Properties.getValue("stil") == 1;
     }
 
+    (:rund)
     function onUpdate(dc as Dc) as Void {
         Zeichnen.flaeche(dc);
         Zeichnen.seitlich = 0.0;
