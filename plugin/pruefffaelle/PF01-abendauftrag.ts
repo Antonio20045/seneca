@@ -54,12 +54,22 @@ test("PF01 Abendauftrag: Wortlaut in jedem Lauf, Teil 2 ohne Eingabe, ohne Stand
   assert.match(zeilen[0][1], new RegExp(`fertig mit „${WORTLAUT}“: Alles umgesetzt\nBeleg: PR #12 · Auftrag ${id} · unter Entscheiden`));
 });
 
-test("PF01 nie „du“, wenn es nicht Antonio war", async () => {
+test("PF01 Nachricht aus der App wird ohne Kennung zum Auftrag mit Antonios Wortlaut, eine cli-Einspeisung nie", async () => {
   const p = ladePlugin();
   um("22:50");
-  p.nachricht("agent:seneca:main", "m9", WORTLAUT, false);
-  const r = await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "auftrag", nachricht_kennung: "m9", wortlaut: WORTLAUT, an: "produkt", ziel: "x", abnahme: "y" });
-  assert.match(String(r.fehler), /Antonios Nachricht/);
+  const auftrag = (extra: object = {}) => p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "auftrag", wortlaut: WORTLAUT, an: "produkt", ziel: "x", abnahme: "y", ...extra });
+  p.nachricht("agent:seneca:main", "mac-1:user", `Hey Seneca. ${WORTLAUT}. Danke!`, false);
+  assert.match(String((await auftrag()).fehler), /Antonios Nachricht/);
+  assert.match(String((await auftrag({ nachricht_kennung: "mac-1:user" })).fehler), /Antonios Nachricht/);
+  p.nachricht("agent:seneca:main", "mac-2:user", `Hey Seneca. ${WORTLAUT}. Danke!`);
+  assert.match(String((await auftrag({ nachricht_kennung: "mac-1:user" })).fehler), /Antonios Nachricht/);
+  const r = await auftrag();
+  const a = hole(p.db, "auftrag", r.auftrag_id);
+  assert.equal(a.auftraggeber, "antonio");
+  assert.equal(a.wortlaut, WORTLAUT);
+  assert.equal(a.wortlaut_quelle, "mac-2:user");
+  p.haken("before_prompt_build", { prompt: "", messages: [{ role: "assistant", content: "ok" }] }, { sessionKey: "agent:seneca:main" });
+  assert.match(String((await auftrag()).fehler), /Antonios Nachricht/);
 });
 
 test("PF01 Briefing und Rückblick: Daten aus dem Register, Text in Berichte und Heute", async () => {

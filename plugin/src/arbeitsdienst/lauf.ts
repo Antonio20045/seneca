@@ -17,8 +17,17 @@ type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 
 const AKTIV = ["startet", "laeuft", "haengt"];
 const nachrichten = new Map<string, Nachricht>();
-export const merkeNachricht = (sitzung: string, n: Nachricht): void => void nachrichten.set(sitzung, n);
+type Verlaufszeile = { role?: string; content?: string | { text?: string }[]; idempotencyKey?: string; provenance?: { kind?: string }; __openclaw?: { transport?: { clients?: { mode?: string }[] } } };
+
+export function merkeNachricht(sitzung: string, verlauf: unknown[]): void {
+  const m = verlauf.at(-1) as Verlaufszeile | undefined;
+  const text = typeof m?.content === "string" ? m.content : (m?.content ?? []).map((b) => b.text ?? "").join("");
+  if (m?.role !== "user" || !m.idempotencyKey) nachrichten.delete(sitzung);
+  else nachrichten.set(sitzung, { kennung: m.idempotencyKey, text, vonAntonio: m.provenance?.kind === "external_user" && !!m.__openclaw?.transport?.clients?.some((c) => c.mode === "ui") });
+}
+
 export const nachrichtVon = (sitzung: string): Nachricht | undefined => nachrichten.get(sitzung);
+const antonios = (sitzung: string, kennung?: string) => [nachrichten.get(sitzung)].find((n) => n?.vonAntonio && (!kennung || n.kennung === kennung));
 
 export function naechsterTermin(a: Zeile, jetzt: number): number {
   const zeiten: Record<string, () => string[]> = {
@@ -173,16 +182,15 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     return { auftrag_id: String(a.id), satz: `Auftrag ist jetzt ${nach}.` };
   }
   if (p.art === "fortsetzen") {
-    const n = nachrichten.get(ctx.sitzung);
-    if (!n?.vonAntonio || n.kennung !== p.nachricht_kennung) throw new Error("Fortsetzen nur auf Antonios Nachricht in diesem Gespräch.");
+    if (!antonios(ctx.sitzung, p.nachricht_kennung)) throw new Error("Fortsetzen nur auf Antonios Nachricht in diesem Gespräch.");
     uebergang(db, "auftrag", String(p.auftrag_id), "bereit", "auftrag.fortsetzen", { naechster_anlass: uhr.jetzt() });
     return { auftrag_id: String(p.auftrag_id), satz: "Der Auftrag läuft wieder an." };
   }
   if (p.art === "nachfassen") return { auftrag_id: String(p.auftrag_id), satz: nachfassen(db, laufender(db, ctx.sitzung), ctx.agent, String(p.auftrag_id), String(p.satz)) };
   if (p.art === "eigener" && hole(db, "auftrag", String(laufender(db, ctx.sitzung).auftrag_id)).arbeitsart !== "rundgang") throw new Error("Eigene Aufträge entstehen im Rundgang.");
-  const n = nachrichten.get(ctx.sitzung);
+  const n = antonios(ctx.sitzung, p.nachricht_kennung);
   const lauf = p.art === "auftrag" ? undefined : laufZurSitzung(db, ctx.sitzung);
-  if (p.art === "auftrag" && (!n?.vonAntonio || n.kennung !== p.nachricht_kennung)) throw new Error("Ein Auftrag entsteht nur aus Antonios Nachricht in diesem Gespräch.");
+  if (p.art === "auftrag" && !n) throw new Error("Ein Auftrag entsteht nur aus Antonios Nachricht in diesem Gespräch.");
   if (p.art === "unterauftrag") {
     const eltern = hole(db, "auftrag", String(p.eltern_id));
     if (laufender(db, ctx.sitzung).auftrag_id !== eltern.id) throw new Error("Unteraufträge vergibt nur der Lauf des Elternauftrags.");
@@ -190,7 +198,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   }
   const verantwortlich = p.art === "eigener" ? ctx.agent : p.an ?? ctx.agent;
   const felder = {
-    wortlaut: String(p.wortlaut), wortlaut_quelle: p.nachricht_kennung ?? `lauf:${lauf?.id ?? ctx.sitzung}`, titel: p.titel ?? String(p.wortlaut).slice(0, regelZahl("titel_zeichen")),
+    wortlaut: String(p.wortlaut), wortlaut_quelle: n?.kennung ?? `lauf:${lauf?.id ?? ctx.sitzung}`, titel: p.titel ?? String(p.wortlaut).slice(0, regelZahl("titel_zeichen")),
     ziel: String(p.ziel), abnahme: String(p.abnahme), abnahme_durch: p.abnahme_durch ?? (p.art === "eigener" ? "beleg" : "antonio"), pruefer_noetig: !!p.pruefer_noetig, verantwortlich,
     auftraggeber: p.art === "auftrag" ? "antonio" : ctx.agent, bereich: p.bereich ?? mandat(verantwortlich).bereich[0], projekt: p.projekt, frist: p.frist,
     arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
@@ -221,10 +229,10 @@ export function werkzeugFrage(db: Register, sitzung: string, f: NeueFrage): stri
   });
 }
 
-export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, antwort: string, kennung: string) {
-  const n = nachrichten.get(sitzung);
-  if (!n?.vonAntonio || n.kennung !== kennung) throw new Error("Eine Antwort trägt nur Antonios Nachricht ein.");
-  return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung, nachricht_kennung: kennung });
+export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, antwort: string, kennung?: string) {
+  const n = antonios(sitzung, kennung);
+  if (!n) throw new Error("Eine Antwort trägt nur Antonios Nachricht ein.");
+  return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung: n.kennung, nachricht_kennung: n.kennung });
 }
 
 export function werkzeugProtokoll(db: Register, sitzung: string, werkzeug: string, params: Record<string, unknown>, ms?: number): void {

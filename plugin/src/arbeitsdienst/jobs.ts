@@ -49,9 +49,7 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   }
   const jetztA = hole(db, "auftrag", id);
   if (anhalten && ["bereit", "laeuft", "wartet"].includes(String(jetztA.zustand))) return uebergang(db, "auftrag", id, "geparkt", "anhalten");
-  if (jetztA.zustand === "wartet") {
-    uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
-  }
+  if (jetztA.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
 }
 
 const OFT = ["sonntags", "montags", "dienstags", "mittwochs", "donnerstags", "freitags", "samstags"];
@@ -84,9 +82,7 @@ function vorschlagWirkt(db: Register, id: string, f: Zeile, jetzt: number): void
 
 export function kalenderWacheJob(db: Register): void {
   const jetzt = uhr.jetzt();
-  for (const f of fragen(db, "offen").filter((x) => x.art === "vorschlag" && x.frist !== null && Number(x.frist) < jetzt)) {
-    frageBeantworten(db, { frage_id: String(f.id), antwort: "nein", geraet: "frist", kennung: `frist:${f.id}` });
-  }
+  for (const f of fragen(db, "offen").filter((x) => x.art === "vorschlag" && x.frist !== null && Number(x.frist) < jetzt)) frageBeantworten(db, { frage_id: String(f.id), antwort: "nein", geraet: "frist", kennung: `frist:${f.id}` });
   if (Number(wert(db, "praesenz:mac")?.gueltig_bis ?? 0) <= jetzt) return;
   for (const t of termineAm(db, jetzt)) {
     const weg = regelMs("eine_minute_min") * Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0);
@@ -107,9 +103,7 @@ export function kalenderWacheJob(db: Register): void {
 
 export function faelligeWirkungenJob(db: Register): number | undefined {
   const jetzt = uhr.jetzt();
-  for (const f of faelligeWirkungen(db, jetzt)) {
-    if (frageWirkt(db, String(f.id))) wirkung(db, f, hole(db, "auftrag", String(f.auftrag_id)), jetzt);
-  }
+  for (const f of faelligeWirkungen(db, jetzt)) if (frageWirkt(db, String(f.id))) wirkung(db, f, hole(db, "auftrag", String(f.auftrag_id)), jetzt);
   return naechsteFaelligkeit(db);
 }
 

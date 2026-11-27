@@ -46,7 +46,7 @@ function nurSeneca(k: Kontext): void {
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
   ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), status (ehrliche Lage auf „Status“: alle offenen Fragen an Antonio, geparkte Aufträge mit Zahl, was läuft, nächste Läufe, Team), auftrag mit id, auftraege (deine offenen Aufträge mit Wortlaut und Stand, mit id = Projekt nur dieses), team, fragen (alle offenen), profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
     (db, k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined, k.agent)],
-  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
+  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht im Gespräch; nachricht_kennung nur, wenn du sie kennst, sonst gilt seine letzte; wortlaut = sein Text), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
       an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
       termin: O(Type.Object({ titel: S, start: Z, ende: Z, ort: O(S) })) }),
@@ -61,7 +61,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ art: S, auftrag_id: O(S), text: O(S), was_passiert_ist: O(S), wenn_nichts: O(S), empfehlung: O(S), fragenart: O(S),
       optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S),
       grund: O(S), lage: O(S), zusatz: O(S), rueckfragen: O(Type.Array(S)), haengt: O(Type.Array(Type.Object({ um: Z, text: S }))) }),
-    (db, k, { grund, lage, zusatz, rueckfragen, haengt, ...p }) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
+    (db, k, { grund, lage, zusatz, rueckfragen, haengt, ...p }) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), p.nachricht_kennung as string | undefined)
       : p.art === "zurueckziehen" ? fragenZurueckziehen(db, String(p.frage_id), k.agent, String(p.text))
       : { frage_id: werkzeugFrage(db, k.sitzung, { ...(p as unknown as NeueFrage), art: String(p.fragenart ?? "auswahl"), von: k.agent, mehr: { grund, lage, zusatz, rueckfragen, haengt } }) }],
   ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
@@ -71,7 +71,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       return { ok: wertSetzen(db, `projekt:${name}`, JSON.stringify(rest), k.agent) > 0 };
     }],
   ["seneca_lernen", "Korrektur von Antonio an genau einem Ort lernen: skill, profil, sperre oder fakt.",
-    Type.Object({ nachricht_kennung: S, wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
+    Type.Object({ nachricht_kennung: O(S), wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
       aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
     (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
   ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, name:<nummer oder mail> (Vorname), profil:<feld>, fakt:<thema>, ankunft:<termin-uid> (ms), termin_notiz:<termin-uid> (ein Satz, was Seneca dazu getan hat).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
@@ -163,9 +163,7 @@ export default {
 
     api.on("before_prompt_build", (event, ctx) => {
       const sitzung = ctx.sessionKey ?? "";
-      if (event.currentUserMessage && event.currentUserMessageId) {
-        merkeNachricht(sitzung, { kennung: event.currentUserMessageId, text: event.currentUserMessage, vonAntonio: ctx.inputProvenance?.kind === "external_user" });
-      }
+      merkeNachricht(sitzung, event.messages);
       const text = kontext(db, sitzung, skillLeser);
       return text ? { prependContext: text } : undefined;
     });
