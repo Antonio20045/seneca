@@ -99,4 +99,14 @@ struct PF11AppUndServerPassen {
         #expect(alle.allSatisfy { !$0.scopes.contains("operator.admin") })
         #expect(ClientProfil.mac.scopes.contains("operator.pairing") && !ClientProfil.iphone.scopes.contains("operator.pairing"))
     }
+
+    @Test("Statistik vom Server: Kennzahlen kommen vollständig in der App an")
+    func statistikKennzahlen() throws {
+        let datei = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Sources/SenecaKern/Beispiel/Beispiel-Statistik.json")
+        let k = try #require(try JSONDecoder().decode(SenecaStatistik.self, from: Data(contentsOf: datei)).kennzahlen)
+        #expect(k.wochen.count == 52 && k.lauf.km.count == 52 && k.kraft.tage.count == 52)
+        #expect(k.lauf.laengster?.first?.alsZahl == 30.4 && k.lauf.aufbau.first?.first?.alsText == k.wochen.last)
+        #expect(k.kraft.bestwerte["Rudern"]?.compactMap(\.alsZahl) == [57, 45, 8])
+        #expect(k.koerper.nacht.last?[7].alsZahl == 69)
+    }
 }
