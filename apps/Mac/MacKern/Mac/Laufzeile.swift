@@ -2,8 +2,8 @@ import Foundation
 
 enum Laufzeile {
     struct Teile: Equatable { var haupt: String; var neben = ""; var haengt = false; var anhalten = true }
-    static let haengtNach: TimeInterval = 120
-    static let anhaltenNach: TimeInterval = 600
+    static var haengtNach: TimeInterval { AppRegel.wert("gespraech_haengt_hinweis_min", 2) * 60 }
+    static var anhaltenNach: TimeInterval { AppRegel.wert("gespraech_haengt_stopp_min", 10) * 60 }
     static let satzTakt: TimeInterval = 1.2
 
     static func teile(name: String, phase: ChatLive.Phase, taetigkeit: String?, schritte: Int, seit: TimeInterval, ruhig: TimeInterval, letzterSchritt: Double?) -> Teile {

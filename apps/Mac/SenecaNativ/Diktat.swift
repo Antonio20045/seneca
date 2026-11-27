@@ -447,6 +447,9 @@ final class DiktatDienst: ObservableObject {
     private var beendetHinweisArbeit: Task<Void, Never>?
     private var zustandSeit = Date()
     private(set) var aufnahmeBeginn = Date()
+    @Published var imFeld = false
+    @Published private(set) var zielText: String?
+    private var zielApp: NSRunningApplication?
     private(set) var letzterAusschlag = Date()
     @Published private(set) var geraeteName: String?
     @Published private(set) var startetAnzeige = false
@@ -513,10 +516,11 @@ final class DiktatDienst: ObservableObject {
 
     #if DEBUG
     func blasenProbe(_ art: String) {
-        guard MacPfade.profil != .echt || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
+        guard MacPfade.profil != .echt || HeuteBild.ziel != nil || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
         wacheAus = true
         switch art {
         case "hoert":
+            zielText = "Mail · An Steuerberater"
             geraeteName = "MacBook Pro-Mikrofon"
             aufnahmeBeginn = Date()
             letzterAusschlag = Date()
@@ -596,7 +600,7 @@ final class DiktatDienst: ObservableObject {
         let u = DiktatWache.urteil(phase: phase, hatAufnahme: aufnahme != nil, motorLaeuft: aufnahme?.motorAktiv ?? false,
                                    startet: startet, seit: Date().timeIntervalSince(zustandSeit),
                                    erkennFrist: DiktatWache.erkennFrist(aufnahmeSekunden: aufnahmeSekunden),
-                                   seitLetztemPuffer: aufnahme?.sekundenSeitLetztemPuffer)
+                                   seitLetztemPuffer: aufnahme?.sekundenSeitLetztemPuffer, seitAusschlag: Date().timeIntervalSince(letzterAusschlag))
         switch u {
         case .ok: break
         case .zuruecksetzen:
@@ -672,6 +676,8 @@ final class DiktatDienst: ObservableObject {
                 self.aufnahme = a
                 self.aufnahmeBeginn = Date()
                 self.letzterAusschlag = Date()
+                self.zielApp = NSApp.isActive ? nil : DiktatFremdeApp.vorne
+                self.zielText = self.zielApp.map(DiktatFremdeApp.zielText)
                 self.geraeteName = a.geraeteName
                 self.pegel = 0
                 self.zustand = .hoert
@@ -765,7 +771,7 @@ final class DiktatDienst: ObservableObject {
             } else if chatZiel?(text) == true {
                 ziel = "chat"
             }
-        } else if let weg = await DiktatFremdeApp.fuegeEin(text) {
+        } else if await DiktatFremdeApp.zurueck(zu: zielApp), let weg = await DiktatFremdeApp.fuegeEin(text) {
             ziel = "\(weg.rawValue):\(DiktatFremdeApp.vorne?.bundleIdentifier ?? "?")"
         }
         let ende = Date()

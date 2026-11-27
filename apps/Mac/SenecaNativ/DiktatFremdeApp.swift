@@ -10,6 +10,23 @@ enum DiktatFremdeApp {
 
     static var vorne: NSRunningApplication? { NSWorkspace.shared.frontmostApplication }
 
+    static func zielText(_ a: NSRunningApplication) -> String {
+        let app = AXUIElementCreateApplication(a.processIdentifier)
+        var f: CFTypeRef?, t: CFTypeRef?
+        if AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &f) == .success, let f,
+           AXUIElementCopyAttributeValue(f as! AXUIElement, kAXTitleAttribute as CFString, &t) == .success, let titel = t as? String, !titel.isEmpty {
+            return (a.localizedName ?? "App") + " · " + titel
+        }
+        return a.localizedName ?? "App"
+    }
+
+    static func zurueck(zu a: NSRunningApplication?) async -> Bool {
+        guard let a, vorne != a else { return true }
+        a.activate()
+        try? await Task.sleep(for: .milliseconds(150))
+        return true
+    }
+
     static func fuegeEin(_ text: String) async -> Weg? {
         guard AXIsProcessTrusted() else { return nil }
         let fokus = fokussiertesElement()

@@ -60,45 +60,6 @@ enum MenueDiktatZiel: Equatable {
     }
 }
 
-struct DiktatAnzeige: Equatable {
-    enum Art: Equatable { case startet, hoert, still, erkennt, fertig, fehler, beendet }
-
-    var art: Art
-    var titel: String
-    var hinweis: String
-
-    static let beenden = "Rechte ⌘ tippen, wenn du fertig bist · Esc bricht ab"
-
-    private static func kurz(_ t: String, _ n: Int = 80) -> String {
-        let s = t.trimmingCharacters(in: .whitespacesAndNewlines)
-        return s.count <= n ? s : String(s.prefix(n - 2)) + "…"
-    }
-
-    static func zeile(phase: DiktatWache.Phase, startet: Bool, still: Bool, text: String, beendetHinweis: Bool) -> DiktatAnzeige? {
-        if beendetHinweis {
-            let rest: String
-            switch phase {
-            case .erkennt: rest = "Erkenne …"
-            case .eingefuegt, .fehler: rest = kurz(text)
-            default: rest = "Das Mikrofon hat nichts mehr geliefert."
-            }
-            return DiktatAnzeige(art: .beendet, titel: "Aufnahme beendet", hinweis: rest)
-        }
-        switch phase {
-        case .ruht: return nil
-        case .hoert:
-            if startet { return DiktatAnzeige(art: .startet, titel: "Starte …", hinweis: "Das Mikrofon wird geöffnet") }
-            if still { return DiktatAnzeige(art: .still, titel: "Ich höre nichts", hinweis: beenden) }
-            return DiktatAnzeige(art: .hoert, titel: "Hört zu …", hinweis: beenden)
-        case .erkennt: return DiktatAnzeige(art: .erkennt, titel: "Erkenne …", hinweis: "")
-        case .eingefuegt: return DiktatAnzeige(art: .fertig, titel: kurz(text), hinweis: "eingefügt")
-        case .fehler:
-            if text.localizedCaseInsensitiveContains("kein Wort zu hören") { return DiktatAnzeige(art: .fehler, titel: "Kein Wort zu hören", hinweis: "") }
-            return DiktatAnzeige(art: .fehler, titel: kurz(text, 160), hinweis: "")
-        }
-    }
-}
-
 enum MeetingMeldung {
     static func soll(vorherWertetAus: Bool, jetztFertig: Bool, hatDatei: Bool, fensterVorn: Bool) -> Bool {
         vorherWertetAus && jetztFertig && hatDatei && !fensterVorn

@@ -15,7 +15,7 @@ enum DiktatWache {
 
     static let stilleBeendetNach: TimeInterval = 5
 
-    static let hoertSicherheitsgrenze: TimeInterval = 30 * 60
+    static var stilleEnde: TimeInterval { AppRegel.wert("diktat_stille_ende_s", 60) }
 
     static let beendetHinweisHoechstens: TimeInterval = 4
 
@@ -28,7 +28,7 @@ enum DiktatWache {
         phase != .ruht || zeigtBeendetHinweis
     }
 
-    static let ichHoereNichtsNach: TimeInterval = 3
+    static var ichHoereNichtsNach: TimeInterval { AppRegel.wert("diktat_hoere_nichts_s", 8) }
     static let ausschlagAb: Float = 0.06
 
     static func ichHoereNichts(sekundenSeitAusschlag: TimeInterval) -> Bool {
@@ -38,7 +38,7 @@ enum DiktatWache {
     static func laufzeit(_ sekunden: TimeInterval) -> String {
         let s = max(0, Int(sekunden))
         if s >= 3600 { return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60) }
-        return String(format: "%02d:%02d", s / 60, s % 60)
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 
     enum Tippen: Equatable { case nichts, beginne, lasseLos, erkennungAbbrechenUndBeginne }
@@ -59,7 +59,7 @@ enum DiktatWache {
 
     static func urteil(phase: Phase, hatAufnahme: Bool, motorLaeuft: Bool, startet: Bool,
                        seit: TimeInterval, erkennFrist: TimeInterval,
-                       seitLetztemPuffer: TimeInterval? = nil) -> Urteil {
+                       seitLetztemPuffer: TimeInterval? = nil, seitAusschlag: TimeInterval = 0) -> Urteil {
         switch phase {
         case .ruht:
             return .ok
@@ -70,7 +70,7 @@ enum DiktatWache {
             if !hatAufnahme { return .zuruecksetzen }
             if !motorLaeuft { return .aufnahmeBeenden }
             if let stille = seitLetztemPuffer, stille > stilleBeendetNach { return .aufnahmeBeenden }
-            return seit > hoertSicherheitsgrenze ? .aufnahmeBeenden : .ok
+            return seitAusschlag > stilleEnde ? .aufnahmeBeenden : .ok
         case .erkennt:
             return seit > erkennFrist ? .erkennungHaengt : .ok
         case .eingefuegt:

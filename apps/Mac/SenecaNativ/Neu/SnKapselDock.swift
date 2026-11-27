@@ -100,12 +100,17 @@ struct SnDock: View {
     @ObservedObject var chat: ChatService
     @ObservedObject var gegenueber: GegenueberModell
     @State private var hover = false
+    @ObservedObject private var diktat = DiktatDienst.gemeinsam
     @Environment(\.accessibilityReduceMotion) private var ruhig
+    private var hoertHier: Bool { offen && diktat.zustand == .hoert && !diktat.startetAnzeige && NSApp.isActive }
 
     var body: some View {
         ZStack {
             if offen {
                 SnChatEingabe(steuerung: steuerung, chat: chat, gegenueber: gegenueber, schliesse: schliesse)
+                    .opacity(hoertHier ? 0 : 1)
+                    .overlay { if hoertHier { DiktatPille(dienst: diktat, feld: true) } }
+                    .onAppear { diktat.imFeld = true }.onDisappear { diktat.imFeld = false }
                     .transition(.opacity)
             } else {
                 zu.transition(.opacity)
@@ -114,10 +119,7 @@ struct SnDock: View {
         .frame(width: offen ? breiteOffen : SnDockZu<EmptyView>.breite)
         .frame(minHeight: 56)
         .snGlas(RoundedRectangle(cornerRadius: offen ? 22 : 28, style: .continuous))
-        .overlay(alignment: .top) {
-            DiktatDockAnzeige(dienst: DiktatDienst.gemeinsam)
-                .alignmentGuide(.top) { $0[.bottom] + 10 }
-        }
+        .overlay { RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.45), lineWidth: 1).opacity(hoertHier ? 1 : 0) }
         .animation(ruhig ? .easeOut(duration: 0.15) : Kurve.snFeder, value: offen)
         .accessibilityIdentifier("dock")
     }

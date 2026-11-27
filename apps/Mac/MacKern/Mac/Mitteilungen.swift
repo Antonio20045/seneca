@@ -18,7 +18,7 @@ protocol Mitteilungszentrale: AnyObject {
 final class MitteilungsWaechter {
     var zentrale: Mitteilungszentrale?
     var aktiv: (Mitteilung.Art) -> Bool = { _ in false }
-    static let sammelAb = 4
+    static var sammelAb: Int { Int(AppRegel.wert("mitteilung_sammeln_ab", 2)) }
 
     private(set) var bekannt: Set<String> = []
     private var grundLegt: Set<Mitteilung.Art> = []
