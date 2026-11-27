@@ -23,6 +23,7 @@ Stand und Grenzen der Server-Seite. Ausführlich begründet im Umsetzungsplan (A
 | `ausgang/` | Kontaktstufen, Freigabe, höchstens einmal nach außen | `register`, `regeln.ts`, `team.ts` |
 | `lernen/` | Korrektur an genau einen Ort, Wiederholungen, Anlässe für Statistiken | `register`, `regeln.ts`, `team.ts` |
 | `zugang/` | `seneca.handeln`, Uhr-Zugang | `register`, `regeln.ts`, `team.ts` |
+| `mitarbeiter/` | Mitarbeiter anlegen, ändern, ruhen, löschen (`seneca_mitarbeiter`) | `register`, `regeln.ts`, `team.ts` |
 | `quellen/` | GitHub, WhatsApp mitlesen, Eingänge | `register`, `regeln.ts`, `team.ts` |
 
 Geschwister kennen sich nicht. Sie arbeiten über das Register zusammen: ein Modul schreibt, das andere liest im Takt.
@@ -104,7 +105,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 50 | Uhr-Abgleich (Kennung je Handlung) | `zugang/handeln.ts` |
 | 53, 54 | Kalender lesen und schreiben (CalDAV, Konflikte, Teilnehmer nur über den Ausgang) | `quellen/kalender.ts` · Werkzeug `seneca_kalender`; Tagesstand je Tag als Wert `kalender:<tag>` (`register/lesen.ts` · `termineAm`) |
 | – | Trainer (`team/trainer`, kein fester Rundgang): Garmin-Workouts Lauf, Rad und natives Kraft (Übungskatalog, Sätze, Wiederholungen, Gewicht, Pausen) anlegen, ändern, auf ein Datum legen, verlegen, auflisten, löschen; erledigte Aktivitäten, Schlaf, Body Battery, HRV und Trainingsbereitschaft lesen. Python-Skript mit der Bibliothek `garminconnect`, vom Trainer per `exec` aufgerufen; Venv `~/.garmin-venv`, Token nur am Server in `~/.garminconnect` (Rechte 700/600), Anmeldung einmal von Hand (`garmin.py anmelden`). Statistiken der Mitarbeiter: Anzeige der Art `statistik` mit Metrik, Zeitraum, Gruppe, Rechnung, Diagramm, Ziel und Grund; eine fehlerhafte Definition liefert nur `fehler` an ihrer Karte. Jede Einheit steht zusätzlich als Termin `Training: <Kurzname>` im Kalender `Privat` (zählt als Sport); erledigt heißt: Titel endet auf ` ✓`. Schreiben im Kalender dürfen die Mitarbeiter der Regel `kalender_schreiber` | `garmin/garmin.py`, `quellen/kalender.ts` |
-| – | Mitarbeiter anlegen, ändern, ruhen, löschen: Dateien in `team/<name>/`, Agent über das Gateway, Eintrag im Mandat von Seneca, ohne Neustart; das Repo zieht im Hintergrund nach (`plugin/nachzug.sh`) | `zugang/mitarbeiter.ts` · Werkzeug `seneca_mitarbeiter` (nur Seneca) |
+| – | Mitarbeiter anlegen, ändern, ruhen, löschen: Dateien in `team/<name>/`, Agent über das Gateway, Eintrag im Mandat von Seneca, ohne Neustart; das Repo zieht im Hintergrund nach (`plugin/nachzug.sh`) | `mitarbeiter/verwalten.ts` · Werkzeug `seneca_mitarbeiter` (nur Seneca) |
 | 55, 74 | Tagesplanung (To-dos in Lücken, Fenster frei), Los-Hinweis mit Ankunft, Fokus aus dem Kalender | `pforte/planen.ts`; Fokus wirkt in `pforte/stand.ts` · `ruhe`; Terminvorbereitung offen |
 | 56 | Mail lesen | vorhandenes Zoho-Mail-Werkzeug, kein Plugin-Code |
 | 57 | WhatsApp mitlesen (nie senden) | `quellen/whatsapp.ts` · Hook `message_received` |
