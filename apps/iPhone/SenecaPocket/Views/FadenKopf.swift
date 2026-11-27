@@ -72,6 +72,17 @@ extension FadenLayer {
         }
     }
 
+    func springe(_ t: SucheTreffer, _ proxy: ScrollViewProxy) {
+        if partner != t.partner { gewaehlt(t.partner, proxy) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            Bewegung.mit(.blatt) { proxy.scrollTo("r:" + t.nachricht.id, anchor: .center) }
+            Bewegung.mit(.wechsel) { markiert = t.nachricht.id }
+            try? await Task.sleep(for: .seconds(1.6))
+            Bewegung.mit(.wechsel) { if markiert == t.nachricht.id { markiert = nil } }
+        }
+    }
+
     func gewaehlt(_ p: ChatPartner, _ proxy: ScrollViewProxy) {
         if partner == p {
             Bewegung.mit(.blatt) { proxy.scrollTo("ende", anchor: .bottom) }

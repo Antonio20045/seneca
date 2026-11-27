@@ -31,6 +31,8 @@ struct FadenLayer: View {
     @State var gewachsen: Set<String> = []
     @State var abstandSonde: Int?
     @State var anhangWahl = false
+    @State var sucht = ProcessInfo.processInfo.environment["SENECA_DEMO_SUCHE"] != nil
+    @State var markiert: String?
 
     var obenMarke: CGFloat { messung.masse["ende"].map { messung.markeUnten + Self.luftUnten - $0 } ?? .infinity }
     static let luftUnten = Stil.abstand.xl
@@ -71,7 +73,10 @@ struct FadenLayer: View {
                     guard allowTap() else { return }
                     model.dismissKeyboard()
                     zurueck()
-                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) })
+                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) }, suchen: { model.dismissKeyboard(); sucht = true })
+                .fullScreenCover(isPresented: $sucht) {
+                    SucheSicht(speicher: chat.speicher, springe: { t in sucht = false; springe(t, proxy) }, fertig: { sucht = false })
+                }
             }
             .unten {
                 VStack(alignment: .leading, spacing: 18) {
