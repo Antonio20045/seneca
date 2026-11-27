@@ -63,6 +63,10 @@ enum HeuteBild {
                 SnGrund(fortschritt: 0)
                 if let s = HeuteTafelLogik.beispiel(env["SENECA_DEMO_STAND"] ?? "Beispiel-Stand") {
                     switch env["SENECA_SEITE"] {
+                    case "start-code":
+                        SnOrteKapsel(aktiv: .heute, fragen: SnOrt.fragen(s), waehle: { _ in }).opacity(0.5).padding(.top, 18).frame(maxHeight: .infinity, alignment: .top)
+                        SnKopplungTafel(code: Kopplungscode(adresse: "https://seneca.beispiel.ts.net", schluessel: "beispiel", name: "MacBook Pro von Antonio", bis: Date().addingTimeInterval(582)), iphone: false, neu: {})
+                            .frame(maxHeight: .infinity, alignment: .top)
                     case "projekte":
                         SnProjekteTafel(stand: s, zuDenFragen: {}, oeffne: { _ in })
                         SnGeruestBild(stand: s, aktiv: .projekte)
@@ -98,7 +102,11 @@ enum HeuteBild {
                                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.45), lineWidth: 1)) }
                             else { DiktatBlasenInhalt(dienst: .gemeinsam) }
                         }
-                        .onAppear { DiktatDienst.gemeinsam.blasenProbe("hoert") }
+                        .onAppear {
+                            #if DEBUG
+                            DiktatDienst.gemeinsam.blasenProbe("hoert")
+                            #endif
+                        }
                     case "start-weiter", "start-antwortet-nicht", "start-wieder":
                         let art = env["SENECA_SEITE"] ?? ""
                         SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)

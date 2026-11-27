@@ -21,6 +21,17 @@ enum HeuteTafelLogik {
 
     static func datum(_ ms: Double) -> Date { Date(timeIntervalSince1970: ms / 1000) }
 
+    static func antwortZeile(_ f: SenecaStand.Frage?, _ a: SenecaStand.Antwort) -> String {
+        let text = f?.optionen?.first { $0.wert == a.wahl }?.text ?? (a.wahl == "ja" ? "Ja" : a.wahl == "nein" ? "Nein" : a.wahl)
+        let wo = ["uhr": "auf der Uhr", "mac": "am Mac", "iphone": "am iPhone"][a.geraet ?? ""]
+        return [text, [wo, a.zeit.map { uhr($0) }].compactMap { $0 }.joined(separator: ", ")].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    static func ebenBeantwortet(_ s: SenecaStand, jetzt: Date) -> [SenecaStand.Frage] {
+        let grenze = (s.regeln?["frage_nachklang_s"] ?? 6) * 1000
+        return (s.eben_beantwortet ?? []).filter { f in f.antwort?.zeit.map { jetzt.timeIntervalSince1970 * 1000 - $0 < grenze } ?? false }
+    }
+
     static func beispiel(_ name: String = "Beispiel-Stand") -> SenecaStand? {
         guard let url = name.hasPrefix("/") ? URL(fileURLWithPath: name) : Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(SenecaStand.self, from: roh)

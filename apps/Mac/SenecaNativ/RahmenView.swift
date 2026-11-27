@@ -79,6 +79,7 @@ struct RahmenView: View {
             }
         }
         .overlay { SnAufgabeDetailSchicht(modell: modell, detail: modell.aufgabeDetail) }
+        .overlay { SnKopplungSchicht(stand: modell.store.stand) }
         .overlay { TastenhilfeDialog(modell: modell) }
         .overlay(alignment: .topTrailing) {
             if MacPfade.nebenher {

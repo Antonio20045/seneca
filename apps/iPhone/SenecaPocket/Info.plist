@@ -61,7 +61,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Seneca zeigt dir beim Anhängen dein letztes Bildschirmfoto und deine letzten Fotos. Was du anhängst, geht nur an Seneca.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Mit der Kamera fotografierst du etwas für Seneca, zum Beispiel ein Dokument.</string>
+	<string>Mit der Kamera scannst du einmal den Code am Mac und fotografierst etwas für Seneca, zum Beispiel ein Dokument.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Seneca versteht, was du sagst, und schickt deine Frage an Seneca auf deinem Mac.</string>
 	<key>NSSupportsLiveActivities</key>

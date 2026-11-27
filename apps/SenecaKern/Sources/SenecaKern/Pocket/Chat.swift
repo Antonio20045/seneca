@@ -63,7 +63,7 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
     var istLokal: Bool { id.hasPrefix("lokal-") }
 }
 
-struct ChatPartner: Identifiable, Equatable, Sendable {
+struct ChatPartner: Identifiable, Equatable, Sendable, Codable {
     var id: String
     var kopfName: String
     var nominativ: String

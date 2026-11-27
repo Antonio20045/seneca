@@ -49,6 +49,7 @@ public final class Verbindung {
     public var aufZustand: ((Verbindungszustand) -> Void)?
     public var aufEreignis: ((String, [String: Any]) -> Void)?
     public var aufVerbunden: (([String]) -> Void)?
+    public var aufNetz: ((Bool) -> Void)?
     public var regeln = Verbindungsregeln() { didSet { schleife.regeln = regeln } }
 
     private let einstellung: Einstellung
@@ -78,8 +79,11 @@ public final class Verbindung {
         aktiv = true
         let n = NWPathMonitor()
         n.pathUpdateHandler = { [weak self] pfad in
-            guard pfad.status == .satisfied else { return }
-            Task { @MainActor in self?.jetztVersuchen() }
+            let da = pfad.status == .satisfied
+            Task { @MainActor in
+                self?.aufNetz?(da)
+                if da { self?.jetztVersuchen() }
+            }
         }
         n.start(queue: DispatchQueue(label: "seneca.netz"))
         netz = n

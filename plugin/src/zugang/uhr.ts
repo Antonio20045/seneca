@@ -45,13 +45,14 @@ function begrenzt(schluessel: string, grenze: number): boolean {
 }
 
 export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
-  const g = String((JSON.parse(roh.toString("utf8")) as Anfrage).g ?? "");
+  const d = JSON.parse(roh.toString("utf8")) as Anfrage & { m?: string };
+  const g = String(d.g ?? "");
   const fenster = wert(db, "kopplung:fenster");
   if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
   const zahl = String(randomInt(0, 10000)).padStart(4, "0");
   const abholen = randomBytes(16).toString("hex");
-  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false }), "uhr", fenster.gueltig_bis);
+  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false, modell: d.m?.slice(0, regelZahl("kopplung_modell_zeichen")) }), "uhr", fenster.gueltig_bis);
   return { status: 200, inhalt: { zahl, abholen } };
 }
 
@@ -85,6 +86,8 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
     if (h.a === "frage.antwort" && z.ziel !== fuerUhr && !beantwortet(db, String(z.ziel))) return [h.id, "nein:nicht_fuer_uhr"];
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
+  const nach = (d.h ?? []).filter((h, i) => h.a === "eintrag.neu" && h.p?.k === "satz" && q[i][1] === "ok" && jetzt - msAusSekunden(h.t) > regelMs("uhr_nachgereicht_min")).length;
+  if (nach >= regelZahl("uhr_nachgereicht_ab")) wertSetzen(db, "hinweis:uhr", `${nach} Sätze aus dem Training übernommen`, "uhr", jetzt + regelMs("uhr_hinweis_min"));
   const amArm = wert(db, "uhr_am_arm");
   if ((amArm?.gueltig_bis ?? 0) <= jetzt) wertSetzen(db, "uhr_am_arm", "ja", "uhr", jetzt + regelMs("uhr_verbunden_min"));
   aktivitaetSetzen(db, d.zs, jetzt);

@@ -4,7 +4,8 @@ import ImageIO
 import UniformTypeIdentifiers
 #endif
 
-struct ChatAnhang: Identifiable, Equatable, Sendable {
+struct ChatAnhang: Identifiable, Equatable, Sendable, Codable {
+    private enum CodingKeys: String, CodingKey { case url, name, mime, groesse, vorher }
     static let maxFrame = 1024 * 1024
     static let frameRand = 96 * 1024
     static let maxBildKante = 1568

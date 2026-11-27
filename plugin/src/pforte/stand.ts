@@ -189,6 +189,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
     team_kopf: ["Dein Team,", `um ${ungefaehr(jetzt)}.`],
     braucht_dich: braucht.map((f) => ({ ...frageSicht(db, f, jetzt), mitteilung: mitteilung(db, f, braucht.length - 1) })),
+    eben_beantwortet: fragen(db, "beantwortet").filter((f) => Number(f.antwort_um) > jetzt - regelMs("frage_nachklang_s")).map((f) => frageSicht(db, f, jetzt)),
     buendel: b,
     projekte: projekte(db, jetzt, ruhe(db, jetzt)?.grund === "fokus"),
     entscheiden: entscheiden(db, braucht.length + b.fragen.length, b.abnahmen.length > 0, tagBeginn, jetzt),
@@ -210,7 +211,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision })),
-    hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),
+    hinweise: [...werte(db, "hinweis:").keys()].map((k) => wert(db, k)).filter((w) => w?.wert && (w.gueltig_bis ?? Infinity) > jetzt).map((w) => w?.wert),
     kopplung: [...werte(db, "kopplung:")].filter(([k]) => k !== "kopplung:fenster").map(([k, v]) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(v) }))
       .filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl })),
   };
