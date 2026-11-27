@@ -89,15 +89,6 @@ struct PageMotionLive: ViewModifier {
     }
 }
 
-struct KalenderWeichtLive: ViewModifier {
-    @ObservedObject var zug: Wisch.Wert<SideState>
-    var m: Metrics
-    var reduceMotion: Bool
-    func body(content: Content) -> some View {
-        content.kalenderWeicht(m: m, side: zug.wert, reduceMotion: reduceMotion)
-    }
-}
-
 struct SenecaCoverLive: ViewModifier {
     @ObservedObject var zug: Wisch.Wert<TransitionState>
     var reduceMotion: Bool

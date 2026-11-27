@@ -1,9 +1,9 @@
-import { hole, laeufe, revision, spaeterBis, uhr, wert } from "../register/lesen.ts";
+import { hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeEntfernen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
-import { regelMs } from "../regeln.ts";
+import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Handlung = { kennung: string; geraet: string; art: string; ziel?: string; wert?: unknown; zeit_geraet?: number; gesehen_revision?: number };
 type Wert = Record<string, unknown>;
@@ -46,6 +46,13 @@ function todo(aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loes
   };
 }
 
+function eintrag(a: (h: Handlung) => { werte?: object; zustand?: string }) {
+  return (db: Register, h: Handlung) => {
+    eintragAendern(db, String(h.ziel), a(h), h.geraet);
+    return "angenommen";
+  };
+}
+
 function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
   return (db: Register, h: Handlung) => {
     const w = h.wert as Wert | string;
@@ -53,6 +60,29 @@ function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
     wertSetzen(db, schluessel(h), wert, h.geraet, dauer ? uhr.jetzt() + dauer() : (typeof w === "object" ? (w?.bis as number | undefined) : undefined));
     return "angenommen";
   };
+}
+
+function wegSetzen(db: Register, uid: string, w: Wert, geraet: string): void {
+  wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.weg_min))), geraet);
+  wertSetzen(db, `entfernung:${uid}`, String(Math.round(Number(w.entfernung_m))), geraet);
+  if (w.art) wertSetzen(db, `wegart:${uid}`, String(w.art), geraet);
+}
+
+const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+function terminVerschieben(db: Register, kennung: string, uid: string, w: Wert): string {
+  const [start, ende] = [Number(w.start), Number(w.ende)];
+  const t = termineAm(db, start).find((x) => x.uid === uid) ?? termineAm(db, uhr.jetzt()).find((x) => x.uid === uid);
+  if (!t) return "abgelehnt:termin_unbekannt";
+  if (!t.teilnehmer.length) {
+    wertSetzen(db, `kalender:schreiben:${kennung}`, JSON.stringify({ aktion: "verschieben", uid, titel: w.titel ?? t.titel, ort: w.ort, start, ende }), "antonio");
+    return "angenommen";
+  }
+  const wortlaut = `Termin „${t.titel}“ auf ${uhrzeit(start)} verschieben. Erst die anderen fragen, dann verschieben.`;
+  auftragAnlegen(db, { art: "system", wortlaut, wortlaut_quelle: `handlung:${kennung}`, titel: `${t.titel} auf ${uhrzeit(start)}`.slice(0, regelZahl("titel_zeichen")),
+    ziel: `${t.titel} liegt um ${uhrzeit(start)}`, abnahme: "Zusage der anderen und Termin verschoben", abnahme_durch: "beleg", pruefer_noetig: false,
+    verantwortlich: regelText("dauerauftraege_von"), auftraggeber: "antonio", quelle: "du", bereich: "Privat", arbeitsart: "steuern" });
+  return "angenommen";
 }
 
 const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
@@ -83,9 +113,40 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "todo.wiederherstellen": todo("wiederherstellen"),
   "eintrag.neu": (db, h) => {
     const w = h.wert as Wert;
-    return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: h.zeit_geraet ?? uhr.jetzt(), quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
+    const zurueck = (w.werte as Wert | undefined)?.tag === "gestern" ? regelMs("ein_tag_tage") : 0;
+    return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: (typeof w.zeit === "number" ? w.zeit : h.zeit_geraet ?? uhr.jetzt()) - zurueck, quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
   },
-  "geraet.aktivitaet": setze(() => "aktivitaet"),
+  "eintrag.aendern": eintrag((h) => ({ werte: h.wert as object })),
+  "eintrag.loeschen": eintrag(() => ({ zustand: "geloescht" })),
+  "eintrag.wiederherstellen": eintrag(() => ({ zustand: "gueltig" })),
+  "ziel.setzen": setze((h) => `ziel:${h.ziel}`),
+  "todo.vorschlag_weg": setze(() => "todo_vorschlag", () => 0),
+  "termin.anlegen": (db, h) => {
+    const w = h.wert as Wert;
+    if (!w?.titel || !Number.isFinite(Number(w.start)) || !(Number(w.ende) > Number(w.start))) return "abgelehnt:termin_unvollstaendig";
+    const uid = `${h.kennung}-${h.geraet}`;
+    wertSetzen(db, `kalender:schreiben:${h.kennung}`, JSON.stringify({ aktion: "anlegen", uid, titel: w.titel, start: Number(w.start), ende: Number(w.ende), ort: w.ort || undefined, kalender: w.kalender }), h.geraet);
+    if (w.weg) wegSetzen(db, uid, w.weg as Wert, h.geraet);
+    return "angenommen";
+  },
+  "termin.verschieben": (db, h) => {
+    const w = h.wert as Wert;
+    return terminVerschieben(db, h.kennung, String(h.ziel), w ?? {});
+  },
+  "termin.weg": (db, h) => {
+    wegSetzen(db, String(h.ziel), h.wert as Wert, h.geraet);
+    return "angenommen";
+  },
+  "termin.zuruecklegen": (db, h) => {
+    wertSetzen(db, `zurueckgelegt:${h.ziel}`, "ja", h.geraet);
+    return terminVerschieben(db, h.kennung, String(h.ziel), h.wert as Wert);
+  },
+  "vorschlag.anders": (db, h) => {
+    wertSetzen(db, `vorschlag:zeit:${h.ziel}`, String(Number((h.wert as Wert)?.start)), h.geraet);
+    return antwort(db, { ...h, wert: { wahl: "ja" } });
+  },
+  "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),
+  "geraet.aktivitaet": (db, h) => setze(() => "aktivitaet")(db, h) && setze(() => "uhr:starten", () => regelMs("uhr_starten_min"))(db, h),
   koerper: (db, h) => {
     const w = h.wert as Wert;
     if (!Number.isFinite(Number(w?.schlaf_min)) || !Number.isFinite(Number(w?.bis))) return "abgelehnt:schlaf_fehlt";
@@ -105,8 +166,20 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   },
   "eingang.datei": (db, h) => eingang(db, h, "teilen"),
   "eingang.meeting": (db, h) => eingang(db, h, "meeting"),
+  "auftrag.anlegen": (db, h) => {
+    const w = (h.wert ?? {}) as Wert, text = String(w.text ?? "");
+    auftragAnlegen(db, { art: "auftrag", wortlaut: text, wortlaut_quelle: h.kennung, titel: text.slice(0, 60), ziel: "Ergebnis mit Beleg", abnahme: "Beleg liegt vor",
+      abnahme_durch: "antonio", pruefer_noetig: false, verantwortlich: String(w.wer), auftraggeber: "antonio", quelle: "meeting", bereich: String(w.bereich || "Seneca"),
+      arbeitsart: w.wer === "pruefer" ? "pruefen" : "bauen", nachricht: { kennung: h.kennung, text } });
+    return "angenommen";
+  },
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
   "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
+  "gespraech.neu": (db, h) => {
+    if (!/^agent:[a-z0-9_-]+:[^\s]+$/.test(String(h.ziel))) return "abgelehnt:sitzung_unbekannt";
+    wertSetzen(db, `gespraech:neu:${h.kennung}`, String(h.ziel), h.geraet);
+    return "angenommen";
+  },
   "anzeige.weg": (db, h) => {
     anzeigeEntfernen(db, String(h.ziel), h.geraet);
     return "angenommen";

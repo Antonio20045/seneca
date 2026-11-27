@@ -8,19 +8,19 @@ import Vision
 
 @MainActor
 final class MenueZeichenModell: ObservableObject {
-    @Published private(set) var zeichen = MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: 0)
+    @Published private(set) var zeichen = MenueZeichen.entscheide(meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: 0)
     private var abos: Set<AnyCancellable> = []
 
-    func starte(dienste: MacDienste) {
+    func starte(dienste: MacDienste, store: SenecaStore) {
         guard abos.isEmpty else { return }
-        Publishers.CombineLatest4(DiktatDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, dienste.$stand)
+        Publishers.CombineLatest3(MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, store.$stand)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] d, m, dauer, stand in
+            .sink { [weak self] m, dauer, stand in
                 MainActor.assumeIsolated {
                     var arbeitet = false
                     if case .wertAus = m { arbeitet = true }
-                    let neu = MenueZeichen.entscheide(diktat: DiktatDienst.phase(d), meetingNimmtAuf: m == .nimmtAuf, meetingDauer: dauer,
-                                                      meetingArbeitet: arbeitet, braucht: stand.braucht)
+                    let neu = MenueZeichen.entscheide(meetingNimmtAuf: m == .nimmtAuf, meetingDauer: dauer,
+                                                      meetingArbeitet: arbeitet, braucht: stand?.zaehler?.braucht ?? 0, fokus: stand?.ruhe?.grund == "fokus")
                     if neu.text != nil { MenueZeichenModell.festeZiffern() }
                     if let self, neu != self.zeichen { self.zeichen = neu }
                 }
@@ -37,15 +37,15 @@ final class MenueZeichenModell: ObservableObject {
     func probeSetze(_ z: MenueZeichen) { zeichen = z }
     #endif
 
-    static let roterPunkt: NSImage = {
+    static func punkt(_ farbe: String) -> NSImage {
         let b = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { r in
-            NSColor.systemRed.setFill()
-            NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1)).fill()
+            (farbe == "rot" ? NSColor.systemRed : NSColor(red: 0.91, green: 0.72, blue: 0.29, alpha: 1)).setFill()
+            NSBezierPath(ovalIn: r.insetBy(dx: 2, dy: 2)).fill()
             return true
         }
         b.isTemplate = false
         return b
-    }()
+    }
 }
 
 @MainActor
@@ -60,6 +60,7 @@ final class VorneMerker: ObservableObject {
 
     @Published private(set) var stand = 0
     private var fremde: NSRunningApplication?
+    var zuletztFremd: NSRunningApplication? { fremde.flatMap { $0.isTerminated ? nil : $0 } }
     private var senecaAktivSeit: Date?
     private var menueOffenSeit: Date?
     private var senecaWarVornBeimKlick: Bool?
@@ -148,7 +149,7 @@ enum MenueFenster {
     }
 
     static func statusKnoepfe() -> [NSStatusBarButton] {
-        NSApp.windows.filter { $0.className.contains("StatusBar") }.compactMap { finde($0.contentView) }.filter { !($0.target is TagesBegleiter) }
+        NSApp.windows.filter { $0.className.contains("StatusBar") }.compactMap { finde($0.contentView) }
     }
 
     private static func finde(_ v: NSView?) -> NSStatusBarButton? {
@@ -187,31 +188,6 @@ struct MenueFensterLeser: NSViewRepresentable {
     func updateNSView(_ nsView: Sicht, context: Context) { nsView.geoeffnet = geoeffnet }
 }
 
-@MainActor
-final class AblageZuletztModell: ObservableObject {
-    static let gemeinsam = AblageZuletztModell()
-    @Published private(set) var eintraege: [AblageEintrag] = []
-    @Published private(set) var titel = ""
-
-    static var registerDatei: URL? {
-        if let p = ProcessInfo.processInfo.environment["SENECA_ABLAGE_REGISTER"], !p.isEmpty { return URL(fileURLWithPath: (p as NSString).expandingTildeInPath) }
-        guard MacPfade.profil.echteDaten else { return nil }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Bereiche/ablage-register.jsonl")
-    }
-
-    func lade() {
-        let register = Self.registerDatei, meetings = MeetingDienst.ordner
-        Task.detached(priority: .userInitiated) { [weak self] in
-            let z = AblageRegister.zuletzt(register: register, meetings: meetings)
-            await MainActor.run {
-                guard let self else { return }
-                if self.eintraege != z.eintraege { self.eintraege = z.eintraege }
-                if self.titel != z.titel { self.titel = z.titel }
-            }
-        }
-    }
-}
-
 extension MacDienste {
     func sprechen() {
         let ziel = VorneMerker.gemeinsam.ziel()
@@ -233,36 +209,15 @@ extension MacDienste {
     }
 
     func zeigeBildschirm() {
-        if schnellfrage.beschaeftigt {
-            HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "feldBelegt"])
-            DispatchQueue.main.async { MainActor.assumeIsolated { MenueFenster.schliesse(); self.panel.zeige() } }
-            return
-        }
-        let display = BildschirmFoto.unterMaus()
-        let vorn = VorneMerker.gemeinsam.vorneName()
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                MenueFenster.schliesse()
-                if self.panel.zeigtSich { self.panel.schliesse() }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(380))
-                    switch await BildschirmFoto.nimm(display: display) {
-                    case .foto(let url):
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "foto"])
-                        self.panel.zeige(bild: url, vorn: vorn)
-                    case .keineFreigabe:
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "keineFreigabe"])
-                        self.panel.zeige(hinweis: "Seneca darf deinen Bildschirm noch nicht sehen. Schalte in den Systemeinstellungen unter Datenschutz, „Bildschirm- & Systemaudioaufnahme“ Seneca ein. Bietet macOS an, Seneca neu zu öffnen, nimm das an. Dann noch einmal auf „Bildschirm zeigen“ klicken.", freigabe: .bildschirm)
-                    case .fehler:
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "fehler"])
-                        self.panel.zeige(hinweis: "Das Foto vom Bildschirm hat nicht geklappt. Klick noch einmal auf „Bildschirm zeigen“.", freigabe: nil)
-                    }
-                }
-            }
-        }
+        DispatchQueue.main.async { MainActor.assumeIsolated { MenueFenster.schliesse(); self.panel.zeige() } }
     }
 
     func meetingStand(_ z: MeetingDienst.Zustand) {
+        let auf = z == .nimmtAuf
+        merkKuerzel.aktion = { MeetingDienst.gemeinsam.merke() }
+        meetingKuerzel.aktion = { if Self.meetingFensterVorn() { MeetingDienst.gemeinsam.umschalten() } else { NSApp.activate(); MeetingDienst.gemeinsam.oeffneFenster?() } }
+        merkKuerzel.setze(auf ? Kuerzel(taste: 46, modifier: Kuerzel.cmd | Kuerzel.shift, zeichen: "⌘⇧M") : nil)
+        meetingKuerzel.setze(auf ? Kuerzel(taste: 15, modifier: Kuerzel.cmd | Kuerzel.shift, zeichen: "⌘⇧R") : nil)
         var wertet = false
         if case .wertAus = z { wertet = true }
         let vorher = meetingWertetAus
@@ -272,11 +227,11 @@ extension MacDienste {
               let ablage else { return }
         var fehlt = false
         if case .ohneZusammenfassung = ablage.ergebnis.stand { fehlt = true }
-        let m = MeetingMeldung.text(titel: ablage.ergebnis.titel, hatBeitraege: !ablage.ergebnis.segmente.isEmpty, zusammenfassungFehlt: fehlt)
+        let m = MeetingMeldung.text(ablage.ergebnis, vorschlaege: MeetingDienst.gemeinsam.vorschlaege.count)
         guard MacPfade.profil == .echt, !Hintergrund.aktiv else { return }
         guard einstellungen.mitteilungenAn else { return }
         guard meetingGemeldet.insert(MeetingMeldung.kennung(datei: ablage.datei.path, zusammenfassungFehlt: fehlt)).inserted else { return }
-        Task { _ = await mitteilungen.zeigeMeetingNotiz(titel: m.titel, text: m.text, datei: ablage.datei) }
+        Task { await mitteilungen.zeigeMeeting("fertig", m.titel, m.text, m.knoepfe) }
     }
 
     static func meetingFensterVorn() -> Bool {
@@ -299,7 +254,7 @@ enum MenueProbe {
         }
         var w: [String: Any] = [:]
         let z = dienste.zeichen.zeichen
-        w["zeichen"] = ["symbol": z.symbol, "text": z.text ?? "", "rot": z.rot, "ansage": z.ansage] as [String: Any]
+        w["zeichen"] = ["symbol": z.symbol, "text": z.text ?? "", "punkt": z.punkt ?? "", "ansage": z.ansage] as [String: Any]
         let d = DiktatDienst.gemeinsam
         w["diktat"] = ["zustand": "\(DiktatDienst.phase(d.zustand))", "anzeige": "\(DiktatDienst.phase(d.anzeigeZustand))"]
         w["blase"] = NSApp.windows.filter { $0.className.contains("DiktatPanel") }.map { p in
@@ -311,9 +266,6 @@ enum MenueProbe {
         if let h = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) {
             w["fensterBild"] = await lies(fenster: h, sichern: ordner.appendingPathComponent("fenster-probe.png"))
         }
-        AblageZuletztModell.gemeinsam.lade()
-        try? await Task.sleep(for: .seconds(1))
-        w["zuletzt"] = ["titel": AblageZuletztModell.gemeinsam.titel, "anzahl": AblageZuletztModell.gemeinsam.eintraege.count] as [String: Any]
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] == "foto" {
             switch await BildschirmFoto.nimm(display: BildschirmFoto.unterMaus()) {
             case .foto(let u):
@@ -342,7 +294,7 @@ enum MenueProbe {
         }
         w["breite"] = breite
         w["knopfSchrift"] = k.font?.fontName ?? ""
-        dienste.zeichen.probeSetze(MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.stand.braucht))
+        dienste.zeichen.probeSetze(MenueZeichen.entscheide(meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.braucht))
         return w
     }
 

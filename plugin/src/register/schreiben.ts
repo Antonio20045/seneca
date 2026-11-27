@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
-import { regelMs, regelZahl } from "../regeln.ts";
+import { letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { hole, kinder, offeneFrage, revision, uhr, zurueckgenommen, type Tabelle, type Zeile } from "./lesen.ts";
 import type { Register } from "./schema.ts";
 import { NEBENWIRKUNGEN, NEU, PFLICHT_BEI, UEBERGAENGE } from "./uebergaenge.ts";
@@ -11,7 +11,7 @@ type Ereignis = {
   art: string; wer?: string; geraet?: string; auftrag_id?: string; frage_id?: string; lauf_id?: string;
   schluessel?: string; daten?: unknown; satz?: string; beleg?: string;
 };
-type Option = { wert: string; text: string; folge: string };
+type Option = { wert: string; text: string; folge: string; titel?: string; preis?: string; einheit?: string };
 
 function neueId(): string {
   return uhr.jetzt().toString(36).padStart(9, "0") + randomBytes(4).toString("hex");
@@ -141,16 +141,17 @@ export function auftragSetzen(db: Register, id: string, felder: Felder, satz?: s
   });
 }
 
-export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; anzeige_weg?: string };
-type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number }; wirkung?: Wirkung };
+export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; fortsetzen?: string[]; anzeige_weg?: string; termin?: { titel: string; start: number; ende: number; ort?: string } };
+type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number; ja?: string }; wirkung?: Wirkung };
 
 export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
   return schritt(db, () => {
-    const { herkunft, frage, wirkung, ...a } = v;
+    const { herkunft, frage: { ja, ...frage }, wirkung, ...a } = v;
+    const frist = frage.frist ?? (wirkung?.termin ? letzteUhrzeit(regelText("vorschlag_verfaellt_uhr"), new Date(wirkung.termin.start).setHours(0, 0, 0, 0)) : undefined);
     const { id } = auftragAnlegen(db, { ...a, art: "vorschlag", quelle: "vorschlag" }, { herkunft, wirkung });
     frageStellen(db, {
-      auftrag_id: id, von: a.auftraggeber, art: "vorschlag", ...frage, wenn_nichts: "Der Vorschlag verfällt.",
-      optionen: [{ wert: "ja", text: "Ja", folge: wirkung ? "Seneca übernimmt das so." : "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
+      auftrag_id: id, von: a.auftraggeber, art: "vorschlag", ...frage, frist, wenn_nichts: "Der Vorschlag verfällt.",
+      optionen: [{ wert: "ja", text: ja ?? "Ja", folge: wirkung ? "Seneca übernimmt das so." : "Daraus wird ein Auftrag." }, { wert: "nein", text: "Nein", folge: "Der Vorschlag wird verworfen." }],
     });
     return id;
   });
@@ -158,10 +159,10 @@ export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
 
 export type NeueFrage = {
   auftrag_id: string; von: string; text: string; was_passiert_ist: string; wenn_nichts: string; empfehlung: string;
-  art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number;
+  art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string; mehr?: Record<string, unknown>;
 };
 
-export function frageStellen(db: Register, f: NeueFrage): string {
+export function frageStellen(db: Register, { kurz, zeit_fuer, mehr, ...f }: NeueFrage): string {
   return schritt(db, () => {
     const fehlt = (["text", "was_passiert_ist", "wenn_nichts", "empfehlung", "art"] as const).filter((k) => !f[k]);
     if (fehlt.length || !f.optionen.length || f.optionen.some((o) => !o.folge)) throw new Error(`Frage unvollständig: ${[...fehlt, "optionen mit folge"].join(", ")}`);
@@ -175,7 +176,7 @@ export function frageStellen(db: Register, f: NeueFrage): string {
       ...f, roh: f.roh ?? null, wirkung_aussen: f.wirkung_aussen ?? "keine", ausgang_schluessel: f.ausgang_schluessel ?? null,
       inhalt_hash: f.inhalt_hash ?? null, frist: f.frist ?? null, id, optionen: JSON.stringify(optionen), zustand: "offen", gestellt: uhr.jetzt(),
     });
-    ereignis(db, { art: "frage.gestellt", wer: f.von, auftrag_id: f.auftrag_id, frage_id: id, satz: f.text, daten: { art: f.art, wirkung_aussen: f.wirkung_aussen ?? "keine" } });
+    ereignis(db, { art: "frage.gestellt", wer: f.von, auftrag_id: f.auftrag_id, frage_id: id, satz: f.text, daten: { art: f.art, wirkung_aussen: f.wirkung_aussen ?? "keine", kurz, zeit_fuer, ...mehr } });
     return id;
   });
 }
@@ -296,7 +297,7 @@ export function fortschreibung(db: Register, laufId: string, f: { letzter_stand:
   });
 }
 
-export type TodoAktion = { aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen"; id?: string; felder?: Felder; gesehen_revision?: number; geraet: string };
+export type TodoAktion = { aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen"; id?: string; felder?: Felder; gesehen_revision?: number; geraet: string; satz?: string };
 
 const ZIEL_JE_AKTION = { erledigt: "erledigt", loeschen: "geloescht", wiederherstellen: "offen" } as const;
 
@@ -314,6 +315,8 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (a.aktion in ZIEL_JE_AKTION) {
       const nach = ZIEL_JE_AKTION[a.aktion as keyof typeof ZIEL_JE_AKTION];
       if (alt.zustand !== nach) uebergang(db, "todo", id, nach, a.aktion, nach === "erledigt" ? { erledigt_von: a.geraet, revision: revision(db) + 1 } : { revision: revision(db) + 1 });
+      else if (nach === "erledigt" && alt.wiederkehrend) setzen(db, "todo", id, { erledigt_von: a.geraet, revision: revision(db) + 1 });
+      if (nach === "erledigt") ereignis(db, { art: "todo.erledigt", geraet: a.geraet, schluessel: id, satz: a.satz });
       return { id, ergebnis: "angenommen" };
     }
     if (alt.zustand === "erledigt") return { id, ergebnis: "ueberholt", hinweis: "Schon erledigt. Abhaken gewinnt." };
@@ -334,6 +337,14 @@ export function eintragSetzen(db: Register, e: { art: string; werte: object; zei
     if (!r.changes) return "doppelt";
     ereignis(db, { art: "eintrag.geaendert", schluessel: id, geraet: e.quelle, daten: { art: e.art } });
     return id;
+  });
+}
+
+export function eintragAendern(db: Register, id: string, a: { werte?: object; zustand?: string }, geraet: string): void {
+  schritt(db, () => {
+    const alt = hole(db, "eintrag", id);
+    setzen(db, "eintrag", id, a.werte ? { werte: JSON.stringify({ ...JSON.parse(String(alt.werte)), ...a.werte }) } : { zustand: a.zustand ?? "gueltig" });
+    ereignis(db, { art: "eintrag.geaendert", schluessel: id, geraet, daten: { art: alt.art } });
   });
 }
 

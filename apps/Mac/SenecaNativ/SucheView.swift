@@ -35,9 +35,6 @@ struct SucheView: View {
         .shadow(color: Farbe.kastenSchatten, radius: 45, y: 30)
         .onAppear {
             fokus = true
-            #if DEBUG
-            Testlog.sucheGezeigt()
-            #endif
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Suche").accessibilityIdentifier("suche")

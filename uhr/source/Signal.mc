@@ -22,7 +22,7 @@ module Signal {
     }
 
     function dunkler() as Void {
-        if (!(Attention has :backlight)) {
+        if (!(Attention has :backlight) || !Zeichnen.amoled()) {
             return;
         }
         try {

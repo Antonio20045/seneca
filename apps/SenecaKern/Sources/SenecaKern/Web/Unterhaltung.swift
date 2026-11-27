@@ -225,16 +225,6 @@ enum Unterhaltung {
         }
     }
 
-    static func nurUnterhaltung(_ bloecke: [ZugBlock]) -> [ZugBlock] {
-        bloecke.filter { b in
-            switch b {
-            case .reset: return true
-            case .zwischen: return false
-            case .zug(let z): if case .user? = z.start { return true } else { return istAuftragsErgebnis(z) || kanalNachricht(z) != nil }
-            }
-        }
-    }
-
     static func gruppiere(_ bloecke: [ZugBlock]) -> [ZugBlock] {
         var out: [ZugBlock] = []
         for b in bloecke {

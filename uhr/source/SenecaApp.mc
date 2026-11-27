@@ -44,8 +44,4 @@ class SenecaApp extends Application.AppBase {
             Training.unterbrechen();
         }
     }
-
-    function onSettingsChanged() as Void {
-        WatchUi.requestUpdate();
-    }
 }

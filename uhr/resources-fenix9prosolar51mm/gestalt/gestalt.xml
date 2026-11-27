@@ -1,0 +1,49 @@
+<resources>
+    <fonts>
+        <font id="M5_16" filename="M5_16.fnt" antialias="true" scope="glance"/>
+        <font id="M5_17" filename="M5_17.fnt" antialias="true"/>
+        <font id="M5_15" filename="M5_15.fnt" antialias="true"/>
+        <font id="M5_14" filename="M5_14.fnt" antialias="true"/>
+        <font id="M5_14W" filename="M5_14W.fnt" antialias="true"/>
+        <font id="M4_20" filename="M4_20.fnt" antialias="true"/>
+        <font id="M4_15" filename="M4_15.fnt" antialias="true"/>
+        <font id="M4_15W" filename="M4_15W.fnt" antialias="true"/>
+        <font id="M4_14" filename="M4_14.fnt" antialias="true"/>
+        <font id="M4_13" filename="M4_13.fnt" antialias="true"/>
+        <font id="M4_13W" filename="M4_13W.fnt" antialias="true"/>
+        <font id="M5_13W" filename="M5_13W.fnt" antialias="true"/>
+        <font id="M5_22W" filename="M5_22W.fnt" antialias="true"/>
+        <font id="G5_120" filename="G5_120.fnt" antialias="true"/>
+        <font id="G5_96" filename="G5_96.fnt" antialias="true"/>
+        <font id="G5_80" filename="G5_80.fnt" antialias="true"/>
+        <font id="G5_72" filename="G5_72.fnt" antialias="true"/>
+        <font id="G5_64" filename="G5_64.fnt" antialias="true" scope="glance"/>
+        <font id="G5_40" filename="G5_40.fnt" antialias="true"/>
+        <font id="G5_38" filename="G5_38.fnt" antialias="true"/>
+        <font id="G5_36" filename="G5_36.fnt" antialias="true"/>
+        <font id="G5_34" filename="G5_34.fnt" antialias="true" scope="glance"/>
+        <font id="G5_32" filename="G5_32.fnt" antialias="true"/>
+        <font id="G5_30" filename="G5_30.fnt" antialias="true"/>
+        <font id="G5_26" filename="G5_26.fnt" antialias="true"/>
+        <font id="G5_22" filename="G5_22.fnt" antialias="true"/>
+        <font id="G5_20" filename="G5_20.fnt" antialias="true"/>
+        <font id="G5_18" filename="G5_18.fnt" antialias="true"/>
+        <font id="G5_15" filename="G5_15.fnt" antialias="true"/>
+        <font id="G4_26" filename="G4_26.fnt" antialias="true"/>
+        <font id="G4_24" filename="G4_24.fnt" antialias="true"/>
+        <font id="G4_22" filename="G4_22.fnt" antialias="true" scope="glance"/>
+        <font id="G4_21" filename="G4_21.fnt" antialias="true"/>
+        <font id="G4_20" filename="G4_20.fnt" antialias="true" scope="glance"/>
+        <font id="G4_19" filename="G4_19.fnt" antialias="true"/>
+        <font id="G4_18" filename="G4_18.fnt" antialias="true"/>
+        <font id="G4_17" filename="G4_17.fnt" antialias="true"/>
+        <font id="G4_15" filename="G4_15.fnt" antialias="true"/>
+        <font id="I_48" filename="I_48.fnt" antialias="true"/>
+        <font id="IR_42" filename="IR_42.fnt" antialias="true"/>
+        <font id="I_34" filename="I_34.fnt" antialias="true"/>
+        <font id="I_26" filename="I_26.fnt" antialias="true"/>
+    </fonts>
+    <drawables>
+        <bitmap id="Lichtpunkt" filename="lichtpunkt.png" scope="glance"/>
+    </drawables>
+</resources>

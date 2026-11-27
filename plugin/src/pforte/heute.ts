@@ -1,18 +1,24 @@
-import { hole, letztesTraining, termineAm, wert, type Zeile } from "../register/lesen.ts";
+import { hole, letztesTraining, termineAm, todos, wert, type Zeile } from "../register/lesen.ts";
+import { passtNicht } from "./aufgaben.ts";
 import type { Register } from "../register/schema.ts";
 import { regelListe, regelMs, regelZahl } from "../regeln.ts";
-import { istFokus } from "./planen.ts";
+import { einplanen, istFokus } from "./planen.ts";
 
-const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
+export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn", "zwanzig"];
 const STUNDE = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"];
 
 type Termin = ReturnType<typeof termineAm>[number];
 
-const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+export const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
-function stundeAlsWort(t: number): string {
+export function stundeAlsWort(t: number): string {
   const d = new Date(t);
   return d.getMinutes() === 0 ? STUNDE[d.getHours() % 12] : uhrzeit(t);
+}
+
+export function ungefaehr(t: number): string {
+  const d = new Date(t), m = d.getMinutes();
+  return m >= 15 && m < 45 ? `halb ${STUNDE[(d.getHours() + 1) % 12]}` : STUNDE[(d.getHours() + (m >= 45 ? 1 : 0)) % 12];
 }
 
 function dauerAlsWort(min: number): string {
@@ -33,8 +39,12 @@ function kurzName(titel: string): string {
 
 function dann(a: Termin, b: Termin): string {
   if (b.start - a.ende < regelMs("satz_ruhe_ab_min")) return `dann ${artikel(b.titel)[0]}.`;
-  const wort = b.titel.split(" ")[0];
-  return `dann Ruhe bis ${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}.`;
+  return `dann Ruhe bis ${zumWort(b.titel)}.`;
+}
+
+export function zumWort(titel: string): string {
+  const wort = titel.split(" ")[0];
+  return `${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}`;
 }
 
 export function heute(db: Register, ruhe: { grund: string; bis: number } | undefined, jetzt: number) {
@@ -50,7 +60,10 @@ export function heute(db: Register, ruhe: { grund: string; bis: number } | undef
       satz_folge: [vor, b ? `Danach zuerst ${erster}, dann ${artikel(b.titel)[0]}.` : `Danach ${erster}.`],
     };
   }
-  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."] : ["Heute steht", "nichts mehr an."];
+  const offen = todos(db, "offen").filter((t) => !t.wiederkehrend);
+  const n = ZAHLWORT[offen.length] ?? String(offen.length);
+  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."]
+    : offen.length ? [`${n[0].toUpperCase()}${n.slice(1)} für heute.`, passtNicht(einplanen(db, offen, jetzt))] : ["Heute steht", "nichts mehr an."];
   return { satz, satz_folge: satz };
 }
 

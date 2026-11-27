@@ -1,19 +1,19 @@
 import { createHash } from "node:crypto";
-import { auftraege, ereignisse, fragen, hole, laufZurSitzung, wert } from "../register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, laufZurSitzung, ruht, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, befund, ereignis, frageBeantworten, frageStellen } from "../register/schreiben.ts";
 import { regelListe, regelText } from "../regeln.ts";
 import { mandat } from "../team.ts";
 import { normalisiere, stufe } from "./kontakte.ts";
 
-type Aufruf = { werkzeug: string; params: Record<string, unknown>; sitzung: string; agent: string; aufrufId?: string };
+type Aufruf = { werkzeug: string; params: Record<string, unknown>; sitzung: string; agent: string; aufrufId?: string; ruhe: () => { grund: string; durchbruch: boolean } | undefined };
 type Daten = { kanal: string; empfaenger: string[]; stufe: string; werkzeug: string };
 type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 type Urteil = { block: true; blockReason: string } | undefined;
 
 const STRENGE = ["frei", "kurz_fragen", "ausfuehrlich"];
 const WORT: Record<string, string> = { anruf: "Anruf", live: "Live schalten", gateway: "Gateway-Neustart" };
-const gestartet = new Map<string, string>();
+const gestartet = new Map<string, { schluessel: string; sitzung: string; daten: Daten }>();
 
 function trifft(eintrag: string, a: Aufruf): boolean {
   const trenner = eintrag.indexOf("~");
@@ -35,6 +35,27 @@ function aussenWerkzeug(a: Aufruf): { kanal: string; freiwillig: boolean; roh: u
   const feld = z[2].replace("?", "");
   const roh = z[0].includes("~") ? String(a.params.command).match(new RegExp(`"${feld}"\\s*:\\s*"([^"]+)"`))?.[1] : a.params[feld];
   return { kanal: z[1], freiwillig: z[2].endsWith("?"), roh };
+}
+
+function zielAgent(a: Aufruf): string | undefined {
+  if (!regelListe("unteragent_werkzeuge").includes(a.werkzeug)) return undefined;
+  const sitzung = String(a.params.sessionKey ?? "");
+  return String(a.params.agentId ?? (sitzung.startsWith("agent:") ? sitzung.split(":")[1] : a.agent));
+}
+
+function unteragent(db: Register, a: Aufruf, ziel: string): Urteil {
+  const ruhend = [a.agent, ziel].find((w) => ruht(db, w, uhr.jetzt()));
+  if (ruhend) return sperre(db, a, `${ruhend} ruht. Kein Unteragent und keine Nachricht an ihn.`);
+  if (ziel !== a.agent && !mandat(a.agent).befugnisse.unterauftrag_an.includes(ziel)) return sperre(db, a, `${ziel} steht nicht in deinem Mandat. Vergib die Arbeit mit seneca_auftrag.`);
+  return undefined;
+}
+
+function anrufAntonio(db: Register, a: Aufruf, auftragId: string, kanal: string, empfaenger: string[]): Urteil {
+  const eigene = wert(db, "profil:telefon")?.wert;
+  if (kanal !== "anruf" || !eigene || empfaenger.some((e) => e !== normalisiere(eigene))) return sperre(db, a, "In diesem Auftrag darfst du nur Antonio auf seiner Nummer anrufen.", auftragId);
+  const r = a.ruhe();
+  if (r && !r.durchbruch) return sperre(db, a, `Antonio hat jetzt Ruhe (${r.grund}). Es geht kein Anruf hinaus.`, auftragId);
+  return starten(db, a, `anruf_antonio:${auftragId}`, { kanal, empfaenger, stufe: "eigene_nummer", werkzeug: a.werkzeug });
 }
 
 function liveArt(a: Aufruf): string | undefined {
@@ -68,14 +89,16 @@ function freigabeGilt(db: Register, schluessel: string): "ja" | "wartet" | "nein
   return f.antwort === "ja" && wirkt ? "ja" : f.antwort === "ja" ? "wartet" : "nein";
 }
 
-function starten(db: Register, a: Aufruf, schluessel: string, daten: object): Urteil {
+function starten(db: Register, a: Aufruf, schluessel: string, daten: Daten): Urteil {
   if (!ereignis(db, { art: "ausgang.gestartet", schluessel, daten }, true)) return { block: true, blockReason: "Schon ausgeführt. Nichts geht doppelt hinaus." };
-  if (a.aufrufId) gestartet.set(a.aufrufId, schluessel);
+  if (a.aufrufId) gestartet.set(a.aufrufId, { schluessel, sitzung: a.sitzung, daten });
   return undefined;
 }
 
 function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   if (gesperrt(a)) return sperre(db, a, "Dieses Werkzeug ist gesperrt.");
+  const ziel = zielAgent(a);
+  if (ziel !== undefined) return unteragent(db, a, ziel);
   const live = liveArt(a);
   if (live === "gateway" && a.agent !== regelText("bausystem")) return sperre(db, a, "Kein Agent startet das Gateway neu. Nur der Bauablauf mit Antonios Ja.");
   if (live === "gateway" || (live && mandat(a.agent).befugnisse.live_nur_mit_ja)) return freigeben(db, a, bezug(db, a), { kanal: live, empfaenger: [], stufe: "ausfuehrlich", werkzeug: a.werkzeug }, n);
@@ -84,10 +107,7 @@ function vorWerkzeug(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   const empfaenger = (Array.isArray(w.roh) ? w.roh : [w.roh]).filter((e): e is string => typeof e === "string" && e.length > 0).map(normalisiere);
   if (!empfaenger.length) return w.freiwillig ? undefined : sperre(db, a, "Empfänger nicht erkennbar.");
   const auftragId = bezug(db, a);
-  const eigene = wert(db, "profil:telefon")?.wert;
-  if (hole(db, "auftrag", auftragId).arbeitsart === "anruf_antonio" && eigene && empfaenger.every((e) => e === normalisiere(eigene))) {
-    return starten(db, a, `anruf_antonio:${auftragId}`, { kanal: w.kanal, empfaenger, stufe: "eigene_nummer", werkzeug: a.werkzeug });
-  }
+  if (hole(db, "auftrag", auftragId).arbeitsart === "anruf_antonio") return anrufAntonio(db, a, auftragId, w.kanal, empfaenger);
   const stufen = empfaenger.map((e) => stufe(db, e));
   const unbekannt = empfaenger[stufen.indexOf(undefined)];
   if (unbekannt) {
@@ -130,16 +150,29 @@ export function pruefeAufruf(db: Register, a: Aufruf, n?: Nachricht): Urteil {
   try {
     return vorWerkzeug(db, a, n);
   } catch (fehler) {
-    const betroffen = aussenWerkzeug(a) || gesperrt(a) || liveArt(a);
+    const betroffen = aussenWerkzeug(a) || gesperrt(a) || liveArt(a) || zielAgent(a) !== undefined;
     return betroffen ? { block: true, blockReason: `Ausgang gesperrt wegen Fehler: ${(fehler as Error).message}` } : undefined;
   }
 }
 
 export function nachWerkzeug(db: Register, aufrufId: string | undefined, fehler?: string): void {
-  const schluessel = aufrufId ? gestartet.get(aufrufId) : undefined;
-  if (!schluessel || !aufrufId) return;
+  const g = aufrufId ? gestartet.get(aufrufId) : undefined;
+  if (!g || !aufrufId) return;
   gestartet.delete(aufrufId);
-  ereignis(db, { art: "ausgang.ergebnis", schluessel, daten: { ergebnis: fehler ? "fehlgeschlagen" : "ok", rueckmeldung: fehler ?? null } });
+  ereignis(db, { art: "ausgang.ergebnis", schluessel: g.schluessel, daten: { ergebnis: fehler ? "fehlgeschlagen" : "ok", rueckmeldung: fehler ?? null } });
+  for (const e of fehler || g.daten.kanal !== "nachricht" ? [] : g.daten.empfaenger) {
+    const name = wert(db, `name:${e}`)?.wert ?? e;
+    ereignis(db, { art: "quittung", schluessel: g.sitzung, daten: { teil: `Nachricht an ${name}`, name, raus: true } });
+  }
+}
+
+export function unteragentMerken(db: Register, sitzung: string, daten: Record<string, unknown>, von: string): void {
+  const l = laufZurSitzung(db, von);
+  ereignis(db, { art: "unteragent", wer: von.split(":")[1], schluessel: sitzung, auftrag_id: l ? String(l.auftrag_id) : undefined, lauf_id: l ? String(l.id) : undefined, daten });
+}
+
+export function unteragentEnde(db: Register, sitzung: string, verbrauch: object): void {
+  if (ereignisse(db, { art: "unteragent", schluessel: sitzung, grenze: 1 }).length) ereignis(db, { art: "unteragent.ende", schluessel: sitzung, daten: verbrauch });
 }
 
 export function unklarePruefen(db: Register): void {

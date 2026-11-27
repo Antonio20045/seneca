@@ -21,9 +21,24 @@ enum HeuteTafelLogik {
 
     static func datum(_ ms: Double) -> Date { Date(timeIntervalSince1970: ms / 1000) }
 
+    static func antwortZeile(_ f: SenecaStand.Frage?, _ a: SenecaStand.Antwort) -> String {
+        let text = f?.optionen?.first { $0.wert == a.wahl }?.text ?? (a.wahl == "ja" ? "Ja" : a.wahl == "nein" ? "Nein" : a.wahl)
+        let wo = ["uhr": "auf der Uhr", "mac": "am Mac", "iphone": "am iPhone"][a.geraet ?? ""]
+        return [text, [wo, a.zeit.map { uhr($0) }].compactMap { $0 }.joined(separator: ", ")].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    static func ebenBeantwortet(_ s: SenecaStand, jetzt: Date) -> [SenecaStand.Frage] {
+        let grenze = (s.regeln?["frage_nachklang_s"] ?? 6) * 1000
+        return (s.eben_beantwortet ?? []).filter { f in f.antwort?.zeit.map { jetzt.timeIntervalSince1970 * 1000 - $0 < grenze } ?? false }
+    }
+
     static func beispiel(_ name: String = "Beispiel-Stand") -> SenecaStand? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
+        guard let url = name.hasPrefix("/") ? URL(fileURLWithPath: name) : Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(SenecaStand.self, from: roh)
+    }
+
+    static func beispielStatistik() -> SenecaStatistik? {
+        Bundle.main.url(forResource: "Beispiel-Statistik", withExtension: "json").flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(SenecaStatistik.self, from: $0) }
     }
 
     static func datumZeile(_ ms: Double) -> String {
@@ -31,6 +46,22 @@ enum HeuteTafelLogik {
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = "EEEE, d. MMMM"
         return f.string(from: datum(ms))
+    }
+
+    static func wochentag(_ ms: Double) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "EEEE"
+        return f.string(from: datum(ms))
+    }
+
+    static func frist(_ ms: Double, jetzt: Double, _ cal: Calendar = .current) -> String {
+        if cal.isDate(datum(ms), inSameDayAs: datum(jetzt)) { return "Frist \(uhr(ms, cal))" }
+        if let morgen = cal.date(byAdding: .day, value: 1, to: datum(jetzt)), cal.isDate(datum(ms), inSameDayAs: morgen) { return "Frist morgen" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "d.M."
+        return "Frist \(f.string(from: datum(ms)))"
     }
 
     static func uhr(_ ms: Double, _ cal: Calendar = .current) -> String {
@@ -63,6 +94,27 @@ enum HeuteTafelLogik {
         guard let m = s.team?.first(where: { $0.zustand == "arbeitet" && $0.satz != nil }), let satz = m.satz else { return nil }
         let min = m.seit.map { " · \(Int(max(0, s.jetzt - $0) / 60_000)) Min" } ?? ""
         return "\(m.name) \(satz)\(min)"
+    }
+
+    static func todosHeute(_ s: SenecaStand) -> [SenecaStand.Todo] {
+        let alle = s.aufgaben?.heute.map { ids in ids.compactMap { id in s.todos?.first { $0.id == id } } } ?? (s.todos ?? []).filter { $0.wiederkehrend == nil }
+        return alle.filter { ueberfaellig($0, s) } + alle.filter { !ueberfaellig($0, s) }
+    }
+
+    static func tagText(_ ms: Double, _ cal: Calendar = .current) -> String {
+        let k = cal.dateComponents([.year, .month, .day], from: datum(ms))
+        return String(format: "%04d-%02d-%02d", k.year ?? 0, k.month ?? 0, k.day ?? 0)
+    }
+
+    static func ueberfaellig(_ t: SenecaStand.Todo, _ s: SenecaStand) -> Bool {
+        t.wiederkehrend == nil && (t.bis_wann ?? .infinity) < (s.tag_beginn ?? 0)
+    }
+
+    static func fristWar(_ bis: Double, _ s: SenecaStand, _ cal: Calendar = .current) -> String {
+        let tage = cal.dateComponents([.day], from: cal.startOfDay(for: datum(bis)), to: cal.startOfDay(for: datum(s.jetzt))).day ?? 0
+        if tage <= 1 { return "Frist war gestern" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "EE d. MMM"
+        return "Frist war am " + f.string(from: datum(bis)).replacingOccurrences(of: ".,", with: "")
     }
 
     static func todoZeile(_ t: SenecaStand.Todo) -> String {

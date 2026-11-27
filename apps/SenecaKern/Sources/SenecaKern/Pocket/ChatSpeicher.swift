@@ -307,11 +307,12 @@ enum ChatSpeicherLogik {
     }
 
     static func nachrichten(_ zeilen: [[String: Any]], bloecke fertig: [ZugBlock]? = nil) -> [ChatMessage] {
-        var eigene: [String: (key: String?, zustand: ZustellZustand?, wartet: Bool)] = [:]
+        var eigene: [String: (key: String?, zustand: ZustellZustand?, wartet: Bool, geraet: String?)] = [:]
         let verloren = verlorene(zeilen)
         for m in zeilen where m["role"] as? String == "user" {
             let l = SpeicherFeld.von(m)
-            eigene[Zuege.kennung(m)] = (l[SpeicherFeld.schluessel] as? String, verloren[Zuege.kennung(m)] ?? SpeicherFeld.stand(m), SpeicherFeld.wartet(m))
+            eigene[Zuege.kennung(m)] = (l[SpeicherFeld.schluessel] as? String, verloren[Zuege.kennung(m)] ?? SpeicherFeld.stand(m), SpeicherFeld.wartet(m),
+                                        VerlaufLogik.vermerk(schluessel: schluesselKern(m) ?? ""))
         }
         var out: [ChatMessage] = []
         for b in fertig ?? bloecke(zeilen) {
@@ -329,9 +330,9 @@ enum ChatSpeicherLogik {
             guard case .zug(let z) = b, case .user(let id, let text, let ts, _)? = z.start else { continue }
             let e = eigene[id]
             out.append(ChatMessage(id: id, role: .user, text: text, date: ts.map { Date(timeIntervalSince1970: $0 / 1000) }, fromPhone: e?.key != nil,
-                                   key: e?.key, zustand: e?.zustand))
+                                   key: e?.key, zustand: e?.zustand, geraet: e?.geraet))
             if let a = z.antwort, !z.laeuft {
-                out.append(ChatMessage(id: a.id, role: .seneca, text: a.text, date: a.ts.map { Date(timeIntervalSince1970: $0 / 1000) }))
+                out.append(ChatMessage(id: a.id, role: .seneca, text: a.text, date: a.ts.map { Date(timeIntervalSince1970: $0 / 1000) }, geraet: e?.geraet))
             }
         }
         return out
@@ -397,6 +398,7 @@ final class ChatSpeicher: ObservableObject {
     @Published private(set) var sitzung = ""
     @Published private(set) var hatMehr = false
     @Published private(set) var aelterLaedt = false
+    var angehalten: [String: Double] = [:]
     @Published private(set) var fehler: String?
     @Published private(set) var zustaende: [String: ZustellZustand] = [:]
 
@@ -586,10 +588,15 @@ final class ChatSpeicher: ObservableObject {
 
     @discardableResult
     func legeFrageAn(sitzung key: String, text: String, schluessel: String? = nil) -> String {
-        let k = schluessel ?? ChatSpeicherLogik.gescheiterterSchluessel(stand(key), text: text) ?? UUID().uuidString
+        let k = schluessel ?? ChatSpeicherLogik.gescheiterterSchluessel(stand(key), text: text) ?? VerlaufLogik.schluessel()
         zeilen[key] = ChatSpeicherLogik.legeFrageAn(stand(key), text: text, schluessel: k, jetzt: uhr().timeIntervalSince1970 * 1000)
         geaendert(key, sofort: true)
         return k
+    }
+
+    func entferne(sitzung key: String, schluessel: String) {
+        zeilen[key] = stand(key).filter { (SpeicherFeld.von($0)[SpeicherFeld.schluessel] as? String)?.lowercased() != schluessel.lowercased() }
+        geaendert(key, sofort: true)
     }
 
     func setzeZustand(sitzung key: String, schluessel: String, _ zustand: ZustellZustand) {

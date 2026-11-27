@@ -99,6 +99,7 @@ struct EinstellungenView: View {
         HStack(spacing: 10) {
             Button("Erneut verbinden") { Task { await modell.verbinde() } }.buttonStyle(NebenKnopfStil())
                 .disabled(modell.zustand == .einrichten || modell.zustand == .verbindet)
+            Button("iPhone verbinden") { SnKopplung.gemeinsam.oeffne(minuten: modell.store.stand?.regeln?["kopplung_fenster_min"]) }.buttonStyle(NebenKnopfStil())
             Button("Schlüssel entfernen …") { frageEntfernen = true }.buttonStyle(NebenKnopfStil())
                 .disabled(!schluesselDa)
                 .accessibilityIdentifier("einst-entfernen")
@@ -182,7 +183,6 @@ struct EinstellungenView: View {
             .accessibilityIdentifier("einst-mitteilungen")
         Group {
             schalter("Neue Entscheidung", $einst.artEntscheidung)
-            schalter("Fertiger Lauf mit Bericht", $einst.artBericht)
             schalter("Störung", $einst.artStoerung)
         }
         .padding(.leading, 18).disabled(!einst.mitteilungenAn)

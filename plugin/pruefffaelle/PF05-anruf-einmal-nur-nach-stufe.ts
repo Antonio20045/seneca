@@ -8,7 +8,7 @@ import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { auftragVonAntonio, jaNeinFrage, ladePlugin, spaeter, um } from "./aufbau.ts";
 
 const ANRUF = "hermes__place_call";
-const MAIL = "mcp__zoho-mail__send_mail";
+const MAIL = "mcp__zoho-mail__zoho_mail_send_mail";
 
 async function imLauf(p: ReturnType<typeof ladePlugin>) {
   um("09:00");
@@ -70,7 +70,7 @@ test("PF05 d) Notar: Uhr-Ja 0, ausführliches Ja 1", async () => {
   const p = ladePlugin();
   const { sitzung } = await imLauf(p);
   wertSetzen(p.db, "kontakt:org:@notar-beispiel.de", "ausfuehrlich", "antonio");
-  const mail = { to: "buero@notar-beispiel.de", text: "Termin zur Beurkundung" };
+  const mail = { toAddress: "buero@notar-beispiel.de", content: "Termin zur Beurkundung" };
   assert.ok(p.aufruf(sitzung, MAIL, mail)?.block);
   const f = freigabe(p, "ausfuehrliches_ja");
   assert.equal(frageBeantworten(p.db, { frage_id: String(f?.id), antwort: "ja", geraet: "uhr", kennung: "u1", lokal: true }).ergebnis, "abgelehnt");
@@ -94,7 +94,7 @@ test("PF05 g) Antonios eigener Befehl mit Empfänger und Wortlaut: ohne Frage, m
   assert.equal(p.aufruf("agent:seneca:main", ANRUF, anruf), undefined);
 });
 
-test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, nie nachts", async () => {
+test("PF05 g2) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, nie nachts", async () => {
   for (const [zeit, erwartet] of [["13:00", 1], ["23:00", 0]] as const) {
     const p = ladePlugin();
     const [frist, nachfassen] = [um("23:50"), um("23:59")];
@@ -117,13 +117,57 @@ test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, ni
   }
 });
 
-test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich, Privat liest nur Seneca", () => {
+test("PF05 h) Anruf-Auftrag von tagsüber: nicht nachts, nicht im Schlaf, danach genau einmal", async () => {
   const p = ladePlugin();
+  um("13:00");
+  wertSetzen(p.db, "profil:telefon", "+49 170 5550000", "antonio");
+  const a = auftragVonAntonio(p.db, "Ruf Antonio an", { arbeitsart: "anruf_antonio" });
+  spaeter(6000);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  const sitzung = String(laeufe(p.db, a)[0].sitzung);
+  um("23:30");
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  const wach = um("15:00");
+  um("14:00");
+  wertSetzen(p.db, "aktivitaet", "schlaf", "uhr", wach);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  um("16:00");
+  assert.ok(p.aufruf(sitzung, MAIL, { toAddress: "nora@example.org", content: "x" })?.block);
+  assert.equal(p.aufruf(sitzung, ANRUF, { to: "+491705550000" }), undefined);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  assert.equal(ereignisse(p.db, { art: "ausgang.gestartet" }).length, 1);
+});
+
+test("PF05 k) Unteragent und Nachricht an Kollegen: nie an Ruhende, nur laut Mandat, Lauf im Register", async () => {
+  const p = ladePlugin();
+  const { a, sitzung } = await imLauf(p);
+  wertSetzen(p.db, "ruht:telcoradar", "ja", "antonio");
+  assert.equal(p.aufruf(sitzung, "sessions_spawn", { agentId: "engineer", task: "x" }), undefined);
+  assert.equal(p.aufruf(sitzung, "sessions_spawn", { task: "x" }), undefined);
+  assert.ok(p.aufruf(sitzung, "sessions_spawn", { agentId: "branding", task: "x" })?.block);
+  assert.ok(p.aufruf("agent:seneca:main", "sessions_spawn", { agentId: "telcoradar", task: "x" }, "s1", "seneca")?.block);
+  assert.ok(p.aufruf("agent:seneca:main", "mcp__openclaw__sessions_send", { sessionKey: "agent:telcoradar:main", message: "x" }, "s2", "seneca")?.block);
+  assert.ok(p.aufruf("agent:telcoradar:main", "sessions_spawn", { task: "x" }, "s3", "telcoradar")?.block);
+  p.haken("subagent_spawned", { childSessionKey: "agent:engineer:subagent:k1", agentId: "engineer", mode: "run", runId: "r1" }, { requesterSessionKey: sitzung });
+  p.ende("agent:engineer:subagent:k1", 50);
+  assert.equal(ereignisse(p.db, { art: "unteragent" })[0].auftrag_id, a);
+  assert.equal(ereignisse(p.db, { art: "unteragent.ende", schluessel: "agent:engineer:subagent:k1" }).length, 1);
+});
+
+test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich und _arbeit/<name>, Privat liest nur Seneca", async () => {
+  const p = ladePlugin();
+  const { sitzung } = await imLauf(p);
+  assert.match(p.kontext(sitzung) ?? "", /schreiben Sundartha, _arbeit\/produkt\. Zwischendateien nur in _arbeit\/produkt\//);
   const pfad = (rel: string) => ({ path: `/home/ubuntu/Ablage/${rel}` });
   assert.equal(p.aufruf("s", "write", pfad("Sundartha/Hermes/plan.md"), "w1", "produkt"), undefined);
   assert.ok(p.aufruf("s", "write", pfad("Vodafone/x.md"), "w2", "produkt")?.block);
   assert.ok(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r1", "produkt")?.block);
   assert.equal(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r2", "seneca"), undefined);
+  assert.equal(p.aufruf("s", "write", pfad("sundartha/website/text.md"), "w3", "produkt"), undefined);
+  assert.equal(p.aufruf("s", "write", pfad("_arbeit/engineer/roh.txt"), "w4", "engineer"), undefined);
+  assert.ok(p.aufruf("s", "write", pfad("_arbeit/produkt/roh.txt"), "w5", "engineer")?.block);
+  assert.ok(p.aufruf("s", "write", pfad("_wissen/notiz.md"), "w6", "engineer")?.block);
+  assert.equal(p.aufruf("s", "read", pfad("_wissen/notiz.md"), "r3", "engineer"), undefined);
 });
 
 test("PF05 j) Live nur mit ausführlichem Ja; Gateway-Neustart nur im Bauablauf mit Ja", async () => {

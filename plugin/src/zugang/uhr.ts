@@ -45,18 +45,19 @@ function begrenzt(schluessel: string, grenze: number): boolean {
 }
 
 export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
-  const g = String((JSON.parse(roh.toString("utf8")) as Anfrage).g ?? "");
+  const d = JSON.parse(roh.toString("utf8")) as Anfrage & { m?: string };
+  const g = String(d.g ?? "");
   const fenster = wert(db, "kopplung:fenster");
   if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
   const zahl = String(randomInt(0, 10000)).padStart(4, "0");
   const abholen = randomBytes(16).toString("hex");
-  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false }), "uhr", fenster.gueltig_bis);
+  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false, modell: d.m?.slice(0, regelZahl("kopplung_modell_zeichen")) }), "uhr", fenster.gueltig_bis);
   return { status: 200, inhalt: { zahl, abholen } };
 }
 
 export function uhrAbholen(db: Register, roh: Buffer): Antwort {
-  const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string };
+  const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string; lauf?: string };
   const w = wert(db, `kopplung:${d.g}`);
   const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? (JSON.parse(w.wert) as Kopplung) : undefined;
   if (begrenzt("abholen", regelZahl("kopplung_anfragen_je_std")) || !k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
@@ -64,6 +65,7 @@ export function uhrAbholen(db: Register, roh: Buffer): Antwort {
   }
   const schluessel = randomBytes(32).toString("base64url");
   wertSetzen(db, `uhr:${d.g}`, schluesselHash(schluessel), "uhr");
+  if (typeof d.lauf === "string" && d.lauf.length >= regelZahl("uhr_lauf_schluessel_min")) wertSetzen(db, `uhr:${LAUF}`, schluesselHash(d.lauf), "uhr");
   wertSetzen(db, `kopplung:${d.g}`, JSON.stringify({ ...k, abgeholt: true }), "uhr", uhr.jetzt());
   return { status: 200, inhalt: { schluessel } };
 }
@@ -75,6 +77,7 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   const token = String(kopf.authorization ?? "").replace(/^Bearer /, "");
   if (!gespeichert || gespeichert === "gesperrt" || schluesselHash(token) !== gespeichert) return { status: 401, inhalt: { f: gespeichert === "gesperrt" ? "gesperrt" : "unbekannt" } };
   if (d.v !== regelZahl("uhr_protokoll")) return { status: 426, inhalt: { f: "Uhr-App zu alt" } };
+  if (geraet === LAUF && (d.zs !== LAUF || (d.h ?? []).length > 0)) return { status: 403, inhalt: { f: "nur Lauf-Ruhe" } };
   const jetzt = uhr.jetzt();
   if (begrenzt(geraet, regelZahl("uhr_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" }, kopf: { "retry-after": String(regelMs("uhr_anfragen_fenster_h") / msAusSekunden(1)) } };
   if ((d.h ?? []).length > regelZahl("uhr_handlungen_max")) return { status: 413, inhalt: { f: "zu viele Handlungen" } };
@@ -85,6 +88,8 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
     if (h.a === "frage.antwort" && z.ziel !== fuerUhr && !beantwortet(db, String(z.ziel))) return [h.id, "nein:nicht_fuer_uhr"];
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
+  const nach = (d.h ?? []).filter((h, i) => h.a === "eintrag.neu" && h.p?.k === "satz" && q[i][1] === "ok" && jetzt - msAusSekunden(h.t) > regelMs("uhr_nachgereicht_min")).length;
+  if (nach >= regelZahl("uhr_nachgereicht_ab")) wertSetzen(db, "hinweis:uhr", `${nach} Sätze aus dem Training übernommen`, "uhr", jetzt + regelMs("uhr_hinweis_min"));
   const amArm = wert(db, "uhr_am_arm");
   if ((amArm?.gueltig_bis ?? 0) <= jetzt) wertSetzen(db, "uhr_am_arm", "ja", "uhr", jetzt + regelMs("uhr_verbunden_min"));
   aktivitaetSetzen(db, d.zs, jetzt);

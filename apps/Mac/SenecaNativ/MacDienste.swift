@@ -13,7 +13,9 @@ final class GlobalesKuerzel {
     private(set) var aktuell: Kuerzel?
     private(set) var status: OSStatus = noErr
     private(set) var ausgeloest = 0
-    private static let kennung = EventHotKeyID(signature: 0x534E4B41, id: 1)
+    private let kennung: EventHotKeyID
+
+    init(id: UInt32 = 1) { kennung = EventHotKeyID(signature: 0x534E4B41, id: id) }
 
     func setze(_ k: Kuerzel?) {
         if k == aktuell, k == nil || ref != nil { return }
@@ -22,16 +24,19 @@ final class GlobalesKuerzel {
         status = noErr
         guard let k else { return }
         installiereHandler()
-        status = RegisterEventHotKey(k.taste, k.modifier, Self.kennung, GetApplicationEventTarget(), 0, &ref)
+        status = RegisterEventHotKey(k.taste, k.modifier, kennung, GetApplicationEventTarget(), 0, &ref)
         if status != noErr { ref = nil }
     }
 
     private func installiereHandler() {
         guard handler == nil else { return }
         var typ = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, daten in
+        InstallEventHandler(GetApplicationEventTarget(), { _, ereignis, daten in
             guard let daten else { return OSStatus(eventNotHandledErr) }
             let selbst = Unmanaged<GlobalesKuerzel>.fromOpaque(daten).takeUnretainedValue()
+            var id = EventHotKeyID()
+            GetEventParameter(ereignis, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+            guard id.id == selbst.kennung.id else { return OSStatus(eventNotHandledErr) }
             let druck = CFAbsoluteTimeGetCurrent()
             DispatchQueue.main.async { MainActor.assumeIsolated { selbst.ausloesen(seit: druck) } }
             return noErr
@@ -44,7 +49,7 @@ final class GlobalesKuerzel {
     #if DEBUG
     func sendeInProzess() -> OSStatus {
         var e: EventRef?
-        var id = Self.kennung
+        var id = kennung
         guard CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), 0, 0, &e) == noErr, let e else { return -1 }
         SetEventParameter(e, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &id)
         let r = SendEventToEventTarget(e, GetApplicationEventTarget())
@@ -82,56 +87,21 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
         return ["lesen", "öffnen", "ansehen", "zeigen"].contains { k.contains($0) }
     }
 
-    var oeffneAufgabe: ((String) -> Void)?
+    var meetingWahl: ((String, Int) -> Void)?
 
-    func zeigeAufgabe(_ m: AufgabenMeldung) async -> Bool {
+    func zeigeMeeting(_ kennung: String, _ titel: String, _ text: String, _ knoepfe: [String]) async {
         var stand = await status()
         if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
-        let c = UNMutableNotificationContent()
-        c.title = m.titel
-        c.body = m.text
-        c.userInfo = ["pfad": "#/heute", "aufgabe": m.aufgabe]
-        c.threadIdentifier = "seneca.aufgaben"
-        c.sound = nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "aufgabe." + m.id, content: c, trigger: nil)); return true } catch { return false }
-    }
-
-    var wahl: ((String, String) -> Void)?
-
-    func zeigeMeldung(_ m: TageslaufMeldung) async -> Bool {
-        var stand = await status()
-        if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
-        if let g = m.gruppe {
-            var alle = await zentrale.notificationCategories()
-            if !alle.contains(where: { $0.identifier == g }) {
-                let aktionen = m.knoepfe.enumerated().map { UNNotificationAction(identifier: TageslaufMeldung.knopfKennung($0.offset), title: $0.element, options: Self.oeffnet($0.element) ? [.foreground] : []) }
-                alle.insert(UNNotificationCategory(identifier: g, actions: aktionen, intentIdentifiers: [], options: []))
-                zentrale.setNotificationCategories(alle)
-            }
+        guard stand == .authorized || stand == .provisional else { return }
+        let g = "seneca.meeting." + kennung + "." + knoepfe.joined(separator: "|")
+        var alle = await zentrale.notificationCategories()
+        if !alle.contains(where: { $0.identifier == g }) {
+            alle.insert(UNNotificationCategory(identifier: g, actions: knoepfe.enumerated().map { UNNotificationAction(identifier: "m\($0.offset)", title: $0.element, options: $0.offset == 0 ? [.foreground] : []) }, intentIdentifiers: [], options: []))
+            zentrale.setNotificationCategories(alle)
         }
         let c = UNMutableNotificationContent()
-        c.title = m.titel
-        c.body = m.text
-        c.userInfo = ["pfad": "#/heute", "meldung": m.id, "knoepfe": m.knoepfe]
-        c.threadIdentifier = "seneca.meldung"
-        if let g = m.gruppe { c.categoryIdentifier = g }
-        c.sound = m.dringend ? .default : nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "meldung." + m.id, content: c, trigger: nil)); return true } catch { return false }
-    }
-
-    func zeigeMeetingNotiz(titel: String, text: String, datei: URL) async -> Bool {
-        var stand = await status()
-        if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
-        let c = UNMutableNotificationContent()
-        c.title = titel
-        c.body = text
-        c.userInfo = ["datei": datei.path]
-        c.threadIdentifier = "seneca.meeting"
-        c.sound = nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "meeting." + datei.lastPathComponent, content: c, trigger: nil)); return true } catch { return false }
+        c.title = titel; c.body = text; c.categoryIdentifier = g; c.threadIdentifier = "seneca.meeting"; c.sound = nil; c.userInfo = ["meeting": kennung]
+        try? await zentrale.add(UNNotificationRequest(identifier: "meeting." + kennung, content: c, trigger: nil))
     }
 
     func zugestellt() async -> [String] { await zentrale.deliveredNotifications().map(\.request.identifier) }
@@ -142,17 +112,9 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
-        if let id = info["meldung"] as? String, let knoepfe = info["knoepfe"] as? [String],
-           let w = TageslaufMeldung.wahl(aktion: response.actionIdentifier, knoepfe: knoepfe) {
-            await MainActor.run { self.wahl?(id, w) }
-            return
-        }
-        if let a = info["aufgabe"] as? String, !a.isEmpty {
-            await MainActor.run { self.oeffneAufgabe?(a) }
-            return
-        }
-        if let datei = info["datei"] as? String, !datei.isEmpty {
-            _ = await MainActor.run { NSWorkspace.shared.open(URL(fileURLWithPath: datei)) }
+        if let k = info["meeting"] as? String {
+            let i = Int(response.actionIdentifier.dropFirst()) ?? -1
+            await MainActor.run { self.meetingWahl?(k, i) }
             return
         }
         guard let pfad = info["pfad"] as? String else { return }
@@ -238,14 +200,25 @@ final class SchnellfragePanel {
         f.setFrame(NSRect(x: f.frame.minX, y: f.frame.maxY - g.height, width: g.width, height: g.height), display: true)
     }
 
-    func zeige(bild: URL, vorn: String) {
-        zeige(fuelle: { m in
-            var z = HierZusammenhang(art: .fenster, programm: vorn)
-            z.dateien = [bild]
-            z.hatBildschirmfoto = true
-            m.zusammenhang = z
-            m.leerFrage = "Schau dir meinen Bildschirm an und sag mir kurz, was du siehst und was ich als Nächstes tun sollte."
-        })
+    func ausschnitt(_ a: String) {
+        let vorn = NSWorkspace.shared.frontmostApplication?.processIdentifier, display = BildschirmFoto.unterMaus()
+        Task { @MainActor in
+            var url: URL?
+            if a == "fenster", let vorn { url = await HierLeser.fensterfoto(vorn) }
+            if a == "bildschirm", case .foto(let u) = await BildschirmFoto.nimm(display: display) { url = u }
+            if a == "bereich" {
+                fenster?.orderOut(nil)
+                let ziel = FileManager.default.temporaryDirectory.appendingPathComponent("Bereich-\(Int(Date().timeIntervalSince1970)).png")
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); p.arguments = ["-i", "-x", ziel.path]
+                try? p.run()
+                while p.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
+                url = (try? Data(contentsOf: ziel)).flatMap { ChatAnhang.ausDaten($0, name: ziel.lastPathComponent, mime: "image/png")?.url }
+                fenster?.makeKeyAndOrderFront(nil)
+            }
+            guard let url, var z = modell.zusammenhang else { return }
+            z.dateien = [url]; z.hatFensterfoto = a == "fenster"; z.hatBildschirmfoto = a != "fenster"
+            modell.zusammenhang = z; modell.ausschnitt = a
+        }
     }
 
     func zeige(hinweis: String, freigabe: HierFreigabe?) {
@@ -267,13 +240,7 @@ final class SchnellfragePanel {
             f.setFrameTopLeftPoint(NSPoint(x: s.midX - f.frame.width / 2, y: s.maxY - s.height * 0.2))
         }
         f.alphaValue = 0
-        #if DEBUG
-        Testlog.schreibe("panel vor orderFront: app-aktiv=\(NSApp.isActive) vorne=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
-        #endif
         Hintergrund.zeige(f)
-        #if DEBUG
-        Testlog.schreibe("panel zeige: taste=\(f.isKeyWindow) sichtbar=\(f.isVisible) app-aktiv=\(NSApp.isActive)")
-        #endif
         DispatchQueue.main.async { HierMessung.schreibe(["ereignis": "feld", "ms": Int((CFAbsoluteTimeGetCurrent() - seit) * 1000)]) }
         NSAnimationContext.runAnimationGroup { c in
             c.duration = 0.1
@@ -312,7 +279,7 @@ final class SchnellfragePanel {
         f.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let host = NSHostingView(rootView: HierKarte(modell: modell, schliesse: { [weak self] in self?.schliesse() }, imChat: { [weak self] in
             self?.schliesse(); self?.oeffneFenster()
-        }, freigabe: { [weak self] in self?.freigabe?.oeffne() })
+        }, freigabe: { [weak self] in self?.freigabe?.oeffne() }, ausschnitt: { [weak self] a in self?.ausschnitt(a) })
             .background(GeometryReader { g in Color.clear.preference(key: PanelGroesse.self, value: g.size) })
             .onPreferenceChange(PanelGroesse.self) { [weak self] g in Task { @MainActor in self?.passeAn(g) } }
             .frame(maxHeight: .infinity, alignment: .top)
@@ -323,9 +290,6 @@ final class SchnellfragePanel {
         fenster = f
         beobachter = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: f, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                #if DEBUG
-                Testlog.schreibe("panel verliert die Taste (app-aktiv=\(NSApp.isActive), vorne=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"))")
-                #endif
                 if let self, let f = self.fenster, self.zeigtSich, CFAbsoluteTimeGetCurrent() - self.zeigeZeit < 0.8, self.nochmal < 5 {
                     self.nochmal += 1
                     DispatchQueue.main.async { f.makeKey() }
@@ -344,11 +308,14 @@ final class MacDienste: ObservableObject {
     let mitteilungen = SystemMitteilungen()
     let schnellfrage = SchnellfrageModell()
     let kuerzel = GlobalesKuerzel()
+    let merkKuerzel = GlobalesKuerzel(id: 2)
+    let meetingKuerzel = GlobalesKuerzel(id: 3)
     let zeichen = MenueZeichenModell()
+    let teilen = TeilenDienst()
     var meetingWertetAus = false
     var meetingGemeldet: Set<String> = []
     private(set) var panel: SchnellfragePanel!
-    @Published private(set) var stand = MenueStand(braucht: 0, laeuft: 0, ungelesen: 0, termin: nil)
+    @Published private(set) var braucht = 0
     @Published var mitteilungsHinweis: String?
     private weak var modell: AppModell?
     private var abos: Set<AnyCancellable> = []
@@ -357,6 +324,7 @@ final class MacDienste: ObservableObject {
 
     func starte(modell: AppModell) {
         self.modell = modell
+        teilen.starte(modell: modell)
         schnellfrage.sende = { [weak modell] text in
             guard let modell else { throw SenecaError.offline }
             return try await modell.chat.send(text, an: .seneca)
@@ -373,42 +341,30 @@ final class MacDienste: ObservableObject {
                 let live = lives[ChatPartner.seneca.sessionKey(main: modell?.chat.mainKey ?? "")]
                 self?.schnellfrage.setzeStrom(live?.text ?? "")
                 if let live {
-                    self?.schnellfrage.laufZeile = Laufzeile.text(name: "Seneca", phase: live.phase, angekommen: live.phase != .sending, taetigkeit: live.activity, schritte: 0,
-                                                                  schreibt: false, seit: 0, verbunden: modell?.store.isConnected ?? true, mitDauer: false)
+                    self?.schnellfrage.zaehle(live.activity)
+                    self?.schnellfrage.laufZeile = Laufzeile.kurz(name: "Seneca", phase: live.phase, taetigkeit: live.activity, verbunden: modell?.store.isConnected ?? true)
                 }
             }
         }.store(in: &abos)
         if !MacPfade.nebenher { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.panel.bereite() } }
         mitteilungen.oeffne = { [weak modell] pfad in modell?.zeigeFenster(Route.lies(pfad)) }
-        mitteilungen.oeffneAufgabe = { [weak modell] id in
-            guard let modell else { return }
-            modell.zeigeFenster(nil)
-            modell.oeffneAufgabe(id, anker: nil)
+        mitteilungen.meetingWahl = { [weak modell] k, i in
+            let m = MeetingDienst.gemeinsam
+            switch (k, i) {
+            case ("erkannt", ...0): Task { await m.starte() }
+            case ("erkannt", 2): m.nieBei()
+            case ("erkannt", _): m.vorschlagVerwerfen()
+            case ("fertig", 1): m.uebernimmVorschlaege()
+            default: modell?.meetingOffen = true; modell?.zeigeFenster(Route(.heute))
+            }
         }
-        AufgabenMelder.gemeinsam.einstellungen = einstellungen
-        AufgabenMelder.gemeinsam.zustellen = { [weak self] m in await self?.mitteilungen.zeigeAufgabe(m) ?? false }
         waechter.zentrale = self
-        TagesBegleiter.gemeinsam.starte(mitteilungen: mitteilungen, oeffneHeute: { [weak modell] in modell?.zeigeFenster(Route(.heute)) },
-                                        oeffneBerichte: { [weak modell] in
-                                            guard let modell else { return }
-                                            modell.zeigeFenster(Route(.berichte))
-                                            Task {
-                                                await modell.uebersicht.ladeBerichte(erzwingen: true)
-                                                let heute = Menschlich.tagStart(Date().timeIntervalSince1970 * 1000)
-                                                if let b = modell.uebersicht.berichte.liste.filter({ $0.zeit >= heute }).max(by: { $0.zeit < $1.zeit }) {
-                                                    modell.zeigeFenster(Route(.berichte, id: b.id))
-                                                }
-                                            }
-                                        })
         waechter.aktiv = { [einstellungen] in einstellungen.meldet($0) }
         if !(MacPfade.profil == .demo || MacPfade.nebenher) { mitteilungen.melde() }
         modell.uebersicht.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         einstellungen.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        ListenModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        AufgabenModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
-        TageslaufModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         aktualisiere()
-        zeichen.starte(dienste: self)
+        zeichen.starte(dienste: self, store: modell.store)
         VorneMerker.gemeinsam.starte()
         MeetingDienst.gemeinsam.$zustand.receive(on: DispatchQueue.main)
             .sink { [weak self] z in MainActor.assumeIsolated { self?.meetingStand(z) } }.store(in: &abos)
@@ -417,35 +373,30 @@ final class MacDienste: ObservableObject {
     func aktualisiere() {
         guard let modell else { return }
         let u = modell.uebersicht
-        let neu = MacPfade.profil.echteDaten
-            ? MenueStand.aus(u, fragen: ListenModell.gemeinsam.liste.map { $0.fragen.count }, laeuft: AufgabenModell.gemeinsam.liste?.laeuftInsgesamt)
-            : MenueStand.aus(u)
-        if neu != stand { stand = neu }
-        let zahl = einstellungen.dockZahl ? DockZahl.text(neu.braucht) : nil
+        let neu = SnOrt.fragen(modell.store.stand)
+        if neu != braucht { braucht = neu }
+        let zahl = einstellungen.dockZahl ? DockZahl.text(neu) : nil
         if zahl != letzteZahl || NSApp.dockTile.badgeLabel != zahl { letzteZahl = zahl; NSApp.dockTile.badgeLabel = zahl }
         guard !MacPfade.nebenher else { return }
         kuerzel.setze(einstellungen.kuerzel)
-        if modell.zustand == .bereit { waechter.pruefe(u); schreibeWidgetStand(u) }
+        if modell.zustand == .bereit { waechter.pruefe(u, stand: modell.store.stand); schreibeWidgetStand() }
     }
 
-    private func schreibeWidgetStand(_ u: OverviewStore) {
+    private func schreibeWidgetStand() {
         switch MacPfade.profil {
         case .test, .probe: return
         case .demo: guard ProcessInfo.processInfo.environment["SENECA_WIDGET"] == "1" else { return }
         case .echt: break
         }
-        let tag = TageslaufModell.gemeinsam.tag
-        guard let neu = MacPfade.profil.echteDaten ? WidgetStand.aus(u, fuerDich: tag?.fuerDich, laeuft: tag?.laeuft) : WidgetStand.aus(u) else { return }
-        let jetzt = Date()
-        let veraltet = letzterWidgetSchreibzeitpunkt.map { jetzt.timeIntervalSince($0) > 600 } ?? true
-        guard veraltet || (letzterWidgetStand.map { Self.sichtbarGleich($0, neu) } != true) else { return }
-        letzterWidgetSchreibzeitpunkt = jetzt
-        letzterWidgetStand = neu
-        if WidgetSpeicher.schreibe(neu) { WidgetCenter.shared.reloadAllTimelines() }
+        guard let s = modell?.store.stand else { return }
+        TeilenEingang.teamMerken(TeilenEingang.team(s))
+        let neu = WidgetLogik.lage(s)
+        guard letzteLage.map({ var a = $0; a.stand = neu.stand; return a != neu }) ?? true else { return }
+        letzteLage = neu
+        WidgetStore.write(neu)
+        WidgetCenter.shared.reloadAllTimelines()
     }
-    private var letzterWidgetStand: WidgetStand?
-    private var letzterWidgetSchreibzeitpunkt: Date?
-    private static func sichtbarGleich(_ a: WidgetStand, _ b: WidgetStand) -> Bool { var x = a; x.geschrieben = b.geschrieben; return x == b }
+    private var letzteLage: WidgetLage?
 
     func setzeAufgabenMelden(_ an: Bool) {
         einstellungen.aufgabenMelden = an

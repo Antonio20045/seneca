@@ -121,12 +121,9 @@ enum Selbstfoto {
             if s == .chat { if modell.route.seite != .chat { modell.zeigeGespraechSeite() } } else { modell.gehe(Route(s, id: b["id"] as? String)) }
         }
         if let r = b["route"] as? String, !r.isEmpty { modell.gehe(Route.lies(r)) }
-        if let id = b["aufgabe"] as? String, !id.isEmpty { modell.oeffneAufgabe(id) }
         if let p = b["partner"] as? String {
             let g = modell.gegenueber
-            let ov = modell.uebersicht.daten
-            if p == Hauptagent.id || p == ov.defaultAgent { g.waehle(g.personen.seneca) }
-            else if let person = Agentenleiste.alle(ov).flatMap(\.leute).first(where: { $0.id == p }) ?? g.personen.alle.first(where: { $0.id == p }) { g.waehle(person) }
+            if let person = g.personen.alle.first(where: { $0.id == p }) ?? (p == Hauptagent.id ? g.personen.seneca : nil) { g.waehle(person) }
             else { g.oeffneChat(key: "agent:\(p):main", agentId: p) }
         }
         if let e = b["entwurf"] as? String { await warte(0.4); modell.ansichten.vorschlagen(e) }

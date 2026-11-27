@@ -7,16 +7,22 @@ struct KalenderMonatsAnsicht: View {
     var offen: String?
     var umschalten: (AgendaEintrag) -> Void
     var zeigeTag: (Date) -> Void
+    var blaettern: (Int) -> (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(sicht.etikett)
-                .schrift(.sache)
-                .foregroundStyle(Stil.tinte.voll)
-                .padding(.top, Stil.abstand.s)
-                .padding(.bottom, Stil.abstand.m)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("kalender.etikett")
+            HStack(spacing: 0) {
+                Text(sicht.etikett)
+                    .schrift(.sache)
+                    .foregroundStyle(Stil.tinte.voll)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("kalender.etikett")
+                Spacer()
+                pfeil("chevron.left", "Voriger Monat", blaettern(-1))
+                pfeil("chevron.right", "Nächster Monat", blaettern(1))
+            }
+            .padding(.top, Stil.abstand.s)
+            .padding(.bottom, Stil.abstand.m)
             if let bild = sicht.monat {
                 KalenderMonatsraster(bild: bild, cal: cal, zeigeTag: zeigeTag)
                 if !sicht.eintraege.isEmpty {
@@ -26,11 +32,20 @@ struct KalenderMonatsAnsicht: View {
                                       linie: i < sicht.eintraege.count - 1)
                     }
                 }
+                if sicht.eintraege.isEmpty, !sicht.satz.isEmpty, sicht.ansicht != .monat(0) { LeerSatz(sicht.satz) }
             } else {
                 LeerSatz(sicht.satz)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func pfeil(_ symbol: String, _ name: String, _ aktion: (() -> Void)?) -> some View {
+        Button { Haptik.auswahl(); aktion?() } label: {
+            Image(systemName: symbol).font(.system(size: 14, weight: .regular)).foregroundStyle(Stil.tinte.zweit)
+                .frame(width: Stil.rundKnopf, height: Stil.rundKnopf).contentShape(Circle())
+        }
+        .buttonStyle(.plain).disabled(aktion == nil).opacity(aktion == nil ? 0.3 : 1).accessibilityLabel(name)
     }
 }
 

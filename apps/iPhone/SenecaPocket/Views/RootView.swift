@@ -24,7 +24,6 @@ struct RootView: View {
     @State private var tag = TagStand()
     @State private var dragStart: Double?
     @State private var dragIgnored = false
-    @State private var griffWisch = false
     @StateObject private var berichte = BerichteModel()
     @State private var dragLayer: Page?
     @State private var dragSeitlich = false
@@ -36,7 +35,10 @@ struct RootView: View {
     @State private var lightPulse = 0
     @State private var lastDone: Int?
     @State private var einstellungen = false
+    @State private var ersterStart: ErsterStart.Schritt?
     @State private var arbeit: ArbeitReiter?
+    @State private var entscheide: SenecaStand.Frage?
+    @State private var auftragNeu: SenecaStand.AuftragNeu?
     @State private var kalenderTag: Date?
     @State private var sinneFrage = false
     @State private var keyboard: CGFloat = 0
@@ -47,7 +49,6 @@ struct RootView: View {
     @State private var pageGestures: [Page: PageGestures] = [:]
     @State private var scrollClaims: [CGRect] = []
     @State private var reading: ReadingDocument?
-    @State private var berichtLaedt = false
     @State private var kalenderFokus: KalenderFokus?
     @State private var lichtEingang: Double = 0
     @State private var bruecke: KalenderFokus?
@@ -59,11 +60,7 @@ struct RootView: View {
     @State private var inhaltEingang: Double = 0
 
     var body: some View {
-        #if DEBUG
-        if let richtung = EntwurfChat.richtung { EntwurfChatWurzel(richtung: richtung) } else { app }
-        #else
         app
-        #endif
     }
 
     private var app: some View {
@@ -73,7 +70,7 @@ struct RootView: View {
                 let now = context.date.addingTimeInterval(clockOffset)
                 let stand = tag.stand(now: now, store: store) { dayInput($0) }
                 screen(m, day: stand.day, input: stand.input, now: now)
-                    .onChange(of: stand.day.dayKey) { _, _ in Task { await store.loadToday(); store.syncTodayRecord() } }
+                    .onChange(of: stand.day.dayKey) { _, _ in Task { await store.loadToday() } }
             }
         }
         .ignoresSafeArea()
@@ -88,16 +85,27 @@ struct RootView: View {
         .onChange(of: wisch.lage.seiteRuht) { _, _ in unmountDayLater(side) }
         .onChange(of: t.p == 0 && !t.dragging) { _, closed in if closed { unmountDayLater(side) } }
         .senecaBlatt(isPresented: $sinneFrage, groesse: .voll, titel: "Orte und Erlaubnisse", fertig: true) { SinneInhalt() }
-        .senecaBlatt(item: Binding(get: { sinne.offeneMeldung }, set: { sinne.offeneMeldung = $0 }), titel: { $0.titel }) {
-            MeldungBlatt(m: $0)
+        .onChange(of: sinne.offeneFrage) { _, id in
+            guard let id else { return }
+            sinne.offeneFrage = nil
+            if let f = store.stand?.braucht_dich?.first(where: { $0.id == id }) { entscheide = f }
         }
-        .senecaBlatt(item: $arbeit, groesse: .voll, scrollt: false) { r in
-            ArbeitBlatt(reiter: r, zumGespraech: { oeffne(.chat()) }).environmentObject(store)
-        }
+        .modifier(TeamWege(store: store, arbeit: $arbeit, entscheide: $entscheide, auftragNeu: $auftragNeu,
+                           chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
         .task { await launch() }
+        #if DEBUG
+        .overlay { SperreProbe.aus(store.stand) }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
-        .onOpenURL { _ in eingangVerarbeiten() }
+        .onOpenURL { url in
+            switch url.host {
+            case "entscheiden": oeffne(.arbeit(.fragen))
+            case "kalender": show(.kalender)
+            case "heute": show(.today)
+            default: eingangVerarbeiten()
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             store.isActive = phase == .active
             if phase == .active { Task { await reconnect() }; wunschErfuellen(); eingangVerarbeiten() }
@@ -132,10 +140,11 @@ struct RootView: View {
             setSide(SideState())
             if t.p < 0.5 { go(1, quick: false) }
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 950))
-            await TeilenVerarbeiten.fragen { text in
-                conversation.transcript = text
-                conversation.submitTyped()
-                return conversation.transcript.isEmpty
+            await TeilenVerarbeiten.fragen { text, an, bilder in
+                let p = an.flatMap { $0 == "Seneca" ? nil : ChatTafelLogik.partner($0) } ?? .seneca
+                store.chat.waehle(p)
+                for b in bilder { if let d = try? Data(contentsOf: b) { conversation.anhaengen(d, name: nil, mime: "image/jpeg", fuer: p) } }
+                return conversation.senden(text, an: p)
             }
         }
     }
@@ -223,8 +232,7 @@ struct RootView: View {
         if einstellungen { einstellungenSchliessen(); return }
         if t.p > 0 { go(0, quick: false); return }
         switch page {
-        case .statistik: show(.kalender)
-        case .kalender, .bereiche: show(.today)
+        case .statistik, .kalender, .bereiche: show(.today)
         case .today, .seneca: break
         }
     }
@@ -248,7 +256,7 @@ struct RootView: View {
             berichte.tab = .berichte
             show(.bereiche)
         case .arbeit(let teil):
-            arbeit = switch teil { case .fragen: ArbeitReiter.fragen; case .laeuft: ArbeitReiter.board; case .projekte: ArbeitReiter.projekte }
+            if teil == .fragen, let f = store.stand.flatMap({ TeamLogik.offeneFragen($0).first }) { entscheide = f } else { arbeit = .board }
         case .kalender(let tag):
             kalenderTag = tag
             show(.kalender)
@@ -287,24 +295,10 @@ struct RootView: View {
             kalenderTag = nil
             brueckeEnde()
             setSide(SideState())
-        case .statistik:
+        case .kalender, .bereiche, .statistik:
             if t.p > 0 { go(0, quick: false) }
-            let kalenderSteht = side.kalender == 1 && alive(.kalender)
-            if !kalenderSteht { show(.kalender) }
-            Task { @MainActor in
-                if !kalenderSteht { try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 700)) }
-                federOhneFinger(.statistik, to: 1)
-                pagesAlive.insert(.statistik)
-                side = SideState.only(.statistik, 0)
-                try? await Task.sleep(for: .milliseconds(30))
-                if side.statistik == 0 { side = SideState.only(.statistik, 1) }
-            }
-        case .kalender, .bereiche:
-            if t.p > 0 { go(0, quick: false) }
-            if target == .kalender, side.statistik > 0 {
-                federOhneFinger(.statistik, to: 0)
-                setSide(SideState.only(.kalender, 1))
-                return
+            if let offen = [Page.statistik, .kalender, .bereiche].first(where: { $0 != target && side.progress($0) > 0 }) {
+                federOhneFinger(offen, to: 0)
             }
             federOhneFinger(target, to: 1)
             guard !alive(target) else { setSide(SideState.only(target, 1)); return }
@@ -381,7 +375,7 @@ struct RootView: View {
                 .opacity(lichtEingang)
             if dayMounted {
                 TodayLayer(m: m, day: day, zug: wisch.seneca, heroOverride: heroOverride, reduceMotion: reduceMotion,
-                           openSeneca: { openFromHero(day) }, allowTap: { tapAllowed() })
+                           openSeneca: { go(1, quick: false) }, allowTap: { tapAllowed() })
                     .equatable()
                     .modifier(DayAwayLive(zug: wisch.seiten, m: m, reduceMotion: reduceMotion))
                     .modifier(UnterSenecaLive(zug: wisch.seneca, breite: m.size.width, reduceMotion: reduceMotion))
@@ -396,17 +390,16 @@ struct RootView: View {
                     .environment(\.kalenderFokus, kalenderFokus)
                     .environment(\.kalenderFokusVerdeckt, bruecke != nil)
                     .environment(\.kalenderTag, kalenderTag)
-                    .modifier(KalenderWeichtLive(zug: wisch.seiten, m: m, reduceMotion: reduceMotion))
-                    .modifier(PageMotionLive(zug: wisch.seiten, page: .kalender, away: CGSize(width: m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
+                    .modifier(PageMotionLive(zug: wisch.seiten, page: .kalender, away: CGSize(width: -m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
                     .modifier(SenecaCoverLive(zug: wisch.seneca, reduceMotion: reduceMotion))
                     .allowsHitTesting(page == .kalender)
                     .modifier(AXHidden(hidden: page != .kalender))
                     .scrollClaims(visible: page == .kalender)
             }
             if alive(.bereiche) {
-                AufgabenLayer(m: m, now: now, back: { zurueck() }, allowTap: { tapAllowed() }, griff: griffWisch)
+                AufgabenLayer(m: m, now: now, back: { zurueck() }, allowTap: { tapAllowed() }, gesturesChanged: { pageGestures[.bereiche] = $0 })
                     .environmentObject(berichte)
-                    .modifier(PageMotionLive(zug: wisch.seiten, page: .bereiche, away: CGSize(width: 0, height: -m.y(120)),
+                    .modifier(PageMotionLive(zug: wisch.seiten, page: .bereiche, away: CGSize(width: 0, height: m.y(120)),
                                              awaySeitlich: CGSize(width: m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
                     .statusBarEdgeFade(m)
                     .modifier(SenecaCoverLive(zug: wisch.seneca, reduceMotion: reduceMotion))
@@ -447,8 +440,14 @@ struct RootView: View {
                 .allowsHitTesting(t.p > 0.5 && reading == nil)
                 .modifier(AXHidden(hidden: t.p <= 0.5 || reading != nil))
                 .scrollClaims(visible: t.p > 0.5)
+            if ersterStart != nil {
+                ErsterStart(schritt: $ersterStart, adresseEingeben: { einstellungenOeffnen() })
+                    .transition(.opacity)
+                    .zIndex(0.4)
+            }
             if einstellungen {
-                EinstellungenSeite(zurueckName: senecaZurueckZiel, schliessen: { einstellungen = false })
+                EinstellungenSeite(zurueckName: senecaZurueckZiel, schliessen: { einstellungen = false },
+                                   uhrVerbinden: { einstellungen = false; Bewegung.mit(.seite) { ersterStart = .uhr } })
                     .transition(.move(edge: .trailing))
                     .zIndex(0.5)
             }
@@ -479,69 +478,27 @@ struct RootView: View {
         .simultaneousGesture(drag(m))
     }
 
-    private func dayState(_ now: Date) -> DayState { DayLogic.state(dayInput(now)) }
 
     private func dayInput(_ now: Date) -> DayInput {
         let snap = store.today
         return DayInput(now: now, calendar: .current, entries: store.kalenderEintraege, jobs: snap?.jobs ?? [],
-                             leaders: snap?.leaders ?? [:], tasks: snap?.tasks ?? [], days: store.days,
-                             routineDoneToday: store.routineDone(on: now),
-                             needs: snap.map { NeedsInput(now: now, calendar: .current, snapshot: $0, localSeen: store.localSeen) })
+                             leaders: snap?.leaders ?? [:], offen: store.stand?.aufgaben?.heute?.count ?? 0, erledigt: store.stand?.aufgaben?.erledigt?.count ?? 0)
     }
 
     private var heroOverride: HeroText? {
         guard store.today == nil else { return nil }
-        if !store.isConfigured {
-            return HeroText(line1: "Verbinde mich", line2Prefix: "mit deinem ", emphasis: "Mac", line2Suffix: ".", sub: "Halte das Datum gedrückt, um die Verbindung einzurichten.", mode: .plain)
-        }
         let unreachable = store.connectionStatus == "Mac nicht erreichbar"
         return HeroText(line1: "Einen Moment,", line2Prefix: "ich hole deinen ", emphasis: "Tag", line2Suffix: ".",
                         sub: unreachable ? "Dein Mac ist gerade nicht erreichbar. Ich versuche es weiter." : "Seneca verbindet sich mit deinem Mac.", mode: .plain)
     }
 
     private var notice: String? {
-        if let failure = store.saveFailure { return failure }
         if conversation.lateAnswer != nil { return "Seneca hat auf deine Frage geantwortet. Tippe hier, um die Antwort zu lesen." }
         guard store.isConfigured, !store.demo || store.connectionStatus == "Mac nicht erreichbar", store.today != nil else { return nil }
         if !store.isConnected && store.connectionStatus == "Mac nicht erreichbar" {
-            let waiting = store.outbox.filter { $0.kind != .day && $0.kind != .seen }.count
-            return DayLogic.offlineSatz(stand: store.lastSync, now: Date(), wartend: waiting, .current)
+            return DayLogic.offlineSatz(stand: store.lastSync, now: Date(), wartend: store.wartendeTodos.count + store.neueTodos.count, .current)
         }
         return store.isConnected ? store.error : nil
-    }
-
-    private func openFromHero(_ day: DayState) {
-        if heroOverride == nil, reading == nil, let erste = day.needs.first, erste.kind == .results, erste.lines.count > 1 {
-            berichte.tab = .berichte
-            show(.bereiche)
-            return
-        }
-        let zeilen = heroOverride == nil ? NeedsYou.berichtZeilen(day.needs) : []
-        guard !zeilen.isEmpty, reading == nil, !berichtLaedt else { openChat(day); return }
-        berichtLaedt = true
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        Task {
-            var texte: [String?] = []
-            for zeile in zeilen {
-                let antwort = try? await store.rufe("cron.runs", params: ["id": zeile.jobId, "limit": 1], timeout: 8)
-                texte.append(antwort.flatMap(NeedsYou.laufText))
-            }
-            berichtLaedt = false
-            guard let bericht = NeedsYou.bericht(zeilen, texte: texte, now: Date(), calendar: .current) else { openChat(day); return }
-            reading = ReadingDocument(id: bericht.id, kicker: bericht.kicker, title: bericht.title, body: bericht.body, bewertung: bericht.bewertung)
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.25 : 0.9))
-            store.markSeen(bericht.keys)
-        }
-    }
-
-    private func openChat(_ day: DayState) {
-        go(1, quick: false)
-        guard heroOverride == nil, !day.needs.isEmpty else { return }
-        let keys = NeedsYou.keys(day.needs)
-        Task {
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.25 : 0.9))
-            store.markSeen(keys)
-        }
     }
 
     private var senecaZurueckZiel: String {
@@ -630,7 +587,7 @@ struct RootView: View {
                             if !scrollClaims.contains(where: { $0.contains(value.startLocation) }) { conversation.dismissKeyboard() }
                             dragIgnored = true; return
                         }
-                        guard axis == .vertical, dy > 0,
+                        guard axis == .vertical, dy < 0,
                               conversation.kopfFrame?.contains(value.startLocation) == true else { dragIgnored = true; return }
                     } else if keyboard > 0 || (from == .today && todayGestures.typing) {
                         dragIgnored = true
@@ -644,13 +601,9 @@ struct RootView: View {
                         if axis == .horizontal && todayGestures.rowOpen { dragIgnored = true; return }
                         if axis == .horizontal && dx < 0 && todayGestures.ownsLeftSwipe(value.startLocation) { dragIgnored = true; return }
                     }
-                    let griff = from == .bereiche && axis == .vertical && dy < 0
-                        && PageGesture.startsInHomeZone(y: value.startLocation.y, height: m.size.height)
-                    if griff { griffWisch = true }
-                    if axis == .vertical, !griff, scrollClaims.contains(where: { $0.contains(value.startLocation) }) { dragIgnored = true; return }
+                    if axis == .vertical, !(from == .bereiche && dy > 0), scrollClaims.contains(where: { $0.contains(value.startLocation) }) { dragIgnored = true; return }
                     guard let layer = PageGesture.layer(from: from, axis: axis, dx: dx, dy: dy) else { dragIgnored = true; return }
-                    if layer == from, from != .kalender, pageGestures[from]?.holdsBack == true { dragIgnored = true; return }
-                    if from == .kalender, layer == .statistik, pageGestures[.kalender]?.holdsBack == true { dragIgnored = true; return }
+                    if layer == from, pageGestures[from]?.holdsBack == true { dragIgnored = true; return }
                     if layer != .seneca { mountDay() }
                     dragLayer = layer
                     dragSeitlich = layer == .bereiche && axis == .horizontal
@@ -670,7 +623,7 @@ struct RootView: View {
             }
             .onEnded { value in
                 defer {
-                    dragStart = nil; dragLayer = nil; dragIgnored = false; griffWisch = false; dragNull = .zero; dragSeitlich = false
+                    dragStart = nil; dragLayer = nil; dragIgnored = false; dragNull = .zero; dragSeitlich = false
                     if dragReach >= tapSlop { lastDragEnd = Date() }
                     dragReach = 0
                 }
@@ -760,7 +713,7 @@ struct RootView: View {
         if env["SENECA_DEMO"] == "1" {
             var now = Date()
             if let time = env["SENECA_DEMO_TIME"], let parts = Optional(time.split(separator: ":").compactMap { Int($0) }), parts.count == 2 {
-                let day = env["SENECA_DEMO_DATE"].flatMap { StatKalender.tag($0) } ?? Date()
+                let day = env["SENECA_DEMO_DATE"].flatMap { try? Date($0 + "T12:00:00Z", strategy: .iso8601) } ?? Date()
                 now = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)!
                 let real = Date()
                 let minuteStart = Calendar.current.dateInterval(of: .minute, for: real)!.start
@@ -768,10 +721,7 @@ struct RootView: View {
                 let offset = clockOffset
                 store.clock = { Date().addingTimeInterval(offset) }
             }
-            store.loadDemo(now: now, streak: Int(env["SENECA_DEMO_STREAK"] ?? "") ?? 11, record: Int(env["SENECA_DEMO_REKORD"] ?? "") ?? 3,
-                           todos: env["SENECA_DEMO_AUFGABEN"] != "0", routineDone: env["SENECA_DEMO_ROUTINE"] != "0",
-                           needs: env["SENECA_DEMO_NEEDS"] == "1")
-            if env["SENECA_DEMO_AUFGABEN"] == "many" { store.loadDemoManyTodos() }
+            store.loadDemo(now: now)
             store.chat.loadDemo(now: now, admin: env["SENECA_DEMO_ADMIN"] ?? "1")
             store.chat.demoPace = env["SENECA_DEMO_LIVE"] ?? "normal"
             store.chat.demoQueued = env["SENECA_DEMO_WARTESCHLANGE"] == "1"
@@ -783,6 +733,7 @@ struct RootView: View {
             conversation.demoMute = env["SENECA_DEMO_MUTE"] == "1"
             if let mode = env["SENECA_DEMO_GATEWAYVOICE"] { conversation.speech.gateway = SpeechController.demoGateway(mode) }
             conversation.demoMic = env["SENECA_DEMO_MIC"] == "1"
+            ersterStart = ["1": .start, "2": .scannen, "3": .uhr][env["SENECA_DEMO_START"] ?? ""]
             await runDemoScript(env)
             return
         }
@@ -809,6 +760,8 @@ struct RootView: View {
                 sinneFrage = true
             }
             await reconnect()
+        } else {
+            ersterStart = .start
         }
     }
 
@@ -852,20 +805,20 @@ struct RootView: View {
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             let action = String(parts[0])
             switch action {
-            case "routine": store.setRoutine(!store.routineDone(on: store.clock()))
             case "open": go(1, quick: false)
-            case "hero": openFromHero(dayState(store.clock()))
+            case "hero": go(1, quick: false)
             case "close": go(0, quick: false)
             case "kalender", "morgen": show(.kalender)
             case "bereiche": show(.bereiche)
             case "statistik": show(.statistik)
             case "einstellungen": oeffne(.einstellungen)
-            case "meldung":
-                sinne.offeneMeldung = Meldung(id: "demo", zeit: Calendar.current.date(bySettingHour: 7, minute: 12, second: 0, of: Date()),
-                                              titel: "Dein Morgen", text: "Guten Morgen. Um 9:30 beginnt der Wochenstart im Team, danach um 10:15 die Abstimmung zum Angebot. Hermes wartet seit gestern auf deine Entscheidung.",
-                                              knoepfe: ["Passt so", "Später"], dringend: true)
             case "arbeit": oeffne(.arbeit(.fragen))
+            case "laeuft": oeffne(.arbeit(.laeuft))
             case "zurueck": zurueck()
+            case "sprechen", "gespraech":
+                conversation.sprechWunschTaste = action == "sprechen"
+                conversation.sprechWunschOffen = true
+                conversation.sprechWunsch += 1
             case "lesen": reading = .demo
             case "heute": setSide(SideState()); reading = nil
             case "ask":
@@ -873,11 +826,12 @@ struct RootView: View {
                 conversation.submitTyped()
             default:
                 if action.hasPrefix("ask:") { conversation.transcript = String(action.dropFirst(4)); conversation.submitTyped() }
-                else if action.hasPrefix("offen:"), let n = Int(action.dropFirst(6)) {
-                    for t in store.heutigeAufgaben().filter({ !$0.isDone }).dropFirst(n) { store.toggleTask(t.id) }
-                }
                 else if action.hasPrefix("wisch:"), let ebene = Page(rawValue: String(action.dropFirst(6))) { await kunstWisch(ebene) }
                 else if action.hasPrefix("seitlich=") { t = TransitionState(p: Double(action.dropFirst(9)) ?? 0.5, dragging: true, seitlich: true) }
+                else if action.hasPrefix("mit:") { store.chat.waehle(ChatTafelLogik.partner(String(action.dropFirst(4)))) }
+                else if action.hasPrefix("halb:"), let ebene = Page(rawValue: String(action.dropFirst(5))) {
+                    pagesAlive.insert(ebene); mountDay(); side = SideState.only(ebene, 0.45, dragging: true)
+                }
                 else if action.hasPrefix("aufgabenSeitlich=") {
                     var s = SideState.only(.bereiche, Double(action.dropFirst(17)) ?? 0.5, dragging: true)
                     s.seitlich = true
@@ -885,11 +839,7 @@ struct RootView: View {
                 }
                 else if action.hasPrefix("p=") { t = TransitionState(p: Double(action.dropFirst(2)) ?? 0, dragging: true, dir: 1, quick: false) }
                 else if action.hasPrefix("add:") { store.addTask(String(action.dropFirst(4))) }
-                else if action.hasPrefix("todo:"), let n = Int(action.dropFirst(5)) {
-                    let todos = dayState(store.clock()).todos
-                    if n < todos.count { store.toggleTask(todos[n].id) }
-                }
-                else { store.toggleTask(action) }
+                else { store.erledige(todo: action) }
             }
         }
     }

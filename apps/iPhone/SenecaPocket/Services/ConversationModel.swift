@@ -16,6 +16,10 @@ final class ConversationModel: ObservableObject {
     @Published private(set) var entwurfTick = 0
     @Published var sprechWunsch = 0
     var sprechWunschOffen = false
+    var sprechWunschTaste = true
+    @Published var stumm = false
+    @Published private(set) var vonTaste = false
+    @Published private(set) var letzteFrage = ""
 
     let speech = SpeechController()
     weak var store: SenecaStore?
@@ -38,6 +42,19 @@ final class ConversationModel: ObservableObject {
         return !store.isConnected && store.connectionStatus == "Mac nicht erreichbar"
     }
 
+    struct Wartend: Identifiable, Codable { var id = UUID().uuidString; var text: String; var partner: ChatPartner; var anhaenge: [ChatAnhang]; var zeit: Date }
+    private static let wartetAblage = Ablage(MacPfade.datenOrdner, "wartet.json")
+    @Published var wartet: [Wartend] = ConversationModel.wartetAblage.lies([Wartend].self) ?? [] { didSet { Self.wartetAblage.schreibe(wartet) } }
+
+    func nachreichen() {
+        let alle = wartet
+        wartet = []
+        for w in alle {
+            anhaenge[w.partner.id] = w.anhaenge
+            if !senden(w.text, an: w.partner) { wartet.append(w) }
+        }
+    }
+
     var isRunning: Bool { !offen.isEmpty }
     var isListening: Bool { hoertZu }
 
@@ -46,6 +63,9 @@ final class ConversationModel: ObservableObject {
     @Published private(set) var schluss: [String: String] = [:]
     @Published private(set) var zustandsHinweis: String?
     @Published private(set) var gespraech = Gespraech()
+    @Published var anhaenge: [String: [ChatAnhang]] = [:]
+    @Published private(set) var diktatSeit: Date?
+    private var diktatSenke: AnyCancellable?
     var hoertZu: Bool { gespraech.phase == .hoert }
     private(set) var entwurfGesprochen = false
     private(set) var gesprochen: Set<String> = []
@@ -84,9 +104,14 @@ final class ConversationModel: ObservableObject {
 
     @discardableResult
     func senden(_ raw: String, an p: ChatPartner) -> Bool {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let chat = store?.chat else { return false }
-        if macUnreachable { zeigeHinweis("Deine Nachricht bleibt im Feld, bis der Mac wieder da ist."); return false }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines), mit = anhaenge[p.id] ?? []
+        guard !text.isEmpty || !mit.isEmpty, let chat = store?.chat else { return false }
+        diktatEnde()
+        if macUnreachable {
+            wartet.append(Wartend(text: text, partner: p, anhaenge: mit, zeit: store?.clock() ?? Date()))
+            anhaenge[p.id] = nil
+            return true
+        }
         tempo("senden gedrückt (\(text.count) Zeichen)")
         let imGespraech = gespraech.phase == .wartet
         let gespraechsRunde: Int? = imGespraech ? gespraechRunde : nil
@@ -106,6 +131,7 @@ final class ConversationModel: ObservableObject {
             return true
         }
         if let gespraechsRunde { starteStrom(frage: text, partner: p, chat: chat, runde: gespraechsRunde) }
+        anhaenge[p.id] = nil
         offen[p.id, default: 0] += 1
         Task { [weak self] in
             var ende: String?
@@ -116,7 +142,7 @@ final class ConversationModel: ObservableObject {
                 #if DEBUG
                 demoAntwort = self?.nextDemoAnswer()
                 #endif
-                antwort = try await chat.send(text, an: p, demoAntwort: demoAntwort)
+                antwort = try await chat.send(text, an: p, demoAntwort: demoAntwort, anhaenge: mit)
                 if self?.angehalten.contains(p.id) == true { ende = "Hier angehalten." }
             } catch SenecaError.stopped {
                 ende = "Angehalten, bevor eine Antwort kam."
@@ -210,6 +236,7 @@ final class ConversationModel: ObservableObject {
             liestVor = true
         }
         spokenText += (spokenText.isEmpty ? "" : " ") + satz
+        if stumm { return }
         #if DEBUG
         if demoMute {
             demoStimmeEnde = max(Date(), demoStimmeEnde).addingTimeInterval(min(5, max(1.0, Double(satz.count) * 0.055)))
@@ -220,6 +247,7 @@ final class ConversationModel: ObservableObject {
     }
 
     private func stimmeAbschliessen() async {
+        if stumm { return }
         #if DEBUG
         if demoMute {
             let lauf = vorleseLauf
@@ -240,9 +268,9 @@ final class ConversationModel: ObservableObject {
         voiceState = "liest vor"
         liestVor = true
         #if DEBUG
-        if demoMute { try? await Task.sleep(for: .seconds(min(5, max(1.5, Double(text.count) * 0.055)))) } else { await speech.speak(text) }
+        if demoMute { try? await Task.sleep(for: .seconds(min(5, max(1.5, Double(text.count) * 0.055)))) } else if !stumm { await speech.speak(text) }
         #else
-        await speech.speak(text)
+        if !stumm { await speech.speak(text) }
         #endif
         guard vorleseLauf == lauf else { return false }
         liestVor = false
@@ -273,8 +301,10 @@ final class ConversationModel: ObservableObject {
         Task { await chat.stop(p) }
     }
 
-    func gespraechStarten(feld: @escaping (String) -> Void, senden: @escaping (String) -> Bool) {
+    func gespraechStarten(taste: Bool = false, feld: @escaping (String) -> Void, senden: @escaping (String) -> Bool) {
         guard !gespraech.aktiv else { return }
+        vonTaste = taste
+        letzteFrage = ""
         stoppeVorlesen()
         gespraechFeld = feld
         gespraechSenden = senden
@@ -354,7 +384,18 @@ final class ConversationModel: ObservableObject {
         if gespraech.phase == .hoert { gespraechFeld?(gespraech.text) }
     }
 
+    func jetztSenden() {
+        if gespraech.phase == .hoert { ereignis(.stille) }
+    }
+
+    func umStumm() {
+        stumm.toggle()
+        if stumm, gespraech.phase == .spricht { speech.stopSpeaking() }
+    }
+
     private func sendeGesprochen(_ text: String) {
+        letzteFrage = text
+        vonTaste = false
         gespraechRunde += 1
         entwurfGesprochen = true
         gespraechFeld?(text)
@@ -400,6 +441,46 @@ final class ConversationModel: ObservableObject {
     #endif
 
     var sprechenErlaubt: Bool { pretendsMicrophone || !speech.denied }
+    func anhaengen(_ daten: Data, name: String?, mime: String, fuer p: ChatPartner) {
+        guard (anhaenge[p.id]?.count ?? 0) < 10,
+              let a = ChatAnhang.ausDaten(daten, name: name, mime: mime, ordner: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first) else { return }
+        anhaenge[p.id, default: []].append(a)
+    }
+
+    func diktatStarten(basis: String, feld: @escaping (String) -> Void) {
+        guard diktatSeit == nil, !gespraech.aktiv else { return }
+        stoppeVorlesen()
+        diktatSeit = Date()
+        var vorne = basis.isEmpty ? "" : basis + " ", zuletzt = ""
+        #if DEBUG
+        if pretendsMicrophone { feld(vorne + (demoVoice ?? "")); return }
+        #endif
+        diktatSenke = speech.$transcript.dropFirst().sink { t in
+            if t.count < zuletzt.count / 2, !zuletzt.isEmpty { vorne += zuletzt + " " }
+            zuletzt = t
+            if !t.isEmpty { feld(vorne + t) }
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            guard await self.speech.gespraechBeginnen() else { self.diktatEnde(); return }
+            if self.diktatSeit != nil { self.speech.hoeren() }
+        }
+    }
+
+    var pegel: Float {
+        #if DEBUG
+        if pretendsMicrophone { return Float.random(in: 0.02...0.4) }
+        #endif
+        return speech.pegel
+    }
+
+    func diktatEnde() {
+        guard diktatSeit != nil else { return }
+        diktatSenke = nil
+        diktatSeit = nil
+        if !pretendsMicrophone { speech.gespraechBeenden() }
+    }
+
     func pruefeMikrofon() { if !pretendsMicrophone { speech.checkDenied() } }
 
     func entwurfVerworfen() { if !gespraech.aktiv { entwurfGesprochen = false } }

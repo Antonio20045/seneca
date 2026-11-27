@@ -1,6 +1,7 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
+import Toybox.System;
 import Toybox.WatchUi;
 
 module Zeichnen {
@@ -67,6 +68,10 @@ module Zeichnen {
     function stift(dc as Dc, breite as Numeric) as Void {
         var pixel = (p(breite) + 0.5).toNumber();
         dc.setPenWidth(pixel < 1 ? 1 : pixel);
+    }
+
+    function amoled() as Boolean {
+        return System.getDeviceSettings().requiresBurnInProtection;
     }
 
     function vergessen() as Void {

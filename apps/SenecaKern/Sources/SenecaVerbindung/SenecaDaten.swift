@@ -9,6 +9,7 @@ public final class SenecaDaten: ObservableObject {
     @Published public private(set) var gestrichelt: [Handlung] = []
     @Published public private(set) var letztesErgebnis: (handlung: Handlung, ergebnis: HandlungsErgebnis)?
     @Published public private(set) var rechte: [String] = []
+    @Published public private(set) var netz = true
 
     public let verbindung: Verbindung
     public var aufEreignis: ((String, [String: Any]) -> Void)?
@@ -23,11 +24,11 @@ public final class SenecaDaten: ObservableObject {
         korb = Ausgangskorb(datei: ordner?.appendingPathComponent("ausgangskorb.json"), geraet: einstellung.profil.geraet)
         stand = speicher.stand
         gestrichelt = korb.offen
-        if let r = speicher.stand?.regeln { var v = verbindung.regeln; v.uebernehme(r); verbindung.regeln = v }
+        if let r = speicher.stand?.regeln { var v = verbindung.regeln; v.uebernehme(r); verbindung.regeln = v; AppRegel.werte = r }
         speicher.aufNeu = { [weak self] s in
             guard let self else { return }
             self.stand = s
-            if let r = s.regeln { var v = self.verbindung.regeln; v.uebernehme(r); self.verbindung.regeln = v }
+            if let r = s.regeln { var v = self.verbindung.regeln; v.uebernehme(r); self.verbindung.regeln = v; AppRegel.werte = r }
         }
         speicher.aufPasstNicht = { [weak self] in self?.passtNicht = true }
         korb.aufAenderung = { [weak self] in self?.gestrichelt = self?.korb.offen ?? [] }
@@ -47,6 +48,7 @@ public final class SenecaDaten: ObservableObject {
             }
         }
         verbindung.aufVerbunden = { [weak self] r in self?.rechte = r }
+        verbindung.aufNetz = { [weak self] da in self?.netz = da }
         verbindung.aufEreignis = { [weak self] name, inhalt in
             guard let self else { return }
             if name == "plugin.seneca.stand", let r = (inhalt["revision"] as? NSNumber)?.intValue {
@@ -93,4 +95,9 @@ public final class SenecaDaten: ObservableObject {
             return (a["ergebnis"] as? String ?? "abgelehnt:leer", (a["revision"] as? NSNumber)?.intValue ?? 0)
         }
     }
+}
+
+public enum AppRegel {
+    nonisolated(unsafe) public static var werte: [String: Double] = [:]
+    public static func wert(_ name: String, _ vorgabe: Double) -> Double { werte[name] ?? vorgabe }
 }

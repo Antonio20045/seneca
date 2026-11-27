@@ -10,19 +10,25 @@ struct SnHeuteTafel: View {
     var erledige: (String) -> Void
     var zuDenFragen: () -> Void
     var zurArbeit: () -> Void
+    var neu: Set<String> = []
 
     private typealias L = HeuteTafelLogik
+    static func kennung(_ m: SenecaStand.Mitglied) -> String { "team:\(m.name):\(m.satz ?? m.zuletzt?.satz ?? m.zustand)" }
     private let linie = Color.white.opacity(0.07)
 
     var body: some View {
         GeometryReader { g in
-            HStack(alignment: .top, spacing: 80) {
-                haupt.frame(width: 860, alignment: .topLeading)
-                seite.frame(width: 320, alignment: .topLeading)
+            ScrollView(.vertical, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 80) {
+                    haupt.frame(width: 860, alignment: .topLeading)
+                    seite.frame(width: 320, alignment: .topLeading)
+                }
+                .padding(.leading, max(24, (g.size.width - 1260) / 2 + 6))
+                .padding(.top, 108).padding(.bottom, 170)
+                .frame(width: g.size.width, alignment: .topLeading)
             }
-            .padding(.leading, max(24, (g.size.width - 1260) / 2 + 6))
-            .padding(.top, 108)
-            .frame(width: g.size.width, height: g.size.height, alignment: .topLeading)
+            .scrollClipDisabled()
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 1 - 150 / max(g.size.height, 300)), .init(color: .clear, location: 1 - 84 / max(g.size.height, 300))], startPoint: .top, endPoint: .bottom))
         }
         .foregroundStyle(TafelFarbe.text)
     }
@@ -63,18 +69,34 @@ struct SnHeuteTafel: View {
 
     @ViewBuilder private var fragen: some View {
         let liste = stand.ruhe == nil ? stand.braucht_dich ?? [] : wartende
-        if !liste.isEmpty {
+        if !liste.isEmpty || stand.eben_beantwortet?.isEmpty == false || stand.buendel?.satz != nil {
             VStack(alignment: .leading, spacing: 0) {
                 let titel = stand.ruhe?.bis.map { "WARTET BIS \(L.uhr($0)) · " } ?? "BRAUCHT DICH · "
-                kopf(titel + (liste.count == 1 ? "1 FRAGE" : "\(liste.count) FRAGEN"), "nach Folge sortiert")
+                if !liste.isEmpty { kopf(titel + (liste.count == 1 ? "1 FRAGE" : "\(liste.count) FRAGEN"), "nach Folge sortiert") } else if stand.buendel?.satz != nil { kopf("WARTET AUF DICH", "") }
+                TimelineView(.periodic(from: .now, by: 1)) { t in
+                    ForEach(HeuteTafelLogik.ebenBeantwortet(stand, jetzt: t.date)) { f in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(f.text).font(Schrift.grotesk(16)).hoehe(22).foregroundStyle(TafelFarbe.text)
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(TafelFarbe.gruen)
+                                Text(f.antwort.map { HeuteTafelLogik.antwortZeile(f, $0) } ?? "").font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.gruen)
+                            }
+                        }
+                        .padding(.leading, 40).padding(.vertical, 10)
+                        .overlay(alignment: .top) { linie.frame(height: 1) }
+                        .transition(.opacity)
+                    }
+                }
                 ForEach(Array(liste.enumerated()), id: \.element.id) { i, f in
                     Button(action: zuDenFragen) {
                         HStack(alignment: .firstTextBaseline, spacing: 14) {
                             Text("\(i + 1)").font(Schrift.grotesk(14, .medium)).monospacedDigit().foregroundStyle(TafelFarbe.leise).frame(width: 26, alignment: .leading)
                             Text(f.text).font(Schrift.grotesk(16)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
+                            if neu.contains(f.id) { Text("NEU").font(Schrift.mono(10)).kerning(1).foregroundStyle(TafelFarbe.leise) }
                             herkunft(f)
                         }
                         .padding(.vertical, 10)
+                        .modifier(SnNeuHell(an: neu.contains(f.id)))
                         .overlay(alignment: .top) { linie.frame(height: 1) }
                         .contentShape(Rectangle())
                     }
@@ -96,7 +118,7 @@ struct SnHeuteTafel: View {
 
     private func herkunft(_ f: SenecaStand.Frage) -> some View {
         let von = [f.von ?? "Seneca", f.projekt].compactMap { $0 }.joined(separator: " · ")
-        let frist = f.frist.map { $0 - stand.jetzt < 2 * 86_400_000 ? "Frist morgen" : "Frist \(L.uhr($0))" }
+        let frist = f.frist.map { L.frist($0, jetzt: stand.jetzt) }
         let seit = f.seit.map { $0 < (stand.tag_beginn ?? 0) ? "seit gestern" : "seit \(L.uhr($0))" } ?? ""
         return (Text(von + " · ").foregroundColor(TafelFarbe.leise) + Text(frist ?? seit).foregroundColor(frist == nil ? TafelFarbe.leise : TafelFarbe.bernstein))
             .font(Schrift.mono(12))
@@ -107,8 +129,8 @@ struct SnHeuteTafel: View {
         if !mitglieder.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 let arbeiten = mitglieder.filter { $0.zustand == "arbeitet" }.count
-                kopf("LÄUFT GERADE", "\(arbeiten) von \(mitglieder.count) arbeitet")
-                ForEach(mitglieder.filter { $0.zustand != "ruht" }, id: \.name) { m in
+                kopf("LÄUFT GERADE", "\(arbeiten) von \(mitglieder.filter { $0.zustand != "ruht" }.count) arbeitet")
+                ForEach(mitglieder, id: \.name) { m in
                     let fragen = (stand.braucht_dich ?? []).filter { $0.von == m.name }.count + (stand.buendel?.fragen ?? []).filter { $0.von == m.name }.count
                     Button(action: zurArbeit) {
                         HStack(alignment: .firstTextBaseline, spacing: 20) {
@@ -123,14 +145,15 @@ struct SnHeuteTafel: View {
                                 } else if let satz = m.satz {
                                     Text(satz + " ") + Text(m.projekt.map { "· \($0)" } ?? "").foregroundColor(TafelFarbe.leise)
                                 } else {
-                                    Text(m.zuletzt?.satz.map { "fertig: \($0)" } ?? (m.zustand == "ruht" ? "ruht" : "frei"))
+                                    Text(m.zustand == "ruht" ? m.ruht_seit.map { VerlaufLogik.ruhtSeit($0, jetzt: stand.jetzt) } ?? "ruht" : m.zuletzt?.satz ?? "frei")
                                 }
                             }
-                            .font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
-                            Text(rechts(m)).font(Schrift.mono(12))
+                            .font(Schrift.grotesk(15)).hoehe(22).lineLimit(1).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
+                            Text((neu.contains(Self.kennung(m)) ? "NEU · " : "") + rechts(m)).font(Schrift.mono(12))
                                 .foregroundStyle(m.zustand == "arbeitet" ? TafelFarbe.gruen : TafelFarbe.zweit)
                         }
                         .padding(.vertical, 10)
+                        .modifier(SnNeuHell(an: neu.contains(Self.kennung(m))))
                         .overlay(alignment: .top) { linie.frame(height: 1) }
                         .contentShape(Rectangle())
                     }
@@ -156,10 +179,11 @@ struct SnHeuteTafel: View {
     }
 
     private var todos: some View {
-        let liste = stand.todos ?? []
+        let liste = L.todosHeute(stand)
+        let jeden = stand.aufgaben?.jeden_tag ?? []
         let summe = liste.compactMap(\.dauer_min).reduce(0, +)
         return VStack(alignment: .leading, spacing: 0) {
-            kopf(stand.ruhe?.grund == "fokus" ? "DEINE TO-DOS · NACH DEM FOKUS" : "DEINE TO-DOS", summe > 0 ? "\(Int(summe)) Min" : "")
+            if !liste.isEmpty { kopf(stand.ruhe?.grund == "fokus" ? "DEINE TO-DOS · NACH DEM FOKUS" : "DEINE TO-DOS", summe > 0 ? "\(Int(summe)) Min" : "") }
             ForEach(liste) { t in
                 let w = wartend.contains(t.id)
                 Button { if !w { erledige(t.id) } } label: {
@@ -177,7 +201,26 @@ struct SnHeuteTafel: View {
                 }
                 .buttonStyle(.plain)
             }
+            if !jeden.isEmpty {
+                kopf("JEDEN TAG", "\(jeden.filter { $0.erledigt || wartend.contains($0.id) }.count) von \(jeden.count)").padding(.top, liste.isEmpty ? 0 : 24)
+                HStack(spacing: 8) { ForEach(jeden) { routine($0) } }.padding(.top, 6)
+            }
         }
+    }
+
+    private func routine(_ j: SenecaStand.Aufgaben.Taeglich) -> some View {
+        let fertig = j.erledigt || wartend.contains(j.id)
+        return Button { if !fertig { erledige(j.id) } } label: {
+            HStack(spacing: 6) {
+                if fertig { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
+                Text(j.titel).font(Schrift.grotesk(14)).lineLimit(1)
+            }
+            .foregroundStyle(fertig ? TafelFarbe.hex(0xA8EBBE) : TafelFarbe.text)
+            .padding(.horizontal, 14).frame(height: 36)
+            .background(Capsule().fill(fertig ? TafelFarbe.gruen.opacity(0.14) : Color.white.opacity(0.07)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var seite: some View {
@@ -240,7 +283,7 @@ struct SnHeuteTafel: View {
             let unter: String? = switch t.art {
             case "fokus": "Seneca hält Meldungen zurück"
             case "bewegung": vorbei ? nil : "Seneca schweigt, solange du läufst"
-            default: [t.ort, "\(Int((t.ende - t.start) / 60_000)) Min"].compactMap { $0 }.joined(separator: " · ")
+            default: t.weg ?? [t.ort, "\(Int((t.ende - t.start) / 60_000)) Min"].compactMap { $0 }.joined(separator: " · ")
             }
             let farbe = t.art == "bewegung" && vorbei ? TafelFarbe.gruen : jetzt ? TafelFarbe.himmel : TafelFarbe.zweit
             return Punkt(id: t.uid, start: t.start, titel: titel, unter: unter, farbe: farbe, jetzt: jetzt, vorbei: vorbei)
@@ -262,5 +305,13 @@ struct SnHeuteSkelett: View {
         }
         .padding(.top, 140)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+struct SnNeuHell: ViewModifier {
+    var an: Bool
+    func body(content: Content) -> some View {
+        content.background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(an ? 0.08 : 0)).padding(.horizontal, -10))
+            .animation(Kurve.sn(0.6), value: an)
     }
 }

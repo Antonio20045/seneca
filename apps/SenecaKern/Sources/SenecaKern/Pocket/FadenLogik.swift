@@ -82,11 +82,6 @@ enum FadenLogik {
         markeUnten <= sichtUnten + endeToleranz
     }
 
-    static func wachsend(_ text: String) -> String {
-        guard let umbruch = text.lastIndex(of: "\n") else { return ohneOffenes(text) }
-        let rest = text.index(after: umbruch)
-        return String(text[..<rest]) + ohneOffenes(String(text[rest...]))
-    }
 
     private static func ohneOffenes(_ zeile: String) -> String {
         var s = zeile

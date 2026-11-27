@@ -43,22 +43,6 @@ struct FensterHalter: NSViewRepresentable {
             if let f = Fensterstand.lies(), f.passt(auf: NSScreen.screens.map(\.visibleFrame)) {
                 w.setFrame(f.rahmen, display: true)
             }
-            #if DEBUG
-            if MacPfade.profil == .demo {
-                let env = ProcessInfo.processInfo.environment
-                if let b = env["SENECA_TEST_BREITE"].flatMap({ Double($0) }) {
-                    var f = w.frame
-                    f.size.width = b
-                    w.setFrame(f, display: true)
-                }
-                if let r = env["SENECA_TEST_RAHMEN"] {
-                    let z = r.split(separator: ",").compactMap { Double($0) }
-                    if z.count == 4 { w.setFrame(CGRect(x: z[0], y: z[1], width: z[2], height: z[3]), display: true) }
-                }
-                Testlog.schreibe(String(format: "fenster-start x=%.0f y=%.0f breite=%.0f hoehe=%.0f seite=%@ gespraech=%@", w.frame.minX, w.frame.minY,
-                                        w.frame.width, w.frame.height, modell.route.pfad, modell.gespraechAn ? "an" : "aus"))
-            }
-            #endif
             modell.rahmen = w.frame
             modell.merke()
             for n in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
@@ -104,6 +88,8 @@ final class FensterSicht: ObservableObject {
 private struct FensterSichtbarSchluessel: EnvironmentKey { static let defaultValue = true }
 
 extension EnvironmentValues {
+    @Entry var festeZeit: Double?
+    @Entry var mehrZu: (SenecaStand.Frage) -> Void = { _ in }
     var fensterSichtbar: Bool {
         get { self[FensterSichtbarSchluessel.self] }
         set { self[FensterSichtbarSchluessel.self] = newValue }

@@ -33,13 +33,15 @@ test("PF10 „Verschieb den Zahnarzt“ wirkt ohne Mac; Konflikt wird gemeldet, 
   const morgen = (hhmm: string) => new Date(`2026-11-28T${hhmm}:00`).getTime();
   const ics = (uid: string, titel: string, von: string, bis: string) =>
     `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${new Date(morgen(von)).toISOString().replace(/[-:]/g, "").slice(0, 15)}Z\r\nDTEND:${new Date(morgen(bis)).toISOString().replace(/[-:]/g, "").slice(0, 15)}Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
-  const attrappe = await kalenderAttrappe(new Map([["zahn", ics("zahn", "Zahnarzt", "10:00", "11:00")], ["call", ics("call", "Call Nora", "14:30", "15:00")]]));
+  const attrappe = await kalenderAttrappe(new Map([["zahn", ics("zahn", "Zahnarzt", "10:00", "11:00")], ["call", ics("call", "Call Nora", "14:30", "15:00")],
+    ["reise", "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:reise\r\nSUMMARY:Airbnb\\, Milano\r\nDTSTART;VALUE=DATE:20261129\r\nDTEND;VALUE=DATE:20261201\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"]]));
   const zurueck = regelnMit({ caldav_url: attrappe.url });
   const zugang = { benutzer: "antonio", passwort: "app-passwort" };
   const p = ladePlugin(undefined, { kalender: zugang });
   um("20:00");
   await kalenderAbgleich(p.db, zugang);
   assert.deepEqual(termineAm(p.db, morgen("00:00")).map((t) => t.titel), ["Zahnarzt", "Call Nora"]);
+  assert.deepEqual(["2026-11-29", "2026-11-30", "2026-12-01"].map((d) => termineAm(p.db, new Date(`${d}T12:00:00`).getTime()).map((t) => t.titel)), [["Airbnb, Milano"], ["Airbnb, Milano"], []]);
   const konflikt = await p.werkzeug("seneca_kalender", "agent:seneca:main", "seneca", { aktion: "verschieben", uid: "zahn", start: morgen("14:00"), ende: morgen("15:00") });
   assert.deepEqual(konflikt.konflikte, ["Call Nora"]);
   assert.ok(!attrappe.aufrufe.some((a) => a.startsWith("PUT")));
@@ -56,7 +58,7 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
   um("08:00");
   const termin = (uid: string, von: string, bis: string, titel: string, ort?: string) => ({ uid, start: um(von), ende: um(bis), titel, ort, teilnehmer: [], ganztag: false });
   wertSetzen(p.db, "kalender:2026-11-27", JSON.stringify([termin("a", "08:00", "09:00", "Training"), termin("b", "09:40", "15:30", "Workshop"), termin("c", "17:00", "21:00", "Essen", "Bergstr. 1")]), "kalender");
-  const todo = (titel: string, dauer_min: number) => p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel, dauer_min } });
+  const todo = (titel: string, dauer_min: number) => p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel, dauer_min, tag: "2026-11-27" } });
   um("08:00");
   return Promise.all([todo("Mail an Steuerberater", 20), todo("Angebot schreiben", 20), todo("Ablage sortieren", 90)]).then(() => {
     planenJob(p.db);
@@ -71,4 +73,16 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
     planenJob(p.db);
     assert.equal(wert(p.db, "hinweis:los")?.wert, "Essen in Bergstr. 1: an um 17:10 · los um 16:45");
   });
+});
+
+test("PF10 Konflikt: Abhaken am iPhone gewinnt, Senecas Verschieben fällt weg und steht leise im Verlauf", async () => {
+  const p = ladePlugin();
+  um("15:00");
+  const t = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel: "Steuerberater: Kleinunternehmer klären" } });
+  um("15:20");
+  p.methode("seneca.handeln", { kennung: "e1", geraet: "iphone", art: "todo.erledigt", ziel: t.id });
+  const v = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "verschieben", id: t.id, felder: { tag: "2026-12-04" } });
+  assert.equal(v.ergebnis, "ueberholt");
+  const s = p.methode("seneca.stand", { geraet: "mac" }) as { verlauf: { zeilen: { satz: string; unter: string }[] } };
+  assert.deepEqual(s.verlauf.zeilen.map((z) => [z.satz, z.unter]), [["Schon erledigt am iPhone, 15:20.", "Verschieben auf Freitag fällt weg."]]);
 });

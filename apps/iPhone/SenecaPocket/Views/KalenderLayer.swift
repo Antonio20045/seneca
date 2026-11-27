@@ -1,13 +1,5 @@
 import SwiftUI
 
-@MainActor
-final class KalenderVorrat {
-    static let shared = KalenderVorrat()
-    var vergangen: [KalenderTermin]?
-    var vergangenAb: Date?
-    var loadedAt: Date?
-}
-
 enum KalenderTeil: Hashable { case tag, woche, monat }
 
 struct KalenderLayer: View {
@@ -26,10 +18,7 @@ struct KalenderLayer: View {
     @State private var tagWahl: Date? = KalenderStart.wert.tag
     @State private var offen: String?
     @State private var offenDemoTitel: String? = KalenderStart.wert.offen
-    @State private var vergangen: [KalenderTermin]? = KalenderVorrat.shared.vergangen
-    @State private var vergangenAb: Date? = KalenderVorrat.shared.vergangenAb
-
-    private var lang: [KalenderTermin]? { store.kalenderLang?.termine }
+    @State private var monat = KalenderStart.wert.monat
     private var cal: Calendar { input.calendar }
     private var env: [String: String] {
         #if DEBUG
@@ -53,17 +42,19 @@ struct KalenderLayer: View {
                                termineBis: cal.date(byAdding: .day, value: KalenderLogic.horizon, to: heute))
         }
         #endif
-        return AgendaInput(now: now, calendar: cal, termine: store.kalenderTermine, vergangen: vergangen, vergangenAb: vergangenAb,
-                           termineBis: cal.date(byAdding: .day, value: lang == nil ? 2 : KalenderLogic.horizon, to: heute))
+        let tage = store.stand?.wochenplan?.tage ?? []
+        return AgendaInput(now: now, calendar: cal, termine: store.kalenderTermine, vergangen: store.kalenderTermine.filter { $0.start < heute },
+                           vergangenAb: tage.first.map { Date(timeIntervalSince1970: $0.tag / 1000) },
+                           termineBis: tage.last.map { Date(timeIntervalSince1970: $0.tag / 1000 + 86_400) })
     }
 
-    private var ohneDaten: Bool { !demo && store.today == nil && lang == nil }
+    private var ohneDaten: Bool { !demo && store.stand?.wochenplan == nil }
 
     private var agendaAnsicht: AgendaAnsicht {
         switch teil {
         case .tag: return tagWahl.map { .tag($0) } ?? .heute
         case .woche: return .woche
-        case .monat: return .monat
+        case .monat: return .monat(monat)
         }
     }
 
@@ -79,40 +70,27 @@ struct KalenderLayer: View {
         return s
     }
 
-    private var stand: String? {
-        guard !demo else { return nil }
-        return store.calendarStandText(now: now)
-    }
-
     var body: some View {
-        let jetzt = sicht(agendaInput)
-        let ziel = fokusZiel(jetzt)
-        let offenId = offen ?? demoOffenId(jetzt)
-        Seite(titel: "Kalender", zurueck: "Heute", beimZurueck: back) {
-            inhalt(jetzt, ziel: ziel, offen: offenId)
-        }
-        .reiter {
-            ReiterLeiste(auswahl: reiterWahl, optionen: [
-                .init(.tag, "Tag"), .init(.woche, "Woche"), .init(.monat, "Monat")
-            ])
-        }
-        .rechts { if teil == .tag { tagKnoepfe } }
-        .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
-        .coordinateSpace(name: KalenderFokusZeileKey.raum)
-        .preference(key: KalenderFokusEintragKey.self, value: ziel.flatMap { z in jetzt.eintraege.first { $0.id == z } })
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("kalender")
-        .accessibilityAction(.escape) { escape() }
-        .overlay(alignment: .topLeading) { probes(ziel, offen: offenId) }
-        .onAppear {
-            gesturesChanged(PageGestures(holdsBack: false))
-        }
-        .task(id: store.isConnected) { await laden() }
-        .onChange(of: kalenderTag, initial: true) { _, tag in
-            guard let tag else { return }
-            offen = nil; offenDemoTitel = nil
-            teil = .tag
-            tagWahl = cal.isDate(tag, inSameDayAs: now) ? nil : cal.startOfDay(for: tag)
+        if let s = store.stand, s.kalender != nil {
+            KalenderTafel(stand: s, teil: reiterWahl) {
+                ScrollView {
+                    let ai = agendaInput
+                    KalenderMonatsAnsicht(m: m, sicht: sicht(ai), cal: cal, offen: offen, umschalten: umschalten, zeigeTag: zeigeTag,
+                                          blaettern: { n in AgendaLogic.monatErlaubt(monat + n, ai) && !ohneDaten ? { Bewegung.mit(.wechsel) { offen = nil; monat += n } } : nil })
+                        .padding(.horizontal, 24)
+                }
+            }
+            .padding(.top, 62)
+            .foregroundStyle(TafelFarbe.text)
+            .background(TafelGrund())
+            .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("kalender")
+            .accessibilityAction(.escape) { escape() }
+            .onAppear { gesturesChanged(PageGestures(holdsBack: false)) }
+            .onChange(of: kalenderTag, initial: true) { _, tag in if tag != nil { teil = .tag } }
+        } else {
+            HeuteSkelett()
         }
     }
 
@@ -120,61 +98,9 @@ struct KalenderLayer: View {
         Binding(get: { teil }, set: { neu in
             offen = nil; offenDemoTitel = nil
             if neu == .tag { tagWahl = tagWahl.flatMap { cal.isDate($0, inSameDayAs: now) ? nil : $0 } }
+            if neu == .monat { monat = 0 }
             teil = neu
         })
-    }
-
-    @ViewBuilder private func inhalt(_ jetzt: AgendaSicht, ziel: String?, offen: String?) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            hinweise
-            Group {
-                switch teil {
-                case .tag:
-                    KalenderTagAnsicht(m: m, sicht: jetzt, cal: cal, offen: offen, fokus: ziel, umschalten: umschalten)
-                        .id(DayLogic.dayKey(tagWahl ?? now, cal))
-                case .woche:
-                    KalenderWocheAnsicht(m: m, sicht: jetzt, cal: cal, offen: offen, umschalten: umschalten)
-                case .monat:
-                    KalenderMonatsAnsicht(m: m, sicht: jetzt, cal: cal, offen: offen, umschalten: umschalten, zeigeTag: zeigeTag)
-                }
-            }
-            .transition(.wechsel)
-        }
-        .bewegt(.blatt, wert: offen)
-    }
-
-    @ViewBuilder private var hinweise: some View {
-        if store.macUnerreichbar {
-            HinweisZeile(DayLogic.offlineSatz(stand: store.lastSync, now: Date(), .current), art: .offline)
-                .accessibilityIdentifier("kalender.offline")
-        } else if let stand {
-            HinweisZeile(stand, art: .info)
-        }
-    }
-
-    private var tagKnoepfe: some View {
-        let heute = cal.startOfDay(for: now)
-        let aktuell = tagWahl.map { cal.startOfDay(for: $0) } ?? heute
-        let diff = cal.dateComponents([.day], from: heute, to: aktuell).day ?? 0
-        return HStack(spacing: Stil.abstand.xs) {
-            if diff != 0 {
-                TextKnopf("Heute", stufe: .klein) { tagSetzen(nil) }
-                    .accessibilityIdentifier("kalender.heute")
-            }
-            RundKnopf("chevron.left", beschriftung: "Vorheriger Tag") { tagSetzen(cal.date(byAdding: .day, value: -1, to: aktuell)) }
-                .opacity(diff > -62 ? 1 : 0)
-                .accessibilityIdentifier("kalender.vorher")
-            RundKnopf("chevron.right", beschriftung: "Nächster Tag") { tagSetzen(cal.date(byAdding: .day, value: 1, to: aktuell)) }
-                .opacity(diff < KalenderLogic.horizon - 1 ? 1 : 0)
-                .accessibilityIdentifier("kalender.naechster")
-        }
-    }
-
-    private func tagSetzen(_ d: Date?) {
-        Bewegung.mit(.wechsel) {
-            offen = nil; offenDemoTitel = nil
-            tagWahl = d.flatMap { cal.isDate($0, inSameDayAs: now) ? nil : $0 }
-        }
     }
 
     private func zeigeTag(_ d: Date) {
@@ -196,63 +122,6 @@ struct KalenderLayer: View {
     private func escape() {
         if offen != nil || offenDemoTitel != nil { Bewegung.mit(.blatt) { offen = nil; offenDemoTitel = nil } } else { back() }
     }
-
-    private func demoOffenId(_ s: AgendaSicht) -> String? {
-        guard let titel = offenDemoTitel else { return nil }
-        return (s.eintraege + s.wochentage.flatMap(\.eintraege)).first { $0.titel == titel }?.id
-    }
-
-    private func fokusZiel(_ s: AgendaSicht) -> String? {
-        guard teil == .tag, tagWahl == nil else { return nil }
-        if kalenderFokus == nil, let titel = KalenderStart.wert.fokus { return s.eintraege.first { $0.titel == titel }?.id }
-        guard let f = fokus else { return nil }
-        if s.eintraege.contains(where: { $0.id == f.itemId }) { return f.itemId }
-        let kurz = KalenderLogic.items(on: now, termine: store.kalenderTermine, jobs: [], cal)
-        guard let item = kurz.first(where: { $0.id == f.itemId }) else { return nil }
-        return s.eintraege.first { $0.titel == item.title && abs(($0.start ?? .distantPast).timeIntervalSince(item.start)) < 60 }?.id
-    }
-
-    private func laden() async {
-        guard !demo, store.isConnected else { return }
-        if let at = KalenderVorrat.shared.loadedAt, Date().timeIntervalSince(at) < 120, lang != nil { return }
-        let heute = cal.startOfDay(for: now)
-        let ab = min(KalenderLogic.monthStart(now, cal), KalenderLogic.weekStart(now, cal))
-        let tage = min(62, max(1, KalenderLogic.dayOffset(of: heute, from: ab, cal)))
-        guard let result = await store.loadKalenderLang(vergangen: tage) else { return }
-        KalenderVorrat.shared.loadedAt = Date()
-        if let v = result["vergangen"] as? [String: Any], v["ok"] as? Bool == true, let ab = SenecaPayloadParser.date(v["ab"]) {
-            let alte = KalenderParser.termine(v)
-            KalenderVorrat.shared.vergangen = alte
-            KalenderVorrat.shared.vergangenAb = ab
-            vergangen = alte
-            vergangenAb = ab
-        }
-    }
-
-    private func probes(_ ziel: String?, offen: String?) -> some View {
-        let wert: String
-        switch agendaAnsicht {
-        case .heute: wert = "heute"
-        case .woche: wert = "woche"
-        case .monat: wert = "monat"
-        case .tag(let d): wert = "tag \(DayLogic.dayKey(d, cal))"
-        }
-        return ZStack {
-            Color.clear.frame(width: 1, height: 1)
-                .accessibilityElement()
-                .accessibilityIdentifier("kalender.ansicht")
-                .accessibilityValue(wert)
-            Color.clear.frame(width: 1, height: 1)
-                .accessibilityElement()
-                .accessibilityIdentifier("kalender.offen")
-                .accessibilityValue(offen ?? "")
-            Color.clear.frame(width: 1, height: 1)
-                .accessibilityElement()
-                .accessibilityIdentifier("kalender.fokus")
-                .accessibilityValue(ziel ?? "")
-        }
-        .allowsHitTesting(false)
-    }
 }
 
 enum KalenderStart {
@@ -261,6 +130,7 @@ enum KalenderStart {
         var tag: Date?
         var offen: String?
         var fokus: String?
+        var monat = 0
     }
 
     static let wert: Wert = {
@@ -281,6 +151,7 @@ enum KalenderStart {
         }
         w.offen = env["SENECA_DEMO_KALENDER_OFFEN"]
         w.fokus = env["SENECA_DEMO_KALENDER_FOKUS"]
+        w.monat = env["SENECA_DEMO_KALENDER_MONAT"].flatMap { Int($0) } ?? 0
         #endif
         return w
     }()

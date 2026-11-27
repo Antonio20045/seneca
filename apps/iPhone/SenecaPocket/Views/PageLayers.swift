@@ -23,7 +23,7 @@ struct SideState: Equatable {
         switch page {
         case .kalender: s.kalender = progress
         case .bereiche: s.bereiche = progress
-        case .statistik: s.kalender = 1; s.statistik = progress
+        case .statistik: s.statistik = progress
         case .today, .seneca: break
         }
         return s
@@ -39,22 +39,23 @@ struct DayAway: ViewModifier, Animatable {
         self.m = m
         self.side = side
         self.reduceMotion = reduceMotion
-        kalender = side.kalender; bereiche = side.bereiche
+        kalender = side.kalender; bereiche = side.bereiche; statistik = side.statistik
     }
     private var kalender: Double
     private var bereiche: Double
-    var animatableData: AnimatablePair<Double, Double> {
-        get { AnimatablePair(kalender, bereiche) }
-        set { kalender = newValue.first; bereiche = newValue.second }
+    private var statistik: Double
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, Double> {
+        get { AnimatablePair(AnimatablePair(kalender, bereiche), statistik) }
+        set { kalender = newValue.first.first; bereiche = newValue.first.second; statistik = newValue.second }
     }
 
     func body(content: Content) -> some View {
-        let p = max(kalender, bereiche)
-        let oben = side.seitlich ? 0 : bereiche, links = side.seitlich ? max(kalender, bereiche) : kalender
-        let von: PageFade.Richtung = oben > 0 ? .oben : .rechts
+        let p = max(kalender, bereiche, statistik)
+        let unten = side.seitlich ? 0 : bereiche, rechts = side.seitlich ? bereiche : 0
+        let von: PageFade.Richtung = unten > 0 ? .unten : kalender > 0 ? .links : .rechts
         content
-            .offset(x: reduceMotion ? 0 : -m.size.width * 0.32 * links,
-                    y: reduceMotion ? 0 : m.y(120) * oben)
+            .offset(x: reduceMotion ? 0 : m.size.width * 0.32 * (kalender - statistik - rechts),
+                    y: reduceMotion ? 0 : -m.y(120) * unten)
             .opacity(reduceMotion ? 1 - PageFade.blende(p) : 1 - 0.5 * p)
             .mask { PageFade.kante(p: p, von: von, ebene: false, size: m.size, aus: reduceMotion) }
     }
@@ -84,13 +85,13 @@ struct PageMotion: ViewModifier, Animatable {
         content
             .offset(x: reduceMotion ? 0 : away.width * (1 - progress), y: reduceMotion ? 0 : away.height * (1 - progress))
             .opacity(reduceMotion ? PageFade.blende(progress) : 0.5 + 0.5 * progress)
-            .mask { PageFade.kante(p: progress, von: away.height < 0 ? .oben : away.width > 0 ? .rechts : .links, ebene: true,
+            .mask { PageFade.kante(p: progress, von: away.height > 0 ? .unten : away.width > 0 ? .rechts : .links, ebene: true,
                                    size: UIScreen.main.bounds.size, aus: reduceMotion) }
     }
 }
 
 enum PageFade {
-    enum Richtung { case links, rechts, oben }
+    enum Richtung { case links, rechts, oben, unten }
     static let feder: CGFloat = 64
 
     static func blende(_ p: Double) -> Double { seg(p, 0.3, 0.7) }
@@ -99,7 +100,7 @@ enum PageFade {
         if aus || (!ebene && p <= 0) || (ebene && p >= 1) {
             Color.black
         } else {
-            let laenge = von == .oben ? size.height : size.width
+            let laenge = von == .oben || von == .unten ? size.height : size.width
             let mitte = CGFloat(p) * (laenge + feder) - feder / 2
             let a = (mitte - feder / 2) / laenge, b = (mitte + feder / 2) / laenge
             let farben: [Color] = ebene ? [.black, .clear] : [.clear, .black]
@@ -110,6 +111,8 @@ enum PageFade {
                 LinearGradient(colors: farben, startPoint: UnitPoint(x: 1 - a, y: 0.5), endPoint: UnitPoint(x: 1 - b, y: 0.5))
             case .oben:
                 LinearGradient(colors: farben, startPoint: UnitPoint(x: 0.5, y: a), endPoint: UnitPoint(x: 0.5, y: b))
+            case .unten:
+                LinearGradient(colors: farben, startPoint: UnitPoint(x: 0.5, y: 1 - a), endPoint: UnitPoint(x: 0.5, y: 1 - b))
             }
         }
     }
@@ -119,29 +122,6 @@ extension View {
     func pageMotion(progress: Double, dragging: Bool, away: CGSize, reduceMotion: Bool, velocity: Double = 0) -> some View {
         modifier(PageMotion(progress: progress, dragging: dragging, away: away, reduceMotion: reduceMotion, velocity: velocity))
             .animation(PageMotion.animation(dragging, reduceMotion, velocity: velocity), value: progress)
-    }
-}
-
-struct KalenderWeicht: ViewModifier, Animatable {
-    var m: Metrics
-    var statistik: Double
-    var reduceMotion: Bool
-    var animatableData: Double {
-        get { statistik }
-        set { statistik = newValue }
-    }
-    func body(content: Content) -> some View {
-        content
-            .offset(x: reduceMotion ? 0 : -m.size.width * 0.32 * statistik)
-            .opacity(reduceMotion ? 1 - PageFade.blende(statistik) : 1 - 0.5 * statistik)
-            .mask { PageFade.kante(p: statistik, von: .rechts, ebene: false, size: m.size, aus: reduceMotion) }
-    }
-}
-
-extension View {
-    func kalenderWeicht(m: Metrics, side: SideState, reduceMotion: Bool) -> some View {
-        modifier(KalenderWeicht(m: m, statistik: side.statistik, reduceMotion: reduceMotion))
-            .animation(PageMotion.animation(side.dragging, reduceMotion, velocity: side.velocity), value: side.statistik)
     }
 }
 

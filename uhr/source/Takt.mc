@@ -30,13 +30,30 @@ module Takt {
         return Training.laeuft() && System.getSystemStats().battery <= Regeln.AKKU_KNAPP;
     }
 
+    function startBefehl() as Void {
+        var st = Stand.daten()["st"];
+        if (!(st instanceof Array) || (st[1] as Number) <= Zeit.jetzt() || (st[1] as Number) == Speicher.lesen("stb", 0)) {
+            return;
+        }
+        Speicher.schreiben("stb", st[1]);
+        if ("lesen".equals(st[0]) && !Lesen.timerLaeuft()) {
+            Lesen.timerStarten();
+            Ansichten.oeffnen(new LesenAnsicht());
+        } else if ("training".equals(st[0]) && !Training.laeuft()) {
+            Training.starten();
+            Ansichten.oeffnen(new UebungenAnsicht(false));
+        }
+    }
+
     function tick() as Void {
+        startBefehl();
         if (Training.laeuft()) {
             trainingPruefen();
         }
         if (!akkuKnapp()) {
             Abgleich.automatisch();
         }
+        Kopplung.takt();
         Hinweise.zeigen(false);
         WatchUi.requestUpdate();
     }

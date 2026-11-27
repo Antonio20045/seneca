@@ -27,10 +27,12 @@ struct FadenLayer: View {
     @State var fragtNeu = false
     @State var zeigtFuellstand = false
     @State var fuellstandBis = Date.distantPast
-    @State var wechselOffen = false
     @State var laedtAelteres = false
     @State var gewachsen: Set<String> = []
     @State var abstandSonde: Int?
+    @State var anhangWahl = false
+    @State var sucht = ProcessInfo.processInfo.environment["SENECA_DEMO_SUCHE"] != nil
+    @State var markiert: String?
 
     var obenMarke: CGFloat { messung.masse["ende"].map { messung.markeUnten + Self.luftUnten - $0 } ?? .infinity }
     static let luftUnten = Stil.abstand.xl
@@ -47,22 +49,18 @@ struct FadenLayer: View {
         return h.finalize()
     }
 
+    private var offeneFrage: SenecaStand.Frage? {
+        guard partner.id != ChatPartner.seneca.id, let s = store.stand else { return nil }
+        return TeamLogik.offeneFragen(s).first { $0.von == partner.kopfName }
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
-            Seite(titel: partner.kopfName, zurueck: zurueckZiel, kopf: .eineZeile, scrollt: false,
-                  beimZurueck: {
-                      guard allowTap() else { return }
-                      model.dismissKeyboard()
-                      zurueck()
-                  },
-                  titelTipp: {
-                      guard allowTap() else { return }
-                      wechselOffen = true
-                  }) {
+            Seite(scrollt: false) {
                 VStack(spacing: 0) {
-                    AgentenLeiste(aktiv: partner, allowTap: allowTap, alle: { wechselOffen = true }, waehle: { gewaehlt($0, proxy) })
-                        .seitenRand()
-                        .padding(.bottom, Stil.abstand.s)
+                    if let f = offeneFrage {
+                        MehrKarte(f: f, antworte: { store.antworte(frage: f.id, wahl: $0) }, andereZeit: { feld = "Lieber um "; fokus = true }).padding(.top, 8).padding(.bottom, 4)
+                    }
                     zustandsZeile
                     fadenBereich(proxy)
                         .overlay(alignment: .bottom) { neuKnopf(proxy) }
@@ -70,13 +68,49 @@ struct FadenLayer: View {
                 }
                 .bewegt(.wechsel, wert: zustand?.satz)
             }
-            .rechts { anhaltenKnopf }
-            .unten { schreibzeile }
+            .reiter {
+                ChatKopf(stand: store.stand, aktiv: partner, zurueck: {
+                    guard allowTap() else { return }
+                    model.dismissKeyboard()
+                    zurueck()
+                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) }, suchen: { model.dismissKeyboard(); sucht = true })
+                .fullScreenCover(isPresented: $sucht) {
+                    SucheSicht(speicher: chat.speicher, springe: { t in sucht = false; springe(t, proxy) }, fertig: { sucht = false })
+                }
+            }
+            .unten {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let l = ChatTafelLogik.laeuft(store.stand) { HStack { ChatLaeuftZeile(satz: l); anhaltenKnopf } }
+                    if let r = offeneFrage?.rueckfragen, !r.isEmpty, feldLeer {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(r, id: \.self) { t in
+                                    Button { _ = model.senden(t, an: partner) } label: {
+                                        Text(t).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.akzent).padding(.horizontal, 16).frame(height: 44)
+                                            .overlay(Capsule().strokeBorder(TafelFarbe.himmel.opacity(0.45), lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden).padding(.bottom, -8)
+                    }
+                    schreibzeile
+                }
+            }
             .padding(.bottom, keyboardHeight)
             .bewegt(.blatt, wert: keyboardHeight)
+            .overlay {
+                if model.gespraech.aktiv {
+                    GespraechTafel(model: model, partner: partner,
+                                   antwort: chat.lives[chat.currentKey]?.text ?? chat.faden(partner).messages.last(where: { $0.role == .seneca })?.text ?? "",
+                                   auftrag: partner.id == ChatPartner.seneca.id ? store.stand?.auftraege_neu?.first : nil,
+                                   rueckgaengig: { _ = store.daten?.handeln("rueckgaengig", ziel: $0) }, tippen: { fokus = true })
+                }
+            }
+            .bewegt(.wechsel, wert: model.gespraech.aktiv)
             .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
             .accessibilityElement(children: .contain)
-            .gegenueberWahl(offen: $wechselOffen, partner: partner, chat: chat) { gewaehlt($0, proxy) }
             .onChange(of: chat.faden(partner).messages.last?.id) { _, id in
                 guard let id, let letzte = chat.faden(partner).messages.last else { return }
                 if letzte.role == .user, id.hasPrefix("lokal-"), model.istOffen(partner) { verankere(id, proxy); return }
@@ -100,13 +134,6 @@ struct FadenLayer: View {
                     pruefeAnfang(proxy)
                 }
             }
-            #if DEBUG
-            .task {
-                guard ProcessInfo.processInfo.environment["SENECA_DEMO_WECHSEL"] == "1" else { return }
-                try? await Task.sleep(for: .seconds(2))
-                wechselOffen = true
-            }
-            #endif
         }
         .background(sonden)
         .onAppear {
@@ -114,6 +141,7 @@ struct FadenLayer: View {
             model.pruefeMikrofon()
             #if DEBUG
             if let text = ProcessInfo.processInfo.environment["SENECA_DEMO_ENTWURF"] { feld = text }
+            demoAnhang(ProcessInfo.processInfo.environment)
             if ProcessInfo.processInfo.environment["SENECA_DEMO_FOKUS"] == "1" {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(1.2))
@@ -131,7 +159,12 @@ struct FadenLayer: View {
         }
         .onChange(of: model.entwurfTick) { _, _ in if feldLeer { feld = chat.entwurf(fuer: partner) } }
         .onChange(of: model.sprechWunsch) { _, _ in sprechWunschErfuellen() }
-        .onAppear { sprechWunschErfuellen() }
+        .onAppear {
+            sprechWunschErfuellen()
+            #if DEBUG
+            if let t = ProcessInfo.processInfo.environment["SENECA_DEMO_WARTET"], model.wartet.isEmpty { _ = model.senden(t, an: partner) }
+            #endif
+        }
         .onChange(of: feld) { _, neu in
             chat.setzeEntwurf(neu, fuer: partner)
             if feldLeer { model.entwurfVerworfen() }
@@ -141,6 +174,7 @@ struct FadenLayer: View {
             if offen { model.zuhoerEnde(.getippt); model.stoppeVorlesen() }
         }
         .onChange(of: model.keyboardDismissTick) { _, _ in fokus = false }
+        .onChange(of: store.isConnected) { _, da in if da { model.nachreichen() } }
         .onChange(of: aktiv) { _, offen in
             guard !offen else { return }
             fokus = false
@@ -149,12 +183,29 @@ struct FadenLayer: View {
         }
     }
 
+    private func wartetHier(_ w: ConversationModel.Wartend) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FadenFrage(text: w.text, breite: m.size.width, zeit: w.zeit).frame(maxWidth: .infinity, alignment: .trailing)
+            Text("Dein Mac schläft. Ich gebe es weiter, sobald er aufwacht.")
+                .font(Sundartha.grotesk(17)).foregroundStyle(TafelFarbe.text).zeilenHoehe(24, schrift: 17).padding(.top, 12)
+            HStack(spacing: 14) {
+                Text("wartet hier · Stand \(HeuteTafelLogik.uhr(w.zeit.timeIntervalSince1970 * 1000))").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                Button("Löschen") { model.wartet.removeAll { $0.id == w.id } }.font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.himmel)
+            }
+            .padding(.top, 6)
+        }
+        .padding(.top, 40)
+    }
+
     private func fadenBereich(_ proxy: ScrollViewProxy) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 Color.clear.frame(height: 0)
                     .background(GeometryReader { g in Color.clear.preference(key: FadenAnfangKey.self, value: g.frame(in: .global).minY) })
-                VStack(alignment: .leading, spacing: 0) { inhalt(proxy) }
+                VStack(alignment: .leading, spacing: 0) {
+                    inhalt(proxy)
+                    ForEach(model.wartet.filter { $0.partner.id == partner.id }) { w in wartetHier(w) }
+                }
                     .seitenRand()
                     .padding(.top, Stil.abstand.l)
                     .padding(.bottom, Self.luftUnten)
@@ -169,6 +220,8 @@ struct FadenLayer: View {
             .coordinateSpace(name: "faden-inhalt")
         }
         .scrollIndicators(.hidden)
+        .environment(\.chatSerif, true)
+        .mask { VStack(spacing: 0) { LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 70); Color.black } }
         .defaultScrollAnchor(ankerAktiv ? .top : .bottom)
         .scrollDismissesKeyboard(.interactively)
         .id(partner.id)

@@ -11,7 +11,7 @@ rundgang: ["08:30", "17:00"]
 befugnisse:
   unterauftrag_an: [produkt, engineer, pruefer, recherche, sundartha, branding, telcoradar]
   werkzeuge: [mcp:zoho-mail]
-  ablage_schreiben: [Privat]
+  ablage_schreiben: [Privat, Sundartha, Vodafone, Boardinghouse, _eingang, _wissen]
   live_nur_mit_ja: true
 budget:
   eigene_auftraege_woche_cent: 300

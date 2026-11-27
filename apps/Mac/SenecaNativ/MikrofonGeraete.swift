@@ -17,6 +17,13 @@ enum MikrofonGeraete {
         AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &d, UInt32(MemoryLayout<AudioDeviceID>.size))
     }
 
+    static func standard() -> (uid: String, name: String)? {
+        var id = AudioDeviceID(0), groesse = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var a = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &a, 0, nil, &groesse, &id) == noErr, let u = uid(id) else { return nil }
+        return (u, name(id) ?? u)
+    }
+
     private static func geraeteIDs() -> [AudioDeviceID] {
         var a = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         var groesse: UInt32 = 0

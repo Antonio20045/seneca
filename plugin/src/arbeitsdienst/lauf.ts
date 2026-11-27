@@ -1,10 +1,10 @@
-import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  auftragAnlegen, auftragSetzen, befund, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
+  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
 } from "../register/schreiben.ts";
-import { naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
-import { mandat, rolle } from "../team.ts";
+import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import { bauregeln, mandat, rolle } from "../team.ts";
 import { aboReihenfolge } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
@@ -66,6 +66,18 @@ function rahmenFrage(db: Register, a: Zeile, art: "auftrag" | "woche", jetzt: nu
   return "rahmen";
 }
 
+function startFrage(db: Register, a: Zeile, grund: string): void {
+  const id = String(a.id);
+  befund(db, { art: "fehler", auftrag_id: id, satz: `${a.verantwortlich} startet nicht, zweimal gleich abgelehnt. ${grund}` });
+  const frage = frageStellen(db, {
+    auftrag_id: id, von: "arbeitsdienst:start", art: "auswahl", text: `${a.verantwortlich} kann „${a.titel}“ nicht starten. Neu versuchen?`,
+    was_passiert_ist: `Der Start wurde zweimal gleich abgelehnt. ${grund}`, wenn_nichts: `Seneca versucht es in ${regelText("start_nachfassen_h")} Stunden noch einmal.`,
+    empfehlung: "Erst die Ursache beheben, dann neu versuchen.",
+    optionen: [{ wert: "weiter", text: "Neu versuchen", folge: "Der Auftrag startet sofort." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
+  });
+  uebergang(db, "auftrag", id, "wartet", "start_abgelehnt", { wartet_auf: `frage:${frage}`, folge: "Der Auftrag ruht bis zur Antwort.", naechster_anlass: uhr.jetzt() + regelMs("start_nachfassen_h") });
+}
+
 export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promise<string> {
   const jetzt = uhr.jetzt();
   const wer = String(a.verantwortlich);
@@ -100,8 +112,11 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
     });
     laufSchritt(db, laufId, "angenommen", { run_id: runId });
   } catch (fehler) {
-    laufEnde(db, laufId, "abgebrochen", { grund: `Start abgelehnt: ${String(fehler)}` });
-    zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_abgelehnt");
+    const grund = `Start abgelehnt: ${String(fehler)}`;
+    const wieder = laeufe(db, String(a.id)).at(-2)?.grund === grund;
+    laufEnde(db, laufId, "abgebrochen", { grund });
+    if (wieder) startFrage(db, hole(db, "auftrag", String(a.id)), grund);
+    else zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_abgelehnt");
   }
   return "gestartet";
 }
@@ -128,6 +143,8 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
   const teile: [string, boolean][] = [
     [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig.`, true],
     [`${rolle(wer)}\nBefugnisse: Unteraufträge an ${m.befugnisse.unterauftrag_an.join(", ")}; Werkzeuge ${m.befugnisse.werkzeuge.join(", ")}; Zugänge ${m.zugaenge.join(", ")}.`, false],
+    [bauregeln(wer), true],
+    [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg.`, true],
     [skill(wer, String(a.arbeitsart)) ?? "", true],
     [(m.kontext[String(a.arbeitsart)] ?? []).map((s) => `${s}: ${wert(db, s)?.wert ?? "nicht hinterlegt"}`).join("\n"), false],
     [`Auftrag von ${a.auftraggeber}, Quelle ${a.wortlaut_quelle}, ${new Date(Number(a.erstellt)).toLocaleString("de-DE")}. Wortlaut:\n${a.wortlaut}`, true],
@@ -148,10 +165,10 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
 }
 
 export type AuftragEingabe = {
-  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen";
+  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen" | "fortsetzen";
   nachricht_kennung?: string; wortlaut?: string; titel?: string; ziel?: string; abnahme?: string; abnahme_durch?: string; pruefer_noetig?: boolean;
   an?: string; bereich?: string; projekt?: string; frist?: number; arbeitsart?: string; schaetzung_min?: number; eltern_id?: string;
-  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string;
+  auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string; termin?: { titel: string; start: number; ende: number; ort?: string };
 };
 
 function laufender(db: Register, sitzung: string): Zeile {
@@ -168,6 +185,12 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     uebergang(db, "auftrag", String(a.id), nach, p.art === "verwerfen" ? "verwerfen" : `abnahme.${p.urteil}`, nach === "bereit" ? { naechster_anlass: uhr.jetzt() } : {});
     if (p.satz) befund(db, { art: "teilergebnis", auftrag_id: String(a.id), satz: p.satz });
     return { auftrag_id: String(a.id), satz: `Auftrag ist jetzt ${nach}.` };
+  }
+  if (p.art === "fortsetzen") {
+    const n = nachrichten.get(ctx.sitzung);
+    if (!n?.vonAntonio || n.kennung !== p.nachricht_kennung) throw new Error("Fortsetzen nur auf Antonios Nachricht in diesem Gespräch.");
+    uebergang(db, "auftrag", String(p.auftrag_id), "bereit", "auftrag.fortsetzen", { naechster_anlass: uhr.jetzt() });
+    return { auftrag_id: String(p.auftrag_id), satz: "Der Auftrag läuft wieder an." };
   }
   if (p.art === "nachfassen") return { auftrag_id: String(p.auftrag_id), satz: nachfassen(db, laufender(db, ctx.sitzung), ctx.agent, String(p.auftrag_id), String(p.satz)) };
   if (p.art === "eigener" && hole(db, "auftrag", String(laufender(db, ctx.sitzung).auftrag_id)).arbeitsart !== "rundgang") throw new Error("Eigene Aufträge entstehen im Rundgang.");
@@ -187,7 +210,8 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     arbeitsart: p.arbeitsart ?? "standard", schaetzung_min: p.schaetzung_min, eltern_id: p.eltern_id,
   };
   if (p.art === "vorschlag") {
-    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist } });
+    if (p.termin && wert(db, `vorschlag:lassen:${new Date(p.termin.start).getDay()}:${p.termin.titel}`)) throw new Error("Antonio will diesen Vorschlag an diesem Wochentag nicht mehr.");
+    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist }, wirkung: p.termin ? { termin: p.termin } : undefined });
     return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
   const { id, kostenrahmen_cent } = auftragAnlegen(db, {
@@ -204,27 +228,41 @@ export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, 
   return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung, nachricht_kennung: kennung });
 }
 
+export function werkzeugProtokoll(db: Register, sitzung: string, werkzeug: string, params: Record<string, unknown>, ms?: number): void {
+  const l = laufZurSitzung(db, sitzung);
+  if (!l || !AKTIV.includes(String(l.zustand))) return;
+  const kurz = String(Object.values(params ?? {}).find((v) => typeof v === "string") ?? "").split("\n")[0];
+  ereignis(db, { art: "lauf.werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: kurz.slice(0, regelZahl("titel_zeichen")), daten: { werkzeug, ms: ms ?? null } });
+}
+
+export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {
+  if (hole(db, "frage", id).von !== von) throw new Error("Nur wer fragt, zieht die Frage zurück.");
+  uebergang(db, "frage", id, "zurueckgezogen", "von", { grund: satz });
+  return { zustand: "zurueckgezogen" };
+}
+
 export type Fortschreibung = {
   letzter_stand: string; naechster_schritt: string; ergebnis: "weiter" | "wartet" | "fertig"; beleg?: string; wartet_auf?: string; folge?: string;
-  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch";
+  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number; abnahme?: Record<string, unknown>;
+  checkliste?: { text: string; fertig: boolean }[]; bericht?: string;
 };
 
 export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschreibung): { zustand: string } {
   const l = laufender(db, sitzung);
   if (p.ergebnis === "wartet" && !(p.wartet_auf && p.folge && p.nachfass_um)) throw new Error("wartet braucht wartet_auf, Folge und Nachfasszeit.");
   if (p.ergebnis === "fertig" && !p.beleg) throw new Error("fertig braucht einen Beleg.");
-  for (const satz of p.befunde ?? []) befund(db, { art: "teilergebnis", satz, auftrag_id: String(l.auftrag_id), lauf_id: String(l.id) });
+  for (const satz of p.befunde ?? []) befund(db, { art: "teilergebnis", satz, auftrag_id: String(l.auftrag_id), lauf_id: String(l.id), beleg: p.beleg });
   if (p.stufe === "hoch") auftragSetzen(db, String(l.auftrag_id), { stufe_fest: "opus" }, "Lauf bittet um höhere Stufe.");
   fortschreibung(db, String(l.id), p);
   return { zustand: "notiert" };
 }
 
-export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, tokens: { ein: number; aus: number }): void {
+export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, tokens: { ein: number; aus: number; cent?: number }): void {
   const l = laufZurSitzung(db, sitzung);
   if (!l || !AKTIV.includes(String(l.zustand))) return;
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const jetzt = uhr.jetzt();
-  const verbrauch = { tokens_ein: tokens.ein, tokens_aus: tokens.aus, kosten_cent: kostenCent(tokens.ein, tokens.aus) };
+  const verbrauch = { tokens_ein: tokens.ein, tokens_aus: tokens.aus, kosten_cent: tokens.cent ?? kostenCent(tokens.ein, tokens.aus) };
   if (!l.fortgeschrieben) {
     laufEnde(db, String(l.id), "abgebrochen", { grund: "ohne Stand", ...verbrauch });
     befund(db, { art: "ohne_stand", auftrag_id: String(a.id), lauf_id: String(l.id), satz: "Der Lauf endete ohne Fortschreibung.", daten: { letzte_antwort: letzteAntwort.slice(0, regelZahl("befund_antwort_zeichen")) } });
@@ -237,12 +275,12 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   if (a.quelle === "dauerauftrag") return uebergang(db, "auftrag", id, "bereit", "termin", { naechster_anlass: naechsterTermin(a, jetzt), fehlversuche: 0 });
   if (f.ergebnis === "weiter") return uebergang(db, "auftrag", id, "bereit", "weiter", { naechster_anlass: jetzt, fehlversuche: 0 });
   if (f.ergebnis === "wartet") return uebergang(db, "auftrag", id, "wartet", "fortschreibung", { wartet_auf: f.wartet_auf ?? null, folge: f.folge ?? null, naechster_anlass: f.nachfass_um ?? null });
-  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg] });
-  const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt");
+  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg], art: f.abnahme_art, hoerprobe_s: f.hoerprobe_s, ...f.abnahme });
+  const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt" && JSON.parse(String(k.ergebnis ?? "{}")).urteil !== "nachbessern");
   if (a.pruefer_noetig && !geprueft) {
     const kind = auftragAnlegen(db, {
       art: "unterauftrag", eltern_id: id, wortlaut: `Prüfe: ${f.letzter_stand} Beleg: ${f.beleg}`, wortlaut_quelle: `lauf:${l.id}`, titel: `Prüfung: ${a.titel}`,
-      ziel: `Prüfen, ob „${a.ziel}“ erfüllt ist.`, abnahme: "Urteil passt oder Mängelliste", abnahme_durch: "auftraggeber", pruefer_noetig: false,
+      ziel: `Prüfen, ob „${a.ziel}“ erfüllt ist.`, abnahme: "Urteil passt oder Mängelliste", abnahme_durch: "beleg", pruefer_noetig: false,
       verantwortlich: regelText("pruefer"), auftraggeber: String(a.verantwortlich), quelle: "kollege", bereich: String(a.bereich), arbeitsart: "pruefen",
     });
     return uebergang(db, "auftrag", id, "wartet", "pruefung", { wartet_auf: `auftrag:${kind.id}`, folge: "Ohne Prüfung keine Abnahme.", naechster_anlass: jetzt + regelMs("pruefung_nachfassen_h") });

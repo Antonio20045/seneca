@@ -14,8 +14,6 @@ extension FadenLayer {
         if model.liestVor || speech.isSpeaking {
             return Zustand(satz: "\(partner.satzName) liest die Antwort vor.", wort: "Aufhören", aktion: { model.unterbrechen() })
         }
-        if model.gespraech.phase == .hoert { return Zustand(satz: "\(partner.satzName) hört zu.") }
-        if model.gespraech.phase == .wartet { return Zustand(satz: "\(partner.satzName) arbeitet, das Mikrofon ist aus.") }
         if fragtNeu {
             let p = partner
             return Zustand(satz: "\(p.satzName) vergisst dann dieses Gespräch.", wort: "Ja, neu beginnen", aktion: {
@@ -74,9 +72,18 @@ extension FadenLayer {
         }
     }
 
+    func springe(_ t: SucheTreffer, _ proxy: ScrollViewProxy) {
+        if partner != t.partner { gewaehlt(t.partner, proxy) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            Bewegung.mit(.blatt) { proxy.scrollTo("r:" + t.nachricht.id, anchor: .center) }
+            Bewegung.mit(.wechsel) { markiert = t.nachricht.id }
+            try? await Task.sleep(for: .seconds(1.6))
+            Bewegung.mit(.wechsel) { if markiert == t.nachricht.id { markiert = nil } }
+        }
+    }
+
     func gewaehlt(_ p: ChatPartner, _ proxy: ScrollViewProxy) {
-        wechselOffen = false
-        AgentenWahl.merke(p.id)
         if partner == p {
             Bewegung.mit(.blatt) { proxy.scrollTo("ende", anchor: .bottom) }
             Task { await chat.refreshFill(p) }
@@ -96,12 +103,3 @@ extension FadenLayer {
     }
 }
 
-extension View {
-    func gegenueberWahl(offen: Binding<Bool>, partner: ChatPartner, chat: ChatService,
-                        waehle: @escaping (ChatPartner) -> Void) -> some View {
-        senecaBlatt(isPresented: offen, groesse: .halb, titel: "Mit wem sprechen?") {
-            GegenueberBlatt(alle: GespraechsPartner.alle, aktiv: partner, neu: chat.neu,
-                            zuletzt: { chat.faden($0).messages.last?.date }, waehle: waehle)
-        }
-    }
-}

@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PfadSperre.belege(bei: sperre)
             haeltEinzelinstanzSperre = true
         }
-        TageslaufHaken.gemeinsam.starte()
         if Hintergrund.aktiv {
             NSApp.setActivationPolicy(.accessory)
             for versuch in 0..<6 {
@@ -58,6 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@main
+enum Start {
+    static func main() {
+        if HeuteBild.ziel != nil { MainActor.assumeIsolated { HeuteBild.laufe() } }
+        SenecaNativApp.main()
+    }
+}
+
 struct SenecaNativApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var modell = AppModell()
@@ -88,6 +95,9 @@ struct SenecaNativApp: App {
                 Button(meeting.nimmtAuf ? "Meeting beenden" : "Meeting aufnehmen") { meeting.umschalten(); if !Hintergrund.aktiv { openWindow(id: "meeting") } }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                     .disabled(meeting.beschaeftigt && !meeting.nimmtAuf)
+                Button("Merken") { meeting.merke() }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                    .disabled(!meeting.nimmtAuf)
                 Button("Meeting-Fenster") { openWindow(id: "meeting") }
             }
             CommandMenu("Seiten") {
@@ -169,7 +179,12 @@ struct SenecaNativApp: App {
             }
             return true
         }
+        modell.store.umfeld = { DiktatDienst.gemeinsam.nimmKontext() }
         meeting.uebersicht = modell.uebersicht
+        meeting.stand = { [weak modell] in modell?.store.stand }
+        meeting.handle = { [weak modell] a, z, w in modell?.store.handle(a, ziel: z, wert: w) }
+        meeting.oeffneFenster = { openWindow(id: "meeting") }
+        meeting.melde = { [weak modell] k, t, x, kn in Task { await modell?.dienste.mitteilungen.zeigeMeeting(k, t, x, kn) } }
         if !MacPfade.nebenher { meeting.starteWache() }
         #if DEBUG
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] != nil {

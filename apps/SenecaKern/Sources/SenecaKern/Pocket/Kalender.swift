@@ -63,10 +63,6 @@ struct KalenderItem: Equatable, Identifiable {
     var isTimed: Bool { kind != .ganztags }
 }
 
-enum KalenderStufe: String, CaseIterable {
-    case tag, woche, monat
-}
-
 enum KalenderLogic {
     static let horizon = 42
 
@@ -90,9 +86,6 @@ enum KalenderLogic {
     static func weekDays(_ weekStart: Date, _ cal: Calendar) -> [Date] {
         (0..<7).map { cal.date(byAdding: .day, value: $0, to: weekStart)! }
     }
-    static func week(_ offset: Int, from now: Date, _ cal: Calendar) -> Date {
-        cal.date(byAdding: .day, value: 7 * offset, to: weekStart(now, cal))!
-    }
     static func weekOffset(of date: Date, from now: Date, _ cal: Calendar) -> Int {
         let days = cal.dateComponents([.day], from: weekStart(now, cal), to: weekStart(date, cal)).day ?? 0
         return Int((Double(days) / 7).rounded(.down))
@@ -105,25 +98,6 @@ enum KalenderLogic {
     static func monthOffset(of date: Date, from now: Date, _ cal: Calendar) -> Int {
         cal.dateComponents([.month], from: monthStart(now, cal), to: monthStart(date, cal)).month ?? 0
     }
-    static func monthWeeks(_ monthStart: Date, _ cal: Calendar) -> [Date] {
-        let end = cal.date(byAdding: .month, value: 1, to: monthStart)!
-        var out: [Date] = []
-        var w = weekStart(monthStart, cal)
-        while w < end {
-            out.append(w)
-            w = cal.date(byAdding: .day, value: 7, to: w)!
-        }
-        return out
-    }
-    static func maxIndex(_ stufe: KalenderStufe, now: Date, _ cal: Calendar) -> Int {
-        let last = day(horizon - 1, from: now, cal)
-        switch stufe {
-        case .tag: return horizon - 1
-        case .woche: return weekOffset(of: last, from: now, cal)
-        case .monat: return monthOffset(of: last, from: now, cal)
-        }
-    }
-
     static func isRoutine(_ t: KalenderTermin) -> Bool {
         (t.calendar ?? "").trimmingCharacters(in: .whitespaces).lowercased() == "routine" || t.title.lowercased().contains("#routine")
     }
@@ -207,10 +181,6 @@ enum KalenderLogic {
         if a.month == b.month { return "\(a.day!). bis \(b.day!). \(months[b.month! - 1])" }
         return "\(a.day!). \(months[a.month! - 1]) bis \(b.day!). \(months[b.month! - 1])"
     }
-    static func weekSpan(_ weekStart: Date, _ cal: Calendar) -> String {
-        let last = cal.date(byAdding: .day, value: 6, to: weekStart)!
-        return "\(cal.component(.day, from: weekStart)). – \(cal.component(.day, from: last))."
-    }
     static func weekLine(_ weekStart: Date, _ cal: Calendar) -> String { "Woche \(weekNumber(weekStart, cal)) · \(weekRange(weekStart, cal))" }
     static func monthLine(_ monthStart: Date, _ cal: Calendar) -> String { "\(monthName(monthStart, cal)) \(cal.component(.year, from: monthStart))" }
 
@@ -231,7 +201,7 @@ enum KalenderLogic {
         let who = DayLogic.agentName(id, leaders)
         if who == "ein Mitarbeiter" { return "von einem deiner Agenten" }
 #if os(iOS)
-        if who.hasPrefix("der ") { return "vom " + NeedsYou.dativ(String(who.dropFirst(4))) }
+        if who.hasPrefix("der ") { return "vom " + who.dropFirst(4) + (who.hasSuffix("Agent") ? "en" : "") }
 #else
         if who.hasPrefix("der ") { return "vom " + who.dropFirst(4) }
 #endif

@@ -49,10 +49,12 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
     var zustand: ZustellZustand?
     var vermerk: String?
     var absender: String?
+    var geraet: String?
 
     init(id: String, role: Role, text: String, date: Date? = nil, fromPhone: Bool = false, key: String? = nil, zustand: ZustellZustand? = nil, vermerk: String? = nil,
-         absender: String? = nil) {
+         absender: String? = nil, geraet: String? = nil) {
         self.vermerk = vermerk
+        self.geraet = geraet
         self.absender = absender
         self.id = id; self.role = role; self.text = text; self.date = date; self.fromPhone = fromPhone
         self.key = key; self.zustand = zustand
@@ -61,7 +63,7 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
     var istLokal: Bool { id.hasPrefix("lokal-") }
 }
 
-struct ChatPartner: Identifiable, Equatable, Sendable {
+struct ChatPartner: Identifiable, Equatable, Sendable, Codable {
     var id: String
     var kopfName: String
     var nominativ: String
@@ -178,12 +180,9 @@ enum ChatCommand: Equatable, Sendable {
 }
 
 enum ChatLogic {
-    static let phoneMarker = "\n\n[Vom iPhone"
+    static let hinweisMuster = #"\s*\[Vom (iPhone|Mac)[^\]]*\]\s*$"#
 
-    static func stripPhoneHint(_ text: String) -> String {
-        guard let r = text.range(of: phoneMarker) ?? text.range(of: "[Vom iPhone") else { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return String(text[..<r.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    static func ohneHinweis(_ text: String) -> String { text.ersetze(hinweisMuster, "").trimmingCharacters(in: .whitespacesAndNewlines) }
 
     static func text(of value: Any?) -> String {
         if let text = value as? String { return text }
@@ -272,13 +271,6 @@ enum ChatLogic {
         key == Hauptagent.id || (AreasLogic.agentID(of: key) == Hauptagent.id && key.hasSuffix(":main"))
     }
 
-    static func kontextNeuParams(key: String, expectedSessionId: String? = nil) -> [String: Any] {
-        let voll = key.hasPrefix("agent:") ? key : "agent:main:\(key)"
-        var params: [String: Any] = ["key": voll, "agentId": AreasLogic.agentID(of: voll)]
-        if let id = expectedSessionId, !id.isEmpty { params["expectedSessionId"] = id }
-        return params
-    }
-
     static func isTechnicalText(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if isBackgroundUserText(t) || (t.hasPrefix("[") && !t.contains("](")) { return true }
@@ -288,7 +280,7 @@ enum ChatLogic {
 
     static func preview(_ raw: String?) -> String? {
         guard let raw else { return nil }
-        let text = stripPhoneHint(raw)
+        let text = ohneHinweis(raw)
         if text.isEmpty || isTechnicalText(text) { return nil }
         var lines: [String] = []
         for line in text.components(separatedBy: .newlines) {
@@ -512,7 +504,6 @@ final class ChatService: ObservableObject {
     var currentKey: String { partner.sessionKey(main: mainKey) }
     var messages: [ChatMessage] { speicher.nachrichten(currentKey) }
     var fill: ChatFill? { fuellstand[currentKey] }
-    var canReset: Bool { grantedRechte.contains("admin") }
     var isMainConversation: Bool { ChatLogic.isSenecaMain(currentKey) }
 
     var isShowing = false {
@@ -671,36 +662,15 @@ final class ChatService: ObservableObject {
     func reset(_ p: ChatPartner? = nil) async -> Bool {
         let p = p ?? partner
         let key = p.sessionKey(main: mainKey)
-        if demo {
-            speicher.leere(key)
-            fuellstand[key] = ChatFill(used: 0, window: fuellstand[key]?.window ?? 1_000_000)
-            resets += 1
-            return true
+        if !demo {
+            guard let store, store.isConnected else { problem = "Der Mac ist gerade nicht erreichbar."; return false }
+            store.handle("gespraech.neu", ziel: key.hasPrefix("agent:") ? key : "agent:main:\(key)")
         }
-        guard let store else { problem = "Der Mac ist gerade nicht erreichbar."; return false }
-        var sessionId: String?
-        if let described = try? await store.rufe("sessions.describe", params: ["key": key]) {
-            sessionId = ((described["session"] as? [String: Any]) ?? described)["sessionId"] as? String
-        }
-        let params = ChatLogic.kontextNeuParams(key: key, expectedSessionId: sessionId)
-        do {
-            do {
-                _ = try await store.rufe("seneca.kontext.neu", params: params)
-            } catch where canReset {
-                var direkt = params
-                direkt["reason"] = "new"
-                _ = try await store.rufe("sessions.reset", params: direkt)
-            }
-            speicher.leere(key)
-            problem = nil
-            resets += 1
-            await speicher.nachholen(key, grund: .hand)
-            await refreshFill(p)
-            return true
-        } catch {
-            problem = (error as? LocalizedError)?.errorDescription ?? "Leeren hat nicht geklappt."
-            return false
-        }
+        speicher.leere(key)
+        fuellstand[key] = ChatFill(used: 0, window: fuellstand[key]?.window ?? 1_000_000)
+        problem = nil
+        resets += 1
+        return true
     }
 
     func setLives(_ values: [ChatLive]) {
@@ -883,6 +853,13 @@ enum ChatDemo {
         case "sundartha": return sundartha(now: now)
         default:
             if art == "lang" { return langerFaden(now: now) }
+            if art == "tafel" {
+                return [ChatMessage(id: "mac-demo-t0", role: .user, text: "Leg den Zahnarzt auf Dienstag früh und sag Nora, dass ich zehn Minuten später komme.", date: zeit(now, tage: 0, 10, 4)),
+                        ChatMessage(id: "demo-t1", role: .seneca, text: "Erledigt. Der Zahnarzt ist jetzt am Dienstag früh, und Nora weiß, dass du zehn Minuten später kommst.",
+                                    date: zeit(now, tage: 0, 10, 5)),
+                        ChatMessage(id: "demo-t2", role: .user, text: "Sag Engineer, er soll die Begrüßung auf unter zehn Sekunden kürzen.", date: zeit(now, tage: 0, 11, 24), fromPhone: true),
+                        ChatMessage(id: "demo-t3", role: .seneca, text: "Engineer übernimmt. Ich sage dir Bescheid, wenn sie fertig ist.", date: zeit(now, tage: 0, 11, 24).addingTimeInterval(20))]
+            }
             var out = history(for: Hauptagent.sitzung, now: now)
             if art == "langeantwort" { out += langeAntwort(now: now) }
             return out

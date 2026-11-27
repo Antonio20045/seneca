@@ -1,4 +1,6 @@
 import SwiftUI
+import PDFKit
+import AVFoundation
 import AppKit
 import Quartz
 
@@ -24,8 +26,8 @@ struct Abschnitte: View {
                         ForEach(Array(gruppen.enumerated()), id: \.offset) { _, g in
                             switch g {
                             case .fluss(let attr): MarkdownFlussView(text: attr)
-                            case .code(let t): CodeBlockView(code: t, live: live)
-                            case .table(let header, let rows): TabelleView(header: header, rows: rows)
+                            case .code(let t, let titel): CodeBlockView(code: t, titel: titel, live: live)
+                            case .table(let header, let rows): TabelleAnsicht(t: Karte.Tabelle(spalten: header, zeilen: rows)).textSelection(.enabled).accessibilityIdentifier("antwort-tabelle")
                             case .image(let alt, let src): BildBlockView(alt: alt, src: src)
                             case .datei(let pfad): DateiKachelView(pfad: pfad)
                             case .trenner: Divider().overlay(Farbe.linie)
@@ -42,7 +44,7 @@ struct Abschnitte: View {
 
 enum FertigerAbschnitt {
     case fluss(NSAttributedString)
-    case code(String)
+    case code(String, titel: String?)
     case table(header: [String], rows: [[String]])
     case image(alt: String, src: String)
     case datei(String)
@@ -88,7 +90,7 @@ enum Inhaltsspeicher {
                 return .abschnitte(Inhaltsabschnitt.gruppiere(MDParser.parse(t, live: art == .offen)).map { g in
                     switch g {
                     case .fluss(let b): return .fluss(Inhaltsabschnitt.flussAttributed(b))
-                    case .code(_, let s): return .code(s)
+                    case .code(let l, let s): return .code(s, titel: l.flatMap { $0.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init) })
                     case .table(let h, let r): return .table(header: h, rows: r)
                     case .image(let alt, let src): return .image(alt: alt, src: src)
                     case .datei(let p): return .datei(p)
@@ -154,8 +156,14 @@ enum Inhaltsabschnitt {
                 attrs[.link] = link
                 attrs[.foregroundColor] = NSColor(Farbe.himmel)
                 attrs[.cursor] = NSCursor.pointingHand
+                attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                attrs[.underlineColor] = NSColor(Farbe.himmel).withAlphaComponent(0.4)
             }
             out.append(NSAttributedString(string: stueck, attributes: attrs))
+            if let ziel = run.link?.host, !stueck.contains(ziel) {
+                let pfad = (ziel + run.link!.path)
+                out.append(NSAttributedString(string: " " + (pfad.count > 15 ? String(pfad.prefix(15)) + "…" : pfad), attributes: [.font: nsMono(11), .foregroundColor: NSColor(TafelFarbe.aus)]))
+            }
         }
         return out
     }
@@ -164,12 +172,12 @@ enum Inhaltsabschnitt {
         let out = NSMutableAttributedString()
         for (i, b) in bloecke.enumerated() {
             let para = NSMutableParagraphStyle()
-            para.lineSpacing = 3
+            para.lineSpacing = 4
             para.paragraphSpacingBefore = i == 0 ? 0 : 8
             let stueck: NSMutableAttributedString
             switch b.kind {
             case .paragraph(let t):
-                stueck = inlineNS(t, basis: nsGrotesk(.light, 15), farbe: NSColor(Farbe.ink))
+                stueck = inlineNS(t, basis: nsGrotesk(.regular, 15), farbe: NSColor(TafelFarbe.zweit))
             case .heading(let level, let t):
                 let groesse: CGFloat = level == 1 ? 30 : level == 2 ? 25 : 21
                 stueck = inlineNS(t, basis: nsSerif(groesse), farbe: NSColor(Farbe.ink1))
@@ -179,17 +187,20 @@ enum Inhaltsabschnitt {
                 let praefix: String
                 switch marker {
                 case .bullet: praefix = "•  "; praefixFarbe = NSColor(Farbe.himmel)
-                case .number(let n): praefix = "\(n).  "
+                case .number(let n): praefix = "\(n)\t"; praefixFarbe = NSColor(TafelFarbe.himmel)
                 case .check(let an):
                     praefix = an ? "☑  " : "☐  "
                     praefixFarbe = an ? NSColor(Farbe.gruen) : NSColor(Farbe.ink3)
                 }
-                let s = NSMutableAttributedString(string: praefix, attributes: [.font: nsGrotesk(.light, 15), .foregroundColor: praefixFarbe])
-                s.append(inlineNS(t, basis: nsGrotesk(.light, 15), farbe: NSColor(Farbe.ink)))
+                let nummer: Bool = { if case .number = marker { return true }; return false }()
+                let s = NSMutableAttributedString(string: praefix, attributes: [.font: nummer ? nsMono(12) : nsGrotesk(.light, 15), .foregroundColor: praefixFarbe])
+                s.append(inlineNS(t, basis: nsGrotesk(.regular, 15), farbe: NSColor(nummer ? TafelFarbe.text : TafelFarbe.zweit)))
                 if case .check(true) = marker { s.addAttribute(.strikethroughStyle, value: 0, range: NSRange(location: 0, length: s.length)) }
                 stueck = s
                 para.headIndent = CGFloat(depth) * 18 + 22
-                para.firstLineHeadIndent = CGFloat(depth) * 18 + 4
+                para.firstLineHeadIndent = CGFloat(depth) * 18 + (nummer ? 0 : 4)
+                para.tabStops = [NSTextTab(textAlignment: .left, location: CGFloat(depth) * 18 + 22)]
+                para.paragraphSpacingBefore = i == 0 ? 0 : 6
             case .quote(let t):
                 let s = NSMutableAttributedString(string: "▌ ", attributes: [.font: nsGrotesk(.regular, 18), .foregroundColor: NSColor(Farbe.himmel).withAlphaComponent(0.5)])
                 s.append(inlineNS(t, basis: nsSerif(18, kursiv: true), farbe: NSColor(Farbe.ink2)))
@@ -329,40 +340,32 @@ struct MarkdownFlussView: NSViewRepresentable {
 
 struct CodeBlockView: View {
     var code: String
+    var titel: String?
     var live: Bool
     @State private var offen = false
-    @State private var ueber = false
     @State private var kopiert = false
 
     var body: some View {
         let langStr = CodeFalte.eingeklappt(code) && !live
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                if langStr {
-                    Button { withAnimation(Kurve.ease(0.25)) { offen.toggle() } } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(offen ? 90 : 0))
-                            Text("Code · \(CodeFalte.zeilen(code)) Zeilen")
-                        }
-                        .font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink3)
-                        .padding(.horizontal, 12).padding(.vertical, 8).contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("code-falte")
-                } else {
-                    Spacer(minLength: 0)
+            if langStr {
+                Button { withAnimation(Kurve.ease(0.25)) { offen.toggle() } } label: {
+                    Text((offen ? "▾ " : "▸ ") + "\(titel ?? "Code") · \(CodeFalte.zeilen(code)) Zeilen").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise).contentShape(Rectangle())
                 }
-                kopierKnopf
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("code-falte")
+            } else if let titel {
+                Text(titel).foregroundStyle(TafelFarbe.leise)
             }
-            if !langStr || offen {
-                Text(code).font(Schrift.mono(13)).foregroundStyle(Farbe.ink)
-                    .textSelection(.enabled)
-                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-            }
+            if !langStr || offen { Text(code).foregroundStyle(TafelFarbe.text).textSelection(.enabled).fixedSize(horizontal: true, vertical: false) }
         }
+        .font(Schrift.mono(13)).lineHeight(.exact(points: 20))
+        .padding(.horizontal, 14).padding(.bottom, 12).padding(.top, 34)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farbe.flaeche, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onHover { ueber = $0 }
+        .clipped()
+        .background(TafelFarbe.hex(0x030A18, 0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        .overlay(alignment: .topTrailing) { kopierKnopf.padding(.trailing, 10).padding(.top, 8) }
     }
 
     private var kopierKnopf: some View {
@@ -372,83 +375,46 @@ struct CodeBlockView: View {
             kopiert = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { kopiert = false }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: kopiert ? "checkmark" : "doc.on.doc").font(.system(size: 10.5, weight: .medium))
-                if kopiert { Text("Kopiert").font(Schrift.grotesk(11.5)) }
+            HStack(spacing: 6) {
+                Image(systemName: kopiert ? "checkmark" : "doc.on.doc").font(.system(size: 11, weight: .medium))
+                Text(kopiert ? "Kopiert" : "Kopieren").font(Schrift.grotesk(12))
             }
-            .foregroundStyle(kopiert ? Farbe.gruen : Farbe.ink3)
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .contentShape(Rectangle())
+            .foregroundStyle(kopiert ? TafelFarbe.gruen : TafelFarbe.zweit).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .opacity(ueber || kopiert ? 1 : 0.55)
         .accessibilityLabel("Code kopieren")
         .accessibilityIdentifier("code-kopieren")
-    }
-}
-
-struct TabelleView: View {
-    var header: [String]
-    var rows: [[String]]
-
-    var body: some View {
-        let spalten = header.count
-        Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 8) {
-            GridRow {
-                ForEach(Array(header.enumerated()), id: \.offset) { _, h in
-                    Text(MDInline.attributed(h)).font(Schrift.grotesk(12.5, .medium)).foregroundStyle(Farbe.ink2)
-                }
-            }
-            Divider().overlay(Farbe.linie).gridCellColumns(max(spalten, 1))
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, zeile in
-                GridRow {
-                    ForEach(0..<spalten, id: \.self) { i in
-                        Text(MDInline.attributed(i < zeile.count ? zeile[i] : "")).font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink)
-                    }
-                }
-            }
-        }
-        .textSelection(.enabled)
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farbe.flaeche, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Farbe.linie, lineWidth: 1))
-        .accessibilityIdentifier("antwort-tabelle")
     }
 }
 
 struct BildBlockView: View {
     var alt: String
     var src: String
+    var von = "von Seneca"
     @State private var bild: NSImage?
-    @State private var gross = false
+    @Environment(\.bildBuehne) private var buehne
+    @Environment(\.bildZeit) private var zeit
 
     private var dateiPfad: String? { DateiErkennung.pfad(aus: src) }
 
     var body: some View {
         Group {
             if let bild {
-                Image(nsImage: bild).resizable().scaledToFit()
-                    .frame(maxWidth: 420, maxHeight: 320)
+                Image(nsImage: bild).resizable().aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 300, maxHeight: 188, alignment: .leading)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Farbe.linie, lineWidth: 1))
-                    .onTapGesture { gross = true }
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                    .fixedSize()
+                    .onTapGesture { buehne?.offen = src }
+                    .onAppear { buehne?.melde(.init(id: src, bild: bild, titel: alt.isEmpty ? (src as NSString).lastPathComponent : alt, herkunft: von + (zeit.map { " · " + Formate.hhmm($0) } ?? ""))) }
                     .accessibilityLabel(alt.isEmpty ? "Bild" : alt)
                     .accessibilityAddTraits(.isButton)
             } else {
                 Label(alt.isEmpty ? "Bild nicht gefunden" : alt, systemImage: "photo")
-                    .font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink4)
+                    .font(Schrift.grotesk(12.5)).foregroundStyle(TafelFarbe.leise)
             }
         }
         .task { lade() }
-        .sheet(isPresented: $gross) {
-            VStack(spacing: 0) {
-                if let bild { Image(nsImage: bild).resizable().scaledToFit() }
-                Button("Schließen") { gross = false }.buttonStyle(NebenKnopfStil()).padding(14)
-            }
-            .frame(minWidth: 420, minHeight: 320)
-            .background(Farbe.grund)
-        }
     }
 
     private func lade() {
@@ -473,31 +439,19 @@ struct DateiKachelView: View {
     private var ordner: String { ((pfad as NSString).deletingLastPathComponent as NSString).lastPathComponent }
     private var url: URL { URL(fileURLWithPath: pfad) }
 
+    private var endung: String { (pfad as NSString).pathExtension.lowercased() }
+    private var meta: String {
+        let groesse = ((try? FileManager.default.attributesOfItem(atPath: pfad)[.size]) as? Int).map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) }
+        let seiten = endung == "pdf" ? PDFDocument(url: url).map { "\($0.pageCount) Seiten" } : nil
+        return existiert ? ([seiten, groesse].compactMap { $0 } + ["Vorschau mit Leertaste"]).joined(separator: " · ") : "nicht gefunden"
+    }
+
     var body: some View {
-        Button { if existiert { AppActions.dateiOeffnen(pfad) } } label: {
-            HStack(spacing: 10) {
-                Group {
-                    if let vorschau { Image(nsImage: vorschau).resizable().scaledToFill() }
-                    else { Image(systemName: SnAnhangSymbol.name(fuer: (pfad as NSString).pathExtension)).font(.system(size: 17)).foregroundStyle(Farbe.himmel) }
-                }
-                .frame(width: 36, height: 36)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(name).font(Schrift.grotesk(13, .medium)).foregroundStyle(Farbe.ink).lineLimit(1).truncationMode(.middle)
-                    Text(existiert ? ordner : "nicht gefunden").font(Schrift.grotesk(12)).foregroundStyle(existiert ? Farbe.ink3 : Farbe.ink4)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .frame(maxWidth: 420, alignment: .leading)
-            .background(Farbe.flaeche, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Farbe.linie, lineWidth: 1))
-            .opacity(existiert ? 1 : 0.6)
-            .contentShape(Rectangle())
+        Group {
+            if existiert, ["m4a", "mp3", "wav", "aac", "caf"].contains(endung) { SnTonKachel(url: url) } else { kachel }
         }
-        .buttonStyle(.plain)
-        .disabled(!existiert)
+        .frame(width: 360, alignment: .leading)
+        .snFlaeche(endung == "pdf" ? 12 : 14, deckkraft: 0.07)
         .task { ladeVorschau() }
         .background(DateiVorschauView(url: url, ausloesen: $quickLook))
         .contextMenu {
@@ -509,6 +463,26 @@ struct DateiKachelView: View {
         }
         .accessibilityLabel("Datei \(name)\(existiert ? "" : ", nicht gefunden")")
         .accessibilityIdentifier("datei-kachel")
+    }
+
+    private var kachel: some View {
+        Button { if existiert { AppActions.dateiOeffnen(pfad) } } label: {
+            HStack(spacing: 12) {
+                Group {
+                    if let vorschau { Image(nsImage: vorschau).resizable().scaledToFill() }
+                    else { Text(endung.uppercased()).font(Schrift.mono(8, .medium)).foregroundStyle(TafelFarbe.aufHimmel).padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading) }
+                }
+                .frame(width: 30, height: 38).background(TafelFarbe.hex(0xE9ECF1)).clipShape(RoundedRectangle(cornerRadius: 4))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(name).font(Schrift.grotesk(13)).lineHeight(.exact(points: 18)).foregroundStyle(Color.white).lineLimit(1).truncationMode(.middle)
+                    Text(meta).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10).opacity(existiert ? 1 : 0.6).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!existiert)
     }
 
     private func ladeVorschau() {
@@ -596,5 +570,37 @@ struct EntwurfKarteView: View {
         .background(Farbe.flaeche, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Farbe.linie, lineWidth: 1))
         .accessibilityIdentifier("entwurf-karte")
+    }
+}
+
+struct SnTonKachel: View {
+    var url: URL
+    @State private var spieler: AVAudioPlayer?
+    @State private var dauer: Double = 0
+    private static let balken: [CGFloat] = [6, 12, 18, 10, 20, 14, 8, 16, 22, 12, 6, 14, 18, 10, 8, 12, 16, 6, 10, 14]
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.2)) { _ in
+            let anteil = dauer > 0 ? (spieler?.currentTime ?? 0) / dauer : 0
+            HStack(spacing: 12) {
+                Button {
+                    if spieler == nil { spieler = try? AVAudioPlayer(contentsOf: url) }
+                    if spieler?.isPlaying == true { spieler?.pause() } else { spieler?.play() }
+                } label: {
+                    Image(systemName: spieler?.isPlaying == true ? "pause.fill" : "play.fill").font(.system(size: 13)).foregroundStyle(TafelFarbe.aufHimmel)
+                        .frame(width: 36, height: 36).background(Circle().fill(Color.white))
+                }
+                .buttonStyle(.plain)
+                HStack(spacing: 2) {
+                    ForEach(Array(Self.balken.enumerated()), id: \.offset) { i, h in
+                        RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(Double(i) / Double(Self.balken.count) < max(anteil, 0.45) ? 0.7 : 0.25)).frame(width: 3, height: h)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(VerlaufLogik.uhrDauer(dauer)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.zweit).monospacedDigit()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+        }
+        .task { dauer = (try? await AVURLAsset(url: url).load(.duration).seconds) ?? 0 }
     }
 }

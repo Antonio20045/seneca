@@ -38,11 +38,23 @@ final class MeetingDienst: ObservableObject {
     @Published private(set) var hinweise: [String] = []
     @Published private(set) var ollama: OllamaStand?
     @Published private(set) var vorschlag: String?
-    @Published private(set) var uebernahme = ""
-    @Published private(set) var uebernommen = 0
+    @Published private(set) var marken: [TimeInterval] = []
+    @Published private(set) var luecken: [[Double]] = []
+    @Published private(set) var bescheid: String?
+    @Published private(set) var endetIn: Int?
+    @Published private(set) var ohneSystemton = false
+    @Published private(set) var fasstSeit: Date?
+    @Published var fensterOffen = false
     @Published private(set) var fruehere: [MeetingAufnahme] = []
 
     var uebersicht: OverviewStore?
+    var stand: () -> SenecaStand? = { nil }
+    var handle: (String, String?, [String: JSONWert]) -> Void = { _, _, _ in }
+    var melde: (String, String, String, [String]) -> Void = { _, _, _, _ in }
+    private var termin: SenecaStand.Termin?
+    private var konferenz: String?
+    private var konferenzSeit: Date?
+    private var weiter = false
     var oeffneFenster: (() -> Void)?
 
     let prozess = OllamaProzessEcht()
@@ -56,7 +68,6 @@ final class MeetingDienst: ObservableObject {
     private var liveKanal: [Int: [MeetingSegment]] = [:]
     private var takt: Task<Void, Never>?
     private var wache: Task<Void, Never>?
-    private var micSeit: Date?
     private var schonGefragt = false
     private var ollamaTask: Task<OllamaStand, Never>?
     private var liveLaeuft = false
@@ -95,35 +106,102 @@ final class MeetingDienst: ObservableObject {
         }
     }
 
+    static func regel(_ n: String, _ v: Double) -> Double { AppRegel.wert(n, v) }
+    static var nie: Set<String> { Set(UserDefaults.standard.stringArray(forKey: "meeting.nie") ?? []) }
+
     private func pruefeKonferenz() {
-        let laeuft = Self.mikrofonLaeuft()
-        if laeuft { if micSeit == nil { micSeit = Date() } } else { micSeit = nil; schonGefragt = false; if vorschlag != nil { vorschlag = nil } }
-        let apps = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
-        let v = MeetingErkennung.vorschlag(mikrofonSeit: micSeit, laufendeApps: apps, nimmtAuf: beschaeftigt, schonGefragt: schonGefragt, jetzt: Date())
-        if let v, vorschlag != v { vorschlag = v }
-        if vorschlag != nil, beschaeftigt { vorschlag = nil }
+        let app = MeetingErkennung.app(Self.mikrofonApps(), nie: Self.nie)
+        if nimmtAuf {
+            if konferenz != nil, app == nil, !weiter, endetIn == nil { zaehleAus() }
+            if app != nil { konferenz = app; endetIn = nil }
+            return
+        }
+        if app != konferenz { konferenz = app; konferenzSeit = app == nil ? nil : Date(); schonGefragt = false; vorschlag = nil }
+        guard let app, !beschaeftigt, !schonGefragt, let seit = konferenzSeit, Date().timeIntervalSince(seit) >= Self.regel("meeting_erkennen_s", 20) else { return }
+        let name = MeetingErkennung.konferenzApps[app] ?? app
+        let t = aktuellerTermin()
+        vorschlag = name; schonGefragt = true
+        melde("erkannt", (t.map { $0.titel } ?? "Gespräch") + " aufnehmen?",
+              name + " benutzt das Mikrofon" + (t.map { " · im Kalender: \($0.titel) " + HeuteTafelLogik.uhr($0.start) } ?? ""), ["Aufnehmen", "Nein", "Nie bei " + name])
     }
+
+    private func zaehleAus() {
+        let n = Int(Self.regel("meeting_ende_s", 10))
+        endetIn = n
+        Task { [weak self] in
+            for i in stride(from: n - 1, through: 0, by: -1) {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, self.endetIn != nil, self.nimmtAuf else { return }
+                self.endetIn = i
+            }
+            guard let self, self.endetIn == 0 else { return }
+            self.endetIn = nil
+            await self.stoppe()
+        }
+    }
+
+    func weiterAufnehmen() { weiter = true; endetIn = nil }
 
     func vorschlagVerwerfen() { schonGefragt = true; vorschlag = nil }
 
-    nonisolated static func mikrofonLaeuft() -> Bool {
-        var geraet = AudioDeviceID(0)
-        var groesse = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var a = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &a, 0, nil, &groesse, &geraet) == noErr else { return false }
-        var an: UInt32 = 0
-        groesse = UInt32(MemoryLayout<UInt32>.size)
-        a.mSelector = kAudioDevicePropertyDeviceIsRunningSomewhere
-        return AudioObjectGetPropertyData(geraet, &a, 0, nil, &groesse, &an) == noErr && an != 0
+    func nieBei() {
+        guard let k = konferenz else { return }
+        UserDefaults.standard.set(Array(Self.nie.union([k])), forKey: "meeting.nie"); vorschlagVerwerfen()
     }
+
+    private func aktuellerTermin() -> SenecaStand.Termin? {
+        let jetzt = Date().timeIntervalSince1970 * 1000
+        return stand()?.termine?.first { $0.ganztag != true && $0.start - 600_000 <= jetzt && jetzt <= $0.ende }
+    }
+
+    private var gegenueber: String? {
+        guard let t = termin else { return nil }
+        let n = (t.teilnehmer ?? t.mit ?? []).filter { !$0.lowercased().contains("antonio") }
+        return n.count == 1 ? n[0].split(separator: " ").first.map(String.init) : nil
+    }
+
+    func bescheidGesagt(_ ja: Bool) {
+        guard let b = bescheid else { return }
+        bescheid = nil
+        guard ja else { return }
+        UserDefaults.standard.set((UserDefaults.standard.stringArray(forKey: "meeting.bescheid") ?? []) + [b], forKey: "meeting.bescheid")
+        hinweise.append("\(b) weiß Bescheid, dass Seneca mitschreibt.")
+        Task { await starte(gesagt: true) }
+    }
+
+    nonisolated static func mikrofonApps() -> Set<String> {
+        let sys = AudioObjectID(kAudioObjectSystemObject)
+        var a = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var g: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(sys, &a, 0, nil, &g) == noErr else { return [] }
+        var ids = [AudioObjectID](repeating: 0, count: Int(g) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(sys, &a, 0, nil, &g, &ids) == noErr else { return [] }
+        var aus = Set<String>()
+        for id in ids {
+            var an: UInt32 = 0
+            var s = UInt32(MemoryLayout<UInt32>.size)
+            a.mSelector = kAudioProcessPropertyIsRunningInput
+            guard AudioObjectGetPropertyData(id, &a, 0, nil, &s, &an) == noErr, an != 0 else { continue }
+            var b: Unmanaged<CFString>?
+            s = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            a.mSelector = kAudioProcessPropertyBundleID
+            if AudioObjectGetPropertyData(id, &a, 0, nil, &s, &b) == noErr, let b { aus.insert(b.takeRetainedValue() as String) }
+        }
+        return aus
+    }
+
+    func merke() { if nimmtAuf { marken.append(dauer) } }
 
     func umschalten() { if nimmtAuf { Task { await stoppe() } } else { Task { await starte() } } }
 
-    func starte() async {
+    func starte(gesagt: Bool = false) async {
         guard !beschaeftigt else { return }
+        termin = aktuellerTermin()
+        if !gesagt, let g = gegenueber, !(UserDefaults.standard.stringArray(forKey: "meeting.bescheid") ?? []).contains(g) { bescheid = g; oeffneFenster?(); return }
         zustand = .startet
-        vorschlag = nil; schonGefragt = true
-        hinweise = []; live = []; liveKanal = [:]; antworten = []; ablage = nil; uebernahme = ""; uebernommen = 0; dauer = 0
+        vorschlag = nil; schonGefragt = true; weiter = false; endetIn = nil; ohneSystemton = false
+        if !gesagt { hinweise = [] }
+        live = []; liveKanal = [:]; antworten = []; ablage = nil; dauer = 0
         guard await DiktatAufnahme.freigabe() else { zustand = .fehler((DiktatAufnahme.Fehler.keineFreigabe).errorDescription ?? "Kein Zugriff auf das Mikrofon."); return }
         guard let basis = Self.aufnahmenOrdner else { zustand = .fehler("Der Ordner für Aufnahmen lässt sich nicht anlegen."); return }
         let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"; f.locale = Locale(identifier: "en_US_POSIX")
@@ -134,6 +212,11 @@ final class MeetingDienst: ObservableObject {
             let mik = MeetingMikrofon()
             mik.pegel = { [weak self] p in Task { @MainActor in self?.pegel = Double(p) } }
             mik.fehlgeschlagen = { [weak self] nachricht in Task { @MainActor in await self?.beendeAufnahme(abbruch: nachricht) } }
+            mik.gewechselt = { [weak self] s in Task { @MainActor in
+                guard let self else { return }
+                self.luecken.append([Date().timeIntervalSince(self.beginn) - s, s])
+                self.protokoll.schreibe("mikrofon-wechsel", aufnahme: self.aufnahmeName, dauer: s)
+            } }
             try mik.starte(in: sm)
             mikrofon = mik; schreiberMikro = sm; aufnahmeOrdner = ordner
             pruefeStilleNachStart(sm, geraeteName: mik.geraeteName, start: Date())
@@ -142,6 +225,7 @@ final class MeetingDienst: ObservableObject {
             zustand = .fehler("Das Mikrofon ließ sich nicht starten: \(error.localizedDescription)"); return
         }
         beginn = Date()
+        marken = []; luecken = []
         await starteSystemton(in: ordner)
         zustand = .nimmtAuf
         protokoll.schreibe("start", aufnahme: ordner.lastPathComponent, zahlen: ["systemton": systemton == nil ? 0 : 1])
@@ -154,7 +238,7 @@ final class MeetingDienst: ObservableObject {
                 guard let self else { return }
                 self.dauer = Date().timeIntervalSince(self.beginn)
                 n += 1
-                if n % 20 == 0 { await self.aktualisiereLive() }
+                if self.fensterOffen, n % Int(Self.regel("meeting_live_s", 10)) == 0 { await self.aktualisiereLive() }
             }
         }
         Task { await DiktatDienst.gemeinsam.waermeVor() }
@@ -163,7 +247,8 @@ final class MeetingDienst: ObservableObject {
     private func starteSystemton(in ordner: URL) async {
         if !MeetingSystemton.freigegeben() {
             MeetingSystemton.frageFreigabe()
-            hinweise.append("Systemton nicht aufgenommen: Für „Seneca Nativ“ fehlt die Freigabe „Bildschirm- und Systemaudioaufnahme“ (Systemeinstellungen, Datenschutz & Sicherheit). Aufgenommen wird nur das Mikrofon.")
+            ohneSystemton = true
+            hinweise.append("Ohne Systemton: Aufgenommen ist nur das Mikrofon.")
             return
         }
         do {
@@ -193,7 +278,8 @@ final class MeetingDienst: ObservableObject {
         pegel = 0
         schreiberMikro?.schliesse(); schreiberSystem?.schliesse()
         if let abbruch { hinweise.append(abbruch + " Ausgewertet ist, was bis dahin aufgenommen war.") }
-        let e = MeetingEingabe(mikro: schreiberMikro, system: schreiberSystem, beginn: beginn, dauer: gesamt, titelVorgabe: nil, vorHinweise: hinweise,
+        endetIn = nil
+        let e = MeetingEingabe(mikro: schreiberMikro, system: schreiberSystem, beginn: beginn, dauer: gesamt, titelVorgabe: termin?.titel, vorHinweise: hinweise,
                                aufnahme: aufnahmeName)
         if let o = aufnahmeOrdner {
             MeetingArchiv.schreibeMeta(.init(beginn: beginn, dauer: gesamt,
@@ -336,8 +422,14 @@ final class MeetingDienst: ObservableObject {
 
         var titel = "Meeting"
         if let v = e.titelVorgabe { titel = v + ": " + titel }
-        let erg = MeetingErgebnis(titel: titel, beginn: e.beginn, dauer: e.dauer, segmente: segmente, zusammenfassung: "", aufgaben: [], rollen: rollen,
+        var erg = MeetingErgebnis(titel: titel, beginn: e.beginn, dauer: e.dauer, segmente: segmente, zusammenfassung: "", aufgaben: [], rollen: rollen,
                                   hinweise: hinweise, stand: segmente.isEmpty ? .vollstaendig : .laeuft, aufnahme: name)
+        if e.mikro != nil, let t = termin {
+            erg.marken = marken
+            erg.termin = (t.titel.split(separator: " ").map(String.init) + [t.kalender].compactMap { $0 }).joined(separator: " · ")
+            erg.kandidaten = gegenueber.map { [$0] } ?? []
+        } else if e.mikro != nil { erg.marken = marken }
+        if e.mikro != nil { erg.luecken = luecken }
         let datei: URL
         let alt = e.ersetzt.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
         if alt != nil, segmente.isEmpty {
@@ -366,7 +458,9 @@ final class MeetingDienst: ObservableObject {
 
     private func fasseZusammen() async {
         guard var a = ablage, !a.ergebnis.segmente.isEmpty else { return }
-        zustand = .wertAus("Fasse zusammen …")
+        zustand = .wertAus("Fasse zusammen")
+        fasstSeit = Date()
+        defer { fasstSeit = nil }
         abbruch = false
         var erg = a.ergebnis
         let name = erg.aufnahme
@@ -376,7 +470,7 @@ final class MeetingDienst: ObservableObject {
             var auswertung = MeetingAuswertung(klient: klient)
             auswertung.gescheitert = { [protokoll, weak self] versuch, fehler in
                 protokoll.schreibe("zusammenfassung-versuch", aufnahme: name, fehler: fehler, zahlen: ["versuch": Double(versuch)])
-                Task { @MainActor in if versuch == 1, self?.beschaeftigt == true { self?.zustand = .wertAus("Fasse zusammen (zweiter Versuch) …") } }
+                Task { @MainActor in if versuch == 1, self?.beschaeftigt == true { self?.zustand = .wertAus("Fasse zusammen, zweiter Versuch") } }
             }
             let zahlen: [String: Double] = ["zeichen": Double(text.count), "kontext": Double(klient.kontext ?? 0),
                                             "teile": Double(MeetingAufgaben.stuecke(text, zeichen: MeetingAufgaben.stueckGroesse(kontext: klient.kontext)).count)]
@@ -409,7 +503,6 @@ final class MeetingDienst: ObservableObject {
         }
         a.ergebnis = erg
         ablage = a
-        uebernahme = ""; uebernommen = 0
         zustand = .fertig
         ladeFruehere()
     }
@@ -428,7 +521,7 @@ final class MeetingDienst: ObservableObject {
     func werteErneutAus(_ auf: MeetingAufnahme) async {
         guard !beschaeftigt else { return }
         zustand = .wertAus("Erkenne das Gespräch …")
-        hinweise = []; live = []; liveKanal = [:]; antworten = []; ablage = nil; uebernahme = ""; uebernommen = 0
+        hinweise = []; live = []; liveKanal = [:]; antworten = []; ablage = nil
         let fm = FileManager.default
         let mik = auf.ordner.appendingPathComponent("mikrofon.wav"), sys = auf.ordner.appendingPathComponent("systemton.wav")
         let mikDa = fm.fileExists(atPath: mik.path), sysDa = fm.fileExists(atPath: sys.path)
@@ -449,18 +542,32 @@ final class MeetingDienst: ObservableObject {
         await verarbeite(e, probe: false)
     }
 
-    func uebergebeAufgaben(trocken: Bool) async {
-        guard let a = ablage, !a.ergebnis.aufgaben.isEmpty else { return }
-        let name = a.datei.lastPathComponent
-        if trocken { uebernahme = "Trockenlauf, nichts gesendet:\n" + MeetingAufgaben.trockenlauf(aufgaben: a.ergebnis.aufgaben, meetingDatei: name); return }
-        guard let u = uebersicht else { uebernahme = "Keine Verbindung zu Seneca."; return }
-        var ok = 0
-        var fehler = ""
-        for t in a.ergebnis.aufgaben {
-            do { try await u.legeMeetingAufgabeAn(t, meetingDatei: name); ok += 1 } catch { fehler = OverviewStore.fehlertext(error); break }
+    func uebernimm(_ auswahl: [MeetingAufgabe]) {
+        for a in auswahl {
+            var w: [String: JSONWert] = a.fuerAntonio ? ["titel": .text(a.alsToDo)] : ["text": .text(a.text), "wer": .text(a.wer.lowercased().replacingOccurrences(of: "ü", with: "ue"))]
+            if let b = termin?.kalender { w["bereich"] = .text(b) }
+            if a.fuerAntonio, let m = a.minuten { w["dauer_min"] = .zahl(Double(m)) }
+            handle(a.fuerAntonio ? "todo.anlegen" : "auftrag.anlegen", nil, w)
         }
-        uebernommen = ok
-        uebernahme = fehler.isEmpty ? "\(ok) Aufgabe\(ok == 1 ? "" : "n") an Seneca übergeben." : "\(ok) übergeben, dann: \(fehler)"
+    }
+
+    static func doppelt(_ a: MeetingAufgabe, _ todos: [SenecaStand.Todo]) -> SenecaStand.Todo? {
+        let t = a.text.lowercased()
+        return todos.first { $0.titel.lowercased().contains(t) || t.contains($0.titel.lowercased()) }
+    }
+
+    var vorschlaege: [MeetingAufgabe] { (ablage?.ergebnis.alle ?? []).filter { Self.doppelt($0, stand()?.todos ?? []) == nil } }
+
+    func uebernimmVorschlaege() {
+        let v = vorschlaege
+        Task { try? await Task.sleep(for: .seconds(Self.regel("rueckgaengig_s", 5))); uebernimm(v) }
+    }
+
+    func benenne(_ n: Int, _ name: String) {
+        guard var a = ablage, !name.isEmpty else { return }
+        a.ergebnis.namen[n] = name
+        if let d = try? MeetingDokument.nachtrage(a.ergebnis, datei: a.datei) { a.datei = d }
+        ablage = a
     }
 
     func zeigeInFinder() { if let a = ablage { NSWorkspace.shared.activateFileViewerSelecting([a.datei]) } }

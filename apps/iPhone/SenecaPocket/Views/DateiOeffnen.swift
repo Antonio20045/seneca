@@ -14,7 +14,7 @@ enum DateiOeffner {
             json = demo
         } else {
             do {
-                json = try await store.rufe("seneca.datei", params: ["pfad": pfad, "workspaceVon": partner.id], timeout: 45)
+                json = try await store.rufe("seneca.stand", params: ["geraet": "iphone", "sicht": "datei", "pfad": pfad], timeout: 45)
             } catch {
                 return fehler(error.localizedDescription)
             }

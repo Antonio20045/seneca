@@ -27,8 +27,17 @@ export function mitarbeiter(): string[] {
     .map((e) => e.name);
 }
 
+export function anzeigeName(name: string): string {
+  return existsSync(join(ordner(), name, "rolle.md")) ? rolle(name).split("\n")[0].replace(/^#\s*/, "") : name;
+}
+
 export function rolle(name: string): string {
   return readFileSync(join(ordner(), name, "rolle.md"), "utf8");
+}
+
+export function bauregeln(name: string): string {
+  const datei = join(ordner(), name, "bauregeln.md");
+  return existsSync(datei) ? readFileSync(datei, "utf8") : "";
 }
 
 export function mandat(name: string): Mandat {

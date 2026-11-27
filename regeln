@@ -1,5 +1,5 @@
-rueckgaengig_s 5 vorschlag
-rueckgaengig_vo_s 10 vorschlag
+rueckgaengig_s 5 vorschlag app
+rueckgaengig_vo_s 10 vorschlag app
 takt_s 10 zu_messen
 takt_job_haengt_s 60
 takt_fehler_start_min 1
@@ -8,13 +8,29 @@ takt_befund_ab_versuch 5
 register_warten_s 5
 pflegen_h 1
 platte_frei_min_mb 2000
+sicherung_abstand_h 23
+sicherung_max_min 30 zu_messen
+sicherung_ziel /home/ubuntu/Ablage/_sicherung/restic
+sicherung_passwort /home/ubuntu/.config/seneca/restic-passwort
+sicherung_quellen /home/ubuntu/.openclaw/openclaw.json,/home/ubuntu/.openclaw/skills,/home/ubuntu/.openclaw/skill-workshop
+sicherung_tage 30
+sicherung_monate 6
+openclaw_befehl /home/ubuntu/.npm-global/bin/openclaw
 lauf_schritt_abstand_s 60
 lauf_wiederholen_start_min 1
 lauf_wiederholen_max_h 1
+start_nachfassen_h 24
 haengt_leise_min 10
 haengt_frage_min 30
-gespraech_haengt_hinweis_min 2
-gespraech_haengt_stopp_min 10
+gespraech_haengt_hinweis_min 2 app
+gespraech_haengt_stopp_min 10 app
+meeting_erkennen_s 20 app
+meeting_ende_s 10 app
+meeting_live_s 10 app
+meeting_zusammenfassen_ziel_s 60 app
+diktat_hoere_nichts_s 8 app
+diktat_stille_ende_s 60 app
+mitteilung_sammeln_ab 2 app
 parallel_max 2 zu_messen
 ruht_pruefen_h 1
 kostenrahmen_standard_cent 50 zu_messen
@@ -39,6 +55,7 @@ anzeige_veraltet_tage 14 zu_messen
 anzeige_ungesehen_tage 14
 morgenbericht_um 08:50
 rueckblick_um 21:30
+berichte_laeufe 14
 briefing_um 06:40
 fenster 16:00 vorschlag
 nachtruhe_von 22:30
@@ -46,11 +63,12 @@ nachtruhe_bis 06:30
 ruhe_ohne_durchbruch schlaf,training,laufen,trail
 durchbruch_h 2
 braucht_dich_max 3
+frage_nachklang_s 6 app
 lange_wartend_h 24
 push_abstand_min 20
 tag_grenze 04:00
 stand_max_kb 256 zu_messen
-uhr_abfrage_min 5 zu_messen
+uhr_abfrage_min 5 zu_messen app
 kontext_zeichen 5000
 kontext_eltern_zeichen 300
 kontext_befunde 5
@@ -70,15 +88,16 @@ lernen_aehnliche 5
 lernen_wort_ab_zeichen 4
 vorschlag_mindestquote_prozent 25 zu_messen
 vorschlag_quote_ab_tage 14
-sensor_sicherheit_prozent 80 vorschlag
+sensor_sicherheit_prozent 80 vorschlag app
 sensor_vorschlaege_je_tag 3 vorschlag
 sensor_spur_ab_min 5 vorschlag
 sensor_titel_zeichen 40
-sensor_verweilen_s 90 vorschlag
-sensor_modell_s 60
-sensor_markiert_zeichen 2000
-aussen_werkzeuge hermes__place_call/anruf/to,mcp__hermes__place_call/anruf/to,exec~hermes-mcp\.mjs\s+call\s+(place_call|prepare_call)/anruf/to,mcp__zoho-mail__send_mail/nachricht/to,seneca_kalender/einladung/teilnehmer?
+sensor_verweilen_s 90 vorschlag app
+sensor_modell_s 60 app
+sensor_markiert_zeichen 2000 app
+aussen_werkzeuge hermes__place_call|mcp__hermes__place_call|hermes-staging__place_call|mcp__hermes-staging__place_call/anruf/to,exec~hermes-mcp\.mjs\s+call\s+(place_call|prepare_call)/anruf/to,mcp__zoho-mail__zoho_mail_send_mail|mcp__zoho-mail__ZohoMail_send_mail|zoho-mail__zoho_mail_send_mail|mcp__zoho-mail__zoho_mail_reply_to_mail|mcp__zoho-mail__ZohoMail_reply_to_mail|zoho-mail__zoho_mail_reply_to_mail/nachricht/toAddress,seneca_kalender/einladung/teilnehmer?
 aussen_gesperrt mcp__whatsapp__send_message,whatsapp_send,exec~(^|[\s;&|(`'\"])(unlink|trash|shred|srm)(\s|$),exec~\bgit\b[^\n;&|]*\s(clean|rm)(\s|$),exec~\bfind\b[^\n;&|]*\s-(delete|exec\s+(rm|trash|unlink)|execdir)\b,exec~\bgit\b[^\n;&|]*\spush\b[^\n;&|]*(\s--force\b|\s-f\b|\s--force-with-lease\b|\s\+\S+|\s--delete\b|\s:\S+),exec~\bgit\b[^\n;&|]*\s(reset\s+--hard|branch\s+-D|filter-branch|reflog\s+expire|gc\s+--prune),exec~(^|[\s;&|(])security\s+(?!(cms|find-generic-password|find-internet-password)(\s|$))\w,exec~(~|\$HOME|/home/\w+|/Users/\w+)/\.ssh(/|\s|$),exec~(^|[\s/'\"=])\.env(\.\w+)?(\s|$|['\"]),exec~\.(pem|p12|pfx|key)(\s|$|['\"])|id_(rsa|ed25519|ecdsa)\b|\.netrc\b|\.credentials\.json\b|auth-profiles\.json\b|/\.openclaw/credentials/|Library/Keychains|dump-keychain,exec~(?i)\bosascript\b[\s\S]*\b(application\s+\"?(messages|whatsapp|telegram|signal|slack|microsoft\soutlook))\b,exec~(?i)\bosascript\b(?=[\s\S]*(?:(?:application|app)\s+\\?\"?mail\b|com\.apple\.mail))[\s\S]*\b(?:send|outgoing|delete|move|make\s+new|reply|forward|redirect|bounce|save|compose|read\sstatus|flagged\sstatus|junk\smail\sstatus|do\sshell\sscript|run\sscript|keystroke|click)\b,exec~(?i)(api\.zoho\.\w+|mail\.zoho\.|smtp\.[\w-]+\.\w+|sendgrid\.(com|net)|api\.mailgun\.|api\.postmarkapp\.|api\.brevo\.|api\.sendinblue\.|api\.resend\.com|mandrillapp\.|api\.telegram\.org|hooks\.slack\.com|slack\.com/api/chat\.|discord(app)?\.com/api/webhooks|graph\.microsoft\.com/\S*sendmail|gmail\.googleapis\.com|api\.twilio\.com|api\.telnyx\.com|graph\.facebook\.com/\S*/messages),exec~(?i)(api\.stripe\.com|(^|[;&|(\n])\s*stripe\s+\w|api(-m)?\.(sandbox\.)?paypal\.com|api\.mollie\.com|checkout\.klarna\.|\.adyen\.com|braintreegateway\.|api\.sumup\.com|api\.wise\.com|buy\.stripe\.com|checkout\.stripe\.com|paypal\.(com|me)/(checkoutnow|cgi-bin|pay|paypalme)|\bimport\s+stripe\b|from\s+stripe\s+import|require\(\s*['"]stripe['"]|\bsecurity\s+find-(generic|internet)-password\b[^\n;&|]*(kredit|karte|card|bank|paypal|stripe|zahlung|payment)),exec~(?i)(^|[;&|(\n])\s*(sendmail|mailx|msmtp|mutt|himalaya|gws)(\s|$),exec~^(?![\s\S]*\b(127\.0\.0\.1|localhost)\b)[\s\S]*\b(curl|wget)\b[^\n;&|]*(\s-X\s*(POST|PUT|PATCH|DELETE)|\s--request\s+(POST|PUT|PATCH|DELETE)|\s(-d|--data\S*|-F|--form|-T|--upload-file|--json)\s),exec~\b(os\.(remove|unlink|rmdir|removedirs)|shutil\.rmtree|\.unlink\(|rmSync|unlinkSync|rmdirSync|fs\.rm\b|fs\.promises\.rm|send2trash),exec~\bsqlite3\b[\s\S]*\b([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Dd][Rr][Oo][Pp]|[Aa][Ll][Tt][Ee][Rr]|[Vv][Aa][Cc][Uu][Uu][Mm])\b,exec~\bopenclaw\s+(cron\s+(rm|remove|delete)|agents\s+(delete|remove)|sessions\s+(delete|prune)|plugins\s+(uninstall|remove)|approvals)\b,read|write|edit|Read|Write|Edit~(^|/)\.ssh(/|$)|(^|/)\.env(\.\w+)?$|\.(pem|p12|pfx|key)$|(^|/)id_(rsa|ed25519|ecdsa)|(^|/)\.netrc$|(^|/)\.credentials\.json$|(^|/)auth-profiles\.json$|/\.openclaw/credentials/|/Library/Keychains/
+unteragent_werkzeuge sessions_spawn,sessions_send,mcp__openclaw__sessions_spawn,mcp__openclaw__sessions_send
 live_muster gh\s+pr\s+merge|git\s+push\b.*\b(main|master)\b|--prod\b|npm\s+publish|(vercel|netlify|fly|wrangler|firebase)\s+deploy|__(trigger_deploy|deploy_\w+|publish_\w+|\w+_publish)(\s|$)
 gateway_muster ^gateway\s(restart|update\.run)|openclaw\s+gateway\s+(restart|stop)|systemctl\s.*openclaw|pkill.*openclaw|openclaw\s+update
 uhr_anfragen_je_std 120
@@ -90,19 +109,50 @@ uhr_frage_zeichen 90
 uhr_todos 3
 uhr_termine 4
 uhr_verlauf 3
+uhr_uebungen 12
+uhr_starten_min 10
 uhr_lauf_ruhe_min 12
 uhr_warteschlange_max 500
+uhr_nachgereicht_min 5
+uhr_nachgereicht_ab 2
+uhr_hinweis_min 60
 uhr_verbunden_min 10 zu_messen
-kopplung_fenster_min 10
+kopplung_fenster_min 10 app
 kopplung_anfragen_je_std 30
-ablage_pfad /home/ubuntu/Ablage zu_messen
+kopplung_modell_zeichen 40
+uhr_lauf_schluessel_min 32
+todo_vorschlag_min 120 app
+ablage_pfad /home/ubuntu/Ablage
+ablage_alle_lesen _wissen
+datei_vorschau_max_kb 8192
+datei_text_endungen txt,json,yaml,yml,csv,log,swift,ts,js,py,sh
+arbeitsdateien_tage 7 vorschlag
 datei_werkzeuge read/lesen/path,write/schreiben/path,edit/schreiben/path,Read/lesen/file_path,Write/schreiben/file_path,Edit/schreiben/file_path zu_messen
 caldav_url https://caldav.icloud.com/
 kalender_zeitlimit_s 20
 kalender_vorschau_tage 42
 kalender_abgleich_min 5
 kalender_titel_zeichen 60
+kalender_standard Privat
+kalender_seneca Seneca
+kal_monate_zurueck 1
+kal_wochen_vor 4
+kal_marke_bis_min 10
+kal_tag_von 08:00
+kal_tag_bis 20:00
+kal_suche_schritt_min 60
+kal_suche_schritte 3
+weg_erinnern_vor_min 6 app
+weg_neu_min 5 app
+weg_zu_fuss_bis_min 20 vorschlag app
+kal_raster_min 15 app
+kal_raster_fein_min 5 app
+kal_bb_gut_ab 60 vorschlag app
 ein_tag_tage 1
+stat_lang_km 15
+stat_gute_woche_mal 3
+kraft_volle_wdh 8
+kraft_schritt_kg 2.5
 termin_standard_min 60
 apns_url https://api.push.apple.com
 apns_thema de.antonio.seneca.nativ zu_messen
@@ -111,14 +161,24 @@ apns_zeitlimit_s 10
 planen_min 5
 plan_von 07:00
 plan_bis 21:00
-fenster_dauer_min 30
+fenster_dauer_min 30 app
 todo_dauer_standard_min 30
 luecke_faktor 1.5
 fokus_worte Fokus,Seneca-Block
-sport_worte Gym,Training,Laufen,Lauf,Yoga,Schwimmen,Rad
-wegzeit_vorlauf_min 60
+sport_worte Gym,Training,Laufen,Lauf,Trail,Yoga,Schwimmen,Rad
+wegzeit_vorlauf_min 60 app
 ankunft_puffer_min 0
+aufgaben_block_min 15
+team_schritte 3
+team_protokoll 8
+mehr_davor 4
+auftrag_quittung_min 10
+los_erinnern_min 6 app
 eine_minute_min 1
+eine_stunde_min 60
+verstehen_wort_min 6
+bereich_standard Privat
+kalender_quelle Apple-Kalender
 rechenknoten_name rechenknoten zu_messen
 rechenknoten_region eu-north-1 zu_messen
 rechenknoten_instanz offen zu_messen
@@ -127,12 +187,22 @@ rechenknoten_leerlauf_min 30 vorschlag
 aws_zeitlimit_s 20
 knoten_pruefen_min 1
 app_neu_installieren_tage 5
-verbinden_start_s 1
-verbinden_max_s 30
-anmeldefehler_max 3
-getrennt_nach_s 30
+verbinden_start_s 1 app
+verbinden_max_s 30 app
+anmeldefehler_max 3 app
+getrennt_nach_s 30 app
 buendel_abnahme_s 50 vorschlag
 buendel_frage_min 3 vorschlag
 koerper_schwer_ab 50 vorschlag
 anruf_worte anruf,telefonat,call vorschlag
 satz_ruhe_ab_min 60 vorschlag
+vorschlag_verfaellt_uhr 18:00
+zu_spaet_nach_min 6
+zu_spaet_runden_min 5
+quittung_buendel_min 5
+zuruecklegen_min 60
+anders_schritt_min 30
+anders_versuche 16
+stat_balken_km 12
+stat_balken_min 72
+stat_balken_saetze 16

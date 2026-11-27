@@ -15,7 +15,6 @@ struct SenecaPocketApp: App {
         FadenBruecke.shared.verbinde(store.chat)
         store.chat.speicher.oeffne(store.chat.currentKey)
         Sinne.shared.starten(store: store)
-        TagesablaufQuelle.shared.starten(store: store)
         Hintergrund.anmelden()
         UIWindow.appearance().overrideUserInterfaceStyle = .dark
     }
@@ -28,7 +27,13 @@ struct SenecaPocketApp: App {
                 .tint(Sundartha.himmel)
                 .statusBarHidden(false)
                 .task { WidgetBridge.shared.attach(store) }
+                .onReceive(store.$stand.compactMap { $0?.team }) { if !store.demo, GespraechsPartner.setze(team: $0) { store.chat.objectWillChange.send() } }
                 .task { Eingang.nachtragen(store) }
+                .task {
+                    StatHealthSync.shared.melde = { art, werte, zeit in
+                        store.daten?.handeln("eintrag.neu", wert: .objekt(["art": .text(art), "werte": .objekt(werte), "zeit": .zahl((zeit.timeIntervalSince1970 * 1000).rounded())])) != nil
+                    }
+                }
                 .task {
                     try? await Task.sleep(for: .seconds(1.5))
                     if !store.demo { await StatHealthSync.shared.abgleichen(grund: .vordergrund, fragen: false) }
@@ -54,13 +59,10 @@ struct SenecaPocketApp: App {
             WidgetPreviewScreen()
         } else if let muster = GrundMusterSeite.ausDemo {
             GrundMusterSeite.ansicht(muster)
+        } else if ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"] == "teilen" {
+            TeilenDemo()
         } else if ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"] == "sinne" {
             SinneView(zurueck: nil)
-        } else if let richtung = EntwurfKalenderBuehne.ausDemo {
-            EntwurfKalenderBuehne(richtung: richtung)
-        } else if ProcessInfo.processInfo.environment["SENECA_DEMO"] == "1",
-                  let richtung = EntwurfHeuteScreen.richtung(ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"]) {
-            EntwurfHeuteScreen(richtung: richtung)
         } else {
             RootView()
         }
@@ -82,8 +84,6 @@ enum Hintergrund {
                 let arbeit = Task { @MainActor in
                     await Sinne.shared.abgleichen()
                     await TeilenVerarbeiten.merken()
-                    await TagesablaufQuelle.shared.auffrischen(sofort: true)
-                    Sinne.shared.hintergrundEnde()
                     if !fertig { fertig = true; aufgabe.setTaskCompleted(success: true) }
                 }
                 aufgabe.expirationHandler = {

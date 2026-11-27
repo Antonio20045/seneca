@@ -2,14 +2,14 @@ import SwiftUI
 import Combine
 
 enum SnOrt: CaseIterable {
-    case heute, projekte, fragen, kalender, gespraeche
+    case heute, projekte, fragen, kalender, statistik, gespraeche
 
     var titel: String {
-        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Entscheiden"; case .kalender: "Kalender"; case .gespraeche: "Gespräche" }
+        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Entscheiden"; case .kalender: "Kalender"; case .statistik: "Statistik"; case .gespraeche: "Gespräche" }
     }
 
     var seite: Seite {
-        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .gespraeche: .chat }
+        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .statistik: .statistik; case .gespraeche: .chat }
     }
 
     static func fragen(_ s: SenecaStand?) -> Int { (s?.braucht_dich?.count ?? 0) + (s?.buendel?.fragen?.count ?? 0) }
@@ -17,11 +17,11 @@ enum SnOrt: CaseIterable {
     static func von(_ s: Seite) -> SnOrt? {
         switch s {
         case .heute: .heute
-        case .projekte, .projekt, .bereiche, .bereich: .projekte
+        case .projekte: .projekte
         case .entscheidungen: .fragen
         case .kalender: .kalender
+        case .statistik: .statistik
         case .chat: .gespraeche
-        default: nil
         }
     }
 }
@@ -74,48 +74,43 @@ private struct SnOrtKnopf: View {
 }
 
 private struct DockKugel: View {
-    @ObservedObject private var diktat = DiktatDienst.gemeinsam
     @State private var nimmtAuf = false
 
-    private var diktiert: Bool {
-        switch diktat.zustand {
-        case .hoert, .erkennt: return true
-        default: return false
-        }
-    }
-
     var body: some View {
-        SnKugel(groesse: 32, atmet: diktiert || nimmtAuf)
+        SnKugel(groesse: 32, atmet: nimmtAuf)
             .onReceive(MeetingDienst.gemeinsam.$zustand.map { $0 == .nimmtAuf }.removeDuplicates()) { nimmtAuf = $0 }
     }
 }
 
 struct SnDock: View {
     var offen: Bool
+    var breiteOffen: CGFloat = 720
     var oeffne: () -> Void
     var schliesse: () -> Void
     @ObservedObject var steuerung: SnChatSteuerung
     @ObservedObject var chat: ChatService
     @ObservedObject var gegenueber: GegenueberModell
     @State private var hover = false
+    @ObservedObject private var diktat = DiktatDienst.gemeinsam
     @Environment(\.accessibilityReduceMotion) private var ruhig
+    private var hoertHier: Bool { offen && diktat.zustand == .hoert && NSApp.isActive }
 
     var body: some View {
         ZStack {
             if offen {
                 SnChatEingabe(steuerung: steuerung, chat: chat, gegenueber: gegenueber, schliesse: schliesse)
+                    .opacity(hoertHier ? 0 : 1)
+                    .overlay { if hoertHier { DiktatPille(dienst: diktat, feld: true) } }
+                    .onAppear { diktat.imFeld = true }.onDisappear { diktat.imFeld = false }
                     .transition(.opacity)
             } else {
                 zu.transition(.opacity)
             }
         }
-        .frame(width: offen ? 720 : SnDockZu<EmptyView>.breite)
+        .frame(width: offen ? breiteOffen : SnDockZu<EmptyView>.breite)
         .frame(minHeight: 56)
-        .snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(alignment: .top) {
-            DiktatDockAnzeige(dienst: DiktatDienst.gemeinsam)
-                .alignmentGuide(.top) { $0[.bottom] + 10 }
-        }
+        .snGlas(RoundedRectangle(cornerRadius: offen ? 22 : 28, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.45), lineWidth: 1).opacity(hoertHier ? 1 : 0) }
         .animation(ruhig ? .easeOut(duration: 0.15) : Kurve.snFeder, value: offen)
         .accessibilityIdentifier("dock")
     }

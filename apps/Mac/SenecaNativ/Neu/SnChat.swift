@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import AVFoundation
 
 @MainActor
 final class SnEingabeStand: ObservableObject { @Published var text = "" }
@@ -80,6 +81,15 @@ final class SnChatSteuerung: ObservableObject {
         fokussiere()
     }
 
+    func standbild(_ a: ChatAnhang) {
+        Task {
+            let g = AVAssetImageGenerator(asset: AVURLAsset(url: a.url)); g.appliesPreferredTrackTransform = true
+            guard let bild = try? await g.image(at: .zero).image, let png = NSBitmapImageRep(cgImage: bild).representation(using: .png, properties: [:]),
+                  let neu = ChatAnhang.ausDaten(png, name: (a.name as NSString).deletingPathExtension + ".png", mime: "image/png") else { return }
+            withAnimation(Kurve.sn(0.25)) { anhaenge = anhaenge.map { $0.id == a.id ? neu : $0 } }
+        }
+    }
+
     func entferne(_ id: UUID) { withAnimation(Kurve.sn(0.2)) { anhaenge.removeAll { $0.id == id } } }
 
     func bearbeiteDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -140,7 +150,6 @@ final class SnChatSteuerung: ObservableObject {
         gesendet += 1
         let istBefehl = anhaenge.isEmpty && ChatCommand.parse(text) != nil
         let p = partner
-        if !istBefehl { modell.gegenueber.leiste.schreibe(an: modell.gegenueber.aktuellerAgent) }
         Task {
             do {
                 let antwort = try await chat.send(text, an: p, anhaenge: anhaenge)
@@ -153,193 +162,16 @@ final class SnChatSteuerung: ObservableObject {
     }
 }
 
-struct SnAgentWahl: View {
-    @ObservedObject var gegenueber: GegenueberModell
-    @ObservedObject var store: OverviewStore
-    @ObservedObject var leiste: AgentenLeiste
-    @Binding var alleOffen: Bool
-
-    private func arbeitet(_ id: String) -> Bool {
-        Team.status(store.daten, id: id, ents: store.entscheidungen, arbeitend: store.arbeitet.agenten, jetzt: store.jetzt).zustand == .arbeitet
-    }
-
-    private var leute: [Person] {
-        let kand = Agentenleiste.kandidaten(store.daten)
-        let arbeitend = Set(kand.filter { arbeitet($0.id) }.map(\.id))
-        return [gegenueber.personen.seneca] + leiste.kugeln(store.daten, arbeitend: arbeitend)
-    }
-
-    var body: some View {
-        let liste = leute
-        ViewThatFits(in: .horizontal) {
-            reihe(liste)
-            ScrollView(.horizontal, showsIndicators: false) { reihe(liste).padding(.horizontal, 24) }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Mit wem sprechen")
-        .accessibilityIdentifier("agentwahl")
-    }
-
-    private func reihe(_ liste: [Person]) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            ForEach(liste) { p in
-                SnAgentKnopf(person: p, istSeneca: p.id == gegenueber.personen.seneca.id, an: p.key == gegenueber.aktuellerKey, arbeitet: arbeitet(p.id)) { gegenueber.waehle(p) }
-            }
-            SnAlleKnopf(offen: alleOffen) { withAnimation(Kurve.sn(0.25)) { alleOffen.toggle() } }
-        }
-    }
-}
-
-private struct SnAlleKnopf: View {
-    var offen: Bool
-    var aktion: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        Button(action: aktion) {
-            VStack(spacing: 8) {
-                Image(systemName: "ellipsis").font(.system(size: 18, weight: .medium)).foregroundStyle(Color.white)
-                    .frame(width: 52, height: 52)
-                    .snGlas(Circle())
-                    .overlay(Circle().strokeBorder(Farbe.himmel, lineWidth: offen ? 2 : 0))
-                Text("Alle").font(Schrift.grotesk(13, .medium)).foregroundStyle(Color.white).lineHeight(.exact(points: 16))
-                Text(" ").font(Schrift.grotesk(12)).lineHeight(.exact(points: 14))
-            }
-            .frame(width: 80)
-            .opacity(offen || hover ? 1 : 0.55)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .animation(Kurve.sn(0.3), value: hover)
-        .accessibilityLabel(offen ? "Liste der Mitarbeiter schließen" : "Alle Mitarbeiter zeigen")
-        .help(offen ? "Liste der Mitarbeiter schließen" : "Alle Mitarbeiter nach Bereich zeigen")
-        .accessibilityIdentifier("agent-alle")
-    }
-}
-
-struct SnAlleAgenten: View {
-    @ObservedObject var gegenueber: GegenueberModell
-    @ObservedObject var store: OverviewStore
-    @ObservedObject var leiste: AgentenLeiste
-    var schliesse: () -> Void
-    @State private var suche = ""
-    @FocusState private var fokus: Bool
-
-    private func arbeitet(_ id: String) -> Bool {
-        Team.status(store.daten, id: id, ents: store.entscheidungen, arbeitend: store.arbeitet.agenten, jetzt: store.jetzt).zustand == .arbeitet
-    }
-
-    var body: some View {
-        let gruppen = Agentenleiste.alle(store.daten, suche: suche)
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Farbe.ink3)
-                TextField("", text: $suche, prompt: Text("Mitarbeiter suchen").foregroundColor(Farbe.ink3))
-                    .textFieldStyle(.plain).font(Schrift.grotesk(15, .light)).foregroundStyle(Color.white)
-                    .focused($fokus)
-                    .onKeyPress(.escape) { schliesse(); return .handled }
-                    .accessibilityIdentifier("alle-suche")
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            Divider().overlay(Color.white.opacity(0.08))
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(gruppen) { g in
-                        Text(g.titel.uppercased()).font(Schrift.grotesk(11, .medium)).foregroundStyle(Farbe.ink3).tracking(0.8)
-                            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 4)
-                        ForEach(g.leute) { p in zeile(p) }
-                    }
-                    if gruppen.isEmpty {
-                        Text("Kein Mitarbeiter gefunden").font(Schrift.grotesk(14)).foregroundStyle(Farbe.ink2).padding(16)
-                    }
-                }
-                .padding(.bottom, 8)
-            }
-        }
-        .frame(width: 380).frame(maxHeight: 380)
-        .fixedSize(horizontal: false, vertical: true)
-        .snGlas(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .onAppear { DispatchQueue.main.async { fokus = true } }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("alle-agenten")
-    }
-
-    private func zeile(_ p: Person) -> some View {
-        let an = p.key == gegenueber.aktuellerKey
-        let bg = arbeitet(p.id)
-        return Button {
-            leiste.merkeWahl(p.id)
-            gegenueber.waehle(p)
-            schliesse()
-        } label: {
-            HStack(spacing: 12) {
-                SnAgentKugel(initial: SnChatName.initial(p), groesse: 28)
-                Text(p.wer).font(Schrift.grotesk(15, .medium)).foregroundStyle(Color.white).lineLimit(1)
-                Spacer(minLength: 8)
-                Circle().fill(bg ? Farbe.himmel : Color.white.opacity(0.25)).frame(width: 6, height: 6)
-                Text(bg ? "arbeitet" : "bereit").font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 7)
-            .background(an ? Color.white.opacity(0.08) : Color.clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(p.rolle)
-        .accessibilityLabel("\(p.wer), \(bg ? "arbeitet" : "bereit")")
-        .accessibilityIdentifier("alle-\(p.id)")
-    }
-}
-
-private struct SnAgentKnopf: View {
-    var person: Person
-    var istSeneca: Bool
-    var an: Bool
-    var arbeitet: Bool
-    var aktion: () -> Void
-    @State private var hover = false
-    @Environment(\.accessibilityReduceMotion) private var ruhig
-
-    var body: some View {
-        Button(action: aktion) {
-            VStack(spacing: 8) {
-                SnAgentKugel(initial: istSeneca ? "" : SnChatName.initial(person), groesse: 52)
-                    .overlay(Circle().strokeBorder(Farbe.himmel, lineWidth: an ? 2 : 0))
-                    .shadow(color: Farbe.himmel.opacity(an ? 0.45 : 0), radius: 14)
-                Text(person.wer).font(Schrift.grotesk(13, .medium)).foregroundStyle(Color.white).lineHeight(.exact(points: 16)).lineLimit(3).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                Text(arbeitet ? "arbeitet" : "bereit").font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2).lineHeight(.exact(points: 14))
-            }
-            .frame(width: 112)
-            .opacity(an || hover ? 1 : 0.55)
-            .scaleEffect(an && !ruhig ? 1.06 : 1)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .animation(ruhig ? .easeOut(duration: 0.15) : Kurve.snFeder, value: an)
-        .animation(Kurve.sn(0.3), value: hover)
-        .accessibilityLabel("\(person.wer), \(arbeitet ? "arbeitet" : "bereit")")
-        .accessibilityAddTraits(an ? .isSelected : [])
-        .accessibilityIdentifier("agent-\(person.id)")
-    }
-}
-
-enum SnChatName {
-    static func initial(_ p: Person) -> String { p.wer.first.map { String($0).uppercased() } ?? "" }
-    static func initial(name: String) -> String { name.first.map { String($0).uppercased() } ?? "" }
-}
-
 struct SnChatSeite: View {
     @ObservedObject var modell: AppModell
     @ObservedObject var steuerung: SnChatSteuerung
     @ObservedObject private var chat: ChatService
     @ObservedObject private var ansichten: AnsichtModell
     @ObservedObject private var gegenueber: GegenueberModell
-    @ObservedObject private var listen = ListenModell.gemeinsam
-    @ObservedObject private var aufgaben = AufgabenModell.gemeinsam
-    @State private var alleOffen = false
+    @ObservedObject private var store: SenecaStore
     @State private var ziehtZiel = false
-    @StateObject private var bausteine = BausteinModell()
+    @State private var ziehSatz = ""
+    @StateObject private var buehne = SnBildBuehne()
     var schliesse: () -> Void
 
     init(modell: AppModell, steuerung: SnChatSteuerung, schliesse: @escaping () -> Void) {
@@ -349,6 +181,7 @@ struct SnChatSeite: View {
         _chat = ObservedObject(wrappedValue: modell.store.chat)
         _ansichten = ObservedObject(wrappedValue: modell.ansichten)
         _gegenueber = ObservedObject(wrappedValue: modell.gegenueber)
+        _store = ObservedObject(wrappedValue: modell.store)
     }
 
     private var key: String { chat.currentKey }
@@ -367,53 +200,83 @@ struct SnChatSeite: View {
         return "Diesem Mitarbeiter hast du noch nicht geschrieben." + (zustaendig.hasSuffix(".") ? " " + zustaendig : "")
     }
 
+    static func spalte(_ w: CGFloat, seneca: Bool) -> (links: CGFloat, breite: CGFloat, rand: CGFloat) {
+        let breite: CGFloat = seneca ? 760 : 720, rand: CGFloat = seneca ? 200 : 252
+        return (max(320, w - 40 - rand - (seneca ? 36 : 56) - breite), breite, rand)
+    }
+
+    private var agent: String { gegenueber.ziel?.agentId ?? Hauptagent.id }
+    private var istSeneca: Bool { agent == Hauptagent.id }
+    private var stand: SenecaStand? { modell.store.stand }
+    private var mitglied: SenecaStand.Mitglied? { stand?.team?.first { $0.id == agent } }
+    private var mehrFrage: SenecaStand.Frage? { stand.flatMap { s in GL.fragen(s, von: mitglied?.name ?? "").first { $0.id == modell.mehrFrage } } }
+
     var body: some View {
         ZStack(alignment: .top) {
-            VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
-                        leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
-                        karten: listen.liste?.auftragskarten ?? [], agent: gegenueber.ziel?.agentId ?? Hauptagent.id, neuLaden: neuLaden)
-                .equatable()
-                .verlaufRein()
-                .padding(.top, 228).padding(.bottom, 100)
-            SnSeiten(modell: bausteine, laeuft: aufgaben.liste?.laeuftGerade(fuer: gegenueber.ziel?.agentId ?? Hauptagent.id) ?? [],
-                     oeffne: { modell.oeffneAufgabe($0) },
-                     zumBoard: { modell.gehe(Route(.heute, q: ["liste": "voll"])) })
-                .padding(.top, 228).padding(.bottom, 100)
-            if alleOffen {
-                Color.clear.contentShape(Rectangle()).onTapGesture { schliesseAlle() }
-            }
-            SnAgentWahl(gegenueber: gegenueber, store: modell.uebersicht, leiste: gegenueber.leiste, alleOffen: $alleOffen)
-                .padding(.top, 104)
-            if alleOffen {
-                SnAlleAgenten(gegenueber: gegenueber, store: modell.uebersicht, leiste: gegenueber.leiste, schliesse: schliesseAlle)
-                    .padding(.top, 214)
-                    .transition(.opacity.combined(with: .offset(y: -6)))
-            }
-            HStack {
-                Spacer()
-                NurUnterhaltungSchalter().padding(.trailing, 10)
-                Button(action: schliesse) {
-                    Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundStyle(Farbe.ink2)
-                        .frame(width: 40, height: 40).contentShape(Circle())
+        GeometryReader { g in
+            let (links, breite, rand) = Self.spalte(g.size.width, seneca: istSeneca)
+            ZStack(alignment: .topLeading) {
+                SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { id in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id) },
+                                  neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) }, zieht: ziehtZiel, fragt: mehrFrage,
+                                  ablegen: { id, urls in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); steuerung.fuegeHinzu(urls) })
+                    .padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
+                VStack(alignment: .leading, spacing: 24) {
+                    if !store.isConnected { SnNichtErreichbar { await modell.verbinde() } }
+                    if let s = stand, let f = mehrFrage {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(GL.mehrSeite(f, s)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
+                            SnFrageMehr(frage: f, stand: s, antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, zuruecknehmen: { modell.store.handle("rueckgaengig", ziel: f.id) },
+                                        andereZeit: { steuerung.eingabe = "Andere Zeit: "; steuerung.fokussiere() })
+                        }
+                    }
+                    VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
+                                leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
+                                stand: stand, agent: agent, neuLaden: neuLaden,
+                                zuruecklegen: { z in modell.store.handle("termin.zuruecklegen", ziel: z.uid, wert: ["start": .zahl(z.start), "ende": .zahl(z.ende)]) },
+                                bearbeiten: { steuerung.eingabe = $0; steuerung.fokussiere() },
+                                vorschlag: { merken in
+                                    if merken, let v = stand?.todo_vorschlag { modell.store.handle("todo.anlegen", ziel: nil, wert: ["titel": .text(v.titel)].merging(v.bereich.map { ["bereich": .text($0)] } ?? [:]) { a, _ in a }) }
+                                    modell.store.handle("todo.vorschlag_weg", ziel: nil, wert: [:])
+                                })
+                        .equatable()
+                        .verlaufRein()
+                    if let s = stand, !istSeneca {
+                        if let f = mehrFrage, let g = GL.gehaltenSatz(f, s) {
+                            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                                Text(HeuteTafelLogik.uhr(g.um)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).frame(width: 52, alignment: .leading)
+                                Text(g.satz).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                            }
+                        }
+                        ForEach(GL.fragen(s, von: mitglied?.name ?? "").filter { $0.id != mehrFrage?.id }) { f in
+                            SnGespraechFrage(frage: f, fokus: s.ruhe?.grund == "fokus", antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, mehr: { modell.mehrFrage = f.id })
+                        }
+                        if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { SnGespraechLauf(mitglied: m) }
+                        else if let m = mitglied, let st = GL.station(s, m) {
+                            SnAuftragKarte(station: st, ansehen: { modell.teamOffen = true; modell.gehe(Route.heute) }, anstupsen: { steuerung.sende("Wo hängst du gerade?") })
+                        }
+                        if let f = mehrFrage { SnFrageMehrFuss(frage: f) { steuerung.sende($0) } }
+                    }
                 }
-                .buttonStyle(.plain)
-                .snGlas(Circle())
-                .help("Chat schließen")
-                .accessibilityLabel("Chat schließen")
-                .accessibilityIdentifier("chat-schliessen")
+                .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
+                SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
+                    .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
             }
-            .padding(.top, 24).padding(.trailing, 28)
+            }
+            SnBildGross(buehne: buehne) { t, png in steuerung.sende(t, anhaenge: [ChatAnhang.ausDaten(png, mime: "image/png")].compactMap { $0 }) }
             if ziehtZiel {
-                RoundedRectangle(cornerRadius: 24).strokeBorder(Farbe.himmel, lineWidth: 3)
-                    .background(RoundedRectangle(cornerRadius: 24).fill(Farbe.himmel.opacity(0.08)))
-                    .padding(12)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                GeometryReader { g in
+                    let (links, breite, _) = Self.spalte(g.size.width, seneca: istSeneca)
+                    SnZiehHinweis(satz: ziehSatz).frame(width: breite + 32, height: g.size.height - 82).padding(.leading, links - 16).padding(.top, 62)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
         }
         .onDrop(of: [UTType.fileURL.identifier, UTType.png.identifier, UTType.tiff.identifier, UTType.jpeg.identifier, UTType.image.identifier],
-                isTargeted: $ziehtZiel) { steuerung.bearbeiteDrop($0) }
+                delegate: SnZiehAblage(ziehtZiel: $ziehtZiel, satz: $ziehSatz, ablegen: { steuerung.bearbeiteDrop($0) }))
         .animation(Kurve.sn(0.15), value: ziehtZiel)
+        .animation(Kurve.sn(0.2), value: buehne.offen)
+        .environment(\.bildBuehne, buehne)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             chat.isShowing = true
@@ -427,16 +290,11 @@ struct SnChatSeite: View {
             ansichten.senden = { steuerung.sende($0) }
             ansichten.vorschlagen = { steuerung.vorschlagen($0) }
             beobachte()
-            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? Hauptagent.id)
-            #if DEBUG
-            if Hintergrund.aktiv, ProcessInfo.processInfo.environment["SENECA_LEISTE_ALLE"] == "1" { alleOffen = true }
-            #endif
         }
-        .onDisappear { chat.isShowing = false; bausteine.halte() }
+        .onDisappear { chat.isShowing = false }
         .onChange(of: chat.lives) { _, _ in beobachte() }
         .onChange(of: key) { _, _ in chat.speicher.oeffne(key); beobachte() }
         .onChange(of: gegenueber.aktuellerKey) { _, _ in
-            bausteine.zeige(agent: gegenueber.ziel?.agentId ?? Hauptagent.id)
             steuerung.hinweis = nil
             steuerung.ladeEntwurf()
             steuerung.fokussiere()
@@ -478,11 +336,6 @@ struct SnChatSeite: View {
         steuerung.eingabe = ""
     }
 
-    private func schliesseAlle() {
-        withAnimation(Kurve.sn(0.25)) { alleOffen = false }
-        steuerung.fokussiere()
-    }
-
     private func beobachte() {
         chat.speicher.setzeLauf(laufKopf)
     }
@@ -506,12 +359,12 @@ struct SnChatEingabe: View {
 
     private var laeuft: Bool { chat.lives[chat.currentKey] != nil }
     private var leer: Bool { !steuerung.kannSenden }
-    private var initial: String { gegenueber.aktuellerAgent == gegenueber.ov.defaultAgent ? "" : SnChatName.initial(name: gegenueber.name) }
+    private var seneca: Bool { gegenueber.aktuellerAgent == gegenueber.ov.defaultAgent }
 
     var body: some View {
         VStack(spacing: 8) {
             if !steuerung.anhaenge.isEmpty {
-                SnAnhangReihe(anhaenge: steuerung.anhaenge, entferne: { steuerung.entferne($0) }).padding(.top, 4)
+                SnAnhangReihe(anhaenge: steuerung.anhaenge, entferne: { steuerung.entferne($0) }, standbild: { steuerung.standbild($0) }).padding(.top, 4)
             }
             zeile
         }
@@ -519,21 +372,25 @@ struct SnChatEingabe: View {
     }
 
     private var zeile: some View {
-        HStack(alignment: .center, spacing: 12) {
-            SnAgentKugel(initial: initial, groesse: 30)
+        HStack(alignment: .center, spacing: 14) {
+            Button {
+                let p = NSOpenPanel(); p.allowsMultipleSelection = true
+                if p.runModal() == .OK { steuerung.fuegeHinzu(p.urls) }
+            } label: { Image(systemName: "paperclip").font(.system(size: 14)).foregroundStyle(TafelFarbe.zweit).frame(width: 30, height: 30).contentShape(Circle()) }
+            .buttonStyle(.plain).keyboardShortcut("a", modifiers: [.command, .shift]).help("Datei anhängen · ⌘⇧A").padding(.leading, -6)
+            SnAnZeile(name: gegenueber.name, seneca: seneca)
             SnMehrzeilenFeld(text: Binding(get: { steuerung.eingabe }, set: { steuerung.eingabe = $0 }), maxZeilen: 8, fokusAnfrage: steuerung.fokusAnfrage,
                              senden: { steuerung.sendeEingabe() }, escape: { schliesse() },
                              einfuegenAnhang: { steuerung.versucheAnhangAusZwischenablage($0) })
                 .overlay(alignment: .topLeading) {
                     if stand.text.isEmpty {
-                        Text(steuerung.anhaenge.isEmpty ? "Schreib \(gegenueber.name) …" : "Dazu schreiben …")
-                            .font(Schrift.grotesk(17, .light)).foregroundStyle(Farbe.ink3).allowsHitTesting(false)
+                        SnAnZeile.platzhalter(seneca: seneca, anhang: !steuerung.anhaenge.isEmpty).allowsHitTesting(false)
                     }
                 }
             if laeuft {
                 Button { Task { await chat.stop(steuerung.partner) } } label: {
                     Image(systemName: "stop.fill").font(.system(size: 14)).foregroundStyle(Color.white)
-                        .frame(width: 42, height: 42).background(Circle().fill(Color.white.opacity(0.14)))
+                        .frame(width: 34, height: 34).background(Circle().fill(Color.white.opacity(0.12)))
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(".", modifiers: .command)
@@ -541,8 +398,8 @@ struct SnChatEingabe: View {
             }
             if !laeuft || !leer {
                 Button { steuerung.sendeEingabe() } label: {
-                    Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color(hex: 0x0A2245))
-                        .frame(width: 42, height: 42).background(Circle().fill(Farbe.himmel))
+                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .medium)).foregroundStyle(leer ? Color.white : TafelFarbe.aufHimmel)
+                        .frame(width: 34, height: 34).background(Circle().fill(leer ? Color.white.opacity(0.12) : TafelFarbe.himmel))
                 }
                 .buttonStyle(.plain)
                 .disabled(leer)
@@ -550,6 +407,61 @@ struct SnChatEingabe: View {
                 .accessibilityIdentifier("senden")
             }
         }
-        .padding(.leading, 12).padding(.trailing, 7).padding(.vertical, 7)
+        .padding(.leading, 20).padding(.trailing, 16).padding(.vertical, 14)
+    }
+}
+
+struct SnAnZeile: View {
+    var name: String
+    var seneca: Bool
+    var body: some View { Text("an \(name)").font(Schrift.mono(12)).foregroundStyle(seneca ? TafelFarbe.himmel : TafelFarbe.gruen).fixedSize() }
+
+    static func platzhalter(seneca: Bool, anhang: Bool = false) -> some View {
+        Text(anhang ? "Dazu schreiben …" : seneca ? "Schreib oder halte die rechte ⌘-Taste zum Sprechen …" : "Antworte oder gib einen neuen Auftrag …")
+            .font(Schrift.grotesk(16)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
+    }
+}
+
+struct SnZiehAblage: DropDelegate {
+    @Binding var ziehtZiel: Bool
+    @Binding var satz: String
+    var ablegen: ([NSItemProvider]) -> Bool
+
+    func dropEntered(info: DropInfo) {
+        ziehtZiel = true
+        satz = ""
+        let p = info.itemProviders(for: [UTType.fileURL.identifier])
+        Task.detached {
+            var urls: [URL] = []
+            for x in p { if let u = try? await x.loadItem(forTypeIdentifier: UTType.fileURL.identifier) as? Data, let url = URL(dataRepresentation: u, relativeTo: nil) { urls.append(url) } }
+            guard !urls.isEmpty else { return }
+            let groessen = urls.map { (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int) ?? 0 }
+            let klein = urls.enumerated().reduce(0) { s, e in
+                ChatAnhang.mimeTyp(e.element.pathExtension).hasPrefix("image/") ? s + ((try? Data(contentsOf: e.element)).flatMap(ChatAnhang.verkleinert)?.count ?? groessen[e.offset]) : s + groessen[e.offset]
+            }
+            let t = ChatAnhang.ziehSatz(urls.map(\.lastPathComponent), summe: groessen.reduce(0, +), klein: klein)
+            await MainActor.run { satz = t }
+        }
+    }
+    func dropExited(info: DropInfo) { ziehtZiel = false }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .copy) }
+    func performDrop(info: DropInfo) -> Bool {
+        ziehtZiel = false
+        return ablegen(info.itemProviders(for: [UTType.fileURL.identifier, UTType.image.identifier]))
+    }
+}
+
+struct SnZiehHinweis: View {
+    var satz: String
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "arrow.down").font(.system(size: 18, weight: .medium)).foregroundStyle(Color.white).frame(width: 64, height: 64).background(Circle().fill(Color.white.opacity(0.12)))
+            Text("Loslassen, dann hängt es an.").font(Schrift.serif(36)).foregroundStyle(Color.white).padding(.top, 6)
+            Text(satz).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(minHeight: 20)
+            Text("Gesendet wird erst, wenn du Enter drückst").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise).padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(TafelFarbe.hex(0x0B1E3F, 0.82)))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(TafelFarbe.himmel.opacity(0.55), lineWidth: 1.5))
     }
 }

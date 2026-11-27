@@ -33,8 +33,10 @@ Geschwister kennen sich nicht. Sie arbeiten über das Register zusammen: ein Mod
 |---|---|---|
 | `apps/SenecaKern/Sources/SenecaKern` | Code, den Mac und iPhone teilen: Chat, Verbindung, Fachlogik. Ein Exemplar, beide Xcode-Projekte übersetzen den Ordner mit. Wo Mac und iPhone verschieden sind, steht `#if os(iOS)` | nichts außerhalb |
 | `apps/Mac/MacKern` | Fachlogik nur für den Mac (Meeting, Menüleiste, Tageslauf, Übersicht) | `apps/SenecaKern` |
-| `apps/Mac/SenecaNativ`, `SenecaWidget` | Oberfläche der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
+| `apps/Mac/SenecaNativ`, `SenecaWidget`, `SenecaTeilen` | Oberfläche, Widget und Teilen-Erweiterung der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
 | `apps/iPhone/*` | Oberfläche, Widget, Teilen-Erweiterung der iPhone-App | `apps/SenecaKern` |
+| `apps/SenecaKern/Sources/SenecaKern/Widget` | Ein Widget für iPhone (Home, Sperre) und Mac (Mitteilungszentrale): Lage, Zustände, Aussehen. Beide Widget-Erweiterungen übersetzen diese Dateien; die Apps schreiben `WidgetLage` in ihre App-Group | nichts außerhalb |
+| `apps/SenecaKern/Sources/SenecaKern/Teilen` | „An Seneca teilen“ für iPhone und Mac: Blatt (Tafel G-iPhone-Teilen), Eintrag in der App-Group, Lesen. Ohne Frage wird es `eingang.datei`, mit Frage eine Nachricht an Seneca oder den gewählten Mitarbeiter. Ersetzt den Mac-Sortierer | nichts außerhalb |
 
 Die Apps sprechen mit dem Plugin nur über das Gateway. Ihre Zeilen dürfen nicht wachsen (Budget in `pruefen.sh`, Prüfung P1).
 
@@ -61,6 +63,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 11 | Anzeige setzen (höchstens 4 je Projekt) | `register/schreiben.ts` · `anzeigeSetzen` |
 | 12, 13 | Fakt, Profil, Kontaktstufe, „ruht“ (neuester Wert gilt) | `register/schreiben.ts` · `wertSetzen` |
 | 14 | Register sichern | `register/sichern.ts`, nur vom Job `pflegen` |
+| 14a | Tägliche Sicherung (Register, OpenClaw-Zustand mit Skill-Werkstatt, `openclaw.json`, Skills, die Ablage ohne `_sicherung`) mit restic in `~/Ablage/_sicherung` | `arbeitsdienst/jobs.ts` · `tagesSicherung`, nur vom Job `pflegen` |
 | 15, 16 | Wecken; „ruht“ prüfen (einzige Prüfstelle) | `arbeitsdienst/lauf.ts` · `starteLauf()` |
 | 17 | Hintergrundjobs mit wachsendem Abstand bei Fehlern | `arbeitsdienst/takt.ts` |
 | 18 | Rundgang, Morgenbericht, Rückblick, Briefing | Daueraufträge, geweckt von `faellige_auftraege` |
@@ -78,10 +81,11 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 30 | Frage ersetzt oder zurückgezogen | `register/uebergaenge.ts` (Nebenwirkungen) |
 | 31, 35, 37, 52 | „Braucht dich“ (höchstens 3), Stand mit Revision, Regeln an die Geräte, Version | `pforte/stand.ts` |
 | 32, 33 | Ruhe, Abstand der Mitteilungen, Zustellung je Gerät; die Uhr gilt bis `uhr_verbunden_min` nach ihrem letzten Abgleich als verbunden (`zugang/uhr.ts`) und bekommt Ja/Nein-Fragen und Vorschläge | `pforte/zustellen.ts` |
-| 39a | Anruf an Antonio, wenn ein Auftrag feststeckt (nie nachts, Schlaf, Training) | entschieden nur in `pforte/zustellen.ts` (Auftrag `anruf_antonio`), ausgeführt über `ausgang/ausgang.ts` |
+| 39a | Anruf an Antonio, wenn ein Auftrag feststeckt (nie nachts, Schlaf, Training) | entschieden nur in `pforte/zustellen.ts` (Auftrag `anruf_antonio`); beim Wählen prüft `ausgang/ausgang.ts` Nummer, Ruhe und „genau einmal“ |
 | 34 | Push senden (APNs, Schlüssel nur aus der Plugin-Konfiguration, ohne Schlüssel still aus) | `pforte/push.ts`, aufgerufen nur aus `pforte/zustellen.ts` |
 | 38, 39, 41, 42 | Nach außen nur nach Stufe, 5 s, höchstens einmal | `ausgang/ausgang.ts` · Hook `before_tool_call` |
 | 40 | Stufe je Empfänger | `ausgang/kontakte.ts` |
+| – | Unteragent (`sessions_spawn`) und Nachricht an Kollegen (`sessions_send`): nie von oder an einen Ruhenden, fremde Kollegen nur laut `unterauftrag_an` (Regel `unteragent_werkzeuge`); jeder Unteragent-Lauf steht als Ereignis `unteragent` und `unteragent.ende` im Register. Anruf-Auftrag (`anruf_antonio`): nur Antonios Nummer, nie in Nacht, Schlaf oder Training, genau einmal | `ausgang/ausgang.ts` · Hooks `before_tool_call`, `subagent_spawned`, `agent_end` |
 | – | Nichts live ohne Antonios ausführliches Ja (Mandatsfeld `live_nur_mit_ja`, Regel `live_muster`); Außen-Werkzeuge auch als Shell-Aufruf, dazu gesperrt: Löschen, Force-Push, Schlüssel und `.env` (`<werkzeug>~<muster>` in `aussen_werkzeuge`, `aussen_gesperrt`); kein Gateway-Neustart außer im Bauablauf mit Ja (Regel `gateway_muster`) | `ausgang/ausgang.ts` · Hook `before_tool_call` |
 | 43, 46, 47 | Korrektur einordnen (aus dem Gespräch oder Antonios Satz beim Nachbessern), die 5 ähnlichsten früheren, Skill höchstens eine Zeile mehr, Sperre als Auftrag, Wiederholung → Auftrag an den Besitzer; Zählung `wiederholungenSeit` in `register/lesen.ts`; Zeile „Gelernt: …“ im Stand (`gelernt`) | `lernen/lernen.ts` |
 | 47a | Zurücknehmen (einmal; Skill und gebaute Sperre über einen Umkehr-Auftrag) | `register/schreiben.ts` · `korrekturZuruecknehmen`, Handlung `lernen.zuruecknehmen` |
@@ -89,13 +93,20 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 48 | Uhr koppeln (Zahlenvergleich, Fenster 10 Min, Schlüssel genau einmal) | `zugang/uhr.ts`; Bestätigung als Handlung in `zugang/handeln.ts` |
 | 49 | Uhr-Zugang (Abgleich, Token, Begrenzung) | `zugang/uhr.ts` |
 | 49 | Körperwerte im Abgleich: Feld `k` = `bb` [Body Battery, Zeit s], `st` Stress, `sc` Schritte; Server legt `koerper` und `koerper:morgens` als Wert ab, Ausgabe in `seneca.stand.koerper`. Schlaf liest das iPhone aus HealthKit und schickt ihn per `seneca.handeln` (Art `koerper`: `schlaf_min`, `bis` in ms) → `koerper.schlaf` | `uhr/source/Abgleich.mc` → `zugang/uhr.ts` → `pforte/stand.ts` |
-| 45 | Ablage-Rechte je Bereich (lesen: `bereich`, schreiben: `ablage_schreiben`) | `zugang/rechte.ts` · Hook `before_tool_call` |
+| – | Entscheiden-Seite: `seneca.stand.entscheiden` (Kopfsatz, Fenster, heute schon entschieden, Danach), `buendel.fortschritt` (3 von 14, ✓/↺, „Danach noch …“) und `buendel.abnahmen` mit Satz, Prüfer-Urteil, Art und Hörprobe; Optionen mit `titel`, `preis`, `einheit`, `knopf`, Frage mit `folge` (Wirkung nach außen) | `pforte/entscheiden.ts` |
+| – | Projekte: Werkzeug `seneca_projekt` legt je Projekt den Wert `projekt:<name>` ab (Untertitel, Satz, Phasen, Start, nach, ruht); `seneca.stand.projekte` rechnet Zustand (braucht dich, läuft, wartet), Fragen, Läufe und nächsten Auftrag dazu | `pforte/projekte.ts` |
+| – | Kalender: `seneca.stand.wochenplan` = Wochen (Kopf), Tage mit Body Battery, Ganztägigem, Blöcken (termin, bewegung, seneca, vorschlag, todos, fenster, zugleich) und Marken; `plant` = erste Überschneidung mit freier Zeit. Apps schreiben über `seneca.handeln`: `termin.anlegen`, `termin.verschieben` (mit Teilnehmern wird daraus ein Auftrag an Seneca), `termin.wegzeit` (Mac rechnet mit MapKit; `wegzeit:<uid>` Minuten, `wegstrecke:<uid>` Meter und Art), `kalender.lassen`. Schreibwünsche liegen als `kalender:schreiben:<kennung>`, der Kalender-Job trägt sie per CalDAV ein | `pforte/wochenplan.ts`, `quellen/kalender.ts`, `zugang/handeln.ts` |
+| 45 | Ablage-Rechte je Bereich (lesen: `bereich`, `ablage_alle_lesen`; schreiben: `ablage_schreiben` und `_arbeit/<name>`) | `zugang/rechte.ts` · Hook `before_tool_call` |
+| 78 | Arbeitsdateien in `_arbeit/` verfallen nach `arbeitsdateien_tage`, außer sie hängen an einem Auftrag | `arbeitsdienst/jobs.ts` · `arbeitVerfallen`, nur vom Job `pflegen` |
+| 78a | Jeder Lauf erfährt seine Ablage-Rechte und `_arbeit/<name>` (ein Satz, für alle gleich) | `arbeitsdienst/lauf.ts` · `kontext` |
 | 50 | Uhr-Abgleich (Kennung je Handlung) | `zugang/handeln.ts` |
 | 53, 54 | Kalender lesen und schreiben (CalDAV, Konflikte, Teilnehmer nur über den Ausgang) | `quellen/kalender.ts` · Werkzeug `seneca_kalender`; Tagesstand je Tag als Wert `kalender:<tag>` (`register/lesen.ts` · `termineAm`) |
 | 55, 74 | Tagesplanung (To-dos in Lücken, Fenster frei), Los-Hinweis mit Ankunft, Fokus aus dem Kalender | `pforte/planen.ts`; Fokus wirkt in `pforte/stand.ts` · `ruhe`; Terminvorbereitung offen |
 | 56 | Mail lesen | vorhandenes Zoho-Mail-Werkzeug, kein Plugin-Code |
 | 57 | WhatsApp mitlesen (nie senden) | `quellen/whatsapp.ts` · Hook `message_received` |
 | 58, 59, 63 | Eingang Meeting, Sensor, Datei: Ereignis `eingang`; Meeting und Datei werden ein Auftrag an Seneca, Sensor ein Vorschlag (nur sicher, höchstens 3 am Tag) oder ein Eintrag `tagesspur` | `zugang/handeln.ts` → `quellen/eingang.ts` · Job `eingang` |
+| 79 | Datei aus der Ablage zeigen (Gespräch, Bericht): Vorschau nur innerhalb `ablage_pfad`, ohne `_sicherung` | `quellen/ablage.ts` · `dateiVorschau`, über `seneca.stand` mit `sicht: datei` |
+| 80 | Gespräch neu beginnen (Handlung `gespraech.neu`; das Admin-Recht hat nur der Server) | `zugang/handeln.ts` → `arbeitsdienst/jobs.ts` · Job `gespraeche` |
 | 60 | Vorschlag → ein Tipp → Auftrag, To-do, Wert oder Parken (ein Weg für alle Quellen, Herkunft je Vorschlag) | `register/schreiben.ts` · `vorschlagAnlegen`; Wirkung nach Ja: `arbeitsdienst/jobs.ts` · Job `faellige_wirkungen` |
 | 60a | Vorschläge einer Quelle mit wenig Ja kommen nur noch ins Fenster; Vorschlag mit Frist verfällt | `pforte/zustellen.ts` |
 | 67 | Plugin ausliefern | offen (`ausliefern.yml` nach dem Update auf 11.10) |
@@ -107,11 +118,12 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | Art | Name → Ort |
 |---|---|
 | Werkzeuge | `seneca_lesen` → `pforte/stand.ts` · `seneca_auftrag`, `seneca_fortschreiben` → `arbeitsdienst/lauf.ts` · `seneca_frage`, `seneca_einstellen`, `seneca_anzeige`, `seneca_todo`, `seneca_eintrag` → `register/schreiben.ts` · `seneca_lernen` → `lernen/lernen.ts` · `seneca_kalender` → `quellen/kalender.ts` |
-| Gateway-Methoden | `seneca.stand` → `pforte/stand.ts` · `seneca.handeln` → `zugang/handeln.ts` |
+| Gateway-Methoden | `seneca.stand` → `pforte/stand.ts` · `seneca.handeln` → `zugang/handeln.ts` · `seneca.verstehen` (Satz → To-do-Felder, Kalender des Tages) → `pforte/verstehen.ts` |
 | HTTP-Routen | `/seneca/uhr/v1/abgleich`, `/seneca/uhr/v1/koppeln`, `/seneca/uhr/v1/abholen` → `zugang/uhr.ts` · `/seneca/github` → `quellen/github.ts` (Lesen des Körpers mit Grenze: `index.ts`) |
-| Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
+| Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call`, `subagent_spawned` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |
-| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `laeufe_pruefen`, `pflegen` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
+| Verlauf je Gespräch: Quittung (was Seneca getan hat, Ergebnis, „Termin zurücklegen“), Gerät je Nachricht (Schlüssel `<geraet>-<uuid>`), Antworten ohne eigene Frage | `pforte/verlauf.ts` → `seneca.stand.verlauf`; Apps: `SenecaKern/Pocket/VerlaufLogik.swift` |
+| Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `kalender_wache` (Vorschläge verfallen still, „Zu spät“ fragt einmal), `laeufe_pruefen`, `pflegen`, `gespraeche` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
 
 ## Uhr-App: Aussehen
 

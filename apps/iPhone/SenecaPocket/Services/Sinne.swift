@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import EventKit
+import MapKit
 import UserNotifications
 import UIKit
 import os
@@ -11,6 +12,10 @@ enum SinneNamen {
     static let kategorie = "seneca.heimkehr"
     static let passt = "passt"
     static let spaeter = "spaeter"
+    static let frage = "seneca.frage."
+    static let ja = "ja"
+    static let mehr = "mehr"
+    static let rueckblick = "seneca.rueckblick"
     static let spaeterNach: TimeInterval = 60 * 60
 }
 
@@ -28,8 +33,8 @@ final class Sinne: NSObject, ObservableObject {
     @Published private(set) var letzterFehler: String?
     @Published private(set) var letzterFehlerZeit: Date?
     private var verbunden: AnyCancellable?
-    @Published var offeneMeldung: Meldung?
-    private var holtMeldungen = false
+    @Published var offeneFrage: String?
+    private var standAbo: AnyCancellable?
 
     private weak var store: SenecaStore?
     private let manager = CLLocationManager()
@@ -37,8 +42,6 @@ final class Sinne: NSObject, ObservableObject {
     private let schlange = TageslaufSchlange()
     private let defaults = UserDefaults.standard
     private let log = Logger(subsystem: "de.antonio.senecapocket", category: "Sinne")
-    private var eigen: Verbindung?
-    private var fehlschlag: Date?
     private var gestartet = false
     private var gleichtAb = false
     private var meldetHeimkehr = false
@@ -50,8 +53,9 @@ final class Sinne: NSObject, ObservableObject {
         static let heimkehr = "seneca-pocket.sinne.heimkehr-tag"
         static let gefragt = "seneca-pocket.sinne.gefragt"
         static let immerGefragt = "seneca-pocket.sinne.immer-gefragt"
-        static let ortsTag = "seneca-pocket.sinne.orts-tag"
         static let schlaf = "seneca-pocket.sinne.schlaf-bis"
+        static let mitteilungen = "seneca-pocket.sinne.fragen-gemeldet"
+        static let knoepfe = "seneca-pocket.sinne.fragen-knoepfe"
     }
 
     static var stumm: Bool {
@@ -77,6 +81,7 @@ final class Sinne: NSObject, ObservableObject {
         guard !gestartet else { return }
         gestartet = true
         self.store = store
+        LiveAnzeige.shared.starten(store: store)
         guard !Self.stumm else { return }
         manager.delegate = self
         ortsRecht = manager.authorizationStatus
@@ -88,6 +93,9 @@ final class Sinne: NSObject, ObservableObject {
         wartend = schlange.ereignisse.count
         verbunden = store.$isConnected.removeDuplicates().filter { $0 }.sink { _ in
             Task { @MainActor in await Sinne.shared.abgleichen() }
+        }
+        standAbo = store.$stand.compactMap { $0 }.sink { s in
+            Task { @MainActor in await Sinne.shared.fragenMelden(s); await Sinne.shared.rueckblickPlanen(s) }
         }
         #if DEBUG
         if ProcessInfo.processInfo.environment["SENECA_SINNE_PROBE"] == "1" {
@@ -204,14 +212,12 @@ final class Sinne: NSObject, ObservableObject {
         let aufgabe = UIApplication.shared.beginBackgroundTask(withName: "seneca.sinne")
         defer { UIApplication.shared.endBackgroundTask(aufgabe) }
         schlange.hinzufuegen([OrtsLogik.ereignis(ort, ankunft: dort, zeit: zeit)])
-        ortMerken(ort, dort: dort, zeit: zeit)
         wartend = schlange.ereignisse.count
         await abgleichen()
         await senden()
         if dort, Heimkehr.faellig(ort: ort.id, zeit: zeit, zuletzt: defaults.string(forKey: Merk.heimkehr), .current) {
             await heimkehrMelden(zeit)
         }
-        verbindungSchliessen()
     }
 
     func abgleichen() async {
@@ -221,105 +227,63 @@ final class Sinne: NSObject, ObservableObject {
         termineSammeln()
         await trainingsSammeln()
         await schlafMelden()
+        await wegeMelden()
         await senden()
-        await meldungenHolen()
-    }
-
-    private enum MeldMerk {
-        static let gezeigt = "seneca-pocket.meldungen.gezeigt"
-        static let knoepfe = "seneca-pocket.meldungen.knoepfe"
-        static let antworten = "seneca-pocket.meldungen.antworten"
     }
 
     private func kategorienSetzen() {
-        var alle: Set<UNNotificationCategory> = [UNNotificationCategory(identifier: SinneNamen.kategorie, actions: [
+        let knoepfe = defaults.stringArray(forKey: Merk.knoepfe) ?? []
+        UNUserNotificationCenter.current().setNotificationCategories(Set([UNNotificationCategory(identifier: SinneNamen.kategorie, actions: [
             UNNotificationAction(identifier: SinneNamen.passt, title: "Passt", options: []),
             UNNotificationAction(identifier: SinneNamen.spaeter, title: "Später", options: []),
-        ], intentIdentifiers: [], options: [])]
-        for knoepfe in defaults.array(forKey: MeldMerk.knoepfe) as? [[String]] ?? [] {
-            let aktionen = knoepfe.enumerated().map { nr, titel in
-                UNNotificationAction(identifier: MeldungLogik.aktion(nr), title: titel, options: titel == MeldungLogik.ganzLesen ? [.foreground] : [])
-            }
-            alle.insert(UNNotificationCategory(identifier: MeldungLogik.kategorie(knoepfe), actions: aktionen, intentIdentifiers: [], options: []))
-        }
-        UNUserNotificationCenter.current().setNotificationCategories(alle)
+        ], intentIdentifiers: [], options: [])] + knoepfe.map { k in
+            UNNotificationCategory(identifier: SinneNamen.frage + k, actions: [UNNotificationAction(identifier: SinneNamen.ja, title: k, options: []),
+                UNNotificationAction(identifier: SinneNamen.spaeter, title: "Später", options: []),
+                UNNotificationAction(identifier: SinneNamen.mehr, title: "Mehr", options: [.foreground])], intentIdentifiers: [], options: [])
+        }))
     }
 
-    func meldungenHolen() async {
-        guard gestartet, !Self.stumm, !holtMeldungen else { return }
-        holtMeldungen = true
-        defer { holtMeldungen = false }
-        await meldungAntwortenSenden()
-        guard let antwort = try? await rufe("seneca.meldungen.neu", [:], zeitlimit: 6) else { return }
-        let recht = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    func fragenMelden(_ s: SenecaStand) async {
+        let offen = Set((s.braucht_dich ?? []).map(\.id))
+        let mitte = UNUserNotificationCenter.current()
+        let alt = await mitte.deliveredNotifications().map(\.request.identifier).filter { $0.hasPrefix(SinneNamen.frage) && !offen.contains(String($0.dropFirst(SinneNamen.frage.count))) }
+        mitte.removeDeliveredNotifications(withIdentifiers: alt)
+        let recht = await mitte.notificationSettings().authorizationStatus
         guard recht == .authorized || recht == .provisional else { return }
-        var gezeigt = defaults.stringArray(forKey: MeldMerk.gezeigt) ?? []
-        for m in MeldungLogik.neue(MeldungLogik.lesen(antwort), gezeigt: gezeigt) {
-            if !m.knoepfe.isEmpty {
-                var bekannt = defaults.array(forKey: MeldMerk.knoepfe) as? [[String]] ?? []
-                if !bekannt.contains(m.knoepfe) {
-                    bekannt = Array((bekannt + [m.knoepfe]).suffix(30))
-                    defaults.set(bekannt, forKey: MeldMerk.knoepfe)
-                    kategorienSetzen()
-                }
-            }
+        var gezeigt = defaults.stringArray(forKey: Merk.mitteilungen) ?? []
+        for f in s.braucht_dich ?? [] where !gezeigt.contains(f.id) {
+            guard let m = f.mitteilung else { continue }
+            let knopf = TeamLogik.empfohlen(f)?.text ?? "Ja"
+            let knoepfe = defaults.stringArray(forKey: Merk.knoepfe) ?? []
+            if !knoepfe.contains(knopf) { defaults.set(Array((knoepfe + [knopf]).suffix(30)), forKey: Merk.knoepfe); kategorienSetzen() }
             let inhalt = UNMutableNotificationContent()
             inhalt.title = m.titel
-            inhalt.body = MeldungLogik.kurz(m.text)
+            inhalt.body = m.text
             inhalt.sound = .default
-            if !m.knoepfe.isEmpty { inhalt.categoryIdentifier = MeldungLogik.kategorie(m.knoepfe) }
-            inhalt.userInfo = ["meldung": m.id, "knoepfe": m.knoepfe, "titel": m.titel, "text": m.text]
-            guard (try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "seneca.meldung." + m.id, content: inhalt, trigger: nil))) != nil else { continue }
-            gezeigt = MeldungLogik.merke(gezeigt, m.id)
-            defaults.set(gezeigt, forKey: MeldMerk.gezeigt)
-            _ = try? await rufe("seneca.meldungen.gezeigt", ["id": m.id], zeitlimit: 6)
+            inhalt.categoryIdentifier = SinneNamen.frage + knopf
+            inhalt.userInfo = ["frage": f.id, "wahl": f.empfehlung ?? TeamLogik.empfohlen(f)?.wert ?? "ja"]
+            guard (try? await mitte.add(UNNotificationRequest(identifier: SinneNamen.frage + f.id, content: inhalt, trigger: nil))) != nil else { continue }
+            gezeigt = Array((gezeigt + [f.id]).suffix(50))
+            defaults.set(gezeigt, forKey: Merk.mitteilungen)
         }
     }
 
-    func waehle(_ id: String, _ wahl: String) {
-        Task { await meldungGewaehlt(id: id, wahl: wahl) }
+    func rueckblickPlanen(_ s: SenecaStand) async {
+        let mitte = UNUserNotificationCenter.current()
+        let recht = await mitte.notificationSettings().authorizationStatus
+        guard recht == .authorized || recht == .provisional else { return }
+        let um = s.rueckblick.map { Calendar.current.dateComponents([.hour, .minute], from: HeuteTafelLogik.datum($0.um)) } ?? DateComponents(hour: 21, minute: 30)
+        let alt = await mitte.pendingNotificationRequests().first { $0.identifier == SinneNamen.rueckblick }
+        if let t = alt?.trigger as? UNCalendarNotificationTrigger, t.dateComponents.hour == um.hour, t.dateComponents.minute == um.minute { return }
+        let inhalt = UNMutableNotificationContent()
+        inhalt.title = "Rückblick"
+        inhalt.body = "Dein Tag in einer Minute"
+        inhalt.interruptionLevel = .passive
+        _ = try? await mitte.add(UNNotificationRequest(identifier: SinneNamen.rueckblick, content: inhalt, trigger: UNCalendarNotificationTrigger(dateMatching: um, repeats: true)))
     }
 
-    fileprivate func meldungGewaehlt(id: String, wahl: String) async {
-        var offen = meldungAntworten()
-        offen.removeAll { $0.id == id }
-        offen.append(MeldungAntwort(id: id, wahl: wahl))
-        meldungAntwortenSichern(offen)
-        await meldungAntwortenSenden()
-        hintergrundEnde()
-    }
-
-    private func meldungAntworten() -> [MeldungAntwort] {
-        defaults.data(forKey: MeldMerk.antworten).flatMap { try? JSONDecoder().decode([MeldungAntwort].self, from: $0) } ?? []
-    }
-    private func meldungAntwortenSichern(_ liste: [MeldungAntwort]) {
-        if let d = try? JSONEncoder().encode(Array(liste.suffix(50))) { defaults.set(d, forKey: MeldMerk.antworten) }
-    }
-
-    private func meldungAntwortenSenden() async {
-        var offen = meldungAntworten()
-        guard !offen.isEmpty else { return }
-        for a in offen {
-            do { _ = try await rufe("seneca.meldungen.antwort", ["id": a.id, "wahl": a.wahl], zeitlimit: 6) }
-            catch SenecaError.offline { break }
-            catch { }
-            offen.removeAll { $0 == a }
-            meldungAntwortenSichern(offen)
-        }
-    }
-
-    fileprivate var heimkehrTag: String { defaults.string(forKey: Merk.heimkehr) ?? TageslaufZeit.tag(Date(), .current) }
-
-    func termine(_ von: Date, _ bis: Date) -> [GeraetTermin]? { Self.stumm ? nil : geraetTermine(von, bis) }
-
-    func orteHeute(_ jetzt: Date = Date()) -> [AblaufPunkt] {
-        guard let daten = defaults.data(forKey: Merk.ortsTag), let alle = try? JSONDecoder().decode([AblaufPunkt].self, from: daten) else { return [] }
-        return alle.filter { Calendar.current.isDate($0.zeit, inSameDayAs: jetzt) }
-    }
-
-    private func ortMerken(_ ort: SinnOrt, dort: Bool, zeit: Date) {
-        let heute = orteHeute(zeit) + [AblaufPunkt(zeit: zeit, art: dort ? "ort_ankunft" : "ort_abfahrt", titel: ort.name)]
-        if let daten = try? JSONEncoder().encode(Array(heute.suffix(40))) { defaults.set(daten, forKey: Merk.ortsTag) }
+    fileprivate func frageGewaehlt(_ id: String, wahl: String?) {
+        if let wahl { store?.antworte(frage: id, wahl: wahl) } else { offeneFrage = id }
     }
 
     private func geraetTermine(_ von: Date, _ bis: Date) -> [GeraetTermin]? {
@@ -346,6 +310,22 @@ final class Sinne: NSObject, ObservableObject {
         if let anker = a.anker { defaults.set(anker, forKey: Merk.trainingAnker) }
     }
 
+    private func wegeMelden() async {
+        guard let s = store?.stand, let hier = manager.location else { return }
+        for t in s.termine ?? [] where t.ort != nil && t.weg_min == nil && t.start > s.jetzt {
+            let suche = MKLocalSearch.Request()
+            suche.naturalLanguageQuery = t.ort
+            suche.region = MKCoordinateRegion(center: hier.coordinate, latitudinalMeters: 20_000, longitudinalMeters: 20_000)
+            guard let ziel = try? await MKLocalSearch(request: suche).start().mapItems.first else { continue }
+            let r = MKDirections.Request()
+            r.source = MKMapItem.forCurrentLocation()
+            r.destination = ziel
+            r.transportType = .walking
+            guard let weg = try? await MKDirections(request: r).calculate().routes.first else { continue }
+            store?.daten?.handeln("termin.weg", ziel: t.uid, wert: .objekt(["weg_min": .zahl((weg.expectedTravelTime / 60).rounded()), "entfernung_m": .zahl(weg.distance.rounded())]))
+        }
+    }
+
     private func schlafMelden() async {
         guard HealthStatistik.verfuegbar, !(await HealthStatistik.mussFragen()), let s = await HealthStatistik.schlafLetzteNacht() else { return }
         let bis = (s.ende.timeIntervalSince1970 * 1000).rounded()
@@ -357,71 +337,32 @@ final class Sinne: NSObject, ObservableObject {
         schlange.hinzufuegen(ereignisse)
         wartend = schlange.ereignisse.count
         await senden()
-        hintergrundEnde()
-    }
-
-    func hintergrundEnde() {
-        if UIApplication.shared.applicationState != .active { verbindungSchliessen() }
     }
 
     private func senden() async {
         defer { wartend = schlange.ereignisse.count }
-        guard !schlange.istLeer else { return }
+        guard let daten = store?.daten, !schlange.istLeer else { return }
         let zone = TimeZone.current
         var angekommen = 0
-        await schlange.abarbeiten { teil in
-            do {
-                let antwort = try await self.rufe("seneca.tageslauf.melde", ["ereignisse": teil.map { $0.json(zone) }], zeitlimit: 10)
-                if antwort["ok"] as? Bool == false { throw SenecaError.nichtGesendet }
-                angekommen += teil.count
-            } catch {
-                self.letzterFehler = SinneBericht.grund(error)
-                self.letzterFehlerZeit = Date()
-                self.defaults.set(self.letzterFehler, forKey: SinneBericht.fehlerKey)
-                self.defaults.set(self.letzterFehlerZeit, forKey: SinneBericht.fehlerZeitKey)
-                self.log.info("Melden gescheitert: \(self.letzterFehler ?? "", privacy: .public)")
-                throw error
+        _ = await schlange.abarbeiten { teil in
+            for e in teil {
+                let wert = (try? JSONSerialization.data(withJSONObject: e.json(zone))).flatMap { try? JSONDecoder().decode(JSONWert.self, from: $0) }
+                guard daten.handeln(e.quelle == "iphone-teilen" ? "eingang.datei" : "eingang.sensor", ziel: e.schluessel, wert: wert) != nil else {
+                    self.letzterFehler = SinneBericht.grund(SenecaError.nichtGesendet)
+                    self.letzterFehlerZeit = Date()
+                    self.defaults.set(self.letzterFehler, forKey: SinneBericht.fehlerKey)
+                    self.defaults.set(self.letzterFehlerZeit, forKey: SinneBericht.fehlerZeitKey)
+                    throw SenecaError.nichtGesendet
+                }
             }
+            angekommen += teil.count
         }
         if angekommen > 0 {
             letzterErfolg = Date()
             letzterErfolgAnzahl = angekommen
             defaults.set(letzterErfolg, forKey: SinneBericht.erfolgKey)
             defaults.set(angekommen, forKey: SinneBericht.erfolgAnzahlKey)
-            log.info("Am Mac angekommen: \(angekommen, privacy: .public)")
         }
-    }
-
-    func rufe(_ fn: String, _ params: [String: Any], zeitlimit: Double) async throws -> [String: Any] {
-        if UIApplication.shared.applicationState == .active {
-            guard let store, store.isConnected else { throw SenecaError.offline }
-            return try await store.rufe(fn, params: params, timeout: zeitlimit)
-        }
-        let weg = try await eigenerWeg()
-        do { return try await weg.rufe(fn, params, frist: zeitlimit) }
-        catch let f as VerbindungsFehler { throw f.alsSenecaFehler }
-    }
-
-    private func eigenerWeg() async throws -> Verbindung {
-        if let eigen { return eigen }
-        if let fehlschlag, Date().timeIntervalSince(fehlschlag) < 60 { throw SenecaError.offline }
-        let adresse = defaults.string(forKey: "gatewayURL") ?? ""
-        guard !adresse.isEmpty else { throw SenecaError.offline }
-        let weg = Verbindung(.init(adresse: adresse, token: CredentialStore.load(), ablage: KernAblage(), sperre: { try SimulatorSperre.pruefe(adresse: $0) }))
-        weg.starten()
-        guard await weg.warteVerbunden(frist: 8) else {
-            fehlschlag = Date()
-            weg.stoppen()
-            log.info("Server im Hintergrund nicht erreichbar")
-            throw SenecaError.offline
-        }
-        eigen = weg
-        return weg
-    }
-
-    private func verbindungSchliessen() {
-        eigen?.stoppen()
-        eigen = nil
     }
 
     private func heimkehrMelden(_ zeit: Date) async {
@@ -430,13 +371,8 @@ final class Sinne: NSObject, ObservableObject {
         defer { meldetHeimkehr = false }
         let recht = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
         guard recht == .authorized || recht == .provisional else { return }
-        let text: String
-        if let antwort = try? await rufe("seneca.tageslauf.heute", [:], zeitlimit: 6), let heute = TageslaufHeute.lesen(antwort) {
-            text = Heimkehr.satz(heute, jetzt: zeit, .current)
-        } else {
-            let f = TerminLogik.fenster(jetzt: zeit, .current)
-            text = geraetTermine(f.von, f.bis).map { Heimkehr.satzAusKalender($0, jetzt: zeit, .current) } ?? Heimkehr.ohneWissen
-        }
+        let f = TerminLogik.fenster(jetzt: zeit, .current)
+        let text = geraetTermine(f.von, f.bis).map { Heimkehr.satzAusKalender($0, jetzt: zeit, .current) } ?? Heimkehr.ohneWissen
         defaults.set(TageslaufZeit.tag(zeit, .current), forKey: Merk.heimkehr)
         mitteilen(text, nach: nil)
     }
@@ -488,22 +424,17 @@ extension Sinne: UNUserNotificationCenterDelegate {
         let inhalt = response.notification.request.content
         let aktion = response.actionIdentifier
         let text = inhalt.userInfo["text"] as? String ?? inhalt.body
-        if let id = inhalt.userInfo["meldung"] as? String {
-            let knoepfe = inhalt.userInfo["knoepfe"] as? [String] ?? []
-            let titel = inhalt.userInfo["titel"] as? String ?? inhalt.title
-            let wahl = MeldungLogik.wahl(aktion: aktion, knoepfe: knoepfe)
-            let oeffnen = wahl == MeldungLogik.ganzLesen || aktion == UNNotificationDefaultActionIdentifier
+        if let id = inhalt.userInfo["frage"] as? String {
+            let wahl = aktion == SinneNamen.ja ? inhalt.userInfo["wahl"] as? String : aktion == SinneNamen.spaeter ? "spaeter" : nil
             Task { @MainActor in
-                if oeffnen { Sinne.shared.offeneMeldung = Meldung(id: id, titel: titel, text: text, knoepfe: knoepfe) }
-                if let wahl { await Sinne.shared.meldungGewaehlt(id: id, wahl: wahl) }
+                Sinne.shared.frageGewaehlt(id, wahl: wahl)
                 completionHandler()
             }
             return
         }
-        guard inhalt.categoryIdentifier == SinneNamen.kategorie, aktion == SinneNamen.spaeter || aktion == SinneNamen.passt else { completionHandler(); return }
+        guard inhalt.categoryIdentifier == SinneNamen.kategorie, aktion == SinneNamen.spaeter else { completionHandler(); return }
         Task { @MainActor in
-            if aktion == SinneNamen.spaeter { Sinne.shared.mitteilen(text, nach: SinneNamen.spaeterNach) }
-            await Sinne.shared.meldungGewaehlt(id: "heimkehr:" + Sinne.shared.heimkehrTag, wahl: aktion == SinneNamen.passt ? "Passt" : "Später")
+            Sinne.shared.mitteilen(text, nach: SinneNamen.spaeterNach)
             completionHandler()
         }
     }

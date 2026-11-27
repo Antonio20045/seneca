@@ -73,6 +73,12 @@ extension View {
 }
 
 extension View {
+    func snFlaeche(_ radius: CGFloat = 16, deckkraft: Double = 0.06) -> some View {
+        let form = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return background(form.fill(Color.white.opacity(deckkraft)))
+            .overlay(form.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.1), location: 0), .init(color: .clear, location: 0.03)], startPoint: .top, endPoint: .bottom), lineWidth: 1).allowsHitTesting(false))
+    }
+
     @ViewBuilder func snGlas<S: InsettableShape>(_ form: S) -> some View {
         Group {
             if HeuteBild.ziel != nil {

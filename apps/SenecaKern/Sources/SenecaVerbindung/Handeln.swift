@@ -82,14 +82,14 @@ public final class Ausgangskorb {
     public var aufAenderung: (() -> Void)?
     public var aufErgebnis: ((Handlung, HandlungsErgebnis, Int) -> Void)?
 
-    private let datei: URL?
+    private let ablage: Ablage
     private let geraet: String
     private var sendet = false
 
     public init(datei: URL?, geraet: String) {
-        self.datei = datei
+        ablage = Ablage(datei: datei)
         self.geraet = geraet
-        if let datei, let roh = try? Data(contentsOf: datei), let liste = try? JSONDecoder().decode([Handlung].self, from: roh) { offen = liste }
+        offen = ablage.lies([Handlung].self) ?? []
     }
 
     public func istGestrichelt(_ kennung: String) -> Bool { offen.contains { $0.kennung == kennung } }
@@ -128,8 +128,5 @@ public final class Ausgangskorb {
         if offen.count != vorher { sichern(); aufAenderung?() }
     }
 
-    private func sichern() {
-        guard let datei else { return }
-        if let roh = try? JSONEncoder().encode(offen) { try? roh.write(to: datei, options: .atomic) }
-    }
+    private func sichern() { ablage.schreibe(offen) }
 }

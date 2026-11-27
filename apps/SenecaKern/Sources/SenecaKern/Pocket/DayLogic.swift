@@ -12,11 +12,6 @@ struct DayItem: Equatable, Identifiable, Sendable {
     var isRoutine: Bool = false
 }
 
-struct SatzStueck: Equatable {
-    var text: String
-    var akzent: Bool
-}
-
 struct HeroText: Equatable, Sendable {
     enum Mode: Sendable { case plain }
     var line1: String
@@ -34,10 +29,8 @@ struct DayInput {
     var entries: [CalendarEntry]
     var jobs: [AgentJob]
     var leaders: [String: String]
-    var tasks: [SenecaTask]
-    var days: [String: DayRecord]
-    var routineDoneToday: Bool
-    var needs: NeedsInput? = nil
+    var offen = 0
+    var erledigt = 0
 }
 
 struct DayState: Equatable {
@@ -45,14 +38,7 @@ struct DayState: Equatable {
     var dateLine: String
     var agenda: [DayItem]
     var routineDetail: String
-    var routineDone: Bool
-    var todos: [SenecaTask]
-    var doneCount: Int
     var progress: Double
-    var needs: [NeedsItem] = []
-    var needsLine: String? = nil
-    var needsDetail: String? = nil
-    var needsKurz: String? = nil
     var entries: [CalendarEntry] = []
     var jobs: [AgentJob] = []
     var leaders: [String: String] = [:]
@@ -154,20 +140,6 @@ enum DayLogic {
         return out.sorted { $0.start != $1.start ? $0.start < $1.start : ($0.kind == .termin && $1.kind == .lauf) }
     }
 
-    static let priorityRank = ["urgent": 0, "high": 1, "normal": 2, "low": 3]
-    static func todosToday(_ tasks: [SenecaTask], dayStart: Date, _ cal: Calendar = .current) -> [SenecaTask] {
-        AufgabenLogic.heutigeAufgaben(tasks, jetzt: dayStart, cal)
-    }
-
-    static func streakBefore(today: Date, days: [String: DayRecord], _ cal: Calendar) -> Int {
-        var n = 0
-        var d = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: today))!
-        while days[dayKey(d, cal)]?.routine == true {
-            n += 1
-            d = cal.date(byAdding: .day, value: -1, to: d)!
-        }
-        return n
-    }
     static func routineDetail(window: (Date, Date)?, _ cal: Calendar) -> String {
         guard let window else { return "" }
         return "\(hm(window.0, cal)) bis \(hm(window.1, cal))"
@@ -186,44 +158,18 @@ enum DayLogic {
 
     static func state(_ input: DayInput) -> DayState {
         let cal = input.calendar, now = input.now
-        let dayStart = cal.startOfDay(for: now)
         let today = items(on: now, input)
-        let todos = todosToday(input.tasks, dayStart: dayStart, cal)
-        let doneTodos = todos.filter(\.isDone).count
-        let done = (input.routineDoneToday ? 1 : 0) + doneTodos
         let routine = today.filter(\.isRoutine)
         let window = routine.isEmpty ? nil : (routine.map(\.start).min()!, routine.map(\.end).max()!)
-        var needsInput = input.needs
-        needsInput?.now = now
-        let needs = needsInput.map(NeedsYou.items) ?? []
-        let needsHero = needsInput.flatMap { NeedsYou.hero(needs, $0) }
         return DayState(
             dayKey: dayKey(now, cal),
             dateLine: dateLine(now, cal),
             agenda: Array(today.filter { $0.start > now }.prefix(3)),
             routineDetail: routineDetail(window: window, cal),
-            routineDone: input.routineDoneToday,
-            todos: todos,
-            doneCount: done,
-            progress: Double(done) / Double(1 + todos.count),
-            needs: needs,
-            needsLine: needsHero.map { "\($0.line1) \($0.line2Prefix)\($0.emphasis)\($0.line2Suffix)" },
-            needsDetail: needsHero?.sub,
-            needsKurz: needsInput.flatMap { NeedsYou.mintZeile(needs, $0) },
+            progress: Double(input.erledigt) / Double(max(1, input.erledigt + input.offen)),
             entries: input.entries,
             jobs: input.jobs,
             leaders: input.leaders)
-    }
-
-    static func settle(startProgress: Double, progress: Double) -> Double {
-#if os(iOS)
-        PageGesture.wouldOpen(start: startProgress, progress: progress) ? 1 : 0
-#else
-        startProgress < 0.5 ? (progress > 0.28 ? 1 : 0) : (progress < 0.72 ? 0 : 1)
-#endif
-    }
-    static func dragProgress(start: Double, translation: Double, travel: Double = 380) -> Double {
-        min(1, max(0, start - translation / travel))
     }
 }
 
@@ -341,16 +287,6 @@ enum AnswerParser {
         return s.replacingCharacters(in: i...i, with: s[i].uppercased())
     }
 
-    static func dropUnfinishedLine(_ raw: String) -> String {
-        var lines = raw.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines)
-        let stub = try! NSRegularExpression(pattern: #"^\s*(?:[-–•*]|\d+[.)])?\s*(?:\*\*)?(?:\d{1,2}(?:[:.]\d{0,2})?(?:\s*Uhr)?)?(?:\*\*)?\s*[-–—:·|]?\s*$"#)
-        if let last = lines.last, lines.count > 1,
-           stub.firstMatch(in: last, range: NSRange(location: 0, length: (last as NSString).length)) != nil {
-            lines.removeLast()
-        }
-        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     static func parse(_ raw: String) -> AnswerLayout {
         let timeRow = try! NSRegularExpression(pattern: #"^(?:[-–•*]\s*)?(?:\*\*)?(\d{1,2})[:.](\d{2})(?:\s*Uhr)?(?:\*\*)?\s*(?:[-–—:·|]\s*)?(.+)$"#)
         let bullet = try! NSRegularExpression(pattern: #"^(?:[-–•*]|\d+[.)])\s+(.+)$"#)
@@ -413,64 +349,14 @@ enum AnswerParser {
         guard parts.count == 2 else { return "" }
         return parts[1] == 0 ? "\(parts[0]) Uhr" : "\(parts[0]) Uhr \(parts[1])"
     }
-
-    static func todoIntent(_ text: String) -> String? {
-        let re = try! NSRegularExpression(pattern: #"^\s*(?:neues?\s+)?(?:to[\s-]?do|aufgabe)\s*[:,\-–]?\s+(.+?)[.!]?\s*$"#, options: [.caseInsensitive])
-        let ns = text as NSString
-        guard let m = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        let title = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
-        guard title.count >= 2 else { return nil }
-        return title.prefix(1).uppercased() + title.dropFirst()
-    }
 }
 
 extension DayLogic {
-    struct AusblickTag: Equatable {
-        var tag: Date
-        var titel: [String]
-    }
-
-    static func ausblick(zeilenAufHome: Int, kommende: [AusblickTag], maxAnzahl: Int = 3) -> [AusblickTag] {
-        guard zeilenAufHome == 0 else { return [] }
-        var rest = maxAnzahl
-        var aus: [AusblickTag] = []
-        for tag in kommende where rest > 0 && !tag.titel.isEmpty {
-            let titel = Array(tag.titel.prefix(rest))
-            aus.append(AusblickTag(tag: tag.tag, titel: titel))
-            rest -= titel.count
-        }
-        return aus
-    }
-
     static func wann(_ tag: Date, jetzt: Date, _ cal: Calendar = .current) -> String {
         let tage = cal.dateComponents([.day], from: cal.startOfDay(for: jetzt), to: cal.startOfDay(for: tag)).day ?? 1
         if tage <= 1 { return "Morgen" }
         let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.calendar = cal
         f.dateFormat = tage < 7 ? "EEEE" : "d. MMMM"
         return "Am \(f.string(from: tag))"
-    }
-
-    static func ausblickSatz(_ tage: [AusblickTag], jetzt: Date, _ cal: Calendar = .current) -> [SatzStueck] {
-        let tage = tage.filter { !$0.titel.isEmpty }
-        guard !tage.isEmpty else { return [] }
-        var stuecke: [SatzStueck] = []
-        var text = ""
-        for (i, d) in tage.enumerated() {
-            let wann = wann(d.tag, jetzt: jetzt, cal)
-            if i == 0 {
-                text += "\(wann) \(d.titel.count > 1 ? "stehen" : "steht") "
-            } else {
-                text += ", " + wann.prefix(1).lowercased() + wann.dropFirst() + " "
-            }
-            for (j, titel) in d.titel.enumerated() {
-                text += j == 0 ? "„" : (j == d.titel.count - 1 ? "“ und „" : "“, „")
-                stuecke.append(SatzStueck(text: text, akzent: false))
-                stuecke.append(SatzStueck(text: AufgabenLogic.anzeigeTitel(titel), akzent: true))
-                text = ""
-            }
-            text += "“" + (i == 0 ? " an" : "")
-        }
-        stuecke.append(SatzStueck(text: text + ".", akzent: false))
-        return stuecke
     }
 }

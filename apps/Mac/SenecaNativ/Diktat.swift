@@ -447,6 +447,10 @@ final class DiktatDienst: ObservableObject {
     private var beendetHinweisArbeit: Task<Void, Never>?
     private var zustandSeit = Date()
     private(set) var aufnahmeBeginn = Date()
+    @Published var imFeld = false
+    private var startKontext: String?
+    private var senecaKontext: String?
+    private var zielApp: NSRunningApplication?
     private(set) var letzterAusschlag = Date()
     @Published private(set) var geraeteName: String?
     @Published private(set) var startetAnzeige = false
@@ -513,7 +517,7 @@ final class DiktatDienst: ObservableObject {
 
     #if DEBUG
     func blasenProbe(_ art: String) {
-        guard MacPfade.profil != .echt || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
+        guard MacPfade.profil != .echt || HeuteBild.ziel != nil || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
         wacheAus = true
         switch art {
         case "hoert":
@@ -596,7 +600,7 @@ final class DiktatDienst: ObservableObject {
         let u = DiktatWache.urteil(phase: phase, hatAufnahme: aufnahme != nil, motorLaeuft: aufnahme?.motorAktiv ?? false,
                                    startet: startet, seit: Date().timeIntervalSince(zustandSeit),
                                    erkennFrist: DiktatWache.erkennFrist(aufnahmeSekunden: aufnahmeSekunden),
-                                   seitLetztemPuffer: aufnahme?.sekundenSeitLetztemPuffer)
+                                   seitLetztemPuffer: aufnahme?.sekundenSeitLetztemPuffer, seitAusschlag: Date().timeIntervalSince(letzterAusschlag))
         switch u {
         case .ok: break
         case .zuruecksetzen:
@@ -672,6 +676,8 @@ final class DiktatDienst: ObservableObject {
                 self.aufnahme = a
                 self.aufnahmeBeginn = Date()
                 self.letzterAusschlag = Date()
+                self.zielApp = NSApp.isActive ? nil : DiktatFremdeApp.vorne
+                self.startKontext = NSApp.isActive ? VorneMerker.gemeinsam.zuletztFremd.map(DiktatFremdeApp.beschreibung) : nil
                 self.geraeteName = a.geraeteName
                 self.pegel = 0
                 self.zustand = .hoert
@@ -765,12 +771,13 @@ final class DiktatDienst: ObservableObject {
             } else if chatZiel?(text) == true {
                 ziel = "chat"
             }
-        } else if let weg = await DiktatFremdeApp.fuegeEin(text) {
+        } else if await DiktatFremdeApp.zurueck(zu: zielApp), let weg = await DiktatFremdeApp.fuegeEin(text) {
             ziel = "\(weg.rawValue):\(DiktatFremdeApp.vorne?.bundleIdentifier ?? "?")"
         }
         let ende = Date()
         eintrag.eingefuegt = DiktatProtokoll.zeit.string(from: ende)
         eintrag.wartezeitMs = Int((ende.timeIntervalSince(losgelassen) * 1000).rounded())
+        if ziel == "fokus" || ziel == "chat" { senecaKontext = startKontext }
         if let ziel {
             eintrag.ergebnis = "erfolgreich"
             eintrag.ziel = ziel
@@ -800,6 +807,11 @@ final class DiktatDienst: ObservableObject {
             guard let self, case .eingefuegt = self.zustand else { return }
             self.zustand = .ruht
         }
+    }
+
+    func nimmKontext() -> String? {
+        defer { senecaKontext = nil }
+        return senecaKontext
     }
 
     func schliessePille() {

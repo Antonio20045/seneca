@@ -11,26 +11,40 @@ extension FadenLayer {
 
     @ViewBuilder func inhalt(_ proxy: ScrollViewProxy) -> some View {
         let faden = chat.faden(partner)
-        let reihen = FadenLogik.zeilen(faden.messages, now: Date())
+        let reihen = FadenLogik.zeilen(faden.messages.filter { $0.role != .user || $0.geraet == nil }, now: Date()).filter {
+            if case .datum(let t) = $0.inhalt { return !t.hasPrefix("Heute") }
+            return true
+        }
+        let quittungen = quittungen(faden.messages)
         let offene = offeneFragen(faden)
         let letzteEigene = faden.messages.last(where: { $0.role == .user })
         let schnitt = reihen.lastIndex(where: { $0.art == .frage })
         let fehlt = model.schluss[partner.id] == "Die Antwort ist nicht angekommen."
         ForEach(Array(reihen.prefix(schnitt ?? reihen.count).enumerated()), id: \.element.id) { i, r in
             reihe(r, vorher: i > 0 ? reihen[i - 1] : nil, danach: i + 1 < reihen.count ? reihen[i + 1] : nil, offene: offene,
-                  letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, proxy: proxy)
+                  letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, quittungen: quittungen, proxy: proxy)
         }
         VStack(alignment: .leading, spacing: 0) {
             if let schnitt {
                 ForEach(Array(reihen.suffix(from: schnitt).enumerated()), id: \.element.id) { j, r in
                     reihe(r, vorher: schnitt + j > 0 ? reihen[schnitt + j - 1] : nil,
                           danach: schnitt + j + 1 < reihen.count ? reihen[schnitt + j + 1] : nil, offene: offene,
-                          letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, proxy: proxy)
+                          letzteEigene: letzteEigene?.id, antwortFehlt: fehlt, quittungen: quittungen, proxy: proxy)
                 }
             }
             endeSatz(faden: faden, letzteEigene: letzteEigene)
         }
         .frame(minHeight: mindestHoehe(reihen, schnitt: schnitt), alignment: .top)
+    }
+
+    private func quittungen(_ n: [ChatMessage]) -> [String: SenecaStand.Quittung] {
+        var out: [String: SenecaStand.Quittung] = [:]
+        for (i, a) in n.enumerated() where a.role == .seneca {
+            let von = n[..<i].last { $0.role == .user }?.date ?? a.date
+            let bis = n[(i + 1)...].first { $0.role == .user }?.date
+            out[a.id] = VerlaufLogik.quittung(store.stand, sitzung: chat.currentKey, von: von.map { $0.timeIntervalSince1970 * 1000 }, bis: bis.map { $0.timeIntervalSince1970 * 1000 })
+        }
+        return out
     }
 
     private func mindestHoehe(_ reihen: [FadenReihe], schnitt: Int?) -> CGFloat {
@@ -55,7 +69,7 @@ extension FadenLayer {
     }
 
     @ViewBuilder private func reihe(_ r: FadenReihe, vorher: FadenReihe?, danach: FadenReihe?, offene: [(id: String, live: ChatLive?)],
-                                    letzteEigene: String?, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
+                                    letzteEigene: String?, antwortFehlt: Bool, quittungen: [String: SenecaStand.Quittung], proxy: ScrollViewProxy) -> some View {
         Color.clear.frame(height: 0).id("r:" + r.id)
             .background(GeometryReader { g in
                 Color.clear.preference(key: FadenMasseKey.self, value: ["r:" + r.id: g.frame(in: .named("faden-inhalt")).minY])
@@ -66,14 +80,18 @@ extension FadenLayer {
             FadenDatum(text: text).padding(.top, oben)
         case .nachricht(let n):
             if r.art == .frage {
-                frage(n, oben: oben, letzte: n.id == letzteEigene, antwortFehlt: antwortFehlt, proxy: proxy)
+                frage(n, oben: oben, letzte: n.id == letzteEigene, antwortFehlt: antwortFehlt, proxy: proxy).background(markierung(n.id))
                 antwortBereich(frage: n, offen: offene.first(where: { $0.id == n.id }), fertig: danach.flatMap(Self.antwortText))
             } else if n.vermerk == nil, n.role != .dritter, vorher?.art == .frage, gewachsen.contains(vorher?.id ?? "") {
                 EmptyView()
             } else {
-                antwort(n).padding(.top, oben)
+                antwort(n, quittung: quittungen[n.id]).background(markierung(n.id)).padding(.top, oben)
             }
         }
+    }
+
+    private func markierung(_ id: String) -> some View {
+        RoundedRectangle(cornerRadius: 12).fill(TafelFarbe.himmel.opacity(markiert == id ? 0.2 : 0)).padding(-8)
     }
 
     private static func antwortText(_ r: FadenReihe) -> String? {
@@ -83,8 +101,10 @@ extension FadenLayer {
 
     private func frage(_ n: ChatMessage, oben: CGFloat, letzte: Bool, antwortFehlt: Bool, proxy: ScrollViewProxy) -> some View {
         let anzeige = FadenLogik.zustandsAnzeige(n.zustand, istLetzteEigene: letzte, antwortFehlt: antwortFehlt)
+        let z = ChatAnhang.zerlege(n.text)
         return VStack(alignment: .trailing, spacing: Stil.abstand.xs) {
-            FadenFrage(text: n.text, breite: m.size.width)
+            if !z.namen.isEmpty { AnhangImFaden(namen: z.namen, sendet: n.zustand == .wirdGesendet) }
+            if !z.text.isEmpty, z.text != ChatAnhang.leerText { FadenFrage(text: z.text, breite: m.size.width, zeit: n.date) }
             if let anzeige { FadenFrageZustand(anzeige: anzeige, erneut: { erneutSenden(n, proxy) }) }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -95,14 +115,15 @@ extension FadenLayer {
         .id(Self.frageZiel(n.id))
     }
 
-    private func antwort(_ n: ChatMessage) -> some View {
-        VStack(alignment: .leading, spacing: Stil.abstand.xs) {
+    private func antwort(_ n: ChatMessage, quittung: SenecaStand.Quittung?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             if n.role == .dritter {
                 FadenAbsender(name: n.absender ?? "Jemand anderes", fremd: true)
                 FadenAntwort(text: n.text, sprecher: n.absender ?? "Jemand anderes")
             } else {
-                if let vermerk = n.vermerk { FadenAbsender(name: sprecher, vermerk: vermerk) }
+                ChatMeta(name: sprecher, zeit: n.date, ort: n.vermerk ?? n.geraet)
                 FadenAntwort(text: n.text, sprecher: sprecher)
+                if let quittung { ChatQuittung(quittung: quittung) }
             }
         }
     }
@@ -127,7 +148,15 @@ extension FadenLayer {
         }
     }
 
+    private var frageVomPartner: SenecaStand.Frage? { store.stand.flatMap { s in TeamLogik.offeneFragen(s).first { $0.von == partner.kopfName } } }
+
     @ViewBuilder private func endeSatz(faden: ChatFaden, letzteEigene: ChatMessage?) -> some View {
+        if partner.id == ChatPartner.seneca.id, let s = store.stand {
+            ForEach(s.auftraege_neu ?? []) { ChatAuftragKarte(auftrag: $0).padding(.top, 10) }
+            if let w = s.wartet { ChatHinweis(satz: w, farbe: TafelFarbe.bernstein).padding(.top, 18) }
+        } else if let z = frageVomPartner?.zurueckgehalten {
+            Text("Seneca: \(z)").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(19, schrift: 13).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 12)
+        }
         if let schluss = model.schluss[partner.id], !faden.messages.isEmpty, letzteEigene?.zustand != .fehlgeschlagen {
             HinweisZeile(schluss, art: schluss == "Die Antwort ist nicht angekommen." ? .fehler : .info)
                 .padding(.top, Stil.abstand.s)
@@ -137,7 +166,7 @@ extension FadenLayer {
                     .transition(.opacity.animation(Bewegung.wechsel.kurve.delay(0.6)))
             } else if faden.problem != nil && !faden.geladen {
                 HinweisZeile("Das Gespräch konnte gerade nicht geladen werden.", art: .fehler)
-            } else {
+            } else if frageVomPartner == nil {
                 LeerSatz(partner.id == ChatPartner.seneca.id
                          ? "Noch nichts geschrieben. Frag Seneca, was du wissen willst."
                          : "\(partner.satzName) hat dir hier noch nichts geschrieben.")

@@ -12,6 +12,9 @@ export function dateiRecht(a: { werkzeug: string; params: Record<string, unknown
   const rel = relative(ablage, ziel);
   if (rel.startsWith("..") || rel === "") return undefined;
   const m = mandat(a.agent);
-  const darf = eintrag[1] === "lesen" ? m.bereich.includes(rel.split("/")[0]) : m.befugnisse.ablage_schreiben.some((p) => rel === p || rel.startsWith(`${p}/`));
+  const klein = rel.toLowerCase();
+  const unter = (p: string) => klein === p.toLowerCase() || klein.startsWith(`${p.toLowerCase()}/`);
+  const schreiben = unter(`_arbeit/${a.agent}`) || m.befugnisse.ablage_schreiben.some(unter);
+  const darf = schreiben || (eintrag[1] === "lesen" && [...m.bereich, ...regelListe("ablage_alle_lesen")].some(unter));
   return darf ? undefined : { block: true, blockReason: `${a.agent} darf ${rel} nicht ${eintrag[1] === "lesen" ? "lesen" : "schreiben"} (Mandat).` };
 }

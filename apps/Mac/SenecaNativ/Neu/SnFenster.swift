@@ -419,11 +419,15 @@ struct SnHeuteMitFenster: View {
     @ObservedObject private var notizen: NotizblockModell
     @ObservedObject private var uebersicht: OverviewStore
     @ObservedObject private var store: SenecaStore
-    @ObservedObject private var tageslauf = TageslaufModell.gemeinsam
-    @ObservedObject private var liste = ListenModell.gemeinsam
-    @ObservedObject private var aufgaben = AufgabenModell.gemeinsam
+    @ObservedObject private var meeting = MeetingDienst.gemeinsam
     @State private var zeiger = SnZeigerKasten()
+    @State private var wieder: Int?
+    @State private var vorher: Set<String> = []
+    @State private var warum = false
     @Environment(\.accessibilityReduceMotion) private var ruhig
+    private var getrennt: Bool { store.getrenntSeit != nil && store.stand != nil }
+    @State private var frischNeu: Set<String> = []
+    private func kennungen(_ s: SenecaStand?) -> Set<String> { Set((s?.braucht_dich ?? []).map(\.id) + (s?.heute_erledigt ?? []).map(\.id) + (s?.todos ?? []).map(\.id) + (s?.team ?? []).map(SnHeuteTafel.kennung)) }
 
     init(modell: AppModell) {
         self.modell = modell
@@ -433,6 +437,7 @@ struct SnHeuteMitFenster: View {
         _store = ObservedObject(wrappedValue: modell.store)
     }
 
+
     var body: some View {
         GeometryReader { g in
             let links = (g.size.width - SnFensterKarte.breite) / 2
@@ -440,14 +445,22 @@ struct SnHeuteMitFenster: View {
             let quelle = SnQuelleMitEntscheidungen(basis: daten, entschieden: daten.istEcht ? [] : Set(fenster.entschieden.keys))
             ZStack(alignment: .top) {
                 Group {
-                    if let s = store.stand {
+                    if modell.meetingOffen, let a = meeting.ablage {
+                        SnMeetingErgebnis(e: a.ergebnis, datei: a.datei, dienst: meeting, zurueck: { modell.meetingOffen = false }, todos: store.stand?.todos ?? [])
+                            .background { Button("") { modell.meetingOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
+                    } else if let s = store.stand, modell.teamOffen {
+                        SnTeamTafel(stand: s, handle: { store.handle($0, ziel: $1, text: $2) },
+                                    schreiben: { id in modell.teamOffen = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
+                            .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
+                    } else if let s = store.stand {
                         SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
-                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.gehe(.projekte) })
+                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
                     } else {
                         SnHeuteSkelett()
                     }
                 }
-                    .opacity(fenster.offen ? 0.4 : 1)
+                    .opacity(fenster.offen ? 0.4 : getrennt ? 0.55 : 1)
+                    .disabled(getrennt)
                     .blur(radius: fenster.offen && !ruhig ? 6 : 0)
                     .scaleEffect(fenster.offen && !ruhig ? 0.985 : 1, anchor: UnitPoint(x: 0.5, y: 0.4))
                     .animation(ruhig ? .easeOut(duration: 0.2) : Kurve.sn(0.55), value: fenster.offen)
@@ -461,6 +474,8 @@ struct SnHeuteMitFenster: View {
                     .onTapGesture { fenster.schliesse() }
                     .allowsHitTesting(fenster.offen)
                     .accessibilityHidden(true)
+
+                SnStartZeilen(stand: store.stand, verbunden: store.isConnected, seit: store.getrenntSeit, fehler: store.error ?? store.connectionStatus, warum: $warum, wieder: wieder)
 
                 if let inhalt = fenster.inhalt {
                     let a = fenster.anker ?? CGPoint(x: g.size.width / 2, y: 80 + 250)
@@ -483,6 +498,19 @@ struct SnHeuteMitFenster: View {
             .onContinuousHover { if case .active(let p) = $0 { zeiger.punkt = p } }
         }
         .onDisappear { fenster.schliesse() }
+        .onChange(of: store.getrenntSeit) { alt, neu in
+            if neu != nil { vorher = kennungen(store.stand) }
+            guard alt != nil, neu == nil else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                frischNeu = kennungen(store.stand).subtracting(vorher)
+                wieder = frischNeu.count
+                try? await Task.sleep(for: .seconds(2.4))
+                frischNeu = []
+                try? await Task.sleep(for: .seconds(0.6))
+                wieder = nil
+            }
+        }
         #if DEBUG
         .task { await testOeffnen() }
         #endif
@@ -515,16 +543,55 @@ struct SnHeuteMitFenster: View {
     #endif
 }
 
-struct SnEchteSeite<Inhalt: View>: View {
-    let modell: AppModell
-    @ObservedObject private var uebersicht: OverviewStore
-    let inhalt: (any SenecaDatenQuelle, any SnProjekteQuelle) -> Inhalt
 
-    init(modell: AppModell, @ViewBuilder inhalt: @escaping (any SenecaDatenQuelle, any SnProjekteQuelle) -> Inhalt) {
-        self.modell = modell
-        _uebersicht = ObservedObject(wrappedValue: modell.uebersicht)
-        self.inhalt = inhalt
+struct SnStartZeilen: View {
+    var stand: SenecaStand?
+    var verbunden: Bool
+    var seit: Date?
+    var fehler: String
+    @Binding var warum: Bool
+    var wieder: Int?
+
+    var body: some View {
+        let getrennt = seit != nil && stand != nil
+        let stand = self.stand.map { HeuteTafelLogik.uhr($0.jetzt) } ?? ""
+        ZStack(alignment: .top) {
+            if getrennt, let seit {
+                HStack(spacing: 10) {
+                    Circle().strokeBorder(TafelFarbe.text, lineWidth: 1.5).frame(width: 9, height: 9)
+                    (Text("Seneca antwortet seit \(HeuteTafelLogik.uhr(seit.timeIntervalSince1970 * 1000)) nicht. ").foregroundColor(.white).font(Schrift.grotesk(14, .medium))
+                     + Text(warum ? fehler : "Ich starte die Verbindung neu. Du siehst den Stand von \(stand).").foregroundColor(TafelFarbe.zweit))
+                        .font(Schrift.grotesk(14)).lineLimit(1)
+                    Spacer()
+                    Button("Was ist passiert?") { warum.toggle() }.buttonStyle(.plain).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)
+                }
+                .padding(.horizontal, 16).frame(width: 1154, height: 42).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.09)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1)).padding(.top, 70)
+            } else if !verbunden, self.stand != nil {
+                HStack(spacing: 12) {
+                    TimelineView(.animation) { z in
+                        let p = z.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.4) / 1.4
+                        Capsule().fill(Color.white.opacity(0.12)).frame(width: 120, height: 2).overlay(alignment: .leading) { Capsule().fill(TafelFarbe.himmel).frame(width: 50, height: 2).offset(x: 70 * p) }
+                    }.frame(width: 120, height: 2)
+                    Text("STAND \(stand) · HOLT DAS NEUE").font(Schrift.mono(11)).kerning(1.2).foregroundStyle(TafelFarbe.leise)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 96).padding(.top, 80)
+            }
+            if let n = wieder {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(TafelFarbe.gruen)
+                        Text("Wieder verbunden" + (n > 0 ? " · \(n) \(n == 1 ? "Sache ist" : "Sachen sind") neu" : "")).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 10).background(Capsule().fill(TafelFarbe.hex(0x0C1A32, 0.92))).overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                    .padding(.bottom, 100)
+                }
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(Kurve.sn(0.3), value: wieder)
+        .allowsHitTesting(seit != nil)
     }
-
-    var body: some View { inhalt(modell.snDaten, modell.snProjekte) }
 }

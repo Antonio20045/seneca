@@ -56,11 +56,8 @@ enum Eingang {
     static func aufgabe(_ titel: String, jetzt: Date = Date()) async -> Bool {
         let halten = UIApplication.shared.beginBackgroundTask(withName: "seneca.eingang")
         defer { UIApplication.shared.endBackgroundTask(halten) }
-        let ereignis = TageslaufEreignis(zeit: jetzt, art: "zusage", titel: titel, detail: ["aufgabe": true, "von_mir": true, "weg": "kurzbefehl"],
-                                         schluessel: "aufgabe:\(Int(jetzt.timeIntervalSince1970)):\(titel.count)")
         guard let store = SenecaStore.aktuell else {
             gruppe?.set((gruppe?.stringArray(forKey: wartendKey) ?? []) + [titel], forKey: wartendKey)
-            await Sinne.shared.melden([ereignis])
             return false
         }
         nachtragen(store)
@@ -74,16 +71,11 @@ enum Eingang {
                 if !store.isConnected { verbinden.cancel() }
             }
         }
-        var angekommen = false
-        if store.isConnected {
-            await store.flushOutbox()
-            for _ in 0..<10 {
-                if !store.outbox.contains(where: { $0.kind == .create && $0.title == titel }) { angekommen = true; break }
-                try? await Task.sleep(for: .milliseconds(400))
-            }
+        for _ in 0..<10 where store.isConnected {
+            if !store.neueTodos.contains(where: { ($0.wert?.roh as? [String: Any])?["titel"] as? String == titel }) { return true }
+            try? await Task.sleep(for: .milliseconds(400))
         }
-        await Sinne.shared.melden([ereignis])
-        return angekommen
+        return false
     }
 
     static func nachtragen(_ store: SenecaStore) {
@@ -97,14 +89,8 @@ enum Eingang {
                    : "„\(titel)“ steht bei deinen Aufgaben für heute. Dein Mac bekommt sie, sobald er erreichbar ist."
     }
 
-    static func wasStehtAn(jetzt: Date = Date()) async -> String {
-        var wartet: [String] = []
-        if let antwort = try? await Sinne.shared.rufe("seneca.tageslauf.heute", [:], zeitlimit: 4), let bild = TageslaufBild.lesen(antwort) {
-            AblaufSpeicher.schreiben(bild)
-            wartet = (bild.fuerDich ?? []).filter { $0.art == .antwort && !$0.von.isEmpty }.map(\.von)
-        }
-        Sinne.shared.hintergrundEnde()
-        let satz = Tagesablauf.ansage(TagesablaufQuelle.punkteOhneOberflaeche(jetzt), jetzt: jetzt)
-        return [satz, Tagesablauf.wartetAnsage(wartet)].filter { !$0.isEmpty }.joined(separator: " ")
+    static func wasStehtAn() async -> String {
+        let satz = (SenecaStore.aktuell?.stand?.heute?.satz ?? []).joined(separator: " ")
+        return satz.isEmpty ? "Das weiß ich gerade nicht. Öffne Seneca einmal, dann lade ich deinen Tag." : satz
     }
 }

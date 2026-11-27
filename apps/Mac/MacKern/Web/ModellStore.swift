@@ -3,14 +3,13 @@ import Foundation
 @MainActor
 final class ModellStore: ObservableObject {
     @Published private(set) var katalog: [KatalogModell] = []
-    @Published private(set) var konten: Konten?
     @Published private(set) var nutzung: Nutzung?
     @Published private(set) var gewechselt: [String: Double] = [:]
 
     private let uebersicht: OverviewStore
     private var rufe: OvRufe
     private var verbunden: () -> Bool
-    var chatNeuLaden: (String) -> Void = { _ in }
+    var neuBeginnen: (String) async -> Bool = { _ in false }
 
     init(uebersicht: OverviewStore, rufe: @escaping OvRufe = { _, _, _ in throw SenecaError.offline }, verbunden: @escaping () -> Bool = { true }) {
         self.uebersicht = uebersicht
@@ -26,9 +25,8 @@ final class ModellStore: ObservableObject {
     func starte() async {
         guard verbunden() else { return }
         async let a: Void = ladeKatalog()
-        async let b: Void = ladeKonten()
         async let c: Void = ladeNutzung()
-        _ = await (a, b, c)
+        _ = await (a, c)
     }
 
     func ladeKatalog() async {
@@ -44,11 +42,6 @@ final class ModellStore: ObservableObject {
         katalog = erlaubt + rest
     }
 
-    func ladeKonten(neu: Bool = false) async {
-        guard verbunden(), let r = try? await rufe("seneca.konten", neu ? ["neu": true] : [:], 60) else { return }
-        konten = Konten(json: r)
-    }
-
     func ladeNutzung() async {
         guard verbunden(), let r = try? await rufe("usage.status", [:], 45) else { return }
         nutzung = Nutzung(json: r)
@@ -56,12 +49,12 @@ final class ModellStore: ObservableObject {
 
     func stand(fuer key: String, agentId: String?) -> Stand? {
         let d = uebersicht.daten
-        return Modelle.standFuer(d.rows.first { $0.key == key }, primaer: d.agent(agentId)?.modellErstwahl, standard: d.sitzungsStandard, katalog, konten, nutzung)
+        return Modelle.standFuer(d.rows.first { $0.key == key }, primaer: d.agent(agentId)?.modellErstwahl, standard: d.sitzungsStandard, katalog, nutzung)
     }
 
     func gruppen(agentId: String?) -> [Modelle.Gruppe] {
         let a = uebersicht.daten.agent(agentId)
-        return Modelle.gruppen(katalog, konten, nutzung, primaer: a?.modellErstwahl, ausweich: a?.modellAusweich)
+        return Modelle.gruppen(katalog, nutzung, primaer: a?.modellErstwahl, ausweich: a?.modellAusweich)
     }
 
     func setze(key: String, ref: String?) async throws -> [String: Any]? {
@@ -75,15 +68,6 @@ final class ModellStore: ObservableObject {
         let r = try await rufe("sessions.patch", ["key": key, "thinkingLevel": id as Any? ?? NSNull()], 30)
         await uebersicht.aktualisiereSitzungen()
         return r["resolved"] as? [String: Any]
-    }
-
-    func neuerKontext(key: String, agentId: String?, sitzungsId: String?) async throws {
-        var p: [String: Any] = ["key": key]
-        if let agentId { p["agentId"] = agentId }
-        if let sitzungsId { p["expectedSessionId"] = sitzungsId }
-        _ = try await rufe("seneca.kontext.neu", p, 60)
-        gewechselt[key] = Date().timeIntervalSince1970 * 1000
-        await uebersicht.aktualisiereSitzungen()
     }
 
     func waehleModell(_ o: Modelle.Option?, key: String, agentId: String?) async {
@@ -126,18 +110,15 @@ final class ModellStore: ObservableObject {
 
     @discardableResult
     func kontextNeu(key: String, agentId: String?) async -> Bool {
-        let st = stand(fuer: key, agentId: agentId)
         let wer = werName(agentId)
-        do {
-            try await neuerKontext(key: key, agentId: agentId, sitzungsId: st?.sitzungsId)
-            uebersicht.passeSitzungAn(key) { $0.tokens = 0; $0.tokensFrisch = true }
-            chatNeuLaden(key)
-            uebersicht.hinweis("\(wer) startet mit frischem Kontext")
-            return true
-        } catch {
-            uebersicht.hinweis("Kontext nicht geleert: \(OverviewStore.fehlertext(error))")
+        guard await neuBeginnen(key) else {
+            uebersicht.hinweis("Kontext nicht geleert: Seneca ist gerade nicht erreichbar.")
             return false
         }
+        gewechselt[key] = Date().timeIntervalSince1970 * 1000
+        uebersicht.passeSitzungAn(key) { $0.tokens = 0; $0.tokensFrisch = true }
+        uebersicht.hinweis("\(wer) startet mit frischem Kontext")
+        return true
     }
 
     private func werName(_ agentId: String?) -> String {

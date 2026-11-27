@@ -4,121 +4,91 @@ import SwiftUI
 final class BerichteModel: ObservableObject {
     enum Tab { case aufgaben, berichte }
     @Published var tab: Tab = .aufgaben
-    @Published private(set) var laeufe: [String: [BerichtLauf]] = [:]
-    @Published private(set) var laedt = false
-    private var geladen: Date?
-
-    func laden(store: SenecaStore, jetzt: Date, neu: Bool = false) async {
-        if laedt { return }
-        if !neu, let g = geladen, jetzt.timeIntervalSince(g) < 120 { return }
-        laedt = true
-        defer { laedt = false }
-        let jobs = store.today?.jobs ?? []
-        #if DEBUG
-        if store.demo { laeufe = BerichteDemo.laeufe(jobs: jobs, jetzt: jetzt); geladen = jetzt; return }
-        #endif
-        guard store.isConnected else { return }
-        for job in BerichteLogik.berichtJobs(jobs, jetzt: jetzt) {
-            if let antwort = try? await store.rufe("cron.runs", params: ["id": job.id, "limit": 30], timeout: 8) {
-                laeufe[job.id] = BerichteLogik.laeufe(antwort)
-            }
-        }
-        geladen = jetzt
-    }
-
-    func eintraege(store: SenecaStore, jetzt: Date) -> [BerichtEintrag] {
-        let input = NeedsInput(now: jetzt, calendar: .current, snapshot: store.today, localSeen: store.localSeen)
-        return BerichteLogik.eintraege(jobs: store.today?.jobs ?? [], laeufe: laeufe, input: input)
-    }
 }
 
-struct BerichteListeView: View {
-    var now: Date
-    var allowTap: () -> Bool
-    @EnvironmentObject private var store: SenecaStore
-    @EnvironmentObject private var berichte: BerichteModel
-    @Environment(\.appActions) private var actions
+struct BerichteTafel: View {
+    var berichte: SenecaStand.Berichte
+
+    @Environment(\.wege) private var wege
+    @Environment(\.openURL) private var oeffne
 
     var body: some View {
-        let tage = BerichteLogik.nachTag(BerichteLogik.zusammengefasst(berichte.eintraege(store: store, jetzt: now)), jetzt: now)
         VStack(alignment: .leading, spacing: 0) {
-            if tage.isEmpty {
-                if berichte.laedt { LadeZeile("Die Berichte werden geholt …") }
-                else { LeerSatz("In den letzten 30 Tagen ist kein Bericht gekommen.") }
-            }
-            ForEach(Array(tage.enumerated()), id: \.element.titel) { i, tag in
-                AbschnittKopf(tag.titel, oben: i > 0)
-                ForEach(Array(tag.gruppen.enumerated()), id: \.element.id) { j, g in
-                    zeile(g, letzte: j == tag.gruppen.count - 1)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    TafelSatz(vor: berichte.satz.first ?? "", akzent: berichte.satz.dropFirst().joined(separator: " "))
+                        .padding(.top, 10).padding(.bottom, 8)
+                    if !berichte.neu.isEmpty {
+                        kopf("NEU")
+                        ForEach(berichte.neu) { b in
+                            karte(b.kopf, b.um, b.text.replacingOccurrences(of: " €", with: "\u{00A0}€")) {
+                                HStack(spacing: 18) {
+                                    if let l = b.beleg.flatMap(URL.init(string:)) { link("Lesen") { oeffne(l) } }
+                                    link("Mit \(b.wer_name) besprechen") { wege.oeffne(.chat(mitarbeiter: b.wer)) }
+                                }
+                                .padding(.top, 4)
+                            }
+                        }
+                    }
+                    if !berichte.unveraendert.isEmpty {
+                        kopf("UNVERÄNDERT")
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(berichte.unveraendert) { b in
+                                HStack(spacing: 12) {
+                                    Text(b.text).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.zweit).zeilenHoehe(20, schrift: 14)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("SEIT \(b.seit_tage) \(b.seit_tage == 1 ? "TAG" : "TAGEN")").mono(11).foregroundStyle(TafelFarbe.aus).fixedSize()
+                                }
+                                .frame(minHeight: 28)
+                            }
+                        }
+                        .padding(.vertical, 8).overlay(alignment: .top) { linie }
+                    }
+                    if let s = berichte.seneca {
+                        kopf("VON SENECA")
+                        karte(s.kopf, s.um, s.text) {
+                            if let g = s.gestern { Text("Gestern Abend: „\(g)“").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).padding(.top, 6) }
+                        }
+                    }
                 }
+                .padding(.horizontal, 24).padding(.bottom, 120)
             }
+            .listeOben()
+        }
+        .overlay(alignment: .bottom) {
+            HStack(alignment: .top, spacing: 10) {
+                SenecaPunkt().padding(.top, 4)
+                Text("Berichte ohne Änderung fasse ich zusammen. Sobald sich etwas ändert, steht es oben.")
+                    .font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(19, schrift: 13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 24).padding(.bottom, 30)
         }
         .accessibilityIdentifier("berichte.liste")
     }
 
-    private func zeile(_ g: BerichtGruppe, letzte: Bool) -> some View {
-        let b = g.neuester
-        var unter = b.absender.isEmpty ? b.name : b.absender
-        if g.anzahl > 1 { unter += " · \(g.anzahl)× gleich" }
-        return Zeile(vorn: .punkt(g.gelesen ? .clear : Stil.farbe.himmel),
-                     titel: b.erster,
-                     unter: unter,
-                     hinten: .text(BerichteLogik.zeile(b.zeit, jetzt: now)),
-                     betont: !g.gelesen,
-                     linie: !letzte) {
-            guard allowTap() else { return }
-            Self.oeffnen(g, now: now, store: store, actions: actions)
-        }
-        .accessibilityValue(g.gelesen ? "gelesen" : "ungelesen")
-        .accessibilityIdentifier("berichte.zeile")
+    private var linie: some View { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
+
+    private func kopf(_ t: String) -> some View {
+        Text(t).mono(11, .medium, abstand: 1.1).foregroundStyle(TafelFarbe.leise).padding(.top, 10).padding(.bottom, 2).accessibilityAddTraits(.isHeader)
     }
 
-    static func oeffnen(_ g: BerichtGruppe, now: Date, store: SenecaStore, actions: AppActions) {
-        let b = g.neuester
-        actions.openReading(ReadingDocument(id: "bericht-\(b.id)", kicker: "Bericht · \(BerichteLogik.wann(b.zeit, jetzt: now))",
-                                            title: b.name, body: b.text, bewertung: BerichteLogik.bewertung(b)))
-        store.markSeen(g.ids)
-    }
-}
-
-#if DEBUG
-enum BerichteDemo {
-    static func laeufe(jobs: [AgentJob], jetzt: Date) -> [String: [BerichtLauf]] {
-        let cal = Calendar.current
-        let zeiten: [String: (Int, Int)] = ["b": (7, 30), "c": (8, 30), "f": (18, 30), "g": (19, 0)]
-        var out: [String: [BerichtLauf]] = [:]
-        for job in jobs {
-            guard let (h, min) = zeiten[job.id] else { continue }
-            out[job.id] = (0..<9).compactMap { tage in
-                guard let tag = cal.date(byAdding: .day, value: -tage, to: jetzt),
-                      let t = cal.date(bySettingHour: h, minute: min, second: 0, of: tag), t <= jetzt else { return nil }
-                return BerichtLauf(runAtMs: t.timeIntervalSince1970 * 1000, summary: text(job.id, tage: tage))
+    private func karte(_ k: String, _ um: Double, _ text: String, @ViewBuilder unten: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(k.uppercased()).mono(11, abstand: 0.8)
+                Spacer(minLength: 8)
+                Text(HeuteTafelLogik.uhr(um)).mono(11, abstand: 0.8)
             }
+            .foregroundStyle(TafelFarbe.leise)
+            Text(text).font(Sundartha.grotesk(16)).foregroundStyle(.white).zeilenHoehe(22, schrift: 16)
+                .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+            unten()
         }
-        return out
+        .padding(.vertical, 14).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { linie }
     }
 
-    private static func text(_ id: String, tage: Int) -> String {
-        switch id {
-        case "b": return "Guten Morgen. Heute stehen der Termin um 10 Uhr, die Entscheidung zu Instagram und der Rückruf bei Daniel an.\n\n- 10:00 Wochenbesprechung\n- Entscheidung offen: Instagram\n- Rückruf Daniel (Comspot)"
-        case "c": return "Bei CALL-E hat sich nichts Wesentliches geändert. Die Preisseite ist unverändert, neue Funktionen gibt es nicht."
-        case "f": return "Sundartha steht gut da: Hermes läuft stabil, zwei Aufgaben sind offen.\n\n- Hermes-Test bestanden\n- Marketingtext wartet auf dich"
-        default:
-            return """
-            Ein ruhiger, guter Tag. Vier von fünf Aufgaben sind erledigt.
-
-            ```seneca
-            {"titel":"Der Tag in Zahlen","marke":{"text":"Gut gelaufen","ton":"ok"},
-             "zahlen":[{"label":"Aufgaben","wert":"4 von 5","ton":"ok"},{"label":"Gelaufen","wert":"4,6 km","detail":"5:40 pro km"},{"label":"Gelesen","wert":"45 Min"}],
-             "fortschritt":{"wert":4,"von":5,"text":"Aufgaben heute"},
-             "diagramm":{"art":"balken","einheit":"Aufgaben pro Tag","punkte":[{"label":"Mo","wert":3},{"label":"Di","wert":5},{"label":"Mi","wert":2},{"label":"Do","wert":4},{"label":"Fr","wert":4}]},
-             "punkte":[{"text":"Hermes-Test bestanden","ton":"ok","meta":"Sundartha"},{"text":"Rechnung Comspot wartet auf Freigabe","ton":"warn","meta":"bis Freitag"}],
-             "aktionen":[{"label":"Morgen planen","prompt":"Plane meinen morgigen Tag."}]}
-            ```
-
-            Morgen früh startet die Wochenbesprechung um 10 Uhr.
-            """
-        }
+    private func link(_ t: String, _ tun: @escaping () -> Void) -> some View {
+        Button(action: tun) { Text(t).font(Sundartha.grotesk(14, .medium)).foregroundStyle(TafelFarbe.himmel).frame(height: 44) }.buttonStyle(.plain)
     }
 }
-#endif

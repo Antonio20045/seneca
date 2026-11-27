@@ -55,37 +55,42 @@ struct VerlaufView: View, Equatable {
     var hinweis: String?
     var gesendet: Int = 0
     var erneut: (String) -> Void
-    var karten: [ListenZeile] = []
+    var stand: SenecaStand?
     var agent = ""
     var neuLaden: () -> Void = {}
-    @AppStorage(NurUnterhaltung.schluessel, store: Hintergrund.defaults()) private var nurUnterhaltung = true
+    var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
+    var bearbeiten: (String) -> Void = { _ in }
+    var vorschlag: (Bool) -> Void = { _ in }
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
+    @State private var bisher: Int?
 
     static func == (a: VerlaufView, b: VerlaufView) -> Bool {
         a.verlauf === b.verlauf && a.chat === b.chat && a.lauf == b.lauf
-            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.karten == b.karten && a.agent == b.agent
+            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.stand?.verlauf == b.stand?.verlauf && a.agent == b.agent
     }
 
     private struct Zeile: Identifiable {
         var block: ZugBlock
         var tag: String?
+        var ts: Double?
         var id: String { block.id }
     }
 
     private static let abstand: CGFloat = 22
 
+    private func schluessel(_ z: Zug) -> String? {
+        guard case .user(let id, _, _, true)? = z.start, id.hasPrefix("lokal-") else { return nil }
+        return String(id.dropFirst(6))
+    }
+
     private func zeige(_ id: String, _ anker: UnitPoint, _ leser: ScrollViewProxy) {
         withAnimation(Kurve.ease(0.35)) { leser.scrollTo(id, anchor: anker) }
     }
 
-    private func sichtbar(_ bloecke: [ZugBlock]) -> [ZugBlock] {
-        nurUnterhaltung ? Unterhaltung.nurUnterhaltung(bloecke) : bloecke
-    }
-
     private func zeilen(_ bloecke: [ZugBlock]) -> [Zeile] {
-        var tag = ""
+        var vorher: Double?
         return bloecke.map { b in
             let ts: Double?
             switch b {
@@ -93,11 +98,36 @@ struct VerlaufView: View, Equatable {
             case .reset(_, let t): ts = t
             case .zwischen(let g): ts = g.eintraege.first?.ts
             }
-            let d = (ts ?? 0) != 0 ? Formate.tagesLabel(ts!) : ""
-            let neu = !d.isEmpty && d != tag
-            if !d.isEmpty { tag = d }
-            return Zeile(block: b, tag: neu ? d : nil)
+            guard let t = ts, t != 0 else { return Zeile(block: b, tag: nil, ts: nil) }
+            defer { vorher = t }
+            return Zeile(block: b, tag: Formate.trenner(t, vorher: vorher), ts: t)
         }
+    }
+
+    static var aeltere: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SchimmerFlaeche(radius: 5).frame(width: 312, height: 10)
+            RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.07)).frame(width: 224, height: 10)
+            Text("lädt \(ChatSpeicher.mehrFragen) ältere …").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    static func vermerk(_ v: SenecaStand.Vermerk) -> some View {
+        VStack(spacing: 4) {
+            Text(v.satz).foregroundStyle(.white)
+            Text(v.unter).foregroundStyle(TafelFarbe.leise)
+        }
+        .font(Schrift.grotesk(14)).frame(maxWidth: .infinity)
+    }
+
+    static func trenner(_ t: String) -> some View {
+        HStack(spacing: 14) {
+            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+            Text(t).font(Schrift.mono(11)).kerning(1.2).foregroundStyle(TafelFarbe.leise).fixedSize()
+            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+        }
+        .padding(.top, 6)
     }
 
     private func zustand(_ z: Zug) -> ZustellZustand? {
@@ -130,11 +160,12 @@ struct VerlaufView: View, Equatable {
 
     var body: some View {
         let alleBloecke = verlauf.bloecke
-        let bloecke = sichtbar(alleBloecke)
+        let bloecke = alleBloecke
         let leisteInfo = Unterhaltung.leiste(alleBloecke, status: status)
         let _ = merker.pruefe(alleBloecke, sitzung: verlauf.sitzung, geladen: !verlauf.laedt, laeuft: lauf != nil)
         let alleZeilen = zeilen(bloecke)
-        let quittungen = Quittungen.zuordnen(nachrichten: Quittungen.nachrichten(alleBloecke), karten: karten, agent: agent)
+        let vermerke = VerlaufLogik.verteile(agent == Hauptagent.id ? stand?.verlauf?.zeilen ?? [] : [], auf: alleZeilen.map(\.ts))
+        let fragen = bloecke.compactMap { b -> (id: String, ts: Double?)? in if case .zug(let z) = b, case .user(_, _, let ts, _)? = z.start { return (z.id, ts) }; return nil }
         let grosserZug: String? = bloecke.last { if case .zug(let z) = $0 { return z.antwort != nil }; return false }?.id
         let letzterLaeuft: Bool = { if case .zug(let z)? = bloecke.last { return z.laeuft }; return false }()
         let quelle = lauf.map { _ in LaufQuelle(chat: chat, key: verlauf.sitzung, frisch: merker) }
@@ -142,8 +173,7 @@ struct VerlaufView: View, Equatable {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if verlauf.hatMehr {
-                        Button("Ältere laden") { Task { await verlauf.aelterLaden() } }
-                        .buttonStyle(NebenKnopfStil()).frame(maxWidth: .infinity).padding(.bottom, Self.abstand)
+                        Self.aeltere.padding(.bottom, Self.abstand)
                     }
                     let ohneFrage = !alleBloecke.contains { if case .zug(let z) = $0, case .user? = z.start { return true }; return false }
                     if verlauf.laedt && bloecke.isEmpty && lauf == nil {
@@ -153,11 +183,10 @@ struct VerlaufView: View, Equatable {
                             .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 40).padding(.bottom, Self.abstand)
                     }
-                    ForEach(alleZeilen) { zeile in
+                    ForEach(Array(alleZeilen.enumerated()), id: \.element.id) { nr, zeile in
                         VStack(alignment: .leading, spacing: Self.abstand) {
-                            if let tag = zeile.tag {
-                                Text(tag).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink3).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
-                            }
+                            ForEach(vermerke[nr]) { Self.vermerk($0) }
+                            if let tag = zeile.tag { Self.trenner(tag) }
                             switch zeile.block {
                             case .reset(_, let ts):
                                 kontextstrich(ts)
@@ -166,15 +195,25 @@ struct VerlaufView: View, Equatable {
                             case .zug(let z):
                                 ZugView(zug: z, status: status(z), zurAntwort: { zeige(ZugView.antwortId(z.id), .center, leser) },
                                         lauf: quelle, frisch: merker.art(z.antwort),
-                                        zustand: zustand(z), neu: merker.istNeu(z.id), name: name, gross: zeile.id == grosserZug, nurAntwort: nurUnterhaltung,
-                                        quittungen: quittungen[z.id] ?? [],
-                                        erneut: { erneut(z.startText) })
+                                        zustand: zustand(z), neu: merker.istNeu(z.id), name: name, gross: zeile.id == grosserZug,
+                                        quittung: VerlaufLogik.quittung(stand, sitzung: verlauf.sitzung, von: z.startTs, bis: fragen.first { ($0.ts ?? 0) > (z.startTs ?? .infinity) }?.ts),
+                                        alt: z.startTs != nil && z.id != fragen.last?.id, zuruecklegen: zuruecklegen,
+                                        erneut: { erneut(z.startText) },
+                                        angehalten: verlauf.angehalten.first { z.antwort?.id.hasPrefix($0.key + ":") == true }?.value,
+                                        weiter: { erneut("Mach weiter, wo du aufgehört hast.") },
+                                        zuruecknehmen: schluessel(z).map { k in { Task { await chat.store?.zuruecknehmen(k) } } },
+                                        vorziehen: { if let k = schluessel(z) { Task { await chat.store?.vorziehen(k) } } },
+                                        bearbeiten: { if let k = schluessel(z) { bearbeiten(z.startText); Task { await chat.store?.zuruecknehmen(k) } } })
                                     .equatable()
                                     .onAppear { Messung.markeEinmal("erster Zug sichtbar") }
                             }
                         }
                         .padding(.bottom, Self.abstand)
                         .id(zeile.id)
+                    }
+                    ForEach(vermerke[alleZeilen.count]) { Self.vermerk($0).padding(.bottom, Self.abstand) }
+                    if agent == Hauptagent.id, let v = stand?.todo_vorschlag, v.um >= (fragen.last?.ts ?? 0) {
+                        SnTodoVorschlag(v: v, antwort: vorschlag).padding(.bottom, Self.abstand)
                     }
                     if let quelle, !letzterLaeuft {
                         LiveZugView(quelle: quelle, zug: nil, name: name).padding(.bottom, Self.abstand).id("live")
@@ -208,22 +247,19 @@ struct VerlaufView: View, Equatable {
             }
             .safeAreaInset(edge: .top, spacing: 0) { if let leisteInfo { leiste(leisteInfo, leser) } }
             .onChange(of: gesendet) { _, _ in halter.ansEnde() }
-            .onChange(of: nurUnterhaltung) { _, _ in halter.ansEnde() }
             .onChange(of: verlauf.bloecke) { _, neu in merker.merkeNeue(neu) }
             .onAppear {
+                halter.obenNah = { [verlauf] in Task { await verlauf.aelterLaden() } }
                 let b = $folgt
                 halter.meldeFolgt = { neu in DispatchQueue.main.async { if b.wrappedValue != neu { withAnimation(Kurve.sn(0.2)) { b.wrappedValue = neu } } } }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .onChange(of: folgt) { _, f in bisher = f ? nil : alleZeilen.count }
+            .overlay(alignment: .bottom) {
                 if !folgt {
-                    Button { halter.ansEnde() } label: {
-                        Label("Zum Ende", systemImage: "arrow.down")
-                            .font(Schrift.grotesk(12.5))
-                            .padding(.horizontal, 14).padding(.vertical, 9)
-                    }
-                    .buttonStyle(.plain)
-                    .snGlas(Capsule())
-                    .padding(.trailing, 20).padding(.bottom, 20)
+                    let n = max(0, alleZeilen.count - (bisher ?? alleZeilen.count))
+                    SnNeuKnopf(n: n) { halter.ansEnde() }
+                    .keyboardShortcut(.downArrow, modifiers: .command)
+                    .padding(.bottom, 8)
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     .accessibilityIdentifier("neuenachrichten")
                 }
@@ -247,31 +283,42 @@ struct VerlaufView: View, Equatable {
 
 extension Zug {
     var startText: String { if case .user(_, let t, _, _)? = start { return t }; return "" }
+    var startTs: Double? { if case .user(_, _, let ts, _)? = start { return ts }; return nil }
 }
 
-enum NurUnterhaltung {
-    static let schluessel = "seneca-nativ.nurUnterhaltung"
-}
-
-struct NurUnterhaltungSchalter: View {
-    @AppStorage(NurUnterhaltung.schluessel, store: Hintergrund.defaults()) private var an = true
-
+struct SnNeuKnopf: View {
+    var n: Int
+    var tun: () -> Void
     var body: some View {
-        Button { an.toggle() } label: {
+        Button(action: tun) {
             HStack(spacing: 8) {
-                Image(systemName: an ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right").font(.system(size: 13, weight: .medium))
-                Text("Nur Unterhaltung").font(Schrift.grotesk(13, .medium))
+                Text(n == 0 ? "Ans Ende" : n == 1 ? "1 neue Nachricht" : "\(n) neue Nachrichten")
+                Image(systemName: "arrow.down").font(.system(size: 11, weight: .semibold))
             }
-            .foregroundStyle(an ? Farbe.himmel : Farbe.ink2)
-            .padding(.horizontal, 16).frame(height: 40)
-            .contentShape(Capsule())
+            .font(Schrift.grotesk(14, .medium)).foregroundStyle(TafelFarbe.aufHimmel)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Capsule().fill(TafelFarbe.himmel))
         }
         .buttonStyle(.plain)
-        .snGlas(Capsule())
-        .help(an ? "Alles zeigen: Aufträge, Meldungen und Arbeitsschritte" : "Nur deine Nachrichten und die Antworten darauf zeigen")
-        .accessibilityLabel("Nur Unterhaltung")
-        .accessibilityValue(an ? "an" : "aus")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("nur-unterhaltung")
+    }
+}
+
+struct SnTodoVorschlag: View {
+    var v: SenecaStand.TodoVorschlag
+    var antwort: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 8) {
+                SnKugel(groesse: 10, atmet: false)
+                Text("Als To-do merken? ").foregroundColor(TafelFarbe.zweit) + Text(v.titel).foregroundColor(.white)
+            }
+            .font(Schrift.grotesk(14)).frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 4) {
+                Button("Merken") { antwort(true) }.buttonStyle(SnTafelKnopf(art: .voll, groesse: 13))
+                Button("Nein") { antwort(false) }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+            }
+        }
+        .accessibilityIdentifier("todo-vorschlag")
     }
 }

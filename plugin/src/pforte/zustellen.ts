@@ -2,6 +2,7 @@ import { ereignisse, fragen, hole, kinder, uhr, vorschlaege, vorschlagDaten, wer
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, ereignis, uebergang } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import { anzeigeName } from "../team.ts";
 import type { Sender } from "./push.ts";
 import { ruhe, uhrTauglich } from "./stand.ts";
 
@@ -65,7 +66,7 @@ export async function zustellenJob(db: Register, senden?: Sender): Promise<void>
   for (const f of fragen(db, "offen")) {
     const a = hole(db, "auftrag", String(f.auftrag_id));
     if (f.frist !== null && Number(f.frist) < jetzt) {
-      uebergang(db, "frage", String(f.id), "abgelaufen", "frist", { grund: "Die Frist ist vorbei, ohne Antwort." });
+      uebergang(db, "frage", String(f.id), "abgelaufen", "frist", { grund: `${anzeigeName(String(f.von))}: ${f.wenn_nichts}` });
       if (a.zustand === "wartet") uebergang(db, "auftrag", String(a.id), "bereit", "frist", { naechster_anlass: jetzt });
       if (a.zustand === "vorgeschlagen") uebergang(db, "auftrag", String(a.id), "verworfen", "abgelaufen");
       continue;

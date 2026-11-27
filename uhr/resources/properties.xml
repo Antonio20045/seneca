@@ -1,7 +1,0 @@
-<resources>
-    <properties>
-        <property id="adresse" type="string"></property>
-        <property id="schluessel" type="string"></property>
-        <property id="geraet" type="string">uhr1</property>
-    </properties>
-</resources>

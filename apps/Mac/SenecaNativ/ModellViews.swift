@@ -24,73 +24,6 @@ private extension AnyTransition {
     static var mzrein: AnyTransition { .scale(scale: 0.88).combined(with: .opacity) }
 }
 
-struct ModellzeileView: View {
-    @ObservedObject var modelle: ModellStore
-    @ObservedObject var uebersicht: OverviewStore
-    @ObservedObject var gegenueber: GegenueberModell
-    var oeffnen: () -> Void
-
-    var body: some View {
-        let stand = modelle.stand(fuer: gegenueber.aktuellerKey, agentId: gegenueber.aktuellerAgent)
-        Group {
-            if let s = stand { zeile(s) }
-            else { Text("Modell wird gelesen …").font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink4).frame(height: 26) }
-        }
-        .frame(maxWidth: 660)
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, 12)
-    }
-
-    private func zeile(_ s: Stand) -> some View {
-        let effort = Modelle.effortName(s.effort.aktuell ?? s.effort.standard)
-        return Button(action: oeffnen) {
-            HStack(spacing: 8) {
-                KontoPunkt(farbe: s.konto.art.farbe, warnt: s.konto.warnung != nil)
-                Text(s.name).font(Schrift.grotesk(12, .medium)).foregroundStyle(Farbe.ink)
-                    .id("n" + s.ref).transition(.mzrein)
-                if !effort.isEmpty {
-                    punkt
-                    Text("Effort \(effort)").foregroundStyle(Farbe.ink2).id("e" + effort).transition(.mzrein)
-                }
-                punkt
-                Text(s.konto.name).foregroundStyle(s.konto.warnung != nil ? Farbe.koralle : s.konto.art == .key ? Farbe.bernstein : Farbe.ink3)
-                    .id("k" + s.konto.name).transition(.mzrein).lineLimit(1)
-                if let t = s.kontextTokens {
-                    punkt
-                    let voll = (s.kontextMax ?? 0) > 0 && t / (s.kontextMax ?? 1) > 0.6
-                    Text(t < 1000 ? "frischer Kontext" : "\(Modelle.tokenKurz(t)) Kontext").foregroundStyle(voll ? Farbe.bernstein : Farbe.ink3)
-                }
-                if !s.gesperrt { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).opacity(0.55) }
-            }
-            .font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink2)
-            .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(Color.clear))
-            .contentShape(Capsule())
-            .animation(Kurve.feder(0.5), value: s.ref)
-            .animation(Kurve.feder(0.5), value: effort)
-        }
-        .buttonStyle(ZeilenKnopf())
-        .disabled(s.gesperrt)
-        .help(s.gesperrt ? "Das Modell ist für diesen Chat gesperrt" : "Modell, Effort und Kontext dieses Chats")
-        .accessibilityLabel("Modell: \(s.name), Effort \(effort.isEmpty ? "Standard" : effort), \(s.konto.name). Ändern")
-        .accessibilityIdentifier("modellzeile")
-    }
-
-    private var punkt: some View { Text("·").foregroundStyle(Farbe.ink4) }
-}
-
-private struct ZeilenKnopf: ButtonStyle {
-    @State private var darueber = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(Capsule().fill(darueber ? Farbe.flaeche2 : Color.clear))
-            .overlay(Capsule().stroke(darueber ? Farbe.linie : Color.clear, lineWidth: 1))
-            .onHover { darueber = $0 }
-            .animation(Kurve.ease(0.25), value: darueber)
-            .opacity(configuration.isPressed ? 0.8 : 1)
-    }
-}
-
 extension View {
     func menueTasten(_ tu: @escaping (MenueTaste) -> Bool) -> some View {
         onKeyPress(phases: [.down, .repeat]) { p in
@@ -230,7 +163,7 @@ struct ModellwahlView: View {
         .onAppear {
             q = ""; alle = Self.startAlle; sel = -1; reset = .nein
             fokus = .kasten
-            Task { await modelle.ladeKatalog(); await modelle.ladeKonten(); await modelle.ladeNutzung() }
+            Task { await modelle.ladeKatalog(); await modelle.ladeNutzung() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("modellwahl")

@@ -47,7 +47,11 @@ module Stand {
             return;
         }
         var z = zeile();
-        Complications.updateComplication(0, {:value => z[0] as String, :shortLabel => (z[1] as Boolean) ? "!" : ""});
+        try {
+            Complications.updateComplication(0, {:value => z[0] as String, :shortLabel => (z[1] as Boolean) ? "!" : ""});
+        } catch (e) {
+            return;
+        }
     }
 
     function daten() as Dictionary {

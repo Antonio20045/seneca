@@ -41,6 +41,11 @@ struct MDStil {
         }
     }
 
+    static func chat(art: String) -> MDStil {
+        MDStil(art: art + "-chat", groesse: 24, normal: Sundartha.serif(24), fett: Sundartha.serif(24), kursiv: Sundartha.serif(24, italic: true), code: codeSchrift,
+               farbe: .white, zeilenabstand: 0)
+    }
+
     func gestalte(_ text: String) -> AttributedString {
         var a = MDInline.attributed(text)
         for run in a.runs {
@@ -199,8 +204,11 @@ struct MDBlockView: View, Equatable {
         })
     }
 
+    @Environment(\.chatSerif) private var chatSerif
+
     @ViewBuilder private var inhalt: some View {
-        let stil = MDStil.fuer(block.kind, art: block.art)
+        let absatz = { if case .paragraph = block.kind { return true }; return false }()
+        let stil = chatSerif && absatz ? MDStil.chat(art: block.art) : MDStil.fuer(block.kind, art: block.art)
         switch block.kind {
         case .paragraph:
             fliesstext(stil)

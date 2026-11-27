@@ -57,9 +57,15 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Seneca merkt, wenn du zu Hause, am Vodafone Campus oder in Köln ankommst oder gehst, und schreibt das in deinen Tageslauf auf deinem Mac. Dein Standort wird nicht laufend verfolgt.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Seneca hört zu, wenn du nach oben wischst.</string>
+	<string>Seneca hört zu, wenn du sprichst oder diktierst.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Seneca zeigt dir beim Anhängen dein letztes Bildschirmfoto und deine letzten Fotos. Was du anhängst, geht nur an Seneca.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Mit der Kamera scannst du einmal den Code am Mac und fotografierst etwas für Seneca, zum Beispiel ein Dokument.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Seneca versteht, was du sagst, und schickt deine Frage an Seneca auf deinem Mac.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>InstrumentSerif-Regular.ttf</string>

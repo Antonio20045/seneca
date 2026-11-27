@@ -3,19 +3,24 @@ import SwiftUI
 struct FadenFrage: View {
     var text: String
     var breite: CGFloat
+    var zeit: Date?
 
     var body: some View {
-        Text(text)
-            .schrift(.text)
-            .foregroundStyle(Stil.tinte.voll)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-            .padding(.horizontal, Stil.abstand.m)
-            .padding(.vertical, Stil.abstand.s)
-            .background(RoundedRectangle(cornerRadius: Stil.radius.mittel, style: .continuous).fill(Stil.tinte.flaecheStark))
-            .frame(maxWidth: breite * 0.8, alignment: .trailing)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Du: \(text)")
+        VStack(alignment: .trailing, spacing: 4) {
+            Text(text)
+                .font(Sundartha.grotesk(15)).zeilenHoehe(21, schrift: 15)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous)
+                    .fill(TafelFarbe.hex(0x142B4C)))
+                .frame(maxWidth: 308, alignment: .trailing)
+            if let zeit { Text(HeuteTafelLogik.uhr(zeit.timeIntervalSince1970 * 1000)).mono(11).foregroundStyle(TafelFarbe.aus) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Du: \(text)")
     }
 }
 

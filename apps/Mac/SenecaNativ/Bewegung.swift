@@ -104,23 +104,6 @@ extension SchrittArt {
     }
 }
 
-struct Perle: View {
-    var art: SchrittArt
-    var groesse: CGFloat = 5
-    var leuchtet = false
-    var einblenden = false
-    @State private var da = false
-
-    var body: some View {
-        Circle().fill(art.farbe)
-            .frame(width: groesse, height: groesse)
-            .opacity(leuchtet ? 1 : 0.5)
-            .shadow(color: leuchtet ? art.farbe : .clear, radius: leuchtet ? 4.5 : 0)
-            .scaleEffect(einblenden && !da ? 0 : 1)
-            .onAppear { if einblenden { withAnimation(Kurve.feder(0.55)) { da = true } } }
-    }
-}
-
 private struct SatzWeg: ViewModifier {
     var aktiv: Bool
     var richtung: CGFloat

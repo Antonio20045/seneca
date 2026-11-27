@@ -179,6 +179,12 @@ enum BausteinText {
 
     static func vorzeichen(_ n: Double) -> String { n > 0 ? "+\(zahlKurz(n))" : zahlKurz(n) }
 
+    static func anteil(_ wert: String, _ von: String?) -> Double? {
+        func z(_ t: String) -> Double? { Double(t.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)) }
+        guard let von, let v = z(von), v > 0, let w = z(wert) else { return nil }
+        return max(0, min(1, w / v))
+    }
+
     static func zahlKurz(_ n: Double) -> String {
         if n == n.rounded(), abs(n) < 1e15 { return String(Int64(n)) }
         return String(((n * 100).rounded() / 100)).replacingOccurrences(of: ".", with: ",")
@@ -205,15 +211,16 @@ enum BausteinText {
 
 struct Karte: Equatable, Sendable {
     struct Marke: Equatable, Sendable { var text: String; var ton: Ton? }
-    struct Zahl: Equatable, Sendable { var label: String; var wert: String; var detail: String?; var ton: Ton? }
+    struct Zahl: Equatable, Sendable { var label: String; var wert: String; var detail: String?; var ton: Ton?; var von: String? = nil; var einheit: String? = nil }
     struct Fortschritt: Equatable, Sendable { var wert: Double; var von: Double; var text: String? }
-    struct Punkt: Equatable, Sendable { var label: String; var wert: Double }
+    struct Punkt: Equatable, Sendable { var label: String; var wert: Double; var geplant = false }
     struct Diagramm: Equatable, Sendable {
         enum Art: String, Sendable { case balken, linie }
-        var art: Art; var einheit: String?; var titel: String?; var punkte: [Punkt]
+        var art: Art; var einheit: String?; var titel: String?; var punkte: [Punkt]; var rechts: String? = nil; var satz: String? = nil
     }
     struct Listenpunkt: Equatable, Sendable { var text: String; var ton: Ton?; var meta: String? }
     struct Aufgabe: Equatable, Sendable { var text: String; var fertig: Bool; var wer: String?; var bis: String? }
+    struct Frage: Equatable, Sendable { var text: String; var von: String; var seit: String? }
     struct Tabelle: Equatable, Sendable { var spalten: [String]; var zeilen: [[String]] }
     struct Aktion: Equatable, Sendable { var label: String; var prompt: String }
 
@@ -230,6 +237,7 @@ struct Karte: Equatable, Sendable {
     var bericht: String?
     var aktionen: [Aktion] = []
     var bausteine: [Baustein] = []
+    var frage: Frage?
 
     var alsJSON: [String: Any] {
         var o: [String: Any] = [:]
@@ -240,6 +248,8 @@ struct Karte: Equatable, Sendable {
             var d: [String: Any] = ["label": z.label, "wert": z.wert]
             if let x = z.detail { d["detail"] = x }
             if let t = z.ton { d["ton"] = t.rawValue }
+            if let v = z.von { d["von"] = v }
+            if let e = z.einheit { d["einheit"] = e }
             return d
         }
         if let f = fortschritt {
@@ -248,7 +258,9 @@ struct Karte: Equatable, Sendable {
             o["fortschritt"] = x
         }
         if let d = diagramm {
-            var x: [String: Any] = ["art": d.art.rawValue, "punkte": d.punkte.map { ["label": $0.label, "wert": $0.wert] as [String: Any] }]
+            var x: [String: Any] = ["art": d.art.rawValue, "punkte": d.punkte.map { ["label": $0.label, "wert": $0.wert, "geplant": $0.geplant] as [String: Any] }]
+            if let r = d.rechts { x["rechts"] = r }
+            if let s = d.satz { x["satz"] = s }
             if let e = d.einheit { x["einheit"] = e }
             if let t = d.titel { x["titel"] = t }
             o["diagramm"] = x
@@ -270,6 +282,7 @@ struct Karte: Equatable, Sendable {
         if let bericht { o["bericht"] = bericht }
         o["aktionen"] = aktionen.map { ["label": $0.label, "prompt": $0.prompt] }
         if !bausteine.isEmpty { o["bausteine"] = bausteine.map(\.alsJSON) }
+        if let f = frage { o["frage"] = ["text": f.text, "von": f.von, "seit": f.seit ?? ""] }
         return o
     }
 }
@@ -289,7 +302,8 @@ func karteAus(_ roh: Any?) -> Karte? {
     k.titel = leer(L.str(r["titel"], 140))
     k.zahlen = L.liste(r["zahlen"], 8) { e in
         guard let z = e as? [String: Any], z["wert"] != nil || jsWahr(z["label"]) else { return nil }
-        return Karte.Zahl(label: L.str(z["label"], 60), wert: L.str(z["wert"], 24), detail: leer(L.str(z["detail"], 80)), ton: Ton.aus(z["ton"]))
+        return Karte.Zahl(label: L.str(z["label"], 60), wert: L.str(z["wert"], 24), detail: leer(L.str(z["detail"], 80)), ton: Ton.aus(z["ton"]),
+                          von: leer(L.str(z["von"], 24)), einheit: leer(L.str(z["einheit"], 12)))
     }
     if let fw = r["fortschritt"] as? [String: Any] {
         let wert = L.nummer(fw["wert"]), von = L.nummer(fw["von"])
@@ -298,12 +312,12 @@ func karteAus(_ roh: Any?) -> Karte? {
     if let dg = r["diagramm"] as? [String: Any] {
         let punkte = L.liste(dg["punkte"], 40) { e -> Karte.Punkt? in
             guard let p = e as? [String: Any], L.nummer(p["wert"]).isFinite else { return nil }
-            return Karte.Punkt(label: L.str(p["label"], 40), wert: L.nummer(p["wert"]))
+            return Karte.Punkt(label: L.str(p["label"], 40), wert: L.nummer(p["wert"]), geplant: jsWahr(p["geplant"]))
         }
         if !punkte.isEmpty {
             let art = dg["art"] as? String
             k.diagramm = Karte.Diagramm(art: art == "linie" || art == "line" ? .linie : .balken, einheit: leer(L.str(dg["einheit"], 12)),
-                                        titel: leer(L.str(dg["titel"], 80)), punkte: punkte)
+                                        titel: leer(L.str(dg["titel"], 80)), punkte: punkte, rechts: leer(L.str(dg["rechts"], 40)), satz: leer(L.str(dg["satz"], 160)))
         }
     }
     k.punkte = L.liste(r["punkte"], 20) { e in
@@ -333,9 +347,12 @@ func karteAus(_ roh: Any?) -> Karte? {
         return Karte.Aktion(label: L.str(a["label"], 40), prompt: L.str(a["prompt"], 1000))
     }
     k.bausteine = Baustein.aus(r["bausteine"])
+    if let f = r["frage"] as? [String: Any], !L.str(f["text"], 200).isEmpty {
+        k.frage = Karte.Frage(text: L.str(f["text"], 200), von: L.str(f["von"], 40), seit: leer(L.str(f["seit"], 10)))
+    }
 
     let istLeer = k.titel == nil && k.zahlen.isEmpty && k.punkte.isEmpty && k.aufgaben.isEmpty && k.diagramm == nil
-        && k.tabelle == nil && k.text == nil && k.fortschritt == nil && k.bausteine.isEmpty
+        && k.tabelle == nil && k.text == nil && k.fortschritt == nil && k.bausteine.isEmpty && k.frage == nil
     return istLeer ? nil : k
 }
 
@@ -470,44 +487,6 @@ struct WidgetPromptRegel {
     }
 }
 
-struct AngeheftetesPin: Equatable, Identifiable, Sendable {
-    enum Art: String, Sendable { case karte, widget, datei }
-    var name: String
-    var art: Art
-    var titel: String
-    var von: String?
-    var karte: Karte?
-    var html: String?
-    var pfad: String?
-    var aktualisiert: Double
-    var anzeige: AnzeigeInfo?
-    var id: String { name }
-
-    static func lesen(_ antwort: [String: Any]) -> [AngeheftetesPin] {
-        (antwort["pins"] as? [Any] ?? []).compactMap { e in
-            guard let p = e as? [String: Any], let name = p["name"] as? String, !name.isEmpty, let art = (p["art"] as? String).flatMap(Art.init(rawValue:)) else { return nil }
-            let titel = KartenLesen.str(p["titel"], 140)
-            var pin = AngeheftetesPin(name: name, art: art, titel: titel.isEmpty ? "Übersicht" : titel, von: (p["von"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                                      karte: nil, html: p["html"] as? String, pfad: p["pfad"] as? String,
-                                      aktualisiert: KartenLesen.zahl(p["aktualisiert"]) ?? 0, anzeige: AnzeigeInfo.aus(p["anzeige"]))
-            switch art {
-            case .karte: guard let k = karteAus(p["karte"]) else { return nil }; pin.karte = k
-            case .widget: guard let h = pin.html, !h.isEmpty else { return nil }
-            case .datei: guard let f = pin.pfad, !f.isEmpty else { return nil }
-            }
-            return pin
-        }
-    }
-
-    static func setzen(karte k: Karte, titel: String?) -> [String: Any] {
-        var d: [String: Any] = ["art": "karte", "titel": titel ?? k.titel ?? "Übersicht", "karte": k.alsJSON]
-        if let n = k.name { d["name"] = n }
-        return d
-    }
-    static func setzen(html: String, titel: String) -> [String: Any] { ["art": "widget", "titel": titel, "html": html] }
-    static func setzen(pfad: String, titel: String) -> [String: Any] { ["art": "datei", "titel": titel, "pfad": pfad] }
-}
-
 struct AnzeigeInfo: Equatable, Sendable {
     var zweck: String
     var endeArt: String?
@@ -550,41 +529,5 @@ struct AnzeigeInfo: Equatable, Sendable {
     private static func tagIso(_ d: Date, _ k: Calendar) -> String {
         let c = k.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
-    }
-}
-
-struct BewertungsStand: Equatable, Sendable {
-    enum Urteil: String, Sendable { case passt, passtNicht = "passt_nicht" }
-    struct Zaehlung: Equatable, Sendable { var passt: Int; var passtNicht: Int; var anzahl: Int; var quote: Int? }
-    struct Agent: Equatable, Sendable { var agentId: String; var tage7: Zaehlung?; var liste: [String: Urteil] }
-    var agenten: [String: Agent] = [:]
-
-    static func lesen(_ antwort: [String: Any]) -> BewertungsStand {
-        var s = BewertungsStand()
-        for e in antwort["agenten"] as? [Any] ?? [] {
-            guard let a = e as? [String: Any], let id = a["agentId"] as? String else { continue }
-            var liste: [String: Urteil] = [:]
-            for z in a["liste"] as? [Any] ?? [] {
-                if let m = z as? [String: Any], let k = m["kartenId"] as? String, let u = (m["urteil"] as? String).flatMap(Urteil.init(rawValue:)) { liste[k] = u }
-            }
-            var t7: Zaehlung?
-            if let t = a["tage7"] as? [String: Any] {
-                t7 = Zaehlung(passt: Int(KartenLesen.zahl(t["passt"]) ?? 0), passtNicht: Int(KartenLesen.zahl(t["passtNicht"]) ?? 0),
-                              anzahl: Int(KartenLesen.zahl(t["anzahl"]) ?? 0), quote: KartenLesen.zahl(t["quote"]).map { Int($0) })
-            }
-            s.agenten[id] = Agent(agentId: id, tage7: t7, liste: liste)
-        }
-        return s
-    }
-
-    func urteil(agentId: String, kartenId: String) -> Urteil? { agenten[agentId]?.liste[kartenId] }
-
-    func quoteText(agentId: String) -> String {
-        guard let z = agenten[agentId]?.tage7, z.anzahl > 0, let q = z.quote else { return "" }
-        return "Trefferquote 7 Tage: \(q) % (\(z.passt) von \(z.anzahl))"
-    }
-
-    static func aufruf(agentId: String, kartenId: String, urteil: Urteil, quelle: String = "app") -> [String: Any] {
-        ["agentId": agentId, "kartenId": kartenId, "urteil": urteil.rawValue, "quelle": quelle]
     }
 }
