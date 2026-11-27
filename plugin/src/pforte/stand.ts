@@ -3,7 +3,7 @@ import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
 import { berichte, rueckblick } from "./berichte.ts";
 import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
-import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
+import { buendelText, heute, koerper, projektVon, restMin, ungefaehr, uhrzeit, ZAHLWORT } from "./heute.ts";
 import { projekte } from "./projekte.ts";
 import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
@@ -88,8 +88,39 @@ function team(db: Register, jetzt: number) {
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
       zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
-      ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null };
+      ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null,
+      arbeit: l ? arbeitSicht(db, l, name, tagBeginn, jetzt) : null };
   });
+}
+
+function arbeitSicht(db: Register, l: Zeile, name: string, tagBeginn: number, jetzt: number) {
+  const a = hole(db, "auftrag", String(l.auftrag_id));
+  const daten = (e: Zeile) => JSON.parse(String(e.daten ?? "{}"));
+  const werkzeuge = ereignisse(db, { art: "lauf.werkzeug", lauf_id: String(l.id) }).reverse();
+  const schritte = ereignisse(db, { art: "lauf.schritt", lauf_id: String(l.id) });
+  const offen = fragen(db, "offen").filter((f) => f.auftrag_id === a.id).length;
+  const dauer = Math.max(0, Math.round((jetzt - Number(a.erstellt)) / 60000));
+  const w = (n: number) => ZAHLWORT[n] || String(n);
+  const gross = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const cent = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
+  const danach = auftraege(db, ["bereit"]).find((x) => x.verantwortlich === name && x.id !== a.id);
+  const mein = (e: Zeile) => !!e.auftrag_id && hole(db, "auftrag", String(e.auftrag_id))?.verantwortlich === name;
+  const rest = restMin(db, l, jetzt);
+  return {
+    kopf: [`${anzeigeName(name)} ${l.letzter_schritt ?? "arbeitet"}.`, rest ? `In etwa ${w(rest)} ${rest === 1 ? "Minute" : "Minuten"} ${a.pruefer_noetig ? `geht es an ${anzeigeName(regelText("pruefer"))}` : "ist es fertig"}.` : null],
+    von: a.auftraggeber === "antonio" ? "dir" : anzeigeName(String(a.auftraggeber)), erteilt: a.erstellt,
+    anteil: a.schaetzung_min ? Math.min(1, dauer / Number(a.schaetzung_min)) : null,
+    minuten: a.schaetzung_min ? `${w(dauer)} von etwa ${w(Number(a.schaetzung_min))} Minuten` : `${w(dauer)} Minuten`,
+    schritt: `Schritt ${w(schritte.length)} · seit ${uhrzeit(Number(schritte[0]?.zeit ?? l.gestartet))}`,
+    naechstes: [daten(ereignisse(db, { art: "fortschreibung", auftrag_id: String(a.id), grenze: 1 })[0] ?? {}).naechster_schritt ?? null, danach ? `danach ${danach.titel}` : "danach nichts geplant"],
+    wartet: offen ? ["Auf dich.", `${gross(w(offen))} ${offen === 1 ? "Frage" : "Fragen"} offen`] : ["Nichts. Kommt ohne dich weiter.", "keine Frage offen"],
+    heute: [...ereignisse(db, { art: "fortschreibung", seit: tagBeginn }), ...ereignisse(db, { art: "frage.gestellt", seit: tagBeginn })].filter(mein)
+      .sort((x, y) => Number(x.zeit) - Number(y.zeit)).map((e) => ({ um: e.zeit, satz: e.art === "fortschreibung" ? daten(e).letzter_stand : `Dich gefragt: ${hole(db, "frage", String(e.frage_id)).text}` })),
+    protokoll: werkzeuge.slice(-regelZahl("team_protokoll")).map((e) => ({ um: e.zeit, werkzeug: daten(e).werkzeug, satz: e.satz, ms: daten(e).ms })),
+    zahlen: [`${dauer} Min Dauer`, `${schritte.length} Schritte`, `${(Number(l.tokens_ein ?? 0) + Number(l.tokens_aus ?? 0)).toLocaleString("de-DE").replace(/\./g, " ")} Tokens`,
+      `${cent(Number(l.kosten_cent ?? 0))} von ${cent(Number(a.kostenrahmen_cent))}`],
+    dateien: [...new Set(werkzeuge.filter((e) => /write|edit/i.test(daten(e).werkzeug)).map((e) => String(e.satz).split("/").at(-1)))],
+  };
 }
 
 function buendel(db: Register, braucht: Zeile[], jetzt: number) {
@@ -147,6 +178,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     vorbei: ["abgelaufen", "zurueckgezogen"].flatMap((z) => fragen(db, z)).map((f) => ({ id: f.id, text: f.text, zustand: f.zustand, frist: f.frist, satz: f.grund,
       um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
+    team_kopf: ["Dein Team,", `um ${ungefaehr(jetzt)}.`],
     braucht_dich: braucht.map((f) => ({ ...frageSicht(db, f, jetzt), mitteilung: mitteilung(db, f, braucht.length - 1) })),
     buendel: b,
     projekte: projekte(db, jetzt, ruhe(db, jetzt)?.grund === "fokus"),

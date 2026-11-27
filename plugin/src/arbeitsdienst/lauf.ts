@@ -1,7 +1,7 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  auftragAnlegen, auftragSetzen, befund, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
+  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
 } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, rolle } from "../team.ts";
@@ -203,6 +203,13 @@ export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, 
   const n = nachrichten.get(sitzung);
   if (!n?.vonAntonio || n.kennung !== kennung) throw new Error("Eine Antwort trägt nur Antonios Nachricht ein.");
   return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung, nachricht_kennung: kennung });
+}
+
+export function werkzeugProtokoll(db: Register, sitzung: string, werkzeug: string, params: Record<string, unknown>, ms?: number): void {
+  const l = laufZurSitzung(db, sitzung);
+  if (!l || !AKTIV.includes(String(l.zustand))) return;
+  const kurz = String(Object.values(params ?? {}).find((v) => typeof v === "string") ?? "").split("\n")[0];
+  ereignis(db, { art: "lauf.werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: kurz.slice(0, regelZahl("titel_zeichen")), daten: { werkzeug, ms: ms ?? null } });
 }
 
 export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {

@@ -142,6 +142,7 @@ wegzeit_vorlauf_min 60
 ankunft_puffer_min 0
 aufgaben_block_min 15
 team_schritte 3
+team_protokoll 8
 auftrag_quittung_min 10
 los_erinnern_min 6
 eine_minute_min 1

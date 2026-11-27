@@ -15,6 +15,11 @@ export function stundeAlsWort(t: number): string {
   return d.getMinutes() === 0 ? STUNDE[d.getHours() % 12] : uhrzeit(t);
 }
 
+export function ungefaehr(t: number): string {
+  const d = new Date(t), m = d.getMinutes();
+  return m >= 15 && m < 45 ? `halb ${STUNDE[(d.getHours() + 1) % 12]}` : STUNDE[(d.getHours() + (m >= 45 ? 1 : 0)) % 12];
+}
+
 function dauerAlsWort(min: number): string {
   const [n, einheit] = min >= 60 && min % 60 === 0 ? [min / 60, ["Stunde", "Stunden"]] : [min, ["Minute", "Minuten"]];
   return `${ZAHLWORT[n] ?? n} ${n === 1 ? einheit[0] : einheit[1]}`;

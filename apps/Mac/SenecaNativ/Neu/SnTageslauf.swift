@@ -80,6 +80,9 @@ enum HeuteBild {
                         SnGeruestBild(stand: s, aktiv: .statistik, dock: false)
                     case "buendel":
                         SnBuendelTafel(stand: s, handle: { _, _, _ in }, pause: {})
+                    case "team":
+                        SnTeamTafel(stand: s, handle: { _, _, _ in }, schreiben: { _ in })
+                        SnGeruestBild(stand: s, dock: false)
                     case "f-lebenslauf":
                         SnFrageLebenslaufBild(stand: s)
                     case "buendel-ablauf":
