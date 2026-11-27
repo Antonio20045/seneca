@@ -58,6 +58,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@main
+enum Start {
+    static func main() {
+        if HeuteBild.ziel != nil { MainActor.assumeIsolated { HeuteBild.laufe() } }
+        SenecaNativApp.main()
+    }
+}
+
 struct SenecaNativApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var modell = AppModell()

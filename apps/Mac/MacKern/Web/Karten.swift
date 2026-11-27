@@ -179,6 +179,12 @@ enum BausteinText {
 
     static func vorzeichen(_ n: Double) -> String { n > 0 ? "+\(zahlKurz(n))" : zahlKurz(n) }
 
+    static func anteil(_ wert: String, _ von: String?) -> Double? {
+        func z(_ t: String) -> Double? { Double(t.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)) }
+        guard let von, let v = z(von), v > 0, let w = z(wert) else { return nil }
+        return max(0, min(1, w / v))
+    }
+
     static func zahlKurz(_ n: Double) -> String {
         if n == n.rounded(), abs(n) < 1e15 { return String(Int64(n)) }
         return String(((n * 100).rounded() / 100)).replacingOccurrences(of: ".", with: ",")
@@ -205,15 +211,16 @@ enum BausteinText {
 
 struct Karte: Equatable, Sendable {
     struct Marke: Equatable, Sendable { var text: String; var ton: Ton? }
-    struct Zahl: Equatable, Sendable { var label: String; var wert: String; var detail: String?; var ton: Ton? }
+    struct Zahl: Equatable, Sendable { var label: String; var wert: String; var detail: String?; var ton: Ton?; var von: String? = nil; var einheit: String? = nil }
     struct Fortschritt: Equatable, Sendable { var wert: Double; var von: Double; var text: String? }
-    struct Punkt: Equatable, Sendable { var label: String; var wert: Double }
+    struct Punkt: Equatable, Sendable { var label: String; var wert: Double; var geplant = false }
     struct Diagramm: Equatable, Sendable {
         enum Art: String, Sendable { case balken, linie }
-        var art: Art; var einheit: String?; var titel: String?; var punkte: [Punkt]
+        var art: Art; var einheit: String?; var titel: String?; var punkte: [Punkt]; var rechts: String? = nil; var satz: String? = nil
     }
     struct Listenpunkt: Equatable, Sendable { var text: String; var ton: Ton?; var meta: String? }
     struct Aufgabe: Equatable, Sendable { var text: String; var fertig: Bool; var wer: String?; var bis: String? }
+    struct Frage: Equatable, Sendable { var text: String; var von: String; var seit: String? }
     struct Tabelle: Equatable, Sendable { var spalten: [String]; var zeilen: [[String]] }
     struct Aktion: Equatable, Sendable { var label: String; var prompt: String }
 
@@ -230,6 +237,7 @@ struct Karte: Equatable, Sendable {
     var bericht: String?
     var aktionen: [Aktion] = []
     var bausteine: [Baustein] = []
+    var frage: Frage?
 
     var alsJSON: [String: Any] {
         var o: [String: Any] = [:]
@@ -240,6 +248,8 @@ struct Karte: Equatable, Sendable {
             var d: [String: Any] = ["label": z.label, "wert": z.wert]
             if let x = z.detail { d["detail"] = x }
             if let t = z.ton { d["ton"] = t.rawValue }
+            if let v = z.von { d["von"] = v }
+            if let e = z.einheit { d["einheit"] = e }
             return d
         }
         if let f = fortschritt {
@@ -248,7 +258,9 @@ struct Karte: Equatable, Sendable {
             o["fortschritt"] = x
         }
         if let d = diagramm {
-            var x: [String: Any] = ["art": d.art.rawValue, "punkte": d.punkte.map { ["label": $0.label, "wert": $0.wert] as [String: Any] }]
+            var x: [String: Any] = ["art": d.art.rawValue, "punkte": d.punkte.map { ["label": $0.label, "wert": $0.wert, "geplant": $0.geplant] as [String: Any] }]
+            if let r = d.rechts { x["rechts"] = r }
+            if let s = d.satz { x["satz"] = s }
             if let e = d.einheit { x["einheit"] = e }
             if let t = d.titel { x["titel"] = t }
             o["diagramm"] = x
@@ -270,6 +282,7 @@ struct Karte: Equatable, Sendable {
         if let bericht { o["bericht"] = bericht }
         o["aktionen"] = aktionen.map { ["label": $0.label, "prompt": $0.prompt] }
         if !bausteine.isEmpty { o["bausteine"] = bausteine.map(\.alsJSON) }
+        if let f = frage { o["frage"] = ["text": f.text, "von": f.von, "seit": f.seit ?? ""] }
         return o
     }
 }
@@ -289,7 +302,8 @@ func karteAus(_ roh: Any?) -> Karte? {
     k.titel = leer(L.str(r["titel"], 140))
     k.zahlen = L.liste(r["zahlen"], 8) { e in
         guard let z = e as? [String: Any], z["wert"] != nil || jsWahr(z["label"]) else { return nil }
-        return Karte.Zahl(label: L.str(z["label"], 60), wert: L.str(z["wert"], 24), detail: leer(L.str(z["detail"], 80)), ton: Ton.aus(z["ton"]))
+        return Karte.Zahl(label: L.str(z["label"], 60), wert: L.str(z["wert"], 24), detail: leer(L.str(z["detail"], 80)), ton: Ton.aus(z["ton"]),
+                          von: leer(L.str(z["von"], 24)), einheit: leer(L.str(z["einheit"], 12)))
     }
     if let fw = r["fortschritt"] as? [String: Any] {
         let wert = L.nummer(fw["wert"]), von = L.nummer(fw["von"])
@@ -298,12 +312,12 @@ func karteAus(_ roh: Any?) -> Karte? {
     if let dg = r["diagramm"] as? [String: Any] {
         let punkte = L.liste(dg["punkte"], 40) { e -> Karte.Punkt? in
             guard let p = e as? [String: Any], L.nummer(p["wert"]).isFinite else { return nil }
-            return Karte.Punkt(label: L.str(p["label"], 40), wert: L.nummer(p["wert"]))
+            return Karte.Punkt(label: L.str(p["label"], 40), wert: L.nummer(p["wert"]), geplant: jsWahr(p["geplant"]))
         }
         if !punkte.isEmpty {
             let art = dg["art"] as? String
             k.diagramm = Karte.Diagramm(art: art == "linie" || art == "line" ? .linie : .balken, einheit: leer(L.str(dg["einheit"], 12)),
-                                        titel: leer(L.str(dg["titel"], 80)), punkte: punkte)
+                                        titel: leer(L.str(dg["titel"], 80)), punkte: punkte, rechts: leer(L.str(dg["rechts"], 40)), satz: leer(L.str(dg["satz"], 160)))
         }
     }
     k.punkte = L.liste(r["punkte"], 20) { e in
@@ -333,9 +347,12 @@ func karteAus(_ roh: Any?) -> Karte? {
         return Karte.Aktion(label: L.str(a["label"], 40), prompt: L.str(a["prompt"], 1000))
     }
     k.bausteine = Baustein.aus(r["bausteine"])
+    if let f = r["frage"] as? [String: Any], !L.str(f["text"], 200).isEmpty {
+        k.frage = Karte.Frage(text: L.str(f["text"], 200), von: L.str(f["von"], 40), seit: leer(L.str(f["seit"], 10)))
+    }
 
     let istLeer = k.titel == nil && k.zahlen.isEmpty && k.punkte.isEmpty && k.aufgaben.isEmpty && k.diagramm == nil
-        && k.tabelle == nil && k.text == nil && k.fortschritt == nil && k.bausteine.isEmpty
+        && k.tabelle == nil && k.text == nil && k.fortschritt == nil && k.bausteine.isEmpty && k.frage == nil
     return istLeer ? nil : k
 }
 

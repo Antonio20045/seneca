@@ -42,12 +42,10 @@ private struct Pfeil: View {
 struct SpurView: View {
     var zug: Zug
     var frisch: Bool
-    #if DEBUG
-    @State private var offen = MacPfade.profil == .demo && ProcessInfo.processInfo.environment["SENECA_TEST_SPUR_OFFEN"] == "1"
-    #else
+    var anfangsOffen = false
     @State private var offen = false
-    #endif
     @State private var ueber = false
+    @State private var roh = false
 
     static func kurzText(_ schritte: [Schritt]) -> String {
         let n = schritte.filter { $0.art != .gedanke }.count
@@ -63,11 +61,11 @@ struct SpurView: View {
     var body: some View {
         if !zug.schritte.isEmpty {
             let z = Arbeitsspur.zusammenfassung(zug.schritte, dauerMs: dauer)
-            let k = VerlaufLogik.spur(zug.schritte, dauerMs: dauer)
+            let k = VerlaufLogik.spur(zug.schritte, dauerMs: dauer, antwort: zug.antwort != nil)
             VStack(alignment: .leading, spacing: 0) {
                 Button { withAnimation(Kurve.ease(0.4)) { offen.toggle() } } label: {
                     HStack(spacing: 22) {
-                        Text((offen ? "▾ " : "▸ ") + k.titel).font(Schrift.grotesk(13))
+                        Text((offen ? "▾ " : "▸ ") + k.titel).font(k.zeile.isEmpty ? Schrift.mono(12) : Schrift.grotesk(13))
                         if !k.zeile.isEmpty { Text(k.zeile).font(Schrift.mono(12)) }
                     }
                     .foregroundStyle(ueber ? TafelFarbe.zweit : TafelFarbe.leise).lineLimit(1).contentShape(Rectangle())
@@ -81,49 +79,35 @@ struct SpurView: View {
                 if offen { liste }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear { if anfangsOffen { offen = true } }
         }
     }
 
     private var liste: some View {
-        let reihe = buendeln(zug.schritte)
-        let tech = zug.schritte.contains { ($0.tech ?? "").isEmpty == false }
-        return VStack(alignment: .leading, spacing: 8) {
-            ForEach(reihe) { r in
-                if r.schritt.art == .gedanke {
-                    HStack(alignment: .top, spacing: 9) {
-                        Zeichen(symbol: SchrittArt.gedanke.symbol, farbe: Farbe.gedankeZeichen).padding(.top, 2.5)
-                        Text(r.schritt.text).font(Schrift.serif(15.5, kursiv: true)).foregroundStyle(Farbe.ink2).lineLimit(3)
-                            .help(r.schritt.titel ?? "")
-                    }
-                } else {
-                    HStack(alignment: .top, spacing: 9) {
-                        Zeichen(symbol: r.schritt.art.symbol, farbe: r.schritt.art.farbe).padding(.top, 2.5)
-                        HStack(spacing: 0) {
-                            Text(r.schritt.text)
-                            if r.n > 1 { Text(" ×\(r.n)").foregroundStyle(Farbe.ink3).monospacedDigit() }
-                        }
-                        .fixedSize(horizontal: false, vertical: true)
-                        if let d = r.schritt.detail, !d.isEmpty {
-                            Text(d).font(Schrift.grotesk(12)).lineLimit(1).truncationMode(.tail)
-                                .padding(.horizontal, 7)
-                                .background(Farbe.kapsel, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .help(r.schritt.titel ?? d)
-                        }
-                        Spacer(minLength: 14)
-                        if let t = r.schritt.tech, !t.isEmpty {
-                            Text(t.ersetze(#"^mcp__[^_]+(?:_[^_]+)*?__"#, "")).font(Schrift.mono(10.5)).foregroundStyle(Farbe.ink4).lineLimit(1)
-                        }
-                    }
-                }
+        let reihe = buendeln(zug.schritte.filter { $0.art != .gedanke })
+        return VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(reihe) { r in Self.zeile(r.schritt.ts, r.schritt.text + (r.n > 1 ? " ×\(r.n)" : ""), roh: roh ? r.schritt.tech ?? r.schritt.titel : nil, farbe: TafelFarbe.gruen) }
+                if let a = zug.antwort { Self.zeile(a.ts, "Antwort geschrieben", roh: nil, farbe: TafelFarbe.himmel) }
             }
-            if tech { Text("Grau steht der technische Name jedes Schritts.").font(Schrift.grotesk(11.5)).foregroundStyle(Farbe.ink4).padding(.top, 2) }
+            .padding(.leading, 4)
+            .overlay(alignment: .leading) { Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1) }
+            Button(roh ? "Rohprotokoll schließen" : "Rohprotokoll öffnen") { withAnimation(Kurve.ease(0.25)) { roh.toggle() } }
+                .buttonStyle(.plain).font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.himmel)
         }
-        .font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink2)
-        .padding(.leading, 16).padding(.vertical, 6).padding(.trailing, 4)
-        .overlay(alignment: .leading) { Rectangle().fill(Farbe.linie).frame(width: 1) }
-        .padding(.leading, 6).padding(.top, 6).padding(.bottom, 4)
+        .padding(.top, 6)
         .erscheint(.auf)
         .accessibilityIdentifier("spurliste")
+    }
+
+    static func zeile(_ ts: Double?, _ text: String, roh: String?, farbe: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(ts.map { Formate.hhmmss($0) } ?? "").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).monospacedDigit().frame(width: 76, alignment: .leading)
+            Circle().fill(farbe).frame(width: 7, height: 7).frame(width: 14, alignment: .leading).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+            Text(text).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.text).fixedSize(horizontal: false, vertical: true)
+            if let roh, !roh.isEmpty { Text("  " + roh).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).lineLimit(1) }
+        }
+        .frame(minHeight: 26)
     }
 }
 
@@ -322,13 +306,16 @@ struct AntwortStueck: View, Equatable {
 
     var body: some View {
         ForEach(Array(teile(text).enumerated()), id: \.offset) { i, teil in
+            Group {
             switch teil {
             case .text(let t): textTeil(t, platz: i)
             case .karte(let k):
-                KarteAnsicht(karte: k, ort: live ? .panel : .chat, kartenId: live ? nil : ts.map { "chat-\(Int($0))-\(i)" })
+                KarteAnsicht(karte: k)
                     .padding(.vertical, 6)
             case .baut: BautKarte().padding(.vertical, 6)
             }
+            }
+            .environment(\.bildZeit, ts)
         }
     }
 
@@ -366,8 +353,6 @@ struct LiveZugView: View {
     private let frisch: FrischMerker
     var zug: Zug?
     var name: String
-    @State private var offen = false
-    @Environment(\.accessibilityReduceMotion) private var ruhig
 
     init(quelle: LaufQuelle, zug: Zug?, name: String) {
         _chat = ObservedObject(wrappedValue: quelle.chat)
@@ -377,7 +362,7 @@ struct LiveZugView: View {
         self.name = name
     }
 
-    final class Merker { var text = ""; var w = Werkzeugtext.Ergebnis(rest: "", schritte: [], bereinigt: false); var gefuellt = false; var zuletzt = Date(); var gezeigt = false }
+    final class Merker { var text = ""; var w = Werkzeugtext.Ergebnis(rest: "", schritte: [], bereinigt: false); var gefuellt = false; var zuletzt = Date(); var gezeigt = false; var satz: String?; var satzZeit = Date.distantPast }
     @State private var merker = Merker()
 
     private func bereinigt(_ live: ChatLive) -> Werkzeugtext.Ergebnis {
@@ -385,6 +370,11 @@ struct LiveZugView: View {
         let w = Werkzeugtext.bereinige(live.text)
         merker.text = live.text; merker.w = w; merker.gefuellt = true; merker.zuletzt = Date()
         return w
+    }
+
+    private func satz(_ neu: String?, _ nun: Date) -> String? {
+        if neu != merker.satz, nun.timeIntervalSince(merker.satzZeit) >= Laufzeile.satzTakt { merker.satz = neu; merker.satzZeit = nun }
+        return merker.satz
     }
 
     var body: some View {
@@ -395,60 +385,85 @@ struct LiveZugView: View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
             let nun = ctx.date
             let w = bereinigt(live)
-            let hist = (zug?.schritte ?? []).filter { $0.art != .gedanke }
-            let alle = hist + w.schritte
+            let alle = (zug?.schritte ?? []).filter { $0.art != .gedanke } + w.schritte
             let ruhigMs = nun.timeIntervalSince(merker.zuletzt) * 1000
             let sofort = alle.isEmpty && !w.rest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let schreibt = merker.gezeigt || sofort || Antwortform.antwortartig(w.rest, ruhigMs: ruhigMs)
             let _ = (merker.gezeigt = schreibt && !w.rest.isEmpty)
             let _ = (frisch.schrieb = schreibt)
-            let angekommen = chat.speicher.zustand(sitzung: live.sessionKey, schluessel: live.schluessel).map { $0 >= .angekommen } ?? (live.phase != .sending)
-            let zeile = Laufzeile.text(name: name, phase: live.phase, angekommen: angekommen, taetigkeit: live.activity, schritte: alle.count,
-                                       schreibt: schreibt, seit: max(0, nun.timeIntervalSince(live.startedAt)), verbunden: chat.store?.isConnected ?? true)
+            let z = Laufzeile.teile(name: name, phase: live.phase, taetigkeit: satz(live.activity, nun), schritte: alle.count,
+                                    seit: max(0, nun.timeIntervalSince(live.startedAt)), ruhig: nun.timeIntervalSince(merker.zuletzt), letzterSchritt: alle.last?.ts)
             VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Button { withAnimation(ruhig ? .easeOut(duration: 0.15) : Kurve.ease(0.3)) { offen.toggle() } } label: {
-                        HStack(spacing: 12) {
-                            Kugel()
-                            Text(zeile).font(Schrift.grotesk(14)).foregroundStyle(Farbe.ink).monospacedDigit().lineLimit(1)
-                            Spacer(minLength: 8)
-                            if !alle.isEmpty {
-                                Image(systemName: "chevron.down").font(.system(size: 11, weight: .medium)).foregroundStyle(Farbe.ink3)
-                                    .rotationEffect(.degrees(offen ? 180 : 0))
-                            }
+                if schreibt {
+                    Text("\(name.uppercased()) · SCHREIBT").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
+                    AntwortKarteView(text: w.rest, ts: nil, frisch: false, live: true, gross: true)
+                } else if live.phase != .sending, chat.store?.isConnected ?? true {
+                    SnLaufPille(z: z, schritte: alle)
+                    if z.haengt {
+                        HStack(spacing: 8) {
+                            Button("Nachfragen") { Task { _ = try? await chat.send("Wie weit bist du?", sessionKey: key) } }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                            Button("Anhalten") { Task { await chat.stop() } }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
                         }
-                        .padding(.leading, 12).padding(.trailing, 18).padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(alle.isEmpty)
-                    if offen && !alle.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(Array(alle.suffix(12).enumerated()), id: \.offset) { _, s in
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Circle().fill(Farbe.ink4).frame(width: 4, height: 4).offset(y: -2)
-                                    Text(s.text).foregroundStyle(Farbe.ink2)
-                                    if let d = s.detail, !d.isEmpty { Text(d).foregroundStyle(Farbe.ink3).lineLimit(1) }
-                                }
-                                .font(Schrift.grotesk(13))
-                            }
-                        }
-                        .padding(.leading, 40).padding(.trailing, 18).padding(.bottom, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.opacity)
                     }
                 }
-                .frame(maxWidth: 470, alignment: .leading)
-                .background(Farbe.pilleLauf, in: RoundedRectangle(cornerRadius: offen ? 22 : 30, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: offen ? 22 : 30, style: .continuous).stroke(Farbe.kantePille, lineWidth: 1))
-                .shadow(color: Farbe.schatten, radius: 17, y: 12)
-                .erscheint(.laufrein)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(zeile)
-                .accessibilityHint(alle.isEmpty ? "" : "Zeigt die Schritte")
-                .accessibilityIdentifier("laufzeile")
-                if schreibt { AntwortKarteView(text: w.rest, ts: nil, frisch: false, live: true, gross: true) }
             }
+            .task(id: z.haengt) {
+                guard z.haengt else { return }
+                try? await Task.sleep(for: .seconds(Laufzeile.anhaltenNach - Laufzeile.haengtNach))
+                if !Task.isCancelled { await chat.stop() }
+            }
+        }
+    }
+}
+
+struct SnLaufPille: View {
+    var z: Laufzeile.Teile
+    var schritte: [Schritt]
+    @State private var offen = false
+    @Environment(\.accessibilityReduceMotion) private var ruhig
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(ruhig ? .easeOut(duration: 0.15) : Kurve.ease(0.3)) { offen.toggle() } } label: {
+                HStack(spacing: 12) {
+                    SnAtemPunkt(an: !z.haengt)
+                    (Text(z.haupt).foregroundColor(.white) + Text(z.neben).foregroundColor(TafelFarbe.leise))
+                        .font(Schrift.grotesk(14)).monospacedDigit().lineLimit(1)
+                    Spacer(minLength: 8)
+                    if z.anhalten { Text("⌘. anhalten").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
+                }
+                .padding(.horizontal, 16).frame(minHeight: 40).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .allowsHitTesting(!schritte.isEmpty)
+            if offen && !schritte.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(schritte.suffix(12).enumerated()), id: \.offset) { _, s in SpurView.zeile(s.ts, s.text, roh: nil, farbe: TafelFarbe.gruen) }
+                }
+                .padding(.leading, 20).padding(.bottom, 10).transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .snFlaeche(14)
+        .erscheint(.laufrein)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(z.haupt + z.neben)
+        .accessibilityIdentifier("laufzeile")
+    }
+}
+
+struct SnAtemPunkt: View {
+    var an: Bool
+    @Environment(\.fensterSichtbar) private var sichtbar
+    var body: some View {
+        if an {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar)) { ctx in
+                let p = (sin(ctx.date.timeIntervalSinceReferenceDate / 1.6 * 2 * .pi) + 1) / 2
+                Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(0.55 + 0.45 * p)
+            }
+            .frame(width: 7, height: 7)
+        } else {
+            Circle().strokeBorder(TafelFarbe.zweit, lineWidth: 1.5).frame(width: 7, height: 7)
         }
     }
 }
@@ -467,6 +482,7 @@ struct ZugView: View, Equatable {
     var alt = false
     var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     var erneut: () -> Void
+    @State private var spurOffen = false
 
     static func == (a: ZugView, b: ZugView) -> Bool {
         a.quittung == b.quittung && a.alt == b.alt && a.zug == b.zug && a.status == b.status && (a.lauf == nil) == (b.lauf == nil) && a.frisch == b.frisch && a.zustand == b.zustand
@@ -507,8 +523,12 @@ struct ZugView: View, Equatable {
                     SpurView(zug: zug, frisch: frisch != nil).padding(.top, 2)
                     if let q = quittung { QuittungErgebnis(quittung: q, zuruecklegen: zuruecklegen) }
                 } else if !zug.schritte.isEmpty, zug.widgets.isEmpty {
-                    SpurView(zug: zug, frisch: frisch != nil)
-                    Text("Ohne Abschlussmeldung beendet").font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink4).padding(.leading, 2)
+                    HStack(spacing: 8) {
+                        Text(VerlaufLogik.abbruch(zug.schritte.filter { $0.art != .gedanke }.count)).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text).padding(.trailing, 8)
+                        Button("Nochmal fragen", action: erneut).buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                        Button("Spur ansehen") { withAnimation(Kurve.ease(0.3)) { spurOffen.toggle() } }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+                    }
+                    if spurOffen { SpurView(zug: zug, frisch: false, anfangsOffen: true) }
                 }
             }
             if !laeuft {
@@ -527,6 +547,7 @@ struct ZugView: View, Equatable {
 
     @ViewBuilder private func frage(_ text: String, pending: Bool, ts: Double?) -> some View {
         let teile = ChatAnhang.zerlege(text)
+        let wartet = pending && lauf?.chat.store?.isConnected == false
         VStack(alignment: .trailing, spacing: 4) {
             VStack(alignment: .trailing, spacing: 6) {
                 ForEach(Array(teile.namen.enumerated()), id: \.offset) { _, n in SnAnhangChip(name: n) }
@@ -535,7 +556,8 @@ struct ZugView: View, Equatable {
                         .font(Schrift.grotesk(15)).foregroundStyle(Color.white).lineHeight(.exact(points: 22))
                         .textSelection(.enabled)
                         .padding(.horizontal, 16).padding(.vertical, 12)
-                        .background(Color(hex: 0x142B4C), in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous))
+                        .background(Color(hex: 0x142B4C).opacity(wartet ? 0 : 1), in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous))
+                        .overlay { if wartet { UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])) } }
                 }
             }
             .frame(maxWidth: 520, alignment: .trailing)
@@ -552,23 +574,17 @@ struct ZugView: View, Equatable {
                 .font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3)
                 .accessibilityIdentifier("nachrichtstatus")
             }
-            if let q = quittung {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                    Text(q.teile.joined(separator: " · "))
-                }
-                .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.gruen).padding(.top, 4)
-            }
+            if let q = quittung { SnQuittungZeile(teile: q.teile).padding(.top, 4) }
             if zustand == .fehlgeschlagen {
                 HStack(spacing: 8) {
                     Text("Nicht gesendet").font(Schrift.grotesk(12)).foregroundStyle(Farbe.koralle)
                     Button("Erneut senden", action: erneut).buttonStyle(.plain)
                         .font(Schrift.grotesk(12, .medium)).foregroundStyle(Farbe.himmel)
                 }
-            } else if pending, status == nil, lauf != nil, let ts {
-                TimelineView(.periodic(from: .now, by: 2)) { takt in
-                    if takt.date.timeIntervalSince1970 * 1000 - ts > 8000 {
-                        Text("In der Reihe. Kommt dran, sobald der laufende Schritt fertig ist.").font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3)
+            } else if pending, status == nil, let lauf, let ts {
+                TimelineView(.periodic(from: .now, by: 1)) { takt in
+                    if let z = VerlaufLogik.zustand(zustand, phase: lauf.chat.lives[lauf.key]?.phase, verbunden: lauf.chat.store?.isConnected ?? true, ts: ts, jetzt: takt.date.timeIntervalSince1970 * 1000) {
+                        SnZustandZeile(zeichen: z.zeichen, text: z.text)
                     }
                 }
             }
@@ -579,6 +595,29 @@ struct ZugView: View, Equatable {
 }
 
 enum FrischArt { case voll, weich }
+
+struct SnZustandZeile: View {
+    var zeichen: String
+    var text: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: zeichen).font(.system(size: 10, weight: .semibold))
+            Text(text)
+        }
+        .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
+    }
+}
+
+struct SnQuittungZeile: View {
+    var teile: [String]
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+            Text(teile.joined(separator: " · "))
+        }
+        .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.gruen)
+    }
+}
 
 struct ZwischenView: View {
     var g: Zwischendurch

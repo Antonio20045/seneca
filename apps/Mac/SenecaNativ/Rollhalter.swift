@@ -12,6 +12,8 @@ final class Rollhalter: NSObject {
     private var live = false
     private var wartet = false
     var meldeFolgt: (Bool) -> Void = { _ in }
+    var obenNah: () -> Void = {}
+    private var obenGemeldet = false
     var haltEnde = false
     nonisolated(unsafe) static var ansEndeGesetzt = 0
     nonisolated(unsafe) static var messungHand = false
@@ -108,6 +110,7 @@ final class Rollhalter: NSObject {
 
     @objc private func gerollt() {
         guard !eigen, let l = lage() else { return }
+        if l.oben < 160, !obenGemeldet { obenGemeldet = true; haltEnde = true; obenNah() } else if l.oben > 400 { obenGemeldet = false }
         if l.sicht != sicht || l.hoehe != hoehe { groesse(); return }
         if live || Self.messungHand {
             vonHand(l)

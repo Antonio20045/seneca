@@ -12,18 +12,20 @@ struct ChatAnhang: Identifiable, Equatable, Sendable {
 
     static func base64Groesse(_ bytes: Int) -> Int { (bytes + 2) / 3 * 4 }
     static var maxBase64: Int { maxFrame - frameRand }
+    static var hoechstens: String { "Höchstens " + ByteCountFormatter.string(fromByteCount: Int64(maxBase64 / 4 * 3), countStyle: .file) + "." }
 
     let id = UUID()
     let url: URL
     let name: String
     let mime: String
     let groesse: Int
+    var vorher: Int?
 
     var istBild: Bool { mime.hasPrefix("image/") }
 
     var problem: String? {
         if groesse == 0 { return "Datei ist leer" }
-        if Self.base64Groesse(groesse) > Self.maxBase64 { return "zu groß (über \(Self.maxBase64 / 4 * 3 / 1000) KB)" }
+        if Self.base64Groesse(groesse) > Self.maxBase64 { return "zu groß" }
         return nil
     }
 
@@ -73,9 +75,20 @@ struct ChatAnhang: Identifiable, Equatable, Sendable {
         let mime = mimeTyp(url.pathExtension)
         if verkleinerbar(mime), groesse > 0, let daten = try? Data(contentsOf: url), let klein = verkleinert(daten), klein.count < daten.count {
             let basis = (url.lastPathComponent as NSString).deletingPathExtension
-            if let a = ausDaten(klein, name: "\(basis)-\(Int(Date().timeIntervalSince1970 * 1000)).jpg", mime: "image/jpeg", ordner: MacPfade.datenOrdner ?? fm.temporaryDirectory, verkleinern: false) { return a }
+            if var a = ausDaten(klein, name: "\(basis)-\(Int(Date().timeIntervalSince1970 * 1000)).jpg", mime: "image/jpeg", ordner: MacPfade.datenOrdner ?? fm.temporaryDirectory, verkleinern: false) { a.vorher = groesse; return a }
         }
         return ChatAnhang(url: url, name: url.lastPathComponent, mime: mime, groesse: groesse)
+    }
+
+    static func ziehSatz(_ namen: [String], summe: Int, klein: Int?) -> String {
+        let zahl = ["Ein", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn"]
+        let n = namen.count, wort = n <= zahl.count ? zahl[n - 1] : String(n)
+        let foto = namen.allSatisfy { $0.lowercased().hasPrefix("bildschirmfoto") || $0.lowercased().hasPrefix("screenshot") }
+        let bild = namen.allSatisfy { mimeTyp(($0 as NSString).pathExtension).hasPrefix("image/") }
+        let art = foto ? (n == 1 ? "Bildschirmfoto" : "Bildschirmfotos") : bild ? (n == 1 ? "Bild" : "Bilder") : (n == 1 ? "Datei" : "Dateien")
+        let mb = { (b: Int) in ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .file) }
+        let anfang = (n == 1 ? (art == "Datei" ? "Eine" : "Ein") : wort) + " " + art + " · " + (n == 1 ? "" : "zusammen ") + mb(summe)
+        return anfang + (klein.map { $0 < summe ? " · \(n == 1 ? "wird" : "werden") auf etwa \(mb($0)) verkleinert" : "" } ?? "")
     }
 
     static func mimeTyp(_ endung: String) -> String {
@@ -95,6 +108,7 @@ struct ChatAnhang: Identifiable, Equatable, Sendable {
     static func ausDaten(_ daten: Data, name: String? = nil, mime: String, ordner: URL? = MacPfade.datenOrdner, verkleinern: Bool = true) -> ChatAnhang? {
         guard let ordner, !daten.isEmpty else { return nil }
         var daten = daten, mime = mime, name = name
+        let vorher = daten.count
         if verkleinern, verkleinerbar(mime), let klein = verkleinert(daten), klein.count < daten.count {
             daten = klein; mime = "image/jpeg"
             if let n = name { name = (n as NSString).deletingPathExtension + ".jpg" }
@@ -105,7 +119,7 @@ struct ChatAnhang: Identifiable, Equatable, Sendable {
         let dateiname = name ?? "bildschirmfoto-\(Int(Date().timeIntervalSince1970 * 1000))" + (endung.isEmpty ? "" : ".\(endung)")
         let url = anhaengeOrdner.appendingPathComponent(dateiname)
         guard (try? daten.write(to: url, options: .atomic)) != nil else { return nil }
-        return ChatAnhang(url: url, name: dateiname, mime: mime, groesse: daten.count)
+        return ChatAnhang(url: url, name: dateiname, mime: mime, groesse: daten.count, vorher: vorher > daten.count ? vorher : nil)
     }
 
     func json() throws -> [String: Any] {

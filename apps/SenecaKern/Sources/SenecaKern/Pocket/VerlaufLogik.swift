@@ -37,6 +37,25 @@ enum VerlaufLogik {
         return "ruht seit " + (tage == 0 ? HeuteTafelLogik.uhr(ms, cal) : tage == 1 ? "gestern" : f.string(from: a))
     }
 
+    static func zustand(_ z: ZustellZustand?, phase: ChatLive.Phase?, verbunden: Bool, ts: Double, jetzt: Double) -> (zeichen: String, text: String)? {
+        if !verbunden { return ("clock", "wartet · geht raus, sobald Seneca erreichbar ist") }
+        if phase == .queued { return ("checkmark", "in der Reihe · als Nächstes") }
+        switch z {
+        case .wirdGesendet?, nil: return ("circle", jetzt - ts >= 10_000 ? "prüft, ob es angekommen ist …" : "wird gesendet")
+        case .angekommen?: return ("checkmark", "angekommen · " + HeuteTafelLogik.uhr(ts))
+        default: return nil
+        }
+    }
+
+    static func abbruch(_ n: Int) -> String {
+        "Die Antwort brach nach " + (n == 1 ? "einem Schritt" : "\(n < zahlwort.count ? zahlwort[n] : String(n)) Schritten") + " ab"
+    }
+
+    static func uhrDauer(_ s: Double) -> String {
+        let n = Int(max(0, s).rounded())
+        return "\(n / 60):" + String(format: "%02d", n % 60)
+    }
+
     static func dauer(_ ms: Double) -> String {
         let s = Int((ms / 1000).rounded())
         return s < 20 ? "\(s) s" : "\(s / 60):" + String(format: "%02d", s % 60)
@@ -47,11 +66,12 @@ enum VerlaufLogik {
         return "\(n < zahlwort.count ? zahlwort[n] : String(n)) " + w + (w.hasSuffix("e") ? "n" : w.hasSuffix("l") ? "s" : "en")
     }
 
-    static func spur(_ schritte: [Schritt], dauerMs: Double) -> (titel: String, zeile: String) {
+    static func spur(_ schritte: [Schritt], dauerMs: Double, antwort: Bool = false) -> (titel: String, zeile: String) {
         let echt = schritte.filter { $0.art != .gedanke }
         let d = dauerMs > 0 ? " · " + dauer(dauerMs) : ""
         guard !echt.isEmpty, echt.allSatisfy({ [.lesen, .web, .suche].contains($0.art) }) else {
-            return ((echt.count == 1 ? "1 Schritt" : "\(echt.count) Schritte") + d, "")
+            let n = echt.count + (antwort ? 1 : 0)
+            return ((n == 1 ? "1 Schritt" : "\(n) Schritte") + d, "")
         }
         var namen: [(String, Int)] = []
         for s in echt {

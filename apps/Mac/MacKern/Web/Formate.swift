@@ -11,6 +11,10 @@ enum Formate {
         return "\(pad(kalender.component(.hour, from: d))):\(pad(kalender.component(.minute, from: d)))"
     }
 
+    static func hhmmss(_ ms: Double, kalender: Calendar = .current) -> String {
+        hhmm(ms, kalender: kalender) + ":" + pad(kalender.component(.second, from: Date(timeIntervalSince1970: ms / 1000)))
+    }
+
     static func tagesLabel(_ ms: Double, jetzt: Date = Date(), kalender: Calendar = .current) -> String {
         let d = Date(timeIntervalSince1970: ms / 1000)
         let tage = kalender.dateComponents([.day], from: kalender.startOfDay(for: d), to: kalender.startOfDay(for: jetzt)).day ?? 0
@@ -18,6 +22,16 @@ enum Formate {
         if tage == 1 { return "Gestern" }
         let c = kalender.dateComponents([.weekday, .day, .month], from: d)
         return "\(wochentageLang[(c.weekday ?? 1) - 1]), \(c.day ?? 1). \(monate[(c.month ?? 1) - 1])"
+    }
+
+    static func trenner(_ ms: Double, vorher: Double?, jetzt: Date = Date(), kalender: Calendar = .current) -> String? {
+        let d = Date(timeIntervalSince1970: ms / 1000)
+        let neuerTag = vorher.map { !kalender.isDate(Date(timeIntervalSince1970: $0 / 1000), inSameDayAs: d) } ?? true
+        guard neuerTag || ms - (vorher ?? ms) > 3 * stunde else { return nil }
+        let c = kalender.dateComponents([.weekday, .day, .month], from: d)
+        let lang = "\(wochentageLang[(c.weekday ?? 1) - 1]), \(c.day ?? 1). \(kalender.monthSymbols[(c.month ?? 1) - 1])"
+        let heute = kalender.isDate(d, inSameDayAs: jetzt)
+        return (neuerTag ? (heute ? "Heute · " : "") + lang : hhmm(ms, kalender: kalender)).uppercased()
     }
 
     static let wochentageKurz = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
