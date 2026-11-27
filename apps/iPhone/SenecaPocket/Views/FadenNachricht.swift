@@ -80,14 +80,18 @@ extension FadenLayer {
             FadenDatum(text: text).padding(.top, oben)
         case .nachricht(let n):
             if r.art == .frage {
-                frage(n, oben: oben, letzte: n.id == letzteEigene, antwortFehlt: antwortFehlt, proxy: proxy)
+                frage(n, oben: oben, letzte: n.id == letzteEigene, antwortFehlt: antwortFehlt, proxy: proxy).background(markierung(n.id))
                 antwortBereich(frage: n, offen: offene.first(where: { $0.id == n.id }), fertig: danach.flatMap(Self.antwortText))
             } else if n.vermerk == nil, n.role != .dritter, vorher?.art == .frage, gewachsen.contains(vorher?.id ?? "") {
                 EmptyView()
             } else {
-                antwort(n, quittung: quittungen[n.id]).padding(.top, oben)
+                antwort(n, quittung: quittungen[n.id]).background(markierung(n.id)).padding(.top, oben)
             }
         }
+    }
+
+    private func markierung(_ id: String) -> some View {
+        RoundedRectangle(cornerRadius: 12).fill(TafelFarbe.himmel.opacity(markiert == id ? 0.2 : 0)).padding(-8)
     }
 
     private static func antwortText(_ r: FadenReihe) -> String? {

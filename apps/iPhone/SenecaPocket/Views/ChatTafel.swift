@@ -51,14 +51,20 @@ struct ChatKopf: View {
     var aktiv: ChatPartner
     var zurueck: () -> Void
     var waehle: (ChatPartner) -> Void
+    var suchen: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button(action: zurueck) {
-                Text("Heute ↓").font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(height: 32).contentShape(Rectangle())
+            HStack {
+                Button(action: zurueck) {
+                    Text("Heute ↓").font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(height: 32).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Zurück zu Heute")
+                Spacer()
+                Button(action: suchen) { Image(systemName: "magnifyingglass").font(.system(size: 17)).foregroundStyle(TafelFarbe.zweit).frame(width: 44, height: 32) }
+                    .buttonStyle(.plain).accessibilityLabel("In allen Gesprächen suchen")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Zurück zu Heute")
             ScrollView(.horizontal) {
                 HStack(spacing: 2) {
                     chip(.seneca, "Seneca", .seneca)

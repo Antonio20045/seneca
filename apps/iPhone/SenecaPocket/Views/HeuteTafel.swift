@@ -88,10 +88,19 @@ struct HeuteTafel: View {
     enum Ziel { case gespraeche, aufgaben, laeuft, frage, einstellungen }
 
     @State private var atmet = false
+    @State private var wartetBeiAusfall: Set<String> = []
+    @State private var nachgereicht: Set<String> = []
     @EnvironmentObject private var store: SenecaStore
 
+    private var offline: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SENECA_DEMO_OFFLINE"] == "1" { return true }
+        #endif
+        return store.macUnerreichbar
+    }
+
     var body: some View {
-        let frage = HeuteTafelLogik.frage(stand)
+        let frage = offline ? nil : HeuteTafelLogik.frage(stand)
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(HeuteTafelLogik.datumZeile(stand.jetzt)).mono(12).foregroundStyle(TafelFarbe.leise)
@@ -108,10 +117,18 @@ struct HeuteTafel: View {
                     .padding(.top, 18)
                     .accessibilityIdentifier("heute.satz")
             }
-            TagesLeiste(stand: stand).padding(.top, 26)
+            if offline {
+                HStack(spacing: 8) {
+                    Circle().strokeBorder(TafelFarbe.zweit, lineWidth: 1.2).frame(width: 7, height: 7)
+                    Text("Stand \(HeuteTafelLogik.uhr(stand.jetzt)) · Der Mac antwortet gerade nicht.").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.zweit)
+                }
+                .padding(.top, 18).frame(height: 100, alignment: .top)
+            } else {
+                TagesLeiste(stand: stand).padding(.top, 26)
+            }
             if let frage {
                 frageBlock(frage).padding(.top, 24)
-            } else if let w = HeuteTafelLogik.wartenZeile(stand) {
+            } else if !offline, let w = HeuteTafelLogik.wartenZeile(stand) {
                 HStack(spacing: 8) {
                     Circle().fill(TafelFarbe.bernstein).frame(width: 6, height: 6)
                     Text(w).font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(18, schrift: 13)
@@ -119,7 +136,7 @@ struct HeuteTafel: View {
                 .padding(.top, 14)
             }
             HStack {
-                Text("HEUTE · \(HeuteTafelLogik.todosHeute(stand).count) TO-DOS").mono(11, .medium, abstand: 1.1).foregroundStyle(TafelFarbe.leise)
+                Text(nachgereicht.isEmpty ? "HEUTE · \(HeuteTafelLogik.todosHeute(stand).count) TO-DOS" : "HEUTE · \(HeuteTafelLogik.todosHeute(stand).filter { !nachgereicht.contains($0.id) }.count) OFFEN").mono(11, .medium, abstand: 1.1).foregroundStyle(TafelFarbe.leise)
                 Spacer()
                 Button { if allowTap() { oeffne(.aufgaben) } } label: { Text("alle ↓").mono(11).foregroundStyle(TafelFarbe.leise) }
                     .buttonStyle(.plain)
@@ -129,12 +146,26 @@ struct HeuteTafel: View {
                 ForEach(HeuteTafelLogik.todosHeute(stand)) { t in todoZeile(t) }
             }
             .padding(.top, 6)
-            ForEach(stand.hinweise ?? [], id: \.self) { h in
+            if offline {
+                Text("Fragen beantworten geht erst wieder mit dem Mac. Abhaken und Eintragen geht und wartet hier.")
+                    .font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.zweit).zeilenHoehe(20, schrift: 14)
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.06))).padding(.top, 22)
+            }
+            ForEach(offline ? [] : stand.hinweise ?? [], id: \.self) { h in
                 Text(h).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(20, schrift: 14)
                     .padding(.leading, 40).padding(.top, 4)
             }
             Spacer(minLength: 0)
-            if let z = HeuteTafelLogik.teamZeile(stand) {
+            if !nachgereicht.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 17)).foregroundStyle(TafelFarbe.gruen)
+                    Text("Wieder verbunden · \(nachgereicht.count) \(nachgereicht.count == 1 ? "Sache" : "Sachen") nachgereicht").font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.text)
+                }
+                .padding(.horizontal, 16).frame(height: 40).background(Capsule().fill(TafelFarbe.hex(0x0A1530, 0.85)))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                .frame(maxWidth: .infinity).transition(.opacity)
+            } else if !offline, let z = HeuteTafelLogik.teamZeile(stand) {
                 Button { if allowTap() { oeffne(.laeuft) } } label: {
                     HStack(spacing: 10) {
                         Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(atmet ? 1 : 0.35)
@@ -154,6 +185,28 @@ struct HeuteTafel: View {
         .padding(.bottom, 34)
         .foregroundStyle(TafelFarbe.text)
         .background(TafelGrund())
+        .onChange(of: wartend) { if offline { wartetBeiAusfall.formUnion(wartend) } }
+        .onChange(of: offline) { _, jetzt in
+            if jetzt { wartetBeiAusfall = wartend; return }
+            guard !wartetBeiAusfall.isEmpty else { return }
+            zeigeNachgereicht(wartetBeiAusfall)
+            wartetBeiAusfall = []
+        }
+        #if DEBUG
+        .onAppear {
+            let env = ProcessInfo.processInfo.environment
+            if env["SENECA_DEMO_ABGEHAKT"] == "1", let t = HeuteTafelLogik.todosHeute(stand).first { erledige(t.id) }
+            if env["SENECA_DEMO_WIEDER"] == "1", let t = HeuteTafelLogik.todosHeute(stand).first { zeigeNachgereicht([t.id]) }
+        }
+        #endif
+    }
+
+    private func zeigeNachgereicht(_ ids: Set<String>) {
+        Bewegung.mit(.wechsel) { nachgereicht = ids }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            Bewegung.mit(.wechsel) { nachgereicht = [] }
+        }
     }
 
     private func frageBlock(_ f: SenecaStand.Frage) -> some View {
@@ -190,26 +243,34 @@ struct HeuteTafel: View {
     }
 
     private func todoZeile(_ t: SenecaStand.Todo) -> some View {
-        let wartet = wartend.contains(t.id)
+        let wartet = wartend.contains(t.id), erledigt = nachgereicht.contains(t.id), haken = wartet || erledigt
         return Button { if allowTap(), !wartet { erledige(t.id) } } label: {
             HStack(spacing: 16) {
                 ZStack {
-                    Circle().strokeBorder(wartet ? TafelFarbe.gruen : TafelFarbe.leise, style: StrokeStyle(lineWidth: 1.5, dash: wartet ? [3, 2.4] : []))
-                    if wartet {
+                    let voll = offline || erledigt
+                    if voll && haken { Circle().fill(TafelFarbe.gruen) } else {
+                        Circle().strokeBorder(wartet ? TafelFarbe.gruen : TafelFarbe.leise, style: StrokeStyle(lineWidth: 1.5, dash: wartet ? [3, 2.4] : []))
+                    }
+                    if haken {
                         Path { p in p.move(to: CGPoint(x: 2.5, y: 6.25)); p.addLine(to: CGPoint(x: 4.75, y: 8.5)); p.addLine(to: CGPoint(x: 9.5, y: 3.75)) }
-                            .stroke(TafelFarbe.gruen, style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round)).frame(width: 12, height: 12)
+                            .stroke(voll ? TafelFarbe.aufHimmel : TafelFarbe.gruen, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)).frame(width: 12, height: 12)
                     }
                 }
                 .frame(width: 24, height: 24)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(t.titel).font(Sundartha.grotesk(17)).foregroundStyle(wartet ? TafelFarbe.aus : .white).strikethrough(wartet)
+                    Text(t.titel).font(Sundartha.grotesk(17)).foregroundStyle(haken ? TafelFarbe.aus : .white).strikethrough(haken)
                         .zeilenHoehe(22, schrift: 17).fixedSize(horizontal: false, vertical: true)
-                    Text(wartet ? "abgehakt, wird übertragen" : HeuteTafelLogik.todoZeile(t)).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
+                    Text(erledigt ? "\(HeuteTafelLogik.todoZeile(t).components(separatedBy: " · ")[0]) · erledigt \(HeuteTafelLogik.uhr(stand.jetzt))"
+                         : wartet && !offline ? "abgehakt, wird übertragen" : HeuteTafelLogik.todoZeile(t)).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
                         .zeilenHoehe(17, schrift: 12)
+                    if wartet && offline {
+                        Text("abgehakt · geht raus, sobald der Mac antwortet").font(Sundartha.grotesk(11)).foregroundStyle(TafelFarbe.leise)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(minHeight: 52)
+            .background(RoundedRectangle(cornerRadius: 10).fill(TafelFarbe.gruen.opacity(erledigt ? 0.1 : 0)).padding(.horizontal, -10))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

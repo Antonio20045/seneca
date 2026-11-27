@@ -31,6 +31,8 @@ struct FadenLayer: View {
     @State var gewachsen: Set<String> = []
     @State var abstandSonde: Int?
     @State var anhangWahl = false
+    @State var sucht = ProcessInfo.processInfo.environment["SENECA_DEMO_SUCHE"] != nil
+    @State var markiert: String?
 
     var obenMarke: CGFloat { messung.masse["ende"].map { messung.markeUnten + Self.luftUnten - $0 } ?? .infinity }
     static let luftUnten = Stil.abstand.xl
@@ -71,7 +73,10 @@ struct FadenLayer: View {
                     guard allowTap() else { return }
                     model.dismissKeyboard()
                     zurueck()
-                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) })
+                }, waehle: { p in guard allowTap() else { return }; gewaehlt(p, proxy) }, suchen: { model.dismissKeyboard(); sucht = true })
+                .fullScreenCover(isPresented: $sucht) {
+                    SucheSicht(speicher: chat.speicher, springe: { t in sucht = false; springe(t, proxy) }, fertig: { sucht = false })
+                }
             }
             .unten {
                 VStack(alignment: .leading, spacing: 18) {
@@ -154,7 +159,12 @@ struct FadenLayer: View {
         }
         .onChange(of: model.entwurfTick) { _, _ in if feldLeer { feld = chat.entwurf(fuer: partner) } }
         .onChange(of: model.sprechWunsch) { _, _ in sprechWunschErfuellen() }
-        .onAppear { sprechWunschErfuellen() }
+        .onAppear {
+            sprechWunschErfuellen()
+            #if DEBUG
+            if let t = ProcessInfo.processInfo.environment["SENECA_DEMO_WARTET"], model.wartet.isEmpty { _ = model.senden(t, an: partner) }
+            #endif
+        }
         .onChange(of: feld) { _, neu in
             chat.setzeEntwurf(neu, fuer: partner)
             if feldLeer { model.entwurfVerworfen() }
@@ -164,6 +174,7 @@ struct FadenLayer: View {
             if offen { model.zuhoerEnde(.getippt); model.stoppeVorlesen() }
         }
         .onChange(of: model.keyboardDismissTick) { _, _ in fokus = false }
+        .onChange(of: store.isConnected) { _, da in if da { model.nachreichen() } }
         .onChange(of: aktiv) { _, offen in
             guard !offen else { return }
             fokus = false
@@ -172,12 +183,29 @@ struct FadenLayer: View {
         }
     }
 
+    private func wartetHier(_ w: ConversationModel.Wartend) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FadenFrage(text: w.text, breite: m.size.width, zeit: w.zeit).frame(maxWidth: .infinity, alignment: .trailing)
+            Text("Dein Mac schläft. Ich gebe es weiter, sobald er aufwacht.")
+                .font(Sundartha.grotesk(17)).foregroundStyle(TafelFarbe.text).zeilenHoehe(24, schrift: 17).padding(.top, 12)
+            HStack(spacing: 14) {
+                Text("wartet hier · Stand \(HeuteTafelLogik.uhr(w.zeit.timeIntervalSince1970 * 1000))").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                Button("Löschen") { model.wartet.removeAll { $0.id == w.id } }.font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.himmel)
+            }
+            .padding(.top, 6)
+        }
+        .padding(.top, 40)
+    }
+
     private func fadenBereich(_ proxy: ScrollViewProxy) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 Color.clear.frame(height: 0)
                     .background(GeometryReader { g in Color.clear.preference(key: FadenAnfangKey.self, value: g.frame(in: .global).minY) })
-                VStack(alignment: .leading, spacing: 0) { inhalt(proxy) }
+                VStack(alignment: .leading, spacing: 0) {
+                    inhalt(proxy)
+                    ForEach(model.wartet.filter { $0.partner.id == partner.id }) { w in wartetHier(w) }
+                }
                     .seitenRand()
                     .padding(.top, Stil.abstand.l)
                     .padding(.bottom, Self.luftUnten)

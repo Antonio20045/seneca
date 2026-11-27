@@ -42,6 +42,18 @@ final class ConversationModel: ObservableObject {
         return !store.isConnected && store.connectionStatus == "Mac nicht erreichbar"
     }
 
+    struct Wartend: Identifiable { var id = UUID().uuidString; var text: String; var partner: ChatPartner; var anhaenge: [ChatAnhang]; var zeit: Date }
+    @Published var wartet: [Wartend] = []
+
+    func nachreichen() {
+        let alle = wartet
+        wartet = []
+        for w in alle {
+            anhaenge[w.partner.id] = w.anhaenge
+            if !senden(w.text, an: w.partner) { wartet.append(w) }
+        }
+    }
+
     var isRunning: Bool { !offen.isEmpty }
     var isListening: Bool { hoertZu }
 
@@ -94,7 +106,11 @@ final class ConversationModel: ObservableObject {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines), mit = anhaenge[p.id] ?? []
         guard !text.isEmpty || !mit.isEmpty, let chat = store?.chat else { return false }
         diktatEnde()
-        if macUnreachable { zeigeHinweis("Deine Nachricht bleibt im Feld, bis der Mac wieder da ist."); return false }
+        if macUnreachable {
+            wartet.append(Wartend(text: text, partner: p, anhaenge: mit, zeit: store?.clock() ?? Date()))
+            anhaenge[p.id] = nil
+            return true
+        }
         tempo("senden gedrückt (\(text.count) Zeichen)")
         let imGespraech = gespraech.phase == .wartet
         let gespraechsRunde: Int? = imGespraech ? gespraechRunde : nil
