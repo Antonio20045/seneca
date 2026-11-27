@@ -148,7 +148,8 @@ struct KalenderTafel<Monat: View>: View {
 
     private func anteil(_ ms: Double) -> CGFloat {
         let k = Calendar.current.dateComponents([.hour, .minute], from: HeuteTafelLogik.datum(ms))
-        return CGFloat(min(1, max(0, (Double(k.hour ?? 0) + Double(k.minute ?? 0) / 60 - 8) / 12)))
+        let stunde: Double = Double(k.hour ?? 0) + Double(k.minute ?? 0) / 60
+        return CGFloat(min(1, max(0, (stunde - 8) / 12)))
     }
 
     private func blockFarbe(_ art: String) -> Color {

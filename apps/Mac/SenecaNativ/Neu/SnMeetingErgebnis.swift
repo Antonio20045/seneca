@@ -61,6 +61,14 @@ struct SnMeetingErgebnis: View {
     private func uhr(_ s: Double) -> String { HeuteTafelLogik.uhr((e.beginn.timeIntervalSince1970 + s) * 1000) }
     private var vorschlaege: [MeetingAufgabe] { e.alle }
     private func doppelt(_ a: MeetingAufgabe) -> SenecaStand.Todo? { MeetingDienst.doppelt(a, todos) }
+
+    private func unterzeile(_ a: MeetingAufgabe, _ d: SenecaStand.Todo?) -> String {
+        if let d { return ["gibt es schon", HeuteTafelLogik.todoZeile(d), "wird nicht doppelt angelegt"].filter { !$0.isEmpty }.joined(separator: " · ") }
+        let wann: [String] = a.fuerAntonio ? [e.termin?.components(separatedBy: " · ").last].compactMap { $0 } : []
+        let frist: String? = a.termin.map { a.fuerAntonio ? "bis " + $0 : $0 }
+        let dauer: String? = a.fuerAntonio ? a.minuten.map { "etwa \($0) Min" } : nil
+        return ([a.fuerAntonio ? "To-do" : a.wer] + wann + [frist, dauer].compactMap { $0 }).joined(separator: " · ")
+    }
     private var gewaehlt: [MeetingAufgabe] { vorschlaege.enumerated().filter { !aus.contains($0.offset) && doppelt($0.element) == nil }.map { var a = $0.element; a.text = texte[$0.offset] ?? a.text; return a } }
 
     var body: some View {
@@ -151,8 +159,7 @@ struct SnMeetingErgebnis: View {
                     VStack(alignment: .leading, spacing: 0) {
                         if bearbeiten, d == nil { TextField("", text: Binding(get: { texte[i] ?? a.text }, set: { texte[i] = $0 })).textFieldStyle(.plain).font(Schrift.grotesk(15)).foregroundStyle(.white) }
                         else { Text(texte[i] ?? a.text).font(Schrift.grotesk(15)).lineHeight(.exact(points: 21)).foregroundStyle(d == nil ? .white : TafelFarbe.leise) }
-                        Text(d.map { ["gibt es schon", HeuteTafelLogik.todoZeile($0), "wird nicht doppelt angelegt"].filter { !$0.isEmpty }.joined(separator: " · ") }
-                             ?? ([a.fuerAntonio ? "To-do" : a.wer] + (a.fuerAntonio ? [e.termin?.components(separatedBy: " · ").last].compactMap { $0 } : []) + [a.termin.map { a.fuerAntonio ? "bis " + $0 : $0 }, a.fuerAntonio ? a.minuten.map { "etwa \($0) Min" } : nil].compactMap { $0 }).joined(separator: " · "))
+                        Text(unterzeile(a, d))
                             .font(Schrift.grotesk(12.5)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.leise)
                     }
                     Spacer(minLength: 0)

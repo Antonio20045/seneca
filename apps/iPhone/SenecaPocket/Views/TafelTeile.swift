@@ -91,12 +91,14 @@ struct TafelWahl: View {
     var geschaetzt = false
 
     var body: some View {
-        Text(titel).font(Sundartha.grotesk(14)).lineLimit(1)
-            .foregroundStyle(an ? .white : geschaetzt ? TafelFarbe.akzent : TafelFarbe.text)
+        let schrift: Color = an ? .white : geschaetzt ? TafelFarbe.akzent : TafelFarbe.text
+        let flaeche: Color = an ? TafelFarbe.himmel.opacity(0.22) : geschaetzt ? .clear : Color.white.opacity(0.07)
+        let kante: Color = an || geschaetzt ? TafelFarbe.himmel.opacity(0.6) : .clear
+        let strich = StrokeStyle(lineWidth: 1, dash: geschaetzt && !an ? [4, 3] : [])
+        return Text(titel).font(Sundartha.grotesk(14)).lineLimit(1).foregroundStyle(schrift)
             .padding(.horizontal, 13).frame(height: 36)
-            .background(Capsule().fill(an ? TafelFarbe.himmel.opacity(0.22) : geschaetzt ? .clear : Color.white.opacity(0.07)))
-            .overlay(Capsule().strokeBorder(an ? TafelFarbe.himmel.opacity(0.6) : geschaetzt ? TafelFarbe.himmel.opacity(0.6) : .clear,
-                                            style: StrokeStyle(lineWidth: 1, dash: geschaetzt && !an ? [4, 3] : [])))
+            .background(Capsule().fill(flaeche))
+            .overlay(Capsule().strokeBorder(kante, style: strich))
     }
 }
 

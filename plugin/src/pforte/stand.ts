@@ -93,12 +93,19 @@ function team(db: Register, jetzt: number) {
     const urteil = JSON.parse(String(pruef?.ergebnis ?? "{}"));
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
+      zuletzt: zuletzt ? { satz: getan(db, zuletzt), um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
       ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null,
       arbeit: l ? arbeitSicht(db, l, name, tagBeginn, jetzt) : null,
       teil: teil ? { satz: teil.satz, um: teil.zeit, beleg: teil.beleg ?? null } : null, ruecklauf: urteil.urteil === "nachbessern" ? { satz: `${anzeigeName(regelText("pruefer"))}: ${urteil.satz}`, um: pruef?.geaendert } : null };
   });
+}
+
+function getan(db: Register, l: Zeile) {
+  const stand = JSON.parse(String(ereignisse(db, { art: "fortschreibung", lauf_id: String(l.id), grenze: 1 })[0]?.daten ?? "{}")).letzter_stand, titel = String(l.titel);
+  if (!stand) return `${titel} ${l.zustand === "abgebrochen" ? "abgebrochen." : "beendet, ohne Bericht."}`;
+  const [erster, zweiter] = String(stand).split(/(?<=[.!?])\s+/);
+  return erster.startsWith(titel) ? [erster, zweiter].filter(Boolean).join(" ") : `${titel}: ${erster}`;
 }
 
 function arbeitSicht(db: Register, l: Zeile, name: string, tagBeginn: number, jetzt: number) {
