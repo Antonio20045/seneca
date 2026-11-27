@@ -72,6 +72,15 @@ struct FadenLayer: View {
             }
             .padding(.bottom, keyboardHeight)
             .bewegt(.blatt, wert: keyboardHeight)
+            .overlay {
+                if model.gespraech.aktiv {
+                    GespraechTafel(model: model, partner: partner,
+                                   antwort: chat.lives[chat.currentKey]?.text ?? chat.faden(partner).messages.last(where: { $0.role == .seneca })?.text ?? "",
+                                   auftrag: partner.id == ChatPartner.seneca.id ? store.stand?.auftraege_neu?.first : nil,
+                                   rueckgaengig: { _ = store.daten?.handeln("rueckgaengig", ziel: $0) }, tippen: { fokus = true })
+                }
+            }
+            .bewegt(.wechsel, wert: model.gespraech.aktiv)
             .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
             .accessibilityElement(children: .contain)
             .onChange(of: chat.faden(partner).messages.last?.id) { _, id in

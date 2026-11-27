@@ -14,8 +14,6 @@ extension FadenLayer {
         if model.liestVor || speech.isSpeaking {
             return Zustand(satz: "\(partner.satzName) liest die Antwort vor.", wort: "Aufhören", aktion: { model.unterbrechen() })
         }
-        if model.gespraech.phase == .hoert { return Zustand(satz: "\(partner.satzName) hört zu.") }
-        if model.gespraech.phase == .wartet { return Zustand(satz: "\(partner.satzName) arbeitet, das Mikrofon ist aus.") }
         if fragtNeu {
             let p = partner
             return Zustand(satz: "\(p.satzName) vergisst dann dieses Gespräch.", wort: "Ja, neu beginnen", aktion: {

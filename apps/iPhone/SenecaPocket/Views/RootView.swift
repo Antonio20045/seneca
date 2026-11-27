@@ -849,6 +849,10 @@ struct RootView: View {
             case "arbeit": oeffne(.arbeit(.fragen))
             case "laeuft": oeffne(.arbeit(.laeuft))
             case "zurueck": zurueck()
+            case "sprechen", "gespraech":
+                conversation.sprechWunschTaste = action == "sprechen"
+                conversation.sprechWunschOffen = true
+                conversation.sprechWunsch += 1
             case "lesen": reading = .demo
             case "heute": setSide(SideState()); reading = nil
             case "ask":
