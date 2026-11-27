@@ -75,6 +75,7 @@ function vorschlagWirkt(db: Register, id: string, f: Zeile, jetzt: number): void
   if (w.todo) todoSetzen(db, { aktion: "anlegen", felder: w.todo, geraet: "seneca" });
   if (w.wert) wertSetzen(db, w.wert.schluessel, w.wert.wert, "antonio");
   if (w.parken && ["bereit", "laeuft", "wartet"].includes(String(hole(db, "auftrag", w.parken).zustand))) uebergang(db, "auftrag", w.parken, "geparkt", "vorschlag");
+  for (const id of (w.fortsetzen ?? []).filter((x) => hole(db, "auftrag", x).zustand === "geparkt")) uebergang(db, "auftrag", id, "bereit", "vorschlag", { naechster_anlass: jetzt });
   if (w.anzeige_weg) anzeigeEntfernen(db, w.anzeige_weg, "antonio");
   if (w.termin) wertSetzen(db, `kalender:schreiben:${id}`, JSON.stringify({ aktion: "anlegen", uid: `${id}-seneca`, kalender: regelText("kalender_seneca"), ...w.termin, start, ende: start + w.termin.ende - w.termin.start }), "antonio");
   uebergang(db, "auftrag", id, "erledigt", "vorschlag");

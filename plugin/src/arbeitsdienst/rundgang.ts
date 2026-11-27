@@ -1,4 +1,4 @@
-import { aktiveLaeufe, anzeigen, auftraege, ereignisse, fragen, hole, laeufe, laeufeSeit, uhr, wert, wiederholungenSeit, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, anzeigen, auftraege, ereignisse, fragen, hole, laeufe, laeufeSeit, ruht, uhr, wert, wiederholungenSeit, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { anzeigeSetzen, auftragSetzen, befund, uebergang, vorschlagAnlegen, wertSetzen, type Wirkung } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
@@ -13,11 +13,6 @@ function seneca(wer: string): boolean {
 
 function meine(db: Register, wer: string): Zeile[] {
   return auftraege(db, OFFEN).filter((a) => a.quelle !== "dauerauftrag" && (seneca(wer) || a.verantwortlich === wer || a.auftraggeber === wer));
-}
-
-function ruht(db: Register, wer: string, jetzt: number): boolean {
-  const r = wert(db, `ruht:${wer}`);
-  return r?.wert === "ja" && (r.gueltig_bis ?? Infinity) > jetzt;
 }
 
 function tage(ms: number): number {

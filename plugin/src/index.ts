@@ -9,12 +9,12 @@ import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
 import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
-import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
+import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
 import { verstehen } from "./pforte/verstehen.ts";
 import { pushSender } from "./pforte/push.ts";
 import { zustellenJob } from "./pforte/zustellen.ts";
-import { nachWerkzeug, pruefeAufruf, unklarePruefen } from "./ausgang/ausgang.ts";
+import { nachWerkzeug, pruefeAufruf, unklarePruefen, unteragentEnde, unteragentMerken } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
 import { eingangJob } from "./quellen/eingang.ts";
 import { githubEingang } from "./quellen/github.ts";
@@ -44,7 +44,7 @@ function nurSeneca(k: Kontext): void {
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
   ["seneca_lesen", "Kurze Sicht aus dem Register: auftrag, team, fragen, profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
     (db, _k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined)],
-  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme oder Verwerfen.",
+  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
       an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
       termin: O(Type.Object({ titel: S, start: Z, ende: Z, ort: O(S) })) }),
@@ -153,9 +153,11 @@ export default {
       const dollar = nutzung.some((u) => u.cost?.total !== undefined) ? summe((u) => u.cost?.total) : undefined;
       const tokens = { ein: summe((u) => (u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0)), aus: summe((u) => u.output), cent: dollar === undefined ? undefined : Math.round(dollar * 100) };
       agentEnde(db, ctx.sessionKey ?? "", JSON.stringify(event.messages.at(-1) ?? event.error ?? ""), tokens);
+      unteragentEnde(db, ctx.sessionKey ?? "", tokens);
     });
+    api.on("subagent_spawned", (event, ctx) => unteragentMerken(db, event.childSessionKey, { an: event.agentId, modus: event.mode, lauf: event.runId, modell: event.resolvedModel ?? null }, ctx.requesterSessionKey ?? ""));
 
-    api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
+    api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "", aufrufId: event.toolCallId, ruhe: () => ruhe(db, uhr.jetzt()) }, nachrichtVon(ctx.sessionKey ?? "")));
     api.on("before_tool_call", (event, ctx) => dateiRecht({ werkzeug: event.toolName, params: event.params, agent: ctx.agentId ?? "" }));
     api.on("after_tool_call", (event, ctx) => {
       nachWerkzeug(db, event.toolCallId, event.error);

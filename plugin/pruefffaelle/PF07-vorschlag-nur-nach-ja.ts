@@ -85,3 +85,20 @@ test("PF07 Sensor, WhatsApp und Regel: nur sichere Vorschläge, ja/nein an der U
   await zustellenJob(p.db);
   assert.equal(hole(p.db, "auftrag", leise.auftrag_id).zustand, "verworfen");
 });
+
+test("PF07 Geparkte Aufträge: Ja auf den Sammel-Vorschlag nimmt alle auf, einzeln nur auf Antonios Nachricht", async () => {
+  const p = ladePlugin();
+  um("10:00");
+  const geparkt = ["Idee A", "Idee B", "Idee C"].map((w) => auftragVonAntonio(p.db, w, { art: "idee" }));
+  const v = vorschlagAnlegen(p.db, { wortlaut: "Alte Aufträge", wortlaut_quelle: "umzug", titel: "3 alte Aufträge – welche wieder aufnehmen", ziel: "Antonio entscheidet", abnahme: "Antwort", abnahme_durch: "beleg",
+    pruefer_noetig: false, verantwortlich: "seneca", auftraggeber: "seneca", bereich: "Privat", arbeitsart: "mechanisch", herkunft: "umzug",
+    frage: { text: "3 alte Aufträge – welche wieder aufnehmen?", was_passiert_ist: "Idee A, Idee B, Idee C", empfehlung: "Alle", ja: "Alle 3" }, wirkung: { fortsetzen: geparkt.slice(0, 2) } });
+  p.nachricht("agent:seneca:main", "m9", "Nimm Idee C wieder auf");
+  assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m8" })).fehler, /Antonios Nachricht/);
+  await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m9" });
+  frageBeantworten(p.db, { frage_id: String(offeneFrage(p.db, v)?.id), antwort: "ja", geraet: "mac", kennung: "m1" });
+  spaeter(6000);
+  faelligeWirkungenJob(p.db);
+  assert.deepEqual(geparkt.map((id) => hole(p.db, "auftrag", id).zustand), ["bereit", "bereit", "bereit"]);
+  assert.equal(hole(p.db, "auftrag", v).zustand, "erledigt");
+});

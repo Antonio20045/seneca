@@ -141,7 +141,7 @@ export function auftragSetzen(db: Register, id: string, felder: Felder, satz?: s
   });
 }
 
-export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; anzeige_weg?: string; termin?: { titel: string; start: number; ende: number; ort?: string } };
+export type Wirkung = { todo?: Felder; wert?: { schluessel: string; wert: string }; parken?: string; fortsetzen?: string[]; anzeige_weg?: string; termin?: { titel: string; start: number; ende: number; ort?: string } };
 type NeuerVorschlag = Omit<NeuerAuftrag, "art" | "quelle"> & { herkunft: string; frage: { text: string; was_passiert_ist: string; empfehlung: string; frist?: number; ja?: string }; wirkung?: Wirkung };
 
 export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
