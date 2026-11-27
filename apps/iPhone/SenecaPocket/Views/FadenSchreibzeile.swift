@@ -3,7 +3,7 @@ import SwiftUI
 extension FadenLayer {
     var schreibzeile: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            if feldLeer, !fokus, model.gespraech.aktiv || model.sprechenErlaubt { sprechen }
+            if feldLeer, !fokus, model.sprechenErlaubt { sprechen }
             HStack(alignment: .bottom, spacing: 8) {
                 TextField("", text: $feld, prompt: Text(partner.platzhalter).foregroundColor(TafelFarbe.leise), axis: .vertical)
                     .font(Sundartha.grotesk(16)).foregroundStyle(.white).lineLimit(1...5).focused($fokus)
@@ -30,23 +30,20 @@ extension FadenLayer {
     }
 
     private var sprechen: some View {
-        let imGespraech = model.gespraech.aktiv
-        return Button {
+        Button {
             guard allowTap() else { return }
-            if imGespraech { model.zuhoerEnde(.beendet) } else {
-                fokus = false
-                model.gespraechStarten(feld: { feld = $0 }, senden: { text in feld = text; return senden(text) })
-            }
+            fokus = false
+            model.gespraechStarten(feld: { feld = $0 }, senden: { text in feld = text; return senden(text) })
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: imGespraech ? "mic.fill" : "mic").font(.system(size: 15, weight: .medium))
+                Image(systemName: "mic").font(.system(size: 15, weight: .medium))
                 Text("Sprechen").font(Sundartha.grotesk(15, .medium))
             }
             .foregroundStyle(TafelFarbe.aufHimmel).padding(.horizontal, 16).frame(height: 48)
             .background(Capsule().fill(TafelFarbe.akzent))
         }
         .buttonStyle(.plain)
-        .accessibilityHint(imGespraech ? "Beendet das Gespräch" : "Sagen, was du willst; \(partner.satzName) antwortet")
+        .accessibilityHint("Sagen, was du willst; \(partner.satzName) antwortet")
         .accessibilityIdentifier("faden.sprechen")
     }
 
@@ -56,7 +53,7 @@ extension FadenLayer {
         guard !model.gespraech.aktiv else { return }
         if model.sprechenErlaubt, feldLeer {
             fokus = false
-            model.gespraechStarten(feld: { feld = $0 }, senden: { text in feld = text; return senden(text) })
+            model.gespraechStarten(taste: model.sprechWunschTaste, feld: { feld = $0 }, senden: { text in feld = text; return senden(text) })
         } else {
             fokus = true
         }
