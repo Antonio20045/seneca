@@ -29,6 +29,7 @@ struct SnKalenderTafel: View {
     var antworte: (String, String) -> Void
     var zumChat: (String?) -> Void
     var rechneWeg: (String) async -> KalWeg?
+    var zumMeeting: (SenecaStand.Termin) -> Void = { _ in }
     @ObservedObject var z = SnKalZustand.gemeinsam
     @FocusState private var titelFokus: Bool
 
@@ -217,10 +218,14 @@ struct SnKalenderTafel: View {
                 let (s, e) = z.verschoben[b.id] ?? (b.start, b.ende)
                 let y = max(0, yPos(s, t.tag)), h = max(18, min(hoehe, yPos(e, t.tag)) - y - 4)
                 if y < hoehe, h > 0 {
-                    SnKalBlock(b: b, hoehe: h, gewaehlt: z.auswahl == b.id)
+                    let meeting = b.uid.flatMap { u in stand.termine?.first { $0.uid == u && $0.meeting != nil } }
+                    SnKalBlock(b: b, hoehe: h, gewaehlt: z.auswahl == b.id, meeting: meeting != nil)
                         .frame(width: breite - 8, height: h)
                         .offset(x: 4, y: y)
-                        .onTapGesture { z.entwurf = nil; z.auswahl = z.auswahl == b.id ? nil : b.id }
+                        .onTapGesture {
+                            if let meeting { zumMeeting(meeting); return }
+                            z.entwurf = nil; z.auswahl = z.auswahl == b.id ? nil : b.id
+                        }
                         .gesture(verschieben(b, tag: t.tag))
                 }
             }
@@ -463,12 +468,17 @@ struct SnKalenderEcht: View {
 
     var body: some View {
         if let s = store.stand {
-            SnKalenderTafel(stand: s, handeln: { store.handle($0, ziel: $1, wert: $2) }, antworte: { store.antworte(frage: $0, wahl: $1) },
-                            zumChat: { text in
-                                if modell.route.seite != .chat { modell.zeigeGespraechSeite() }
-                                if let text { store.chat.setzeEntwurf(text, fuer: modell.gegenueber.partner); modell.chatEntwurfNeuLaden?() }
-                            },
-                            rechneWeg: { await SnWeg.gemeinsam.rechne($0, fussBisMin: s.regeln?["weg_zu_fuss_bis_min"] ?? 20) })
+            if let t = s.termine?.first(where: { $0.uid == modell.meetingTermin }), t.meeting != nil {
+                SnMeetingEcht(modell: modell, store: store, termin: t).onDisappear { modell.meetingTermin = nil }
+            } else {
+                SnKalenderTafel(stand: s, handeln: { store.handle($0, ziel: $1, wert: $2) }, antworte: { store.antworte(frage: $0, wahl: $1) },
+                                zumChat: { text in
+                                    if modell.route.seite != .chat { modell.zeigeGespraechSeite() }
+                                    if let text { store.chat.setzeEntwurf(text, fuer: modell.gegenueber.partner); modell.chatEntwurfNeuLaden?() }
+                                },
+                                rechneWeg: { await SnWeg.gemeinsam.rechne($0, fussBisMin: s.regeln?["weg_zu_fuss_bis_min"] ?? 20) },
+                                zumMeeting: { modell.meetingTermin = $0.uid })
+            }
         } else {
             SnHeuteSkelett()
         }
@@ -489,6 +499,7 @@ struct SnKalBlock: View {
     var b: SenecaStand.KalBlock
     var hoehe: CGFloat
     var gewaehlt = false
+    var meeting = false
 
     static func farbe(_ art: String, _ bereich: String? = nil) -> Color {
         art == "termin" ? TafelFarbe.bereich(bereich) : art.hasPrefix("bewegung") ? TafelFarbe.gruen : art == "fenster" || art == "zugleich" ? TafelFarbe.bernstein : TafelFarbe.himmel
@@ -546,6 +557,12 @@ struct SnKalBlock: View {
             Text(b.titel.replacingOccurrences(of: " + ", with: "\u{00A0}+ ")).font(Schrift.grotesk(12)).lineHeight(.exact(points: 16)).foregroundStyle(titelFarbe)
                 .lineLimit(hoehe >= 40 ? 2 : 1).fixedSize(horizontal: !b.titel.contains(" "), vertical: hoehe >= 40)
             if let u = b.unter, hoehe >= 40 { Text(u).font(Schrift.mono(10)).foregroundStyle(unterFarbe).lineLimit(1).frame(height: 20, alignment: .bottom).padding(.top, -1) }
+        }
+        .overlay(alignment: .topTrailing) {
+            if meeting {
+                Text("MEETING").font(Schrift.mono(8.5)).tracking(0.9).foregroundStyle(TafelFarbe.koralle).padding(.horizontal, 5).frame(height: 14)
+                    .overlay(Capsule().strokeBorder(TafelFarbe.koralle.opacity(0.5), lineWidth: 1)).padding(.top, 4).padding(.trailing, 4)
+            }
         }
         .padding(.horizontal, 8).padding(.vertical, hoehe <= 26 ? 4 : hoehe <= 32 ? 6 : 5)
     }

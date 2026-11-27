@@ -413,6 +413,17 @@ struct SnFensterKarte: View {
 
 private final class SnZeigerKasten { var punkt: CGPoint? }
 
+struct SnMeetingEcht: View {
+    let modell: AppModell
+    @ObservedObject var store: SenecaStore
+    let termin: SenecaStand.Termin
+    var body: some View {
+        SnMeetingAnsicht(termin: termin, todos: store.stand?.todos ?? [], zurueck: { modell.meetingTermin = nil }, notiere: { store.addTodoHeute($0) },
+                         uebernimm: { store.handle("auftrag.anlegen", ziel: termin.uid, wert: ["text": .text($0.text), "wer": .text($0.wer), "arbeitsart": .text($0.arbeitsart), "bereich": .text($0.bereich), "quelle": .text($0.quelle)]) })
+            .background { Button("") { modell.meetingTermin = nil }.keyboardShortcut(.cancelAction).opacity(0) }
+    }
+}
+
 struct SnHeuteMitFenster: View {
     @ObservedObject var modell: AppModell
     @ObservedObject private var fenster: SnFensterModell
@@ -449,9 +460,7 @@ struct SnHeuteMitFenster: View {
                         SnMeetingErgebnis(e: a.ergebnis, datei: a.datei, dienst: meeting, zurueck: { modell.meetingOffen = false }, todos: store.stand?.todos ?? [])
                             .background { Button("") { modell.meetingOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let t = store.stand?.termine?.first(where: { $0.uid == modell.meetingTermin }), t.meeting != nil {
-                        SnMeetingAnsicht(termin: t, todos: store.stand?.todos ?? [], zurueck: { modell.meetingTermin = nil }, notiere: { store.addTodoHeute($0) },
-                                         uebernimm: { store.handle("auftrag.anlegen", ziel: t.uid, wert: ["text": .text($0.text), "wer": .text($0.wer), "arbeitsart": .text($0.arbeitsart), "bereich": .text($0.bereich), "quelle": .text($0.quelle)]) })
-                            .background { Button("") { modell.meetingTermin = nil }.keyboardShortcut(.cancelAction).opacity(0) }
+                        SnMeetingEcht(modell: modell, store: store, termin: t)
                             .onDisappear { modell.meetingTermin = nil }
                     } else if let s = store.stand, modell.teamOffen {
                         SnTeamTafel(stand: s, handle: { store.handle($0, ziel: $1, text: $2) },
