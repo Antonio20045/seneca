@@ -43,6 +43,7 @@ final class SenecaStore: ObservableObject {
     @Published var error: String?
     @Published private(set) var saveFailure: String?
     @Published var isConnected = false
+    @Published private(set) var getrenntSeit: Date?
     @Published var isLoading = false
     @Published private(set) var isConfigured = false
     @Published private(set) var lastSync: Date?
@@ -226,6 +227,7 @@ final class SenecaStore: ObservableObject {
 
     private func zustandGeaendert(_ z: Verbindungszustand, _ gen: UUID) {
         guard generation == gen else { return }
+        if case .getrennt(let seit) = z { getrenntSeit = seit } else if z == .verbunden { getrenntSeit = nil }
         switch z {
         case .verbunden:
             isConnected = true

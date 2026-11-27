@@ -107,6 +107,11 @@ enum HeuteBild {
                             DiktatDienst.gemeinsam.blasenProbe("hoert")
                             #endif
                         }
+                    case "start-weiter", "start-antwortet-nicht", "start-wieder":
+                        let art = env["SENECA_SEITE"] ?? ""
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
+                        SnGeruestBild(stand: s)
+                        SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
                     case "meeting-ergebnis":
                         SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Bereiche/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
                                           todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })
