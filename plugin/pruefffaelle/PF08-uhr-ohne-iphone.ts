@@ -44,6 +44,7 @@ test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau 
   const lauf = "l".repeat(48);
   const a = uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen, lauf }));
   assert.equal(a.status, 200);
+  assert.equal((p.methode("seneca.stand", { geraet: "iphone" }) as { uhr_gekoppelt: boolean }).uhr_gekoppelt, true);
   assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
   const schluessel = (a.inhalt as { schluessel: string }).schluessel;
   const abgleich = uhrAbgleich(p.db, json({ v: 1, g: "uhr2", r: 0, h: [] }), { authorization: `Bearer ${schluessel}` }, (j) => uhrStand(p.db, j));

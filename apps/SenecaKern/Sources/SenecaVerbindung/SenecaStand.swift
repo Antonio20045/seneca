@@ -207,6 +207,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var berichte: Berichte?; public var rueckblick: Rueckblick?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
+    public var uhr_gekoppelt: Bool?
     public var wartet: String?
 }
 

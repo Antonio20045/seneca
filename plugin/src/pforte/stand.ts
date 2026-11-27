@@ -221,6 +221,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision,
       grund: ((w) => (w && (w.gueltig_bis ?? 0) > jetzt ? JSON.parse(w.wert) : null))(wert(db, `todo_grund:${t.id}`)) })),
     hinweise: [...werte(db, "hinweis:").keys()].map((k) => wert(db, k)).filter((w) => w?.wert && (w.gueltig_bis ?? Infinity) > jetzt).map((w) => w?.wert),
+    uhr_gekoppelt: [...werte(db, "uhr:uhr").keys()].length > 0,
     kopplung: [...werte(db, "kopplung:").keys()].filter((k) => k !== "kopplung:fenster").map((k) => ({ k, w: wert(db, k) })).filter(({ w }) => w && (w.gueltig_bis ?? Infinity) > jetzt)
       .map(({ k, w }) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(String(w?.wert)) })).filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl, modell: k.modell })),
   };

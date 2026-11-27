@@ -48,8 +48,8 @@ export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
   const d = JSON.parse(roh.toString("utf8")) as Anfrage & { m?: string };
   const g = String(d.g ?? "");
   const fenster = wert(db, "kopplung:fenster");
-  if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
+  if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   const zahl = String(randomInt(0, 10000)).padStart(4, "0");
   const abholen = randomBytes(16).toString("hex");
   wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false, modell: d.m?.slice(0, regelZahl("kopplung_modell_zeichen")) }), "uhr", fenster.gueltig_bis);
@@ -60,7 +60,7 @@ export function uhrAbholen(db: Register, roh: Buffer): Antwort {
   const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string; lauf?: string };
   const w = wert(db, `kopplung:${d.g}`);
   const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? (JSON.parse(w.wert) as Kopplung) : undefined;
-  if (begrenzt("abholen", regelZahl("kopplung_anfragen_je_std")) || !k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
+  if (!k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
     return { status: 403, inhalt: { f: "nicht bestätigt" } };
   }
   const schluessel = randomBytes(32).toString("base64url");
