@@ -21,6 +21,7 @@ struct MeetingErgebnis {
     var stand: MeetingStand = .vollstaendig
     var aufnahme: String? = nil
     var marken: [Double] = []
+    var luecken: [[Double]] = []
     var namen: [Int: String] = [:]
     var termin: String? = nil
     var kandidaten: [String] = []
@@ -119,7 +120,10 @@ enum MeetingDokument {
         z.append("## Mitschrift")
         z.append("")
         if e.segmente.isEmpty { z.append("_Nichts erkannt._") }
-        for s in e.segmente { z.append("**\(e.name(s.sprecher))** [\(MeetingTranskript.zeit(s.start))] \(s.text)" + (e.gemerkt(s) ? " ▮ gemerkt" : "")); z.append("") }
+        var lz = e.luecken
+        for s in e.segmente {
+            while let l = lz.first, l[0] <= s.start { z.append("_— Lücke \(Int(l[1]) / 60):\(String(format: "%02d", Int(l[1]) % 60)) · Mikrofon gewechselt —_"); z.append(""); lz.removeFirst() }
+            z.append("**\(e.name(s.sprecher))** [\(MeetingTranskript.zeit(s.start))] \(s.text)" + (e.gemerkt(s) ? " ▮ gemerkt" : "")); z.append("") }
         return z.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 

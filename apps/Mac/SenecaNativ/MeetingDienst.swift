@@ -39,6 +39,7 @@ final class MeetingDienst: ObservableObject {
     @Published private(set) var ollama: OllamaStand?
     @Published private(set) var vorschlag: String?
     @Published private(set) var marken: [TimeInterval] = []
+    @Published private(set) var luecken: [[Double]] = []
     @Published private(set) var bescheid: String?
     @Published private(set) var endetIn: Int?
     @Published private(set) var ohneSystemton = false
@@ -211,6 +212,11 @@ final class MeetingDienst: ObservableObject {
             let mik = MeetingMikrofon()
             mik.pegel = { [weak self] p in Task { @MainActor in self?.pegel = Double(p) } }
             mik.fehlgeschlagen = { [weak self] nachricht in Task { @MainActor in await self?.beendeAufnahme(abbruch: nachricht) } }
+            mik.gewechselt = { [weak self] s in Task { @MainActor in
+                guard let self else { return }
+                self.luecken.append([Date().timeIntervalSince(self.beginn) - s, s])
+                self.protokoll.schreibe("mikrofon-wechsel", aufnahme: self.aufnahmeName, dauer: s)
+            } }
             try mik.starte(in: sm)
             mikrofon = mik; schreiberMikro = sm; aufnahmeOrdner = ordner
             pruefeStilleNachStart(sm, geraeteName: mik.geraeteName, start: Date())
@@ -219,7 +225,7 @@ final class MeetingDienst: ObservableObject {
             zustand = .fehler("Das Mikrofon ließ sich nicht starten: \(error.localizedDescription)"); return
         }
         beginn = Date()
-        marken = []
+        marken = []; luecken = []
         await starteSystemton(in: ordner)
         zustand = .nimmtAuf
         protokoll.schreibe("start", aufnahme: ordner.lastPathComponent, zahlen: ["systemton": systemton == nil ? 0 : 1])
@@ -423,6 +429,7 @@ final class MeetingDienst: ObservableObject {
             erg.termin = (t.titel.split(separator: " ").map(String.init) + [t.kalender].compactMap { $0 }).joined(separator: " · ")
             erg.kandidaten = gegenueber.map { [$0] } ?? []
         } else if e.mikro != nil { erg.marken = marken }
+        if e.mikro != nil { erg.luecken = luecken }
         let datei: URL
         let alt = e.ersetzt.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
         if alt != nil, segmente.isEmpty {
@@ -539,6 +546,7 @@ final class MeetingDienst: ObservableObject {
         for a in auswahl {
             var w: [String: JSONWert] = a.fuerAntonio ? ["titel": .text(a.alsToDo)] : ["text": .text(a.text), "wer": .text(a.wer.lowercased().replacingOccurrences(of: "ü", with: "ue"))]
             if let b = termin?.kalender { w["bereich"] = .text(b) }
+            if a.fuerAntonio, let m = a.minuten { w["dauer_min"] = .zahl(Double(m)) }
             handle(a.fuerAntonio ? "todo.anlegen" : "auftrag.anlegen", nil, w)
         }
     }

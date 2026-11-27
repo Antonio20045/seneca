@@ -482,10 +482,17 @@ struct ZugView: View, Equatable {
     var alt = false
     var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     var erneut: () -> Void
+    var angehalten: Double? = nil
+    var weiter: () -> Void = {}
+    var zuruecknehmen: (() -> Void)? = nil
+    var vorziehen: () -> Void = {}
+    var bearbeiten: () -> Void = {}
+    var offline: Bool? = nil
     @State private var spurOffen = false
+    @State private var zeigt = false
 
     static func == (a: ZugView, b: ZugView) -> Bool {
-        a.quittung == b.quittung && a.alt == b.alt && a.zug == b.zug && a.status == b.status && (a.lauf == nil) == (b.lauf == nil) && a.frisch == b.frisch && a.zustand == b.zustand
+        a.angehalten == b.angehalten && a.quittung == b.quittung && a.alt == b.alt && a.zug == b.zug && a.status == b.status && (a.lauf == nil) == (b.lauf == nil) && a.frisch == b.frisch && a.zustand == b.zustand
             && a.neu == b.neu && a.name == b.name && a.gross == b.gross
     }
 
@@ -513,13 +520,20 @@ struct ZugView: View, Equatable {
             if laeuft, let lauf {
                 LiveZugView(quelle: lauf, zug: zug, name: name)
             } else {
-                if let a = zug.antwort {
+                if let a = zug.antwort, let n = angehalten {
+                    Text(a.text).font(Schrift.serif(26)).lineHeight(.exact(points: 30)).foregroundStyle(TafelFarbe.leise).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    HStack(spacing: 12) {
+                        Text("angehalten nach " + VerlaufLogik.uhrDauer(n)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
+                        Button("Weitermachen", action: weiter).buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                        Button("Neu fragen", action: erneut).buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+                    }
+                } else if let a = zug.antwort {
                     if let an = Unterhaltung.antwortAn(zug) {
                         Text(an).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3).padding(.leading, 2)
                             .accessibilityIdentifier("antwort-an")
                     }
                     Text("\(name.uppercased()) · \(a.ts.map { Formate.hhmm($0) } ?? "")").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
-                    AntwortKarteView(text: a.text, ts: a.ts, frisch: frisch == .voll, gross: gross).id(Self.antwortId(zug.id))
+                    AntwortKarteView(text: HierStelle.teile(a.text).text, ts: a.ts, frisch: frisch == .voll, gross: gross).id(Self.antwortId(zug.id))
                     SpurView(zug: zug, frisch: frisch != nil).padding(.top, 2)
                     if let q = quittung { QuittungErgebnis(quittung: q, zuruecklegen: zuruecklegen) }
                 } else if !zug.schritte.isEmpty, zug.widgets.isEmpty {
@@ -547,7 +561,7 @@ struct ZugView: View, Equatable {
 
     @ViewBuilder private func frage(_ text: String, pending: Bool, ts: Double?) -> some View {
         let teile = ChatAnhang.zerlege(text)
-        let wartet = pending && lauf?.chat.store?.isConnected == false
+        let wartet = pending && (offline ?? (lauf?.chat.store?.isConnected == false))
         VStack(alignment: .trailing, spacing: 4) {
             VStack(alignment: .trailing, spacing: 6) {
                 ForEach(Array(teile.namen.enumerated()), id: \.offset) { _, n in SnAnhangChip(name: n) }
@@ -584,9 +598,17 @@ struct ZugView: View, Equatable {
             } else if pending, status == nil, let lauf, let ts {
                 TimelineView(.periodic(from: .now, by: 1)) { takt in
                     if let z = VerlaufLogik.zustand(zustand, phase: lauf.chat.lives[lauf.key]?.phase, verbunden: lauf.chat.store?.isConnected ?? true, ts: ts, jetzt: takt.date.timeIntervalSince1970 * 1000) {
-                        SnZustandZeile(zeichen: z.zeichen, text: z.text)
+                        HStack(spacing: 12) {
+                            if zeigt, let zuruecknehmen, z.text.hasPrefix("in der Reihe") || z.text.hasPrefix("angekommen") {
+                                if z.text.hasPrefix("in der Reihe") { Button("Vorziehen", action: vorziehen).buttonStyle(.plain).foregroundStyle(TafelFarbe.himmel) }
+                                Button("Zurücknehmen", action: zuruecknehmen).buttonStyle(.plain).foregroundStyle(TafelFarbe.himmel)
+                            }
+                            SnZustandZeile(zeichen: z.zeichen, text: z.text)
+                        }
+                        .font(Schrift.grotesk(12.5)).onHover { zeigt = $0 }
                     }
                 }
+                if wartet, let zuruecknehmen { SnWartetKnoepfe(bearbeiten: bearbeiten, zuruecknehmen: zuruecknehmen) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -595,6 +617,18 @@ struct ZugView: View, Equatable {
 }
 
 enum FrischArt { case voll, weich }
+
+struct SnWartetKnoepfe: View {
+    var bearbeiten: () -> Void
+    var zuruecknehmen: () -> Void
+    var body: some View {
+        HStack(spacing: 28) {
+            Button("Bearbeiten", action: bearbeiten)
+            Button("Zurücknehmen", action: zuruecknehmen)
+        }
+        .buttonStyle(.plain).font(Schrift.grotesk(13, .medium)).foregroundStyle(TafelFarbe.text).padding(.top, 8).padding(.trailing, 14)
+    }
+}
 
 struct SnZustandZeile: View {
     var zeichen: String

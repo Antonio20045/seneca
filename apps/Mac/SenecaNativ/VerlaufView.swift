@@ -59,6 +59,7 @@ struct VerlaufView: View, Equatable {
     var agent = ""
     var neuLaden: () -> Void = {}
     var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
+    var bearbeiten: (String) -> Void = { _ in }
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
@@ -76,6 +77,11 @@ struct VerlaufView: View, Equatable {
     }
 
     private static let abstand: CGFloat = 22
+
+    private func schluessel(_ z: Zug) -> String? {
+        guard case .user(let id, _, _, true)? = z.start, id.hasPrefix("lokal-") else { return nil }
+        return String(id.dropFirst(6))
+    }
 
     private func zeige(_ id: String, _ anker: UnitPoint, _ leser: ScrollViewProxy) {
         withAnimation(Kurve.ease(0.35)) { leser.scrollTo(id, anchor: anker) }
@@ -180,7 +186,12 @@ struct VerlaufView: View, Equatable {
                                         zustand: zustand(z), neu: merker.istNeu(z.id), name: name, gross: zeile.id == grosserZug,
                                         quittung: VerlaufLogik.quittung(stand, sitzung: verlauf.sitzung, von: z.startTs, bis: fragen.first { ($0.ts ?? 0) > (z.startTs ?? .infinity) }?.ts),
                                         alt: z.startTs != nil && z.id != fragen.last?.id, zuruecklegen: zuruecklegen,
-                                        erneut: { erneut(z.startText) })
+                                        erneut: { erneut(z.startText) },
+                                        angehalten: verlauf.angehalten.first { z.antwort?.id.hasPrefix($0.key + ":") == true }?.value,
+                                        weiter: { erneut("Mach weiter, wo du aufgehört hast.") },
+                                        zuruecknehmen: schluessel(z).map { k in { Task { await chat.store?.zuruecknehmen(k) } } },
+                                        vorziehen: { if let k = schluessel(z) { Task { await chat.store?.vorziehen(k) } } },
+                                        bearbeiten: { if let k = schluessel(z) { bearbeiten(z.startText); Task { await chat.store?.zuruecknehmen(k) } } })
                                     .equatable()
                                     .onAppear { Messung.markeEinmal("erster Zug sichtbar") }
                             }

@@ -228,7 +228,7 @@ export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschr
   const l = laufender(db, sitzung);
   if (p.ergebnis === "wartet" && !(p.wartet_auf && p.folge && p.nachfass_um)) throw new Error("wartet braucht wartet_auf, Folge und Nachfasszeit.");
   if (p.ergebnis === "fertig" && !p.beleg) throw new Error("fertig braucht einen Beleg.");
-  for (const satz of p.befunde ?? []) befund(db, { art: "teilergebnis", satz, auftrag_id: String(l.auftrag_id), lauf_id: String(l.id) });
+  for (const satz of p.befunde ?? []) befund(db, { art: "teilergebnis", satz, auftrag_id: String(l.auftrag_id), lauf_id: String(l.id), beleg: p.beleg });
   if (p.stufe === "hoch") auftragSetzen(db, String(l.auftrag_id), { stufe_fest: "opus" }, "Lauf bittet um höhere Stufe.");
   fortschreibung(db, String(l.id), p);
   return { zustand: "notiert" };
@@ -253,11 +253,11 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   if (f.ergebnis === "weiter") return uebergang(db, "auftrag", id, "bereit", "weiter", { naechster_anlass: jetzt, fehlversuche: 0 });
   if (f.ergebnis === "wartet") return uebergang(db, "auftrag", id, "wartet", "fortschreibung", { wartet_auf: f.wartet_auf ?? null, folge: f.folge ?? null, naechster_anlass: f.nachfass_um ?? null });
   const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg], art: f.abnahme_art, hoerprobe_s: f.hoerprobe_s, ...f.abnahme });
-  const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt");
+  const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt" && JSON.parse(String(k.ergebnis ?? "{}")).urteil !== "nachbessern");
   if (a.pruefer_noetig && !geprueft) {
     const kind = auftragAnlegen(db, {
       art: "unterauftrag", eltern_id: id, wortlaut: `Prüfe: ${f.letzter_stand} Beleg: ${f.beleg}`, wortlaut_quelle: `lauf:${l.id}`, titel: `Prüfung: ${a.titel}`,
-      ziel: `Prüfen, ob „${a.ziel}“ erfüllt ist.`, abnahme: "Urteil passt oder Mängelliste", abnahme_durch: "auftraggeber", pruefer_noetig: false,
+      ziel: `Prüfen, ob „${a.ziel}“ erfüllt ist.`, abnahme: "Urteil passt oder Mängelliste", abnahme_durch: "beleg", pruefer_noetig: false,
       verantwortlich: regelText("pruefer"), auftraggeber: String(a.verantwortlich), quelle: "kollege", bereich: String(a.bereich), arbeitsart: "pruefen",
     });
     return uebergang(db, "auftrag", id, "wartet", "pruefung", { wartet_auf: `auftrag:${kind.id}`, folge: "Ohne Prüfung keine Abnahme.", naechster_anlass: jetzt + regelMs("pruefung_nachfassen_h") });

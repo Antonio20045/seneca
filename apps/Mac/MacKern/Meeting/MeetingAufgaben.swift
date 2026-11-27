@@ -4,6 +4,7 @@ struct MeetingAufgabe: Equatable {
     var wer: String
     var text: String
     var termin: String?
+    var minuten: Int? = nil
 
     var fuerAntonio: Bool {
         let w = wer.trimmingCharacters(in: .whitespaces).lowercased()
@@ -33,7 +34,7 @@ enum MeetingAufgaben {
     {"titel": "kurzer Titel, höchstens sechs Wörter",
      "worum": "zwei bis vier Sätze: Worum ging es, was kam heraus",
      "entscheidungen": ["je Eintrag eine getroffene Entscheidung oder Vereinbarung als ganzer Satz"],
-     "aufgaben": [{"wer": "Antonio", "aufgabe": "kurzer Auftrag im Infinitiv", "termin": "Frist oder Termin, sonst leer"}],
+     "aufgaben": [{"wer": "Antonio", "aufgabe": "kurzer Auftrag im Infinitiv", "termin": "Frist oder Termin, sonst leer", "minuten": geschätzte Minuten als Zahl}],
      "offene_fragen": ["je Eintrag eine Frage, die im Gespräch gestellt wurde und offen blieb"]}
     Regeln:
     - „Sprecher 1“ ist Antonio (das Mikrofon); schreibe bei „wer“ dann „Antonio“. Bei allen anderen steht der Name, wenn er im \
@@ -105,7 +106,7 @@ enum MeetingAufgaben {
                     if let s = e as? String { roh.append(MeetingAufgabe(wer: "Antonio", text: s, termin: nil)) }
                     else if let o = e as? [String: Any], let s = (o["aufgabe"] ?? o["text"] ?? o["titel"] ?? o["beschreibung"]) as? String {
                         roh.append(MeetingAufgabe(wer: (o["wer"] ?? o["zustaendig"] ?? o["zuständig"]) as? String ?? "", text: s,
-                                                  termin: (o["termin"] ?? o["frist"] ?? o["bis"]) as? String))
+                                                  termin: (o["termin"] ?? o["frist"] ?? o["bis"]) as? String, minuten: (o["minuten"] as? Int) ?? (o["minuten"] as? String).flatMap { Int($0) }))
                     }
                 }
             }
@@ -140,7 +141,7 @@ enum MeetingAufgaben {
         var aus: [MeetingAufgabe] = []
         for r in roh {
             guard let text = bereinige([r.text]).first else { continue }
-            var a = MeetingAufgabe(wer: r.wer.trimmingCharacters(in: .whitespacesAndNewlines), text: text, termin: nil)
+            var a = MeetingAufgabe(wer: r.wer.trimmingCharacters(in: .whitespacesAndNewlines), text: text, termin: nil, minuten: r.minuten.flatMap { $0 > 0 ? $0 : nil })
             if a.fuerAntonio { a.wer = "Antonio" }
             if let t = r.termin?.trimmingCharacters(in: .whitespacesAndNewlines), !platzhalter.contains(t.lowercased()) { a.termin = t }
             if gesehen.insert((a.wer + "|" + a.text).lowercased()).inserted { aus.append(a) }

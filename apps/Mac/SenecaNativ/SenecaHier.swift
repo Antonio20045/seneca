@@ -217,15 +217,27 @@ enum BildschirmFoto {
 struct HierVorschau: View {
     let datei: URL
     var breite: CGFloat = 176
+    var stelle: CGRect?
     @State private var bild: NSImage?
 
     var body: some View {
         ZStack { if let bild { Image(nsImage: bild).resizable().aspectRatio(contentMode: .fill) } }
-            .frame(width: breite, height: breite * 0.58).background(Color.white.opacity(0.05)).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: breite, height: breite * 0.58)
+            .overlay { if let stelle, let bild { marke(stelle, bild.size) } }.background(Color.white.opacity(0.05)).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
             .task(id: datei) { bild = NSImage(contentsOf: datei) }
             .accessibilityLabel("Foto deines Bildschirms")
             .accessibilityIdentifier("hier-vorschau")
+    }
+
+    private func marke(_ r: CGRect, _ g: CGSize) -> some View {
+        let h = breite * 0.58, s = max(breite / max(g.width, 1), h / max(g.height, 1))
+        let w = g.width * s, hh = g.height * s
+        return RoundedRectangle(cornerRadius: 4, style: .continuous).fill(TafelFarbe.himmel.opacity(0.12))
+            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(TafelFarbe.himmel, lineWidth: 1.5))
+            .frame(width: r.width * w, height: r.height * hh)
+            .position(x: (breite - w) / 2 + r.midX * w, y: (h - hh) / 2 + r.midY * hh)
+            .transition(.opacity)
     }
 }
 
@@ -325,11 +337,12 @@ struct HierKarte: View {
             .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
     }
 
-    private func antwort(_ frage: String, _ text: String, fertig: Bool = true) -> some View {
+    private func antwort(_ frage: String, _ roh: String, fertig: Bool = true) -> some View {
+        let (text, stelle) = HierStelle.teile(roh)
         let (kopf, rest) = Self.teile(text)
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 18) {
-                if let foto { HierVorschau(datei: foto, breite: 200) }
+                if let foto { HierVorschau(datei: foto, breite: 200, stelle: stelle).animation(Kurve.ease(0.3), value: stelle) }
                 VStack(alignment: .leading, spacing: 8) {
                     Text((["SENECA", HeuteTafelLogik.uhr(Date().timeIntervalSince1970 * 1000)] + (foto == nil ? [] : ["\(["bereich": "Bereich", "bildschirm": "Bildschirm"][art] ?? "Fenster") aus \(modell.zusammenhang?.programm ?? "")"])).joined(separator: " · ").uppercased())
                         .font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
@@ -352,7 +365,7 @@ struct HierKarte: View {
                     Button("Neue Frage") { modell.neueFrage() }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
                     Button("Kopieren") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string) }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
                     Spacer()
-                    if let d = modell.dauer { Text(String(format: "%d:%02d", Int(d) / 60, Int(d) % 60)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
+                    if let d = modell.dauer { Text((modell.schritte > 0 ? "▸ \(modell.schritte) \(modell.schritte == 1 ? "Schritt" : "Schritte") · " : "") + String(format: "%d:%02d", Int(d) / 60, Int(d) % 60)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
                 }
             }
         }
@@ -380,7 +393,7 @@ struct SnBildschirmBild: View {
         .task {
             modell.zusammenhang = HierZusammenhang(art: .browser, programm: "Safari", titel: "Power BI · Anrufe pro Tag · Oktober", dateien: [foto], hatFensterfoto: true)
             modell.text = "Warum ist der Oktober so niedrig?"
-            if antwort { modell.ausschnitt = "bereich"; modell.sendeHier = { _, _ in "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst." }; await modell.abschicken() }
+            if antwort { modell.ausschnitt = "bereich"; modell.sendeHier = { _, _ in try? await Task.sleep(for: .milliseconds(400)); return "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst.\nStelle: 33 25 10 62" }; Task { try? await Task.sleep(for: .milliseconds(100)); modell.zaehle("liest das Bild"); modell.zaehle("prüft den Webhook") }; await modell.abschicken() }
         }
     }
 }

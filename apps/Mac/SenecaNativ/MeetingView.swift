@@ -6,7 +6,7 @@ struct MeetingView: View {
     var body: some View {
         ZStack {
             Farbe.grund.ignoresSafeArea()
-            if dienst.nimmtAuf { MeetingLiveTafel(dienst: dienst, live: dienst.live, marken: dienst.marken, antworten: dienst.antworten, dauer: dienst.dauer) } else {
+            if dienst.nimmtAuf { MeetingLiveTafel(dienst: dienst, live: dienst.live, marken: dienst.marken, luecken: dienst.luecken, antworten: dienst.antworten, dauer: dienst.dauer) } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     kopf
@@ -106,10 +106,19 @@ struct MeetingView: View {
     }
 }
 
+struct MeetingLueckeZeile: View {
+    var dauer: Double
+    var body: some View {
+        Text("— LÜCKE \(VerlaufLogik.uhrDauer(dauer)) · MIKROFON GEWECHSELT —").font(Schrift.mono(10)).kerning(1.1).foregroundStyle(TafelFarbe.leise)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 2)
+    }
+}
+
 struct MeetingLiveTafel: View {
     var dienst: MeetingDienst?
     var live: [MeetingSegment]
     var marken: [TimeInterval]
+    var luecken: [[Double]] = []
     var antworten: [MeetingDienst.Antwort]
     var dauer: TimeInterval
     var beginn = Date()
@@ -130,7 +139,9 @@ struct MeetingLiveTafel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if live.isEmpty { Text("Das Gespräch erscheint hier, sobald jemand spricht.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.leise) }
-                    ForEach(Array(MeetingTranskript.letzte(live, minuten: 5).enumerated()), id: \.offset) { _, z in
+                    let zeilen = MeetingTranskript.letzte(live, minuten: 5)
+                    ForEach(Array(zeilen.enumerated()), id: \.offset) { i, z in
+                        if let l = luecken.first(where: { $0[0] <= z.start && $0[0] > (i > 0 ? zeilen[i - 1].start : -1) }) { MeetingLueckeZeile(dauer: l[1]) }
                         HStack(alignment: .firstTextBaseline, spacing: 0) {
                             Text(uhr(z.start)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).frame(width: 52, alignment: .leading)
                             Text(z.sprecher == 1 ? "Du" : z.sprecherName).font(Schrift.grotesk(14, .medium)).foregroundStyle(.white).lineLimit(1).frame(width: 88, alignment: .leading)

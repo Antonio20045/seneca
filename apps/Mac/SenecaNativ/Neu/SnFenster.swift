@@ -429,7 +429,8 @@ struct SnHeuteMitFenster: View {
     @State private var warum = false
     @Environment(\.accessibilityReduceMotion) private var ruhig
     private var getrennt: Bool { store.getrenntSeit != nil && store.stand != nil }
-    private func kennungen(_ s: SenecaStand?) -> Set<String> { Set((s?.braucht_dich ?? []).map(\.id) + (s?.heute_erledigt ?? []).map(\.id) + (s?.todos ?? []).map(\.id)) }
+    @State private var frischNeu: Set<String> = []
+    private func kennungen(_ s: SenecaStand?) -> Set<String> { Set((s?.braucht_dich ?? []).map(\.id) + (s?.heute_erledigt ?? []).map(\.id) + (s?.todos ?? []).map(\.id) + (s?.team ?? []).map(SnHeuteTafel.kennung)) }
 
     init(modell: AppModell) {
         self.modell = modell
@@ -456,7 +457,7 @@ struct SnHeuteMitFenster: View {
                             .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let s = store.stand {
                         SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
-                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true })
+                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
                     } else {
                         SnHeuteSkelett()
                     }
@@ -505,8 +506,11 @@ struct SnHeuteMitFenster: View {
             guard alt != nil, neu == nil else { return }
             Task {
                 try? await Task.sleep(for: .seconds(1.5))
-                wieder = kennungen(store.stand).subtracting(vorher).count
-                try? await Task.sleep(for: .seconds(3))
+                frischNeu = kennungen(store.stand).subtracting(vorher)
+                wieder = frischNeu.count
+                try? await Task.sleep(for: .seconds(2.4))
+                frischNeu = []
+                try? await Task.sleep(for: .seconds(0.6))
                 wieder = nil
             }
         }
@@ -559,7 +563,7 @@ struct SnStartZeilen: View {
                 HStack(spacing: 10) {
                     Circle().strokeBorder(TafelFarbe.text, lineWidth: 1.5).frame(width: 9, height: 9)
                     (Text("Seneca antwortet seit \(HeuteTafelLogik.uhr(seit.timeIntervalSince1970 * 1000)) nicht. ").foregroundColor(.white).font(Schrift.grotesk(14, .medium))
-                     + Text(warum ? fehler : "Ich verbinde neu. Du siehst den Stand von \(stand).").foregroundColor(TafelFarbe.zweit))
+                     + Text(warum ? fehler : "Ich starte die Verbindung neu. Du siehst den Stand von \(stand).").foregroundColor(TafelFarbe.zweit))
                         .font(Schrift.grotesk(14)).lineLimit(1)
                     Spacer()
                     Button("Was ist passiert?") { warum.toggle() }.buttonStyle(.plain).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)

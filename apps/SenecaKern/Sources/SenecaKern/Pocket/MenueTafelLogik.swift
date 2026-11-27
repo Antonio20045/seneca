@@ -16,7 +16,7 @@ enum MenueTafelLogik {
         return Zeile(kopf: "DANACH · \(HeuteTafelLogik.uhr(bis))", text: n == 1 ? "1 Frage" : "\(n) Fragen", leise: "zuerst \(artikel) \(wort)", punkt: "aus")
     }
 
-    static func unter(_ f: SenecaStand.Frage) -> String { [f.von, f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }].compactMap { $0 }.joined(separator: " · ") }
+    static func unter(_ f: SenecaStand.Frage) -> String { [f.von, f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zusatz].compactMap { $0 }.joined(separator: " · ") }
 
     static func weitere(_ s: SenecaStand) -> String { fragen(s).dropFirst().map(kurz).joined(separator: ", ") }
 
