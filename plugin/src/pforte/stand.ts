@@ -1,7 +1,7 @@
-import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, kinder, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, kinder, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, wiederholungenSeit, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
-import { berichte, rueckblick } from "./berichte.ts";
+import { berichte, rueckblick, tagesZahlen } from "./berichte.ts";
 import { erinnernUm, istSport, kalender, terminSicht } from "./kalender.ts";
 import { buendelText, heute, koerper, projektVon, restMin, stundeAlsWort, ungefaehr, uhrzeit, ZAHLWORT } from "./heute.ts";
 import { projekte } from "./projekte.ts";
@@ -269,9 +269,28 @@ export function lesenWerkzeug(db: Register, was: string, id?: string): string {
     const a = hole(db, "auftrag", id);
     return `„${a.titel}“ ist ${a.zustand}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
   }
+  if (was === "tag") return tagSicht(db, jetzt);
   if (was === "team") return team(db, jetzt).map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`).join("\n");
   if (was === "fragen") return brauchtDich(db, jetzt).map((f) => `${f.id}: ${f.text}`).join("\n") || "Nichts braucht Antonio gerade.";
   const praefix = { profil: "profil:", fakten: "fakt:", kontakt: "kontakt:" }[was];
   if (!praefix) throw new Error(`seneca_lesen kennt ${was} nicht.`);
   return [...werte(db, praefix)].map(([k, v]) => `${k}: ${v}`).join("\n") || "Nichts hinterlegt.";
+}
+
+const ZEITFELDER = ["jetzt", "start", "ende", "geplant", "zeit", "bis", "von", "um"];
+
+function tagSicht(db: Register, jetzt: number): string {
+  const s = stand(db, { geraet: "seneca" }, jetzt) as Exclude<ReturnType<typeof stand>, { unveraendert: boolean }>;
+  const gestern = s.tag_beginn - regelMs("ein_tag_tage");
+  const zeit = (k: string, v: unknown) => (ZEITFELDER.includes(k) && typeof v === "number" ? new Date(v).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : v);
+  return JSON.stringify({
+    revision: s.revision, jetzt, satz: s.heute.satz, aufgaben: s.aufgaben.satz, braucht_dich: s.zaehler.braucht, wartet: s.wartet, ruhe: s.ruhe, entscheiden: s.entscheiden.satz, buendel: s.buendel.satz,
+    todos: s.todos.filter((t) => !t.wiederkehrend).map((t) => ({ titel: t.titel, bereich: t.bereich, tag: t.tag, ueberfaellig: !!t.tag && String(t.tag) < new Date(s.tag_beginn).toLocaleDateString("sv-SE"), dauer_min: t.dauer_min, geplant: t.geplant_von, wichtig: t.wichtig })),
+    jeden_tag: s.aufgaben.jeden_tag?.map((t) => `${t.titel}${t.erledigt ? " (erledigt)" : ""}`), erledigt: [...s.aufgaben.erledigt.map((t) => t.titel), ...s.heute_erledigt.map((a) => `${a.titel} (${a.wer})`)],
+    termine: s.termine.map((t) => ({ titel: t.titel, start: t.start, ende: t.ende, ganztag: t.ganztag, ort: t.ort ?? null, mit: t.mit, weg: t.weg })),
+    morgen: termineAm(db, s.tag_beginn + regelMs("ein_tag_tage")).map((t) => ({ titel: t.titel, start: t.start, ganztag: t.ganztag })),
+    koerper: s.koerper, zahlen_heute: tagesZahlen(db, s.tag_beginn), gelernt: s.gelernt.map((g) => g.zeile), wiederholungen_heute: wiederholungenSeit(db, s.tag_beginn), team: s.team.map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`),
+    auftraege_seit_gestern: auftraege(db, ["bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt"]).filter((a) => a.quelle !== "dauerauftrag" && Number(a.geaendert) >= gestern)
+      .map((a) => ({ id: a.id, titel: a.titel, zustand: a.zustand, wer: anzeigeName(String(a.verantwortlich)), stand: a.letzter_stand, naechster: a.naechster_schritt, beleg: bericht(db, String(a.id)).bericht?.beleg ?? null })),
+  }, zeit);
 }

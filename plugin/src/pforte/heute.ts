@@ -60,7 +60,7 @@ export function heute(db: Register, ruhe: { grund: string; bis: number } | undef
       satz_folge: [vor, b ? `Danach zuerst ${erster}, dann ${artikel(b.titel)[0]}.` : `Danach ${erster}.`],
     };
   }
-  const offen = todos(db, "offen");
+  const offen = todos(db, "offen").filter((t) => !t.wiederkehrend);
   const n = ZAHLWORT[offen.length] ?? String(offen.length);
   const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."]
     : offen.length ? [`${n[0].toUpperCase()}${n.slice(1)} für heute.`, passtNicht(einplanen(db, offen, jetzt))] : ["Heute steht", "nichts mehr an."];
