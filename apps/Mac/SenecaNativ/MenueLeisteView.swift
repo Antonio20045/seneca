@@ -43,7 +43,7 @@ struct MenueLeisteView: View {
                    zuruecknehmen: { f in modell.store.handle("rueckgaengig", ziel: f.id); gesendet = nil },
                    oeffne: { r in modell.zeigeFenster(r) }, mehr: { f in modell.zeigeFenster(nil); modell.zeigeMehr(f) },
                    sprechen: { dienste.sprechen() }, bildschirm: { dienste.zeigeBildschirm() },
-                   meetingSchalten: { meeting.umschalten() }, mitschrift: { openWindow(id: "meeting") },
+                   meetingSchalten: { meeting.umschalten() }, merken: { meeting.merke() }, mitschrift: { openWindow(id: "meeting") },
                    frage: { SchnellfrageFeld(modell: dienste.schnellfrage, imFenster: { modell.zeigeFenster(Route(.heute), gespraech: true) }) })
             .background(MenueFensterLeser(geoeffnet: { VorneMerker.gemeinsam.menueGeoeffnet() }))
     }
@@ -64,6 +64,7 @@ struct MenueTafel<Feld: View>: View {
     var sprechen: () -> Void = {}
     var bildschirm: () -> Void = {}
     var meetingSchalten: () -> Void = {}
+    var merken: () -> Void = {}
     var mitschrift: () -> Void = {}
     @ViewBuilder var frage: () -> Feld
 
@@ -191,6 +192,7 @@ struct MenueTafel<Feld: View>: View {
                     .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).lineLimit(2).padding(.bottom, 12)
             }
             HStack(spacing: 8) {
+                Button(action: merken) { HStack(spacing: 6) { Text("Merken"); MeetingTaste(t: "⌘⇧M") } }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
                 Button(action: mitschrift) { Text("Mitschrift") }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
                 Spacer()
                 Button(action: meetingSchalten) { HStack(spacing: 6) { Text("Beenden"); Text("⌘⇧R").font(Schrift.mono(11)) } }

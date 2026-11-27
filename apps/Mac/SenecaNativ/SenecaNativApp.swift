@@ -96,6 +96,9 @@ struct SenecaNativApp: App {
                 Button(meeting.nimmtAuf ? "Meeting beenden" : "Meeting aufnehmen") { meeting.umschalten(); if !Hintergrund.aktiv { openWindow(id: "meeting") } }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                     .disabled(meeting.beschaeftigt && !meeting.nimmtAuf)
+                Button("Merken") { meeting.merke() }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                    .disabled(!meeting.nimmtAuf)
                 Button("Meeting-Fenster") { openWindow(id: "meeting") }
             }
             CommandMenu("Seiten") {

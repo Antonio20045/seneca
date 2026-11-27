@@ -39,6 +39,7 @@ final class MeetingDienst: ObservableObject {
     @Published private(set) var ollama: OllamaStand?
     @Published private(set) var vorschlag: String?
     @Published private(set) var uebernahme = ""
+    @Published private(set) var marken: [TimeInterval] = []
     @Published private(set) var uebernommen = 0
     @Published private(set) var fruehere: [MeetingAufnahme] = []
 
@@ -117,6 +118,8 @@ final class MeetingDienst: ObservableObject {
         return AudioObjectGetPropertyData(geraet, &a, 0, nil, &groesse, &an) == noErr && an != 0
     }
 
+    func merke() { if nimmtAuf { marken.append(dauer) } }
+
     func umschalten() { if nimmtAuf { Task { await stoppe() } } else { Task { await starte() } } }
 
     func starte() async {
@@ -142,6 +145,7 @@ final class MeetingDienst: ObservableObject {
             zustand = .fehler("Das Mikrofon ließ sich nicht starten: \(error.localizedDescription)"); return
         }
         beginn = Date()
+        marken = []
         await starteSystemton(in: ordner)
         zustand = .nimmtAuf
         protokoll.schreibe("start", aufnahme: ordner.lastPathComponent, zahlen: ["systemton": systemton == nil ? 0 : 1])
