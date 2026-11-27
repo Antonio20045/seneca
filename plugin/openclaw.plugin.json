@@ -36,7 +36,29 @@
             "type": "string"
           },
           "passwort": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           }
         }
       },
@@ -44,7 +66,29 @@
         "type": "object",
         "properties": {
           "schluessel": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           },
           "schluessel_id": {
             "type": "string"
@@ -58,7 +102,29 @@
         "type": "object",
         "properties": {
           "geheimnis": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           }
         }
       },
@@ -69,7 +135,29 @@
             "type": "string"
           },
           "geheimnis": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "source",
+                  "id"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
           }
         }
       }

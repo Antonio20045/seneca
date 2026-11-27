@@ -30,14 +30,16 @@ test("PF09 Korrektur ändert genau eine Stelle, ist zurücknehmbar, Wiederholung
   const w = await p.werkzeug("seneca_lernen", S, "seneca", { nachricht_kennung: "m3", wortlaut: "Wie oft noch: immer mit Link", ort: "skill", ziel: "mail_an_kunden", kern: "immer mit Link", aenderung: { skill: "mail_an_kunden", alt: "Schritt 3: kurz.", neu: "Schritt 3: kurz, immer mit Link." } });
   assert.equal(Number(w.wiederholungen_woche), 1);
   assert.ok(auftraege(p.db, ["bereit"]).some((a) => String(a.titel).startsWith("Wiederholung untersuchen")));
-  const arbeitsplatz = mkdtempSync(join(tmpdir(), "seneca-ws-"));
-  mkdirSync(join(arbeitsplatz, "skills", "mail_an_kunden"), { recursive: true });
-  writeFileSync(join(arbeitsplatz, "skills", "mail_an_kunden", "SKILL.md"), "Schritt 3: kurz, immer mit Link.");
+  const zustand = mkdtempSync(join(tmpdir(), "seneca-zustand-"));
+  const werkstatt = join(zustand, "agents", "produkt", "agent", "workshop-skills", "mail-an-kunden");
+  mkdirSync(werkstatt, { recursive: true });
+  writeFileSync(join(werkstatt, "SKILL.md"), "Schritt 3: kurz, immer mit Link.");
+  process.env.OPENCLAW_STATE_DIR = zustand;
   const a = auftragVonAntonio(p.db, "Mail an Kunden zum Angebot", { arbeitsart: "mail_an_kunden" });
   spaeter(6000);
   nurWach(p.db, "produkt");
   await faelligeAuftraegeJob(p.db, p.starte);
-  assert.ok(p.kontext(String(laeufe(p.db, a)[0].sitzung), arbeitsplatz)?.includes("Schritt 3: kurz, immer mit Link."));
+  assert.ok(p.kontext(String(laeufe(p.db, a)[0].sitzung))?.includes("Schritt 3: kurz, immer mit Link."));
 });
 
 test("PF09 Satz beim Nachbessern wird gelernt; ähnliche zuerst; Skill höchstens eine Zeile mehr; Zurücknehmen einmal, auch nach gebauter Sperre", async () => {
