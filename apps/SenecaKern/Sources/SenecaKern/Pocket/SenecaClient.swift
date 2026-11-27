@@ -187,6 +187,13 @@ final class SenecaStore: ObservableObject {
 
     func erledige(todo id: String) { todo("erledigt", id) }
 
+    func verstehen(_ satz: String) async -> Verstanden? {
+        let roh: Data?
+        if demo { roh = Bundle.main.url(forResource: "Beispiel-Verstanden", withExtension: "json").flatMap { try? Data(contentsOf: $0) } }
+        else { roh = try? JSONSerialization.data(withJSONObject: await daten?.rufe("seneca.verstehen", ["satz": satz]) ?? [:]) }
+        return roh.flatMap { try? JSONDecoder().decode(Verstanden.self, from: $0) }
+    }
+
     func todo(_ aktion: String, _ id: String? = nil, _ felder: [String: JSONWert] = [:]) {
         let wert: JSONWert? = felder.isEmpty ? nil : .objekt(felder)
         guard !demo else {

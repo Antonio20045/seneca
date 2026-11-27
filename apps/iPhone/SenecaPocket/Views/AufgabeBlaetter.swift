@@ -202,42 +202,6 @@ extension String {
     func ifEmpty(_ ersatz: String) -> String { isEmpty ? ersatz : self }
 }
 
-struct AufgabeVerstanden: Equatable {
-    var titel: String
-    var tag: Date?
-    var uhr: (Int, Int)?
-    var bis: Date?
-    var dauer: Int?
-    var bereich: String?
-    var taeglich = false
-    var erkannt: Bool { tag != nil || dauer != nil || bereich != nil || taeglich }
-
-    static func == (a: Self, b: Self) -> Bool { a.titel == b.titel && a.tag == b.tag && a.dauer == b.dauer && a.bereich == b.bereich && a.taeglich == b.taeglich && a.uhr?.0 == b.uhr?.0 && a.uhr?.1 == b.uhr?.1 }
-
-    static func aus(_ satz: String, jetzt: Date, bereiche: [String]) -> AufgabeVerstanden {
-        let klein = satz.lowercased(), cal = Calendar.current
-        var v = AufgabeVerstanden(titel: satz.trimmingCharacters(in: .whitespaces))
-        let start = cal.startOfDay(for: jetzt)
-        if klein.contains("übermorgen") { v.tag = cal.date(byAdding: .day, value: 2, to: start) }
-        else if klein.contains("morgen") { v.tag = cal.date(byAdding: .day, value: 1, to: start) }
-        else if klein.contains("heute") { v.tag = start }
-        else if let i = AufgabeWort.wochentagLang.firstIndex(where: { klein.contains($0.lowercased()) }) {
-            let heute = cal.component(.weekday, from: jetzt) - 1
-            v.tag = cal.date(byAdding: .day, value: (i - heute + 7) % 7 == 0 ? 7 : (i - heute + 7) % 7, to: start)
-        }
-        if let m = klein.firstMatch(of: /um (\d{1,2})(?::(\d{2}))?|(\d{1,2})(?::(\d{2}))? uhr/) {
-            v.uhr = (Int(m.1 ?? m.3 ?? "") ?? 0, Int(m.2 ?? m.4 ?? "") ?? 0)
-        }
-        if let m = klein.firstMatch(of: /(\d+)\s*(min|minuten|std|stunden?)/) {
-            v.dauer = (Int(m.1) ?? 0) * (m.2.hasPrefix("s") ? 60 : 1)
-        }
-        v.taeglich = klein.contains("jeden tag") || klein.contains("täglich")
-        v.bereich = bereiche.first { klein.contains($0.lowercased()) }
-        if v.erkannt, let komma = satz.firstIndex(of: ",") { v.titel = String(satz[..<komma]) }
-        return v
-    }
-}
-
 struct AufgabeNeu: View {
     var stand: SenecaStand
     var fertig: () -> Void
@@ -247,14 +211,14 @@ struct AufgabeNeu: View {
     @State private var wer = "Ich"
     @State private var dauerWahl: Int?
     @State private var bereichWahl: String?
+    @State private var verstanden: Verstanden?
     @FocusState private var fokus: Bool
 
-    private var jetzt: Date { store.clock() }
-    private var bereiche: [String] { Array(Set((stand.todos ?? []).compactMap(\.bereich) + ["Privat"])).sorted() }
-    private var v: AufgabeVerstanden {
-        var v = AufgabeVerstanden.aus(satz, jetzt: jetzt, bereiche: bereiche)
-        if let d = dauerWahl { v.dauer = d }
-        if let b = bereichWahl { v.bereich = b }
+    private var bereiche: [String] { Array(Set((stand.todos ?? []).compactMap(\.bereich) + [verstanden?.bereich].compactMap { $0 })).sorted() }
+    private var v: Verstanden {
+        var v = verstanden ?? Verstanden(erkannt: false, titel: satz.trimmingCharacters(in: .whitespaces), hinweis: "Du bekommst es auf die Uhr.")
+        if let d = dauerWahl { v.dauer_min = d; v.geschaetzt?.removeAll { $0 == "dauer" } }
+        if let b = bereichWahl { v.bereich = b; v.geschaetzt?.removeAll { $0 == "bereich" } }
         return v
     }
     private var team: [String] { (stand.team ?? []).map(\.name) }
@@ -274,12 +238,12 @@ struct AufgabeNeu: View {
                 .padding(.top, 20).padding(.bottom, 10)
                 Fliess(abstand: 8) {
                     kachel("WANN", wannText, an: true)
-                    if let b = v.bis { kachel("BIS WANN", AufgabeWort.wochentagDatum(b), an: false) }
+                    if let b = v.bis { kachel("BIS WANN", "\(AufgabeWort.wochentag[Calendar.current.component(.weekday, from: HeuteTafelLogik.datum(b)) - 1]) \(HeuteTafelLogik.uhr(b).replacing(/^0/, with: ""))", an: false) }
                     Menu { ForEach([5, 15, 30, 40, 60], id: \.self) { m in Button(AufgabeWort.dauer(m)) { dauerWahl = m } } } label: {
-                        kachel("DAUER", v.dauer.map(AufgabeWort.dauer) ?? "offen", an: false)
+                        kachel("DAUER", v.dauer_min.map(AufgabeWort.dauer) ?? "offen", an: false)
                     }
                     Menu { ForEach(bereiche, id: \.self) { b in Button(b) { bereichWahl = b } } } label: { kachel("BEREICH", v.bereich ?? "offen", an: false) }
-                    kachel("WIEDERHOLEN", v.taeglich ? "jeden Tag" : "nie", an: false)
+                    kachel("WIEDERHOLEN", v.wiederkehrend == nil ? "nie" : "jeden Tag", an: false)
                 }
             }
             Text("WER ERLEDIGT ES").mono(11, abstand: 1).foregroundStyle(TafelFarbe.leise).padding(.top, 22).padding(.bottom, 8)
@@ -302,6 +266,11 @@ struct AufgabeNeu: View {
             .buttonStyle(.plain).disabled(v.titel.isEmpty).opacity(v.titel.isEmpty ? 0.5 : 1)
             .padding(.bottom, 6)
         }
+        .task(id: satz) {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled, !satz.isEmpty else { return }
+            verstanden = await store.verstehen(satz)
+        }
         .onAppear {
             #if DEBUG
             if let s = ProcessInfo.processInfo.environment["SENECA_DEMO_SATZ"] { satz = s; return }
@@ -311,15 +280,14 @@ struct AufgabeNeu: View {
     }
 
     private var wannText: String {
-        guard let t = v.tag else { return "Ohne Tag" }
-        let tag = Calendar.current.isDateInToday(t) ? "Heute" : Calendar.current.isDateInTomorrow(t) ? "Morgen" : AufgabeWort.wochentagDatum(t)
-        return v.uhr.map { "\(tag) · \($0.0):\(String(format: "%02d", $0.1))" } ?? tag
+        guard let t = v.tag.flatMap({ AufgabeWort.datum($0) }) else { return "Ohne Tag" }
+        let tage = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: store.clock()), to: t).day
+        let tag = tage == 0 ? "Heute" : tage == 1 ? "Morgen" : AufgabeWort.wochentagDatum(t)
+        return v.von.map { "\(tag) · \(HeuteTafelLogik.uhr($0).replacing(/^0/, with: ""))" } ?? tag
     }
 
     private var hinweis: String {
-        let tag = v.tag.map { Calendar.current.isDateInToday($0) ? "heute" : Calendar.current.isDateInTomorrow($0) ? "morgen" : AufgabeWort.wochentagLang[Calendar.current.component(.weekday, from: $0) - 1] }
-        let wann = [tag, v.uhr.map { "um \($0.0)" }].compactMap { $0 }.joined(separator: " ")
-        let vorn = wer == "Ich" ? (wann.isEmpty ? "Du bekommst es auf die Uhr." : "Du bekommst es \(wann) auf die Uhr.") : wer == "Seneca" ? "Seneca übernimmt es und meldet sich, wenn es erledigt ist." : "\(wer) übernimmt es."
+        let vorn = wer == "Ich" ? v.hinweis : wer == "Seneca" ? "Seneca übernimmt es und meldet sich, wenn es erledigt ist." : "\(wer) übernimmt es."
         return vorn + " Bei „Team“ wählst du, wer es übernimmt."
     }
 
@@ -345,11 +313,13 @@ struct AufgabeNeu: View {
         let v = v
         if wer == "Ich" {
             var f: [String: JSONWert] = ["titel": .text(v.titel)]
-            if let t = v.tag { f["tag"] = .text(AufgabeWort.tag(t)) }
-            if let t = v.tag, let u = v.uhr, let d = Calendar.current.date(bySettingHour: u.0, minute: u.1, second: 0, of: t) { f["geplant_von"] = .zahl(d.timeIntervalSince1970 * 1000) }
-            if let d = v.dauer { f["dauer_min"] = .zahl(Double(d)) }
+            if let t = v.tag { f["tag"] = .text(t) }
+            if let t = v.von { f["geplant_von"] = .zahl(t) }
+            if let t = v.bis { f["bis_wann"] = .zahl(t) }
+            if let d = v.dauer_min { f["dauer_min"] = .zahl(Double(d)) }
             if let b = v.bereich { f["bereich"] = .text(b) }
-            if v.taeglich { f["wiederkehrend"] = .text("taeglich") }
+            if let w = v.wiederkehrend { f["wiederkehrend"] = .text(w) }
+            if let g = v.geschaetzt, !g.isEmpty { f["geschaetzt"] = .text(g.joined(separator: ",")) }
             store.todo("anlegen", nil, f)
         } else {
             let text = wer == "Seneca" ? "Übernimm das bitte: \(satz)" : "Gib das bitte an \(wer): \(satz)"

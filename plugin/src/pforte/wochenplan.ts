@@ -94,7 +94,7 @@ export function weg(db: Register, t: Termin) {
 
 function detail(db: Register, t: Termin) {
   const d = new Date(t.start);
-  const notiz = gesetzt(db, `termin:${t.uid}`);
+  const notiz = gesetzt(db, `termin_notiz:${t.uid}`);
   return ohneLeer({
     datum: `${TAG[d.getDay()].slice(0, 2)} ${d.getDate()}. ${MONAT[d.getMonth()].slice(0, 3)} · ${uhrzeit(t.start)} bis ${uhrzeit(t.ende)}`,
     ort: t.ort ?? null, mit: t.namen?.join(", ") || null, kalender: t.kalender ?? null, notiz: t.notiz || null, ...weg(db, t),

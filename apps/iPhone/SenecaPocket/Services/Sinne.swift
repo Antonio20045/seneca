@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import EventKit
+import MapKit
 import UserNotifications
 import UIKit
 import os
@@ -221,6 +222,7 @@ final class Sinne: NSObject, ObservableObject {
         termineSammeln()
         await trainingsSammeln()
         await schlafMelden()
+        await wegeMelden()
         await senden()
         await meldungenHolen()
     }
@@ -344,6 +346,22 @@ final class Sinne: NSObject, ObservableObject {
         guard let a = await HealthStatistik.neueTrainings(anker: defaults.data(forKey: Merk.trainingAnker), seit: seit) else { return }
         schlange.hinzufuegen(a.neu.map(TrainingLogik.ereignis))
         if let anker = a.anker { defaults.set(anker, forKey: Merk.trainingAnker) }
+    }
+
+    private func wegeMelden() async {
+        guard let s = store?.stand, let hier = manager.location else { return }
+        for t in s.termine ?? [] where t.ort != nil && t.weg_min == nil && t.start > s.jetzt {
+            let suche = MKLocalSearch.Request()
+            suche.naturalLanguageQuery = t.ort
+            suche.region = MKCoordinateRegion(center: hier.coordinate, latitudinalMeters: 20_000, longitudinalMeters: 20_000)
+            guard let ziel = try? await MKLocalSearch(request: suche).start().mapItems.first else { continue }
+            let r = MKDirections.Request()
+            r.source = MKMapItem.forCurrentLocation()
+            r.destination = ziel
+            r.transportType = .walking
+            guard let weg = try? await MKDirections(request: r).calculate().routes.first else { continue }
+            store?.daten?.handeln("termin.weg", ziel: t.uid, wert: .objekt(["weg_min": .zahl((weg.expectedTravelTime / 60).rounded()), "entfernung_m": .zahl(weg.distance.rounded())]))
+        }
     }
 
     private func schlafMelden() async {

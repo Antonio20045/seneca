@@ -99,7 +99,7 @@ struct TeamBlatt: View {
                     }
                     ForEach(reihe, id: \.self) { von in
                         let fs = gruppen[von] ?? []
-                        TeamZeile(punkt: .fragt, titel: fs.map(\.text).joined(separator: " "), unter: "\(von) fragt · seit \(TeamLogik.seit(fs.compactMap(\.seit).min(), stand))") {}
+                        TeamZeile(punkt: .fragt, titel: fs.sorted { ($0.seit ?? 0) < ($1.seit ?? 0) }.map { $0.kurz ?? $0.text }.joined(separator: " "), unter: "\(von) fragt · seit \(TeamLogik.seit(fs.compactMap(\.seit).min(), stand))") {}
                             .onTapGesture { if let f = fs.first { frage(f) } }
                     }
                     ForEach(team.filter { $0.zustand == "frei" && ($0.zuletzt?.um ?? 0) >= (stand.tag_beginn ?? 0) }, id: \.name) { m in
@@ -169,7 +169,7 @@ struct EntscheidenSeite: View {
                     if let o, let t = o.text {
                         HStack(alignment: .top, spacing: 10) {
                             SenecaPunkt().padding(.top, 6)
-                            Text("Seneca empfiehlt: \(t.lowercased()).").font(Sundartha.grotesk(15)).zeilenHoehe(22, schrift: 15).foregroundStyle(TafelFarbe.akzent)
+                            Text((["Seneca empfiehlt: \(t.lowercased())."] + [frage.zeit].compactMap { $0 }).joined(separator: " ")).font(Sundartha.grotesk(15)).zeilenHoehe(22, schrift: 15).foregroundStyle(TafelFarbe.akzent).fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.top, 20)
                         .frame(maxWidth: .infinity, alignment: .leading)
