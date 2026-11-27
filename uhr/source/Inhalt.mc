@@ -29,6 +29,10 @@ module Inhalt {
         for (var i = 0; i < neue.size(); i += 1) {
             zeilen.add({"id" => null, "x" => neue[i], "meta" => "neu · wartet auf iPhone", "erledigt" => false});
         }
+        var sprache = Sprache.wartet();
+        if (sprache != null) {
+            zeilen.add({"id" => null, "x" => "Sprachnotiz " + Zeit.dauer(sprache), "meta" => "wartet auf iPhone", "erledigt" => false});
+        }
         return zeilen;
     }
 

@@ -98,7 +98,7 @@ class TodoAnsicht extends ListenAnsicht {
 
     function menue() as Void {
         var vorlagen = Inhalt.vorlagen();
-        var eintraege = [] as Array<Array>;
+        var eintraege = [[:sprechen, "Sprechen"]] as Array<Array>;
         for (var i = 0; i < vorlagen.size(); i += 1) {
             eintraege.add([i, vorlagen[i]]);
         }
@@ -109,7 +109,9 @@ class TodoAnsicht extends ListenAnsicht {
     }
 
     function vorlageGewaehlt(auswahl as Object?) as Void {
-        if (auswahl instanceof Number) {
+        if (auswahl == :sprechen) {
+            Ansichten.oeffnen(new SprechenAnsicht());
+        } else if (auswahl instanceof Number) {
             var text = Inhalt.vorlagen()[auswahl] as String;
             angelegt(Todo.anlegen(text), text);
         } else {

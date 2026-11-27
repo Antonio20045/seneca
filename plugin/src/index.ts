@@ -24,7 +24,7 @@ import { githubEingang } from "./quellen/github.ts";
 import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
-import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
+import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln, uhrSprache, type Antwort } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
 import { mitarbeiterVerwalten, type Eingabe } from "./zugang/mitarbeiter.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
@@ -195,7 +195,7 @@ export default {
       werkzeugProtokoll(db, ctx.sessionKey ?? "", event.toolName, event.params, event.durationMs);
     });
     api.on("message_received", (event, ctx) => mitlesen(db, ctx.channelId, event));
-    const route = (path: string, verarbeite: (roh: Buffer, kopf: IncomingHttpHeaders) => { status: number; inhalt?: object; kopf?: Record<string, string> }) =>
+    const route = (path: string, verarbeite: (roh: Buffer, kopf: IncomingHttpHeaders) => Promise<Antwort> | { status: number; inhalt?: object; kopf?: Record<string, string> }) =>
       api.registerHttpRoute({ path, auth: "plugin", match: "exact", handler: async (req, res) => {
         const teile: Buffer[] = [];
         let groesse = 0;
@@ -204,7 +204,7 @@ export default {
           if (groesse > regelZahl("http_anfrage_max_kb") * 1024) break;
           teile.push(t as Buffer);
         }
-        const a = groesse > regelZahl("http_anfrage_max_kb") * 1024 ? { status: 413 } : verarbeite(Buffer.concat(teile), req.headers);
+        const a = groesse > regelZahl("http_anfrage_max_kb") * 1024 ? { status: 413 } : await verarbeite(Buffer.concat(teile), req.headers);
         res.writeHead(a.status, { "content-type": "application/json", ...a.kopf });
         res.end(a.inhalt ? JSON.stringify(a.inhalt) : undefined);
         return true;
@@ -213,6 +213,7 @@ export default {
     const laufGeprueft = (kopf: IncomingHttpHeaders) => schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) === wert(db, `uhr:${LAUF}`)?.wert;
     route("/seneca/uhr/v1/zifferblatt", (_roh, kopf) => laufGeprueft(kopf) ? { status: 200, inhalt: zifferblattSicht(db, uhr.jetzt()) } : { status: 401, inhalt: { f: "unbekannt" } });
     route("/seneca/uhr/v1/sonde", (roh, kopf) => !laufGeprueft(kopf) ? { status: 401, inhalt: { f: "unbekannt" } } : !String(kopf["content-type"] ?? "").includes("json") ? { status: 200, inhalt: { n: roh.length } } : { status: 200, inhalt: { ok: wertSetzen(db, "uhr-sonde", JSON.stringify({ ...JSON.parse(wert(db, "uhr-sonde")?.wert ?? "{}"), [String(JSON.parse(roh.toString("utf8")).k)]: JSON.parse(roh.toString("utf8")) }), "uhr") } });
+    route("/seneca/uhr/v1/sprache", (roh, kopf) => uhrSprache(db, roh, kopf, async (filePath) => (await (await import("openclaw/plugin-sdk/media-understanding-runtime")).transcribeAudioFile({ filePath, cfg: api.config, language: "de" })).text));
     route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));

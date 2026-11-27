@@ -164,7 +164,7 @@ class Bedienung extends WatchUi.BehaviorDelegate {
 
 module Bereiche {
     function neu(nummer as Number) as Ansicht {
-        return nummer == 1 ? new TodoAnsicht() : nummer == 2 ? new UebungenAnsicht(false) : nummer == 3 ? new LesenAnsicht() : new TeamAnsicht();
+        return nummer == 1 ? new TodoAnsicht() : nummer == 2 ? new PlanAnsicht() : nummer == 3 ? new LesenAnsicht() : new TeamAnsicht();
     }
 
     function schritt(ansicht as Ansicht, richtung as Number) as Void {

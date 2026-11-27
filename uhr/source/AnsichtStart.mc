@@ -57,7 +57,11 @@ class StartAnsicht extends ListenAnsicht {
         ListenAnsicht.onShow();
         var ziel = _ziel;
         _ziel = null;
-        if (ziel == 1 || ziel == 2) {
+        if (ziel == 2) {
+            Ansichten.oeffnen(new SprechenAnsicht());
+            return;
+        }
+        if (ziel == 1) {
             Ansichten.oeffnen(new TodoAnsicht());
             return;
         }
@@ -96,11 +100,9 @@ class StartAnsicht extends ListenAnsicht {
     }
 
     function training() as Dictionary {
-        if (Training.laeuft()) {
-            return {"titel" => "Training", "unter" => "läuft · " + Training.saetzeText() + " · " + Zeit.dauer(Training.dauer()), "klein" => "Training · " + Training.saetzeText(), "buch" => ""};
-        }
-        var zuletzt = Verlauf.letztesTraining();
-        return {"titel" => "Training", "unter" => zuletzt.length() > 0 ? zuletzt : Inhalt.uebungen().size().toString() + " Übungen bereit", "klein" => "Training", "buch" => ""};
+        var naechstes = Workouts.naechstes();
+        var unter = naechstes != null ? Zeit.uhrzeit(naechstes[0] as Number) + " " + Workouts.name(naechstes) : Workouts.heute().size() > 0 ? "heute erledigt" : "kein Training geplant";
+        return {"titel" => "Training", "unter" => unter, "klein" => "Training", "buch" => ""};
     }
 
     function lesen() as Dictionary {
@@ -153,8 +155,7 @@ class StartAnsicht extends ListenAnsicht {
         if (art == :frage) {
             Ansichten.oeffnen(new EntscheidungAnsicht(Frage.offen() as Dictionary));
         } else if (art == :training) {
-            Training.starten();
-            Ansichten.oeffnen(new UebungenAnsicht(false));
+            Ansichten.oeffnen(new PlanAnsicht());
         } else if (art == :lesen) {
             Ansichten.oeffnen(new LesenAnsicht());
         } else {
