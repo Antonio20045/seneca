@@ -8,6 +8,14 @@ import { regelMs, regelText, regelZahl } from "../regeln.ts";
 type Handlung = { kennung: string; geraet: string; art: string; ziel?: string; wert?: unknown; zeit_geraet?: number; gesehen_revision?: number };
 type Wert = Record<string, unknown>;
 
+const ja = (f: (db: Register, h: Handlung) => unknown) => (db: Register, h: Handlung) => (f(db, h), "angenommen");
+const auftrag = (nach: string, felder: (h: Handlung) => Record<string, number> = () => ({})) => ja((db, h) => {
+  uebergang(db, "auftrag", String(h.ziel), nach, h.art, felder(h));
+  if (typeof h.wert === "string" && h.wert) ereignis(db, { art: "entscheidung", auftrag_id: String(h.ziel), geraet: h.geraet, schluessel: h.kennung, satz: h.wert, daten: { text: h.wert, art: h.art } });
+});
+const todo = (aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen") => (db: Register, h: Handlung) =>
+  todoSetzen(db, { aktion, id: h.ziel, felder: (h.wert ?? {}) as Record<string, string | number | null>, gesehen_revision: h.gesehen_revision, geraet: h.geraet }).ergebnis === "ueberholt" ? "ueberholt" : "angenommen";
+
 function antwort(db: Register, h: Handlung): string {
   const w = (h.wert ?? {}) as Wert;
   const jetzt = uhr.jetzt();
@@ -31,36 +39,13 @@ function rueckgaengig(db: Register, h: Handlung): string {
   return "angenommen";
 }
 
-function auftrag(nach: string, felder: (h: Handlung) => Record<string, number> = () => ({})) {
-  return (db: Register, h: Handlung) => {
-    uebergang(db, "auftrag", String(h.ziel), nach, h.art, felder(h));
-    if (typeof h.wert === "string" && h.wert) ereignis(db, { art: "entscheidung", auftrag_id: String(h.ziel), geraet: h.geraet, schluessel: h.kennung, satz: h.wert, daten: { text: h.wert, art: h.art } });
-    return "angenommen";
-  };
-}
 
-function todo(aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen") {
-  return (db: Register, h: Handlung) => {
-    const r = todoSetzen(db, { aktion, id: h.ziel, felder: (h.wert ?? {}) as Record<string, string | number | null>, gesehen_revision: h.gesehen_revision, geraet: h.geraet });
-    return r.ergebnis === "ueberholt" ? "ueberholt" : "angenommen";
-  };
-}
+const eintrag = (a: (h: Handlung) => { werte?: object; zustand?: string }) => ja((db, h) => eintragAendern(db, String(h.ziel), a(h), h.geraet));
 
-function eintrag(a: (h: Handlung) => { werte?: object; zustand?: string }) {
-  return (db: Register, h: Handlung) => {
-    eintragAendern(db, String(h.ziel), a(h), h.geraet);
-    return "angenommen";
-  };
-}
-
-function setze(schluessel: (h: Handlung) => string, dauer?: () => number) {
-  return (db: Register, h: Handlung) => {
-    const w = h.wert as Wert | string;
-    const wert = typeof w === "string" ? w : String(w?.wert ?? "ja");
-    wertSetzen(db, schluessel(h), wert, h.geraet, dauer ? uhr.jetzt() + dauer() : (typeof w === "object" ? (w?.bis as number | undefined) : undefined));
-    return "angenommen";
-  };
-}
+const setze = (schluessel: (h: Handlung) => string, dauer?: () => number) => ja((db, h) => {
+  const w = h.wert as Wert | string;
+  wertSetzen(db, schluessel(h), typeof w === "string" ? w : String(w?.wert ?? "ja"), h.geraet, dauer ? uhr.jetzt() + dauer() : (typeof w === "object" ? (w?.bis as number | undefined) : undefined));
+});
 
 function wegSetzen(db: Register, uid: string, w: Wert, geraet: string): void {
   wertSetzen(db, `wegzeit:${uid}`, String(Math.round(Number(w.weg_min))), geraet);
@@ -87,24 +72,15 @@ function terminVerschieben(db: Register, kennung: string, uid: string, w: Wert):
 
 const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "frage.antwort": antwort,
-  "frage.gesehen": (db, h) => {
-    ereignis(db, { art: "zustellung", frage_id: h.ziel, geraet: h.geraet, daten: { was: "gesehen" } });
-    return "angenommen";
-  },
+  "frage.gesehen": ja((db, h) => ereignis(db, { art: "zustellung", frage_id: h.ziel, geraet: h.geraet, daten: { was: "gesehen" } })),
   rueckgaengig,
   "abnahme.passt": auftrag("erledigt"),
   "abnahme.nachbessern": auftrag("bereit", () => ({ naechster_anlass: uhr.jetzt() })),
-  "abnahme.ueberspringen": (db, h) => {
-    auftragSetzen(db, String(h.ziel), { naechster_anlass: uhr.jetzt() }, "Im Bündel übersprungen.");
-    return "angenommen";
-  },
+  "abnahme.ueberspringen": ja((db, h) => auftragSetzen(db, String(h.ziel), { naechster_anlass: uhr.jetzt() }, "Im Bündel übersprungen.")),
   "auftrag.verwerfen": auftrag("verworfen"),
   "auftrag.anhalten": auftrag("geparkt"),
   "auftrag.fortsetzen": auftrag("bereit", () => ({ naechster_anlass: uhr.jetzt() })),
-  "kostenrahmen.erhoehen": (db, h) => {
-    auftragSetzen(db, String(h.ziel), { kostenrahmen_cent: Number(h.wert) }, "Rahmen von Antonio gesetzt.");
-    return "angenommen";
-  },
+  "kostenrahmen.erhoehen": ja((db, h) => auftragSetzen(db, String(h.ziel), { kostenrahmen_cent: Number(h.wert) }, "Rahmen von Antonio gesetzt.")),
   "todo.anlegen": todo("anlegen"),
   "todo.aendern": todo("aendern"),
   "todo.erledigt": todo("erledigt"),
@@ -129,14 +105,8 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     if (w.weg) wegSetzen(db, uid, w.weg as Wert, h.geraet);
     return "angenommen";
   },
-  "termin.verschieben": (db, h) => {
-    const w = h.wert as Wert;
-    return terminVerschieben(db, h.kennung, String(h.ziel), w ?? {});
-  },
-  "termin.weg": (db, h) => {
-    wegSetzen(db, String(h.ziel), h.wert as Wert, h.geraet);
-    return "angenommen";
-  },
+  "termin.verschieben": (db, h) => terminVerschieben(db, h.kennung, String(h.ziel), (h.wert as Wert) ?? {}),
+  "termin.weg": ja((db, h) => wegSetzen(db, String(h.ziel), h.wert as Wert, h.geraet)),
   "termin.zuruecklegen": (db, h) => {
     wertSetzen(db, `zurueckgelegt:${h.ziel}`, "ja", h.geraet);
     return terminVerschieben(db, h.kennung, String(h.ziel), h.wert as Wert);
@@ -175,22 +145,12 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   },
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
   "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
-  "gespraech.neu": (db, h) => {
-    if (!/^agent:[a-z0-9_-]+:[^\s]+$/.test(String(h.ziel))) return "abgelehnt:sitzung_unbekannt";
-    wertSetzen(db, `gespraech:neu:${h.kennung}`, String(h.ziel), h.geraet);
-    return "angenommen";
-  },
-  "anzeige.weg": (db, h) => {
-    anzeigeEntfernen(db, String(h.ziel), h.geraet);
-    return "angenommen";
-  },
-  "anzeige.angesehen": (db, h) => (anzeigeGesehen(db, String(h.ziel)), "angenommen"),
+  "gespraech.neu": (db, h) => /^agent:[a-z0-9_-]+:[^\s]+$/.test(String(h.ziel)) ? ja((d, x) => wertSetzen(d, `gespraech:neu:${x.kennung}`, String(x.ziel), x.geraet))(db, h) : "abgelehnt:sitzung_unbekannt",
+  "anzeige.weg": ja((db, h) => anzeigeEntfernen(db, String(h.ziel), h.geraet)),
+  "anzeige.angesehen": ja((db, h) => anzeigeGesehen(db, String(h.ziel))),
 };
 
-function eingang(db: Register, h: Handlung, quelle: string): string {
-  ereignis(db, { art: "eingang", geraet: h.geraet, schluessel: h.kennung, daten: { quelle, verweis: h.wert } });
-  return "angenommen";
-}
+const eingang = (db: Register, h: Handlung, quelle: string) => ja((d, x) => ereignis(d, { art: "eingang", geraet: x.geraet, schluessel: x.kennung, daten: { quelle, verweis: x.wert } }))(db, h);
 
 export function handeln(db: Register, h: Handlung): { ergebnis: string; revision: number } {
   const art = ARTEN[h.art];

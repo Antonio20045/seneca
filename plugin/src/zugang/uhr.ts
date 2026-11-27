@@ -20,16 +20,9 @@ const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string;
   "frage.antwort": (p) => ({ ziel: String(p.f), wert: { wahl: p.w, lokal: true } }),
 };
 
-function kurz(e: string): string {
-  if (e === "angenommen") return "ok";
-  if (e === "doppelt") return "schon";
-  if (e === "ueberholt") return "ub";
-  return e.startsWith("schon_beantwortet:") ? `sb:${e.slice("schon_beantwortet:".length)}` : `nein:${e.replace("abgelehnt:", "")}`;
-}
-
-function beantwortet(db: Register, frageId: string): boolean {
-  return db.prepare("SELECT 1 FROM frage WHERE id = ? AND zustand = 'beantwortet'").get(frageId) !== undefined;
-}
+const KURZ: Record<string, string> = { angenommen: "ok", doppelt: "schon", ueberholt: "ub" };
+const kurz = (e: string) => KURZ[e] ?? (e.startsWith("schon_beantwortet:") ? `sb:${e.slice("schon_beantwortet:".length)}` : `nein:${e.replace("abgelehnt:", "")}`);
+const beantwortet = (db: Register, frageId: string) => db.prepare("SELECT 1 FROM frage WHERE id = ? AND zustand = 'beantwortet'").get(frageId) !== undefined;
 
 export function schluesselHash(schluessel: string): string {
   return createHash("sha256").update(schluessel).digest("hex");
