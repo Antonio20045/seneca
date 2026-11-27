@@ -11,7 +11,7 @@ type Anfrage = { v?: number; g?: string; r?: number; zs?: string; k?: Koerper; h
 export type Antwort = { status: number; inhalt: object; kopf?: Record<string, string> };
 
 const anfragen = new Map<string, number[]>();
-const LAUF = "trail";
+export const LAUF = "trail";
 
 const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string; wert?: unknown }> = {
   "eintrag.neu": (p) => ({ wert: { art: p.k, werte: p } }),
@@ -96,13 +96,6 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   koerperSetzen(db, d.k);
   const r = revision(db);
   return { status: 200, inhalt: d.r === r || d.zs === LAUF ? { q, r, u: 1 } : { q, r, s: uhrStand(jetzt) } };
-}
-
-export function uhrZifferblatt(db: Register, kopf: Record<string, string | string[] | undefined>, sicht: (t: number) => object): Antwort {
-  const token = String(kopf.authorization ?? "").replace(/^Bearer /, "");
-  const gespeichert = wert(db, `uhr:${LAUF}`)?.wert;
-  if (!gespeichert || schluesselHash(token) !== gespeichert) return { status: 401, inhalt: { f: "unbekannt" } };
-  return { status: 200, inhalt: sicht(uhr.jetzt()) };
 }
 
 function aktivitaetSetzen(db: Register, zs: string | undefined, jetzt: number): void {

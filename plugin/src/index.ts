@@ -9,8 +9,9 @@ import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, gespraecheJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
 import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, werkzeugFrage, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
-import { lesenWerkzeug, ruhe, stand, uhrStand, zifferblattStand } from "./pforte/stand.ts";
+import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
+import { weg } from "./pforte/wochenplan.ts";
 import { verstehen } from "./pforte/verstehen.ts";
 import { pushSender } from "./pforte/push.ts";
 import { zustellenJob, type Poster } from "./pforte/zustellen.ts";
@@ -22,13 +23,13 @@ import { githubEingang } from "./quellen/github.ts";
 import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
-import { uhrAbgleich, uhrAbholen, uhrKoppeln, uhrZifferblatt } from "./zugang/uhr.ts";
+import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
-import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
+import { eintraegeSeit, revision, termineAm, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
-import { regelMs, regelText, regelZahl } from "./regeln.ts";
+import { naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
 type Ausfuehren = (db: Register, k: Kontext, p: Record<string, unknown>) => unknown;
@@ -120,6 +121,13 @@ function skillLeser(wer: string, arbeitsart: string): string | undefined {
 
 const uebungen = (db: Register) => [...new Set(eintraegeSeit(db, 0).filter((e) => e.art === "satz").map((e) => String(JSON.parse(String(e.werte)).u)).reverse())];
 const uhrSicht = (db: Register, t: number) => ({ ...uhrStand(db, t), tr: uebungen(db).slice(0, regelZahl("uhr_uebungen")).map((u) => uebung(db, t, u)?.uhr).filter(Boolean), l: buch(db, t)?.uhr ?? null });
+const zifferblattSicht = (db: Register, t: number) => {
+  const heute = termineAm(db, t).filter((x) => !x.ganztag), erledigt = heute.find((x) => /^Training: .* ✓$/.test(x.titel));
+  const los = (x: (typeof heute)[number]) => weg(db, x).los_ms, art = (x: (typeof heute)[number]) => (/^Training: /.test(x.titel) ? (x.titel.endsWith(" ✓") ? "te" : "tr") : "t");
+  const eintrag = (x: (typeof heute)[number]) => [sekundenAusMs(x.start), sekundenAusMs(x.ende), x.titel.replace(/^Training: /, "").replace(/ ✓$/, ""), art(x), los(x) === null ? null : sekundenAusMs(Number(los(x)))];
+  return { n: uhrStand(db, t).n, tf: erledigt ? [sekundenAusMs(erledigt.start), sekundenAusMs(erledigt.ende)] : null,
+    tg: [...heute.filter((x) => x.ende > t), ...termineAm(db, naechsteUhrzeit(regelText("tag_grenze"), t)).filter((x) => !x.ganztag)].slice(0, regelZahl("uhr_termine") + 2).map(eintrag) };
+};
 
 export default {
   id: "seneca",
@@ -194,7 +202,7 @@ export default {
         return true;
       } });
     route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrSicht(db, t)));
-    route("/seneca/uhr/v1/zifferblatt", (_roh, kopf) => uhrZifferblatt(db, kopf, (t) => zifferblattStand(db, t)));
+    route("/seneca/uhr/v1/zifferblatt", (_roh, kopf) => schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) === wert(db, `uhr:${LAUF}`)?.wert ? { status: 200, inhalt: zifferblattSicht(db, uhr.jetzt()) } : { status: 401, inhalt: { f: "unbekannt" } });
     route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));

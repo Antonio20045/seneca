@@ -267,21 +267,6 @@ export function uhrStand(db: Register, jetzt: number) {
   };
 }
 
-export function zifferblattStand(db: Register, jetzt: number) {
-  const heute = termineAm(db, jetzt).filter((x) => !x.ganztag);
-  const erledigt = heute.find((x) => /^Training: .* ✓$/.test(x.titel));
-  const art = (titel: string) => (/^Training: /.test(titel) ? (titel.endsWith(" ✓") ? "te" : "tr") : "t");
-  const eintrag = (x: (typeof heute)[number]) => {
-    const los = weg(db, x).los_ms;
-    return [sekundenAusMs(x.start), sekundenAusMs(x.ende), x.titel.replace(/^Training: /, "").replace(/ ✓$/, ""), art(x.titel), los === null ? null : sekundenAusMs(Number(los))];
-  };
-  return {
-    n: brauchtDich(db, jetzt).length,
-    tf: erledigt ? [sekundenAusMs(erledigt.start), sekundenAusMs(erledigt.ende)] : null,
-    tg: [...heute.filter((x) => x.ende > jetzt), ...termineAm(db, jetzt + msAusMinuten(24 * 60)).filter((x) => !x.ganztag)].slice(0, regelZahl("uhr_termine") + 2).map(eintrag),
-  };
-}
-
 export function lesenWerkzeug(db: Register, was: string, id?: string, wer?: string): string {
   const jetzt = uhr.jetzt(), zeile = (a: Zeile) => `${a.id} „${a.titel}“ (${a.projekt ?? "ohne Projekt"}) ist ${a.zustand}. Wortlaut: ${a.wortlaut}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
   if (was === "auftrag" && id) return zeile(hole(db, "auftrag", id));
