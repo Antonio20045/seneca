@@ -50,7 +50,7 @@ class SprechenAnsicht extends Ansicht {
             return;
         }
         phase = :hoert;
-        _beginn = System.getTimer();
+        _beginn = Zeit.jetzt();
         Signal.kurz();
         _takt.start(method(:tick), 250, true);
     }
@@ -76,7 +76,7 @@ class SprechenAnsicht extends Ansicht {
     }
 
     function sekunden() as Number {
-        return phase == :hoert ? (System.getTimer() - _beginn) / 1000 : _sekunden;
+        return phase == :hoert ? Zeit.jetzt() - _beginn : _sekunden;
     }
 
     function tick() as Void {
