@@ -195,7 +195,6 @@ buendel_abnahme_s 50 vorschlag
 buendel_frage_min 3 vorschlag
 koerper_schwer_ab 50 vorschlag
 anruf_worte anruf,telefonat,call vorschlag
-satz_ruhe_ab_min 60 vorschlag
 vorschlag_verfaellt_uhr 18:00
 zu_spaet_nach_min 6
 zu_spaet_runden_min 5

@@ -1,7 +1,7 @@
 import { hole, letztesTraining, termineAm, todos, wert, type Zeile } from "../register/lesen.ts";
-import { passtNicht } from "./aufgaben.ts";
+import { passtNicht, wann } from "./aufgaben.ts";
 import type { Register } from "../register/schema.ts";
-import { regelListe, regelMs, regelZahl } from "../regeln.ts";
+import { regelMs, regelZahl } from "../regeln.ts";
 import { einplanen, istFokus } from "./planen.ts";
 
 export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn", "zwanzig"];
@@ -33,23 +33,14 @@ function artikel(titel: string): [string, string] {
   return [`der ${titel}`, "er"];
 }
 
-function kurzName(titel: string): string {
-  return regelListe("anruf_worte").some((w) => titel.toLowerCase().includes(w)) ? "Ein Anruf" : titel;
-}
-
-function dann(a: Termin, b: Termin): string {
-  if (b.start - a.ende < regelMs("satz_ruhe_ab_min")) return `dann ${artikel(b.titel)[0]}.`;
-  return `dann Ruhe bis ${zumWort(b.titel)}.`;
-}
-
 export function zumWort(titel: string): string {
   const wort = titel.split(" ")[0];
   return `${artikel(wort)[1] === "sie" ? "zur" : "zum"} ${wort}`;
 }
 
-export function heute(db: Register, ruhe: { grund: string; bis: number } | undefined, jetzt: number) {
+export function heute(db: Register, ruhe: { grund: string; bis: number } | undefined, jetzt: number, tagBeginn: number, fragen: number) {
   const ab = ruhe?.grund === "fokus" ? ruhe.bis : jetzt;
-  const [a, b] = termineAm(db, jetzt).filter((t: Termin) => !t.ganztag && t.start >= ab && !istFokus(t));
+  const termine = termineAm(db, jetzt).filter((t: Termin) => !t.ganztag && t.start >= ab && !istFokus(t)), [a, b] = termine;
   if (ruhe?.grund === "fokus") {
     const vor = `Fokus bis ${stundeAlsWort(ruhe.bis)}.`;
     if (!a) return { satz: [vor, "Danach ist der Tag frei."], satz_folge: [vor, "Danach ist der Tag frei."] };
@@ -60,10 +51,11 @@ export function heute(db: Register, ruhe: { grund: string; bis: number } | undef
       satz_folge: [vor, b ? `Danach zuerst ${erster}, dann ${artikel(b.titel)[0]}.` : `Danach ${erster}.`],
     };
   }
-  const offen = todos(db, "offen").filter((t) => !t.wiederkehrend);
-  const n = ZAHLWORT[offen.length] ?? String(offen.length);
-  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."]
-    : offen.length ? [`${n[0].toUpperCase()}${n.slice(1)} für heute.`, passtNicht(einplanen(db, offen, jetzt))] : ["Heute steht", "nichts mehr an."];
+  const offen = todos(db, "offen").filter((t) => !t.wiederkehrend && wann(t, tagBeginn) === "heute"), plan = einplanen(db, offen, jetzt);
+  const zahl = (n: number, eins: string, viele: string) => (n ? [n === 1 ? eins : `${ZAHLWORT[n] ?? n} ${viele}`] : []);
+  const teile = [...zahl(fragen, "eine Frage", "Fragen"), ...zahl(offen.length, "ein To-do", "To-dos"), ...zahl(termine.length, "ein Termin", "Termine")].join(", ");
+  const rest = plan.some((p) => !p.geplant_von) ? passtNicht(plan) : a ? `Ab ${uhrzeit(Number(termine.at(-1)?.ende))} gehört der Tag dir.` : "Der Rest des Tages gehört dir.";
+  const satz = teile ? [`${teile[0].toUpperCase()}${teile.slice(1)}.`, rest] : ["Heute steht", "nichts mehr an."];
   return { satz, satz_folge: satz };
 }
 

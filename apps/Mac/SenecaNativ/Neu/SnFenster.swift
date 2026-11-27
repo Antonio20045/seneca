@@ -454,7 +454,8 @@ struct SnHeuteMitFenster: View {
                             .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let s = store.stand {
                         SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
-                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
+                                     antworte: { store.antworte(frage: $0, wahl: $1) }, handle: { store.handle($0, ziel: $1, text: $2) },
+                                     zumChat: { modell.zeigeMehr($0) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
                     } else {
                         SnHeuteSkelett()
                     }

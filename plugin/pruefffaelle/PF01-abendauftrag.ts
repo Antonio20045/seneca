@@ -71,7 +71,7 @@ test("PF01 Briefing und Rückblick: Daten aus dem Register, Text in Berichte und
   um("06:40");
   const lauf = await sitzung("briefing");
   const tag = JSON.parse(String(await p.werkzeug("seneca_lesen", lauf, "seneca", { was: "tag" })));
-  assert.deepEqual(tag.satz, ["Eine für heute.", "Seneca hat sie über den Tag verteilt."]);
+  assert.deepEqual(tag.satz, ["Ein To-do.", "Der Rest des Tages gehört dir."]);
   assert.deepEqual(tag.todos.map((t: { titel: string; ueberfaellig: boolean }) => [t.titel, t.ueberfaellig]), [["Steuerberater anrufen", true]]);
   assert.deepEqual(tag.jeden_tag, ["Lesen"]);
   const text = "Guten Morgen. Ein freier Tag, der Steuerberater ist seit einer Woche überfällig.";

@@ -66,7 +66,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
         public var heute: [Entschieden]?; public var danach: String?; public var danach_kurz: String?
     }
-    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var frage_id: String? }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var frage_id: String?; public var art: String? }
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
@@ -151,7 +151,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Aufgaben: Codable, Equatable, Sendable {
         public struct Gruppe: Codable, Equatable, Sendable { public var titel: String; public var zeit: String; public var ids: [String] }
         public struct Fertig: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var bereich: String?; public var von: String?; public var um: Double?; public var satz: String? }
-        public struct Taeglich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var erledigt: Bool }
+        public struct Taeglich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var erledigt: Bool; public var ab: String?; public var dauer_min: Double? }
         public struct Zaehler: Codable, Equatable, Sendable { public var morgen: Int; public var woche: Int; public var ohne_tag: Int }
         public var satz: [String]?; public var gruppe: Gruppe?; public var heute: [String]?; public var erledigt: [Fertig]?
         public var jeden_tag: [Taeglich]?; public var zaehler: Zaehler?

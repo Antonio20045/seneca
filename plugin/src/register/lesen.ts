@@ -46,7 +46,7 @@ export function aktiveLaeufe(db: Register): Zeile[] {
 }
 
 export function beendeteLaeufe(db: Register, mitarbeiter: string, seit: number): Zeile[] {
-  return alle(db, `SELECT lauf.*, auftrag.titel FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
+  return alle(db, `SELECT lauf.*, auftrag.titel, auftrag.arbeitsart FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
 }
 
 export function laeufeSeit(db: Register, mitarbeiter: string, seit: number): Zeile[] {

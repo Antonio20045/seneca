@@ -71,8 +71,8 @@ enum HeuteBild {
                         }
                     case "start-weiter", "start-antwortet-nicht", "start-wieder":
                         let art = env["SENECA_SEITE"] ?? ""
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {},
-                                     neu: art == "start-wieder" ? Set((s.team ?? []).filter { $0.name == "Prüfer" }.map(SnHeuteTafel.kennung)) : []).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zurArbeit: {},
+                                     neu: art == "start-wieder" ? Set((s.team ?? []).filter { $0.name == "Prüfer" }.map(SnHeuteTafel.kennung)) : [], laeuft: false).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
                         SnGeruestBild(stand: s)
                         SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
                     case "meeting-ergebnis":
@@ -89,7 +89,7 @@ enum HeuteBild {
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)
                     default:
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {})
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zurArbeit: {}, laeuft: false)
                         SnGeruestBild(stand: s)
                     }
                 }

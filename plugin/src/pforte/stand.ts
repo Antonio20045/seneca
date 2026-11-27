@@ -93,7 +93,7 @@ function team(db: Register, jetzt: number) {
     const urteil = JSON.parse(String(pruef?.ergebnis ?? "{}"));
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: getan(db, zuletzt), um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
+      zuletzt: zuletzt ? { satz: getan(db, zuletzt), um: zuletzt.beendet_um, art: zuletzt.arbeitsart } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
       ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null,
       arbeit: l ? arbeitSicht(db, l, name, tagBeginn, jetzt) : null,
@@ -190,7 +190,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     zaehler: { braucht: braucht.length },
     wartet: wartetSatz(db, [...braucht, ...fragen(db, "offen").filter((f) => !braucht.some((x) => x.id === f.id))].filter((f) => f.zustand === "offen")),
     ruhe: ruhe(db, jetzt) ?? null,
-    heute: heute(db, ruhe(db, jetzt), jetzt),
+    heute: heute(db, ruhe(db, jetzt), jetzt, tagBeginn, braucht.length + b.fragen.length),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     vorbei: ["abgelaufen", "zurueckgezogen"].flatMap((z) => fragen(db, z)).map((f) => ({ id: f.id, text: f.text, zustand: f.zustand, frist: f.frist, satz: f.grund,
       um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
