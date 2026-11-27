@@ -2,7 +2,7 @@ import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitz
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
-import { bauregeln, mandat, rolle } from "../team.ts";
+import { bauregeln, mandat, mitarbeiter, rolle } from "../team.ts";
 import { aboReihenfolge, limitMerken } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
@@ -119,8 +119,8 @@ function anlassSatz(db: Register, a: Zeile): string {
 }
 
 export function kontext(db: Register, sitzung: string, skill: SkillLeser): string | undefined {
-  const l = laufZurSitzung(db, sitzung);
-  if (!l || !AKTIV.includes(String(l.zustand))) return undefined;
+  const l = laufZurSitzung(db, sitzung), wer0 = sitzung.split(":")[1];
+  if (!l || !AKTIV.includes(String(l.zustand))) return wer0 !== regelText("dauerauftraege_von") && mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
   const wer = String(l.mitarbeiter);
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const m = mandat(wer);
