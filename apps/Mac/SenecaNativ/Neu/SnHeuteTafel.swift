@@ -392,11 +392,7 @@ enum SnTageskalender {
         (s.termine ?? []).filter { $0.ganztag != true && Calendar.current.isDate(HeuteTafelLogik.datum($0.start), inSameDayAs: HeuteTafelLogik.datum(jetzt)) }.sorted { $0.start < $1.start }
     }
 
-    static func istMeeting(_ t: SenecaStand.Termin) -> Bool {
-        guard t.art != "fokus" else { return false }
-        return !(t.teilnehmer ?? []).isEmpty || !(t.mit ?? []).isEmpty
-            || t.titel.range(of: #"(?i)\b(call|meeting|zoom|teams|meet|besprechung|telefonat|jour fixe|abstimmung|sync|standup)\b|\bmit [A-ZÄÖÜ]"#, options: .regularExpression) != nil
-    }
+    static func istMeeting(_ t: SenecaStand.Termin) -> Bool { t.meeting != nil }
 
     static func stunde(_ ms: Double) -> Double {
         let k = Calendar.current.dateComponents([.hour, .minute], from: HeuteTafelLogik.datum(ms))

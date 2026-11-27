@@ -1,4 +1,7 @@
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
+import { rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { revision, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { wertSetzen } from "../register/schreiben.ts";
@@ -11,6 +14,7 @@ type Anfrage = { v?: number; g?: string; r?: number; zs?: string; k?: Koerper; h
 export type Antwort = { status: number; inhalt: object; kopf?: Record<string, string> };
 
 const anfragen = new Map<string, number[]>();
+const stuecke = new Map<string, Buffer[]>();
 export const LAUF = "trail";
 
 const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string; wert?: unknown }> = {
@@ -105,4 +109,21 @@ function koerperSetzen(db: Register, k: Koerper | undefined): void {
   const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "{\"zeit\":0}");
   if (morgens.zeit < letzteUhrzeit(regelText("tag_grenze"), msAusSekunden(k.bb[1]))) wertSetzen(db, "koerper:morgens", JSON.stringify({ body_battery: k.bb[0], zeit: msAusSekunden(k.bb[1]) }), "uhr");
   wertSetzen(db, "koerper", neu, "uhr");
+}
+
+export async function uhrSprache(db: Register, roh: Buffer, kopf: Record<string, string | string[] | undefined>, schreiben: (datei: string) => Promise<string | undefined>): Promise<Antwort> {
+  const geraet = String(kopf["x-geraet"] ?? ""), gespeichert = wert(db, `uhr:${geraet}`)?.wert;
+  if (!gespeichert || schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) !== gespeichert) return { status: 401, inhalt: { f: "unbekannt" } };
+  const json = String(kopf["content-type"] ?? "").includes("json");
+  const d = (json ? JSON.parse(roh.toString("utf8")) : { id: geraet, i: 0, n: 1, f: kopf["x-format"] }) as { id: string; i: number; n: number; b?: string; f?: string };
+  if (stuecke.size > regelZahl("uhr_warteschlange_max")) stuecke.clear();
+  const teile = stuecke.get(d.id) ?? [];
+  teile[d.i] = json ? Buffer.from(String(d.b), "base64") : roh;
+  stuecke.set(d.id, teile);
+  if (teile.filter(Boolean).length < d.n) return { status: 200, inhalt: { i: d.i } };
+  stuecke.delete(d.id);
+  const datei = join(tmpdir(), `seneca-uhr-${randomUUID()}.${d.f === "wav" ? "wav" : "ogg"}`);
+  writeFileSync(datei, Buffer.concat(teile));
+  const text = (await schreiben(datei).catch(() => undefined).finally(() => rmSync(datei, { force: true })))?.trim();
+  return text ? { status: 200, inhalt: { x: text } } : { status: 422, inhalt: { f: "nichts verstanden" } };
 }

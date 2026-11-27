@@ -33,6 +33,7 @@ class SenecaApp extends Application.AppBase {
         Math.srand(Zeit.jetzt() + System.getTimer());
         anmelden();
         Takt.starten();
+        Sprache.nachholen();
         _vordergrund = true;
         var start = new StartAnsicht();
         if (_vomZifferblatt != null) {

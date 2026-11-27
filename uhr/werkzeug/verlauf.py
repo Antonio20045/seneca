@@ -1,17 +1,50 @@
-# Seneca-Zifferblatt 1.4.0 (fenix 9 Pro Solar, MIP): Farbverlauf Weiss -> Navy als Streifen.
-# Eine Quelle fuer Entwurf und Uhr: `python3 verlauf.py <ordner>` schreibt die 12 Scheiben (280x32, Bayer 8x8)
-# und verlauf.xml. Die Uhr schiebt den Streifen mit dem Tag (GesichtMip.mc, gleiche Formel fuer die Schriftfarben).
-import math
+# Seneca-Zifferblatt 1.5.0 (fenix 9 Pro Solar, MIP): Farbverlauf Weiss -> Navy als Streifen, Uebergaenge als Blue-Noise-Korn.
+# Eine Quelle fuer Entwurf und Uhr: `python3 verlauf.py <ordner>` schreibt die 12 Scheiben (280x32, Blue-Noise-Maske 64x64
+# aus blaurauschen64.png) und verlauf.xml. Die Uhr schiebt den Streifen mit dem Tag (GesichtMip.mc, gleiche Formel fuer die Schriftfarben).
+import math, os
 W = 280
 L = 340          # Laenge des Verlaufs (Streifen-Pixel) von Weiss bis Navy
 BOGEN = 60       # rechts oben reicht das Licht weiter herab (App-Aufhellung)
 BOGEN_X, BOGEN_B = 213, 110
 H = 384          # Streifenhoehe (12 Scheiben a 32)
 SCHEIBE = 32
-BAYER = [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38],
-         [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25],
-         [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]]
-KETTE = [0x000055, 0x5555AA, 0xAAAAFF, 0xFFFFFF]
+RUHE = 0.6       # Anteil jeder Stufe, in dem das Korn vermittelt; sonst ruhige Flaeche
+KETTE = [0x000055, 0x0055AA, 0x55AAFF, 0xAAFFFF, 0xFFFFFF]
+MASKE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'blaurauschen64.png')
+_maske = None
+
+def void_cluster(n=64, sigma=1.6, seed=3):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:n, 0:n]
+    dx = np.minimum(xx, n - xx); dy = np.minimum(yy, n - yy)
+    K = np.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma))
+    def shift(i): y, x = divmod(i, n); return np.roll(np.roll(K, y, 0), x, 1)
+    P = np.zeros(n * n, bool); P[rng.choice(n * n, n * n // 10, replace=False)] = True
+    def energie(P): return np.real(np.fft.ifft2(np.fft.fft2(P.reshape(n, n).astype(float)) * np.fft.fft2(K))).ravel()
+    E = energie(P)
+    while True:
+        c = np.argmax(np.where(P, E, -1e9)); P[c] = False; E -= shift(c).ravel()
+        v = np.argmin(np.where(P, 1e9, E)); P[v] = True; E += shift(v).ravel()
+        if v == c: break
+    rang = np.zeros(n * n, int); eins = int(P.sum())
+    P1, E1 = P.copy(), E.copy()
+    for r in range(eins - 1, -1, -1):
+        c = np.argmax(np.where(P1, E1, -1e9)); P1[c] = False; E1 -= shift(c).ravel(); rang[c] = r
+    P2, E2 = P.copy(), E.copy()
+    for r in range(eins, n * n):
+        v = np.argmin(np.where(P2, 1e9, E2)); P2[v] = True; E2 += shift(v).ravel(); rang[v] = r
+    return rang.reshape(n, n)
+
+def maske():
+    global _maske
+    if _maske is None:
+        from PIL import Image
+        if not os.path.exists(MASKE):
+            Image.fromarray(void_cluster().astype('uint16')).save(MASKE)
+        werte = list(Image.open(MASKE).getdata())
+        _maske = [[(werte[y * 64 + x] + 0.5) / 4096 for x in range(64)] for y in range(64)]
+    return _maske
 
 def bogen(x):
     d = (x - BOGEN_X) / BOGEN_B
@@ -20,14 +53,16 @@ def bogen(x):
 def stufe(x, u, kette=KETTE):
     t = 1.0 - (u - bogen(x)) / L
     t = 0.0 if t < 0 else 1.0 if t > 1 else t
-    return (len(kette) - 1) * (0.6 * t + 0.4 * t * t * (3 - 2 * t))
+    v = (len(kette) - 1) * (0.6 * t + 0.4 * t * t * (3 - 2 * t))
+    i = int(v)
+    f = min(1.0, max(0.0, (v - i - (1 - RUHE) / 2) / RUHE))
+    return i + f if i < len(kette) - 1 else v
 
 def farbe_px(x, u, kette=KETTE):
     v = stufe(x, u, kette)
     i = int(v)
     if i >= len(kette) - 1: return kette[-1]
-    q = int((v - i) * 64)
-    return kette[i + 1] if BAYER[u % 8][x % 8] < q else kette[i]
+    return kette[i + 1] if v - i > maske()[u % 64][x % 64] else kette[i]
 
 def rgb(c): return ((c >> 16) & 255, (c >> 8) & 255, c & 255)
 
@@ -55,9 +90,9 @@ def paar(x, u):
 ROLLEN = {
     'TINTE': ([0x000055], [0xFFFFFF], 1.0),
     'LEISE': ([0x555555, 0x000055], [0xAAAAAA, 0xFFFFFF], 7.0),
-    'LINIE': ([0xAAAAAA, 0x5555AA, 0x000055], [0x0055AA, 0xAAAAFF, 0xFFFFFF], 1.6),
+    'LINIE': ([0x55AAAA, 0x0055AA, 0x000055], [0x0055AA, 0x55AAFF, 0xAAFFFF], 1.6),
     'WARNUNG': ([0xAA5500, 0x550000], [0xFFAA00], 3.0),
-    'a': ([0x0055AA, 0x0000AA, 0x000055], [0x55AAFF, 0xAAFFFF], 2.2),
+    'a': ([0x0055AA, 0x000055], [0x55AAFF, 0xAAFFFF], 2.2),
     't': ([0x55AA55, 0x005500], [0xAAFFAA], 2.2),
     's': ([0xAA5555, 0xAA0000, 0x550000], [0xFFAAAA], 2.2),
 }

@@ -62,6 +62,23 @@ enum SnBedienProbe {
         schreibe(protokoll, ordner)
     }
 
+    static func meeting(_ host: NSView, _ ordner: String) async {
+        var protokoll: [String] = []
+        func pruefe(_ was: String, _ ok: Bool) { protokoll.append((ok ? "OK      " : "FEHLER  ") + was) }
+        NSApp.setActivationPolicy(.accessory)
+        guard let f = host.window else { return }
+        f.setFrameOrigin(NSPoint(x: -6000, y: -6000))
+        f.makeKeyAndOrderFront(nil)
+        bild(host, "\(ordner)/meeting-vorher.png")
+        await klick(host, CGPoint(x: 775, y: 298))
+        pruefe("To-do an den To-do-Weg übergeben \(SnHeuteMass.notiert)", SnHeuteMass.notiert == ["Ziel und Fragen für „Telefonat Jonas“ in einem Satz notieren"])
+        try? await Task.sleep(for: .milliseconds(600))
+        await klick(host, CGPoint(x: 762, y: 397))
+        pruefe("Auftrag mit Quelle übergeben \(SnHeuteMass.notiert)", SnHeuteMass.notiert.last == "auftrag:meeting:u9:vorbereiten")
+        bild(host, "\(ordner)/meeting-nachher.png")
+        try? (protokoll.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/ablauf-meeting.txt", atomically: true, encoding: .utf8)
+    }
+
     private static func schreibe(_ protokoll: [String], _ ordner: String) {
         try? (protokoll.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/ablauf-heute.txt", atomically: true, encoding: .utf8)
     }
@@ -87,7 +104,7 @@ enum SnBedienProbe {
         for _ in 0..<12 { try? await Task.sleep(for: .milliseconds(50)); f.contentView?.layoutSubtreeIfNeeded(); CATransaction.flush() }
     }
 
-    private static func klick(_ host: NSView, _ oben: CGPoint) async {
+    static func klick(_ host: NSView, _ oben: CGPoint) async {
         guard let f = host.window else { return }
         let ort = NSPoint(x: oben.x, y: host.bounds.height - oben.y)
         for art in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
