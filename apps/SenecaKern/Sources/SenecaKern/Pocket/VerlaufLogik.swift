@@ -1,7 +1,7 @@
 import Foundation
 
 enum VerlaufLogik {
-    private static let zahlwort = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn"]
+    static let zahlwort = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn"]
     private static let geraete = ["mac": "AM MAC", "iphone": "AM IPHONE", "uhr": "AN DER UHR"]
 
     static func schluessel() -> String { "\(ClientProfil.aktuell.geraet)-\(UUID().uuidString)" }

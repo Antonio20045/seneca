@@ -105,8 +105,8 @@ struct RahmenView: View {
         .task { await SnWeg.gemeinsam.laufe(modell.store) }
     }
 
-    @ViewBuilder private var seite: some View {
-        switch modell.route.seite {
+    private var seite: some View {
+        Group { switch modell.route.seite {
         case .heute:
             SnHeuteMitFenster(modell: modell)
         case .chat:
@@ -122,7 +122,8 @@ struct RahmenView: View {
         case .bereiche: alteSeite { BereicheView(modell: modell, rand: 40) }
         case .berichte:
             if let id = modell.route.id, !id.isEmpty { alteSeite { BerichteView(modell: modell, rand: 40) } } else { SnBerichteEcht(modell: modell) }
-        }
+        } }
+        .environment(\.mehrZu) { modell.zeigeMehr($0) }
     }
 
     private func alteSeite<V: View>(@ViewBuilder _ inhalt: () -> V) -> some View {

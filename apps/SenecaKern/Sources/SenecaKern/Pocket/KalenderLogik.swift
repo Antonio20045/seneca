@@ -103,7 +103,7 @@ enum KalenderLogik {
         return ("\(uhr(los - vorMin * minute)) an der Uhr", "Los um \(uhr(los)), Seneca rechnet mit")
     }
 
-    private static func stunde(_ ms: Double) -> String {
+    static func stunde(_ ms: Double) -> String {
         let k = cal().dateComponents([.hour, .minute], from: HeuteTafelLogik.datum(ms))
         return k.minute == 0 ? stundeWort[(k.hour ?? 0) % 12] : uhr(ms)
     }

@@ -70,8 +70,8 @@ enum HeuteBild {
                         SnKalenderTafel(stand: s, handeln: { _, _, _ in }, antworte: { _, _ in }, zumChat: { _ in }, rechneWeg: { _ in nil })
                             .onAppear { SnKalenderBild.zeige(env["SENECA_SEITE"] ?? "", s) }
                         SnGeruestBild(stand: s, aktiv: .kalender)
-                    case "gespraeche", "gespraeche-team":
-                        SnGespraecheBild(stand: s, agent: env["SENECA_SEITE"] == "gespraeche" ? Hauptagent.id : "engineer")
+                    case "gespraeche", "gespraeche-team", "f-mehr":
+                        SnGespraecheBild(stand: s, agent: env["SENECA_SEITE"] == "gespraeche" ? Hauptagent.id : "engineer", mehr: env["SENECA_SEITE"] == "f-mehr")
                         SnGeruestBild(stand: s, aktiv: .gespraeche, dock: false)
                     case "g-karten", "g-text", "g-lebenslauf", "g-fehler", "g-bild", "g-anhaenge", "g-verlauf", "g-ziehen":
                         SnGBild(seite: env["SENECA_SEITE"] ?? "", stand: s)

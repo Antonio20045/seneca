@@ -89,6 +89,7 @@ private struct FensterSichtbarSchluessel: EnvironmentKey { static let defaultVal
 
 extension EnvironmentValues {
     @Entry var festeZeit: Double?
+    @Entry var mehrZu: (SenecaStand.Frage) -> Void = { _ in }
     var fensterSichtbar: Bool {
         get { self[FensterSichtbarSchluessel.self] }
         set { self[FensterSichtbarSchluessel.self] = newValue }

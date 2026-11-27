@@ -55,12 +55,13 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       abnahme: O(Type.Object({ kursiv: O(S), transkript: O(S), geaendert: O(S), vorher: O(S), vorher_s: O(Z), unterschied: O(Type.Array(S)), dateien: O(Z), folge: O(S), ergebnis: O(S) })),
       checkliste: O(Type.Array(Type.Object({ text: S, fertig: Type.Boolean() }))), bericht: O(S) }),
     (db, k, p) => werkzeugFortschreiben(db, k.sitzung, p as Fortschreibung)],
-  ["seneca_frage", "Frage zurückziehen (art zurueckziehen, frage_id, text: ein Satz, was jetzt passiert), Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
+  ["seneca_frage", "Frage zurückziehen (art zurueckziehen, frage_id, text: ein Satz, was jetzt passiert), Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, grund: warum du das empfiehlst, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht, lage: ein Satz, worauf du wartest, haengt: was daran hängt mit Zeitpunkt, rueckfragen: drei kurze Fragen, die Antonio dir stellen könnte) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
     Type.Object({ art: S, auftrag_id: O(S), text: O(S), was_passiert_ist: O(S), wenn_nichts: O(S), empfehlung: O(S), fragenart: O(S),
-      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S) }),
-    (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
+      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S),
+      grund: O(S), lage: O(S), rueckfragen: O(Type.Array(S)), haengt: O(Type.Array(Type.Object({ um: Z, text: S }))) }),
+    (db, k, { grund, lage, rueckfragen, haengt, ...p }) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : p.art === "zurueckziehen" ? fragenZurueckziehen(db, String(p.frage_id), k.agent, String(p.text))
-      : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
+      : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent, mehr: { grund, lage, rueckfragen, haengt } }) }],
   ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
     Type.Object({ name: S, untertitel: O(S), worum: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),
     (db, k, p) => {

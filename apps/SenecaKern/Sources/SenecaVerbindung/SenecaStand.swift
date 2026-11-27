@@ -30,6 +30,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
         public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?; public var spaeter_bis: Double?
+        public var grund: String?; public var lage: String?; public var rueckfragen: [String]?; public var haengt: [Haengt]?; public var davor: [Zuletzt]?
+        public struct Haengt: Codable, Equatable, Sendable { public var um: Double; public var text: String }
     }
     public struct Vorbei: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String; public var zustand: String; public var frist: Double?; public var satz: String? }
     public struct Mitteilung: Codable, Equatable, Sendable { public var titel: String; public var text: String }
@@ -64,7 +66,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
         public var heute: [Entschieden]?; public var danach: String?; public var danach_kurz: String?
     }
-    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double? }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var frage_id: String? }
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
