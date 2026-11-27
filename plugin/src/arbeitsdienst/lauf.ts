@@ -148,7 +148,7 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
 }
 
 export type AuftragEingabe = {
-  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen";
+  art: "auftrag" | "unterauftrag" | "vorschlag" | "idee" | "eigener" | "nachfassen" | "abnahme" | "verwerfen" | "fortsetzen";
   nachricht_kennung?: string; wortlaut?: string; titel?: string; ziel?: string; abnahme?: string; abnahme_durch?: string; pruefer_noetig?: boolean;
   an?: string; bereich?: string; projekt?: string; frist?: number; arbeitsart?: string; schaetzung_min?: number; eltern_id?: string;
   auftrag_id?: string; urteil?: "passt" | "nachbessern"; satz?: string; herkunft?: string; termin?: { titel: string; start: number; ende: number; ort?: string };
@@ -168,6 +168,12 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
     uebergang(db, "auftrag", String(a.id), nach, p.art === "verwerfen" ? "verwerfen" : `abnahme.${p.urteil}`, nach === "bereit" ? { naechster_anlass: uhr.jetzt() } : {});
     if (p.satz) befund(db, { art: "teilergebnis", auftrag_id: String(a.id), satz: p.satz });
     return { auftrag_id: String(a.id), satz: `Auftrag ist jetzt ${nach}.` };
+  }
+  if (p.art === "fortsetzen") {
+    const n = nachrichten.get(ctx.sitzung);
+    if (!n?.vonAntonio || n.kennung !== p.nachricht_kennung) throw new Error("Fortsetzen nur auf Antonios Nachricht in diesem Gespräch.");
+    uebergang(db, "auftrag", String(p.auftrag_id), "bereit", "auftrag.fortsetzen", { naechster_anlass: uhr.jetzt() });
+    return { auftrag_id: String(p.auftrag_id), satz: "Der Auftrag läuft wieder an." };
   }
   if (p.art === "nachfassen") return { auftrag_id: String(p.auftrag_id), satz: nachfassen(db, laufender(db, ctx.sitzung), ctx.agent, String(p.auftrag_id), String(p.satz)) };
   if (p.art === "eigener" && hole(db, "auftrag", String(laufender(db, ctx.sitzung).auftrag_id)).arbeitsart !== "rundgang") throw new Error("Eigene Aufträge entstehen im Rundgang.");

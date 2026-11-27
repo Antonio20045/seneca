@@ -94,7 +94,7 @@ test("PF05 g) Antonios eigener Befehl mit Empfänger und Wortlaut: ohne Frage, m
   assert.equal(p.aufruf("agent:seneca:main", ANRUF, anruf), undefined);
 });
 
-test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, nie nachts", async () => {
+test("PF05 g2) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, nie nachts", async () => {
   for (const [zeit, erwartet] of [["13:00", 1], ["23:00", 0]] as const) {
     const p = ladePlugin();
     const [frist, nachfassen] = [um("23:50"), um("23:59")];
@@ -115,6 +115,43 @@ test("PF05 h) Auftrag steckt fest: genau ein Anruf an Antonios eigene Nummer, ni
     assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" }, "x2")?.block);
     assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491709999999" })?.block);
   }
+});
+
+test("PF05 h) Anruf-Auftrag von tagsüber: nicht nachts, nicht im Schlaf, danach genau einmal", async () => {
+  const p = ladePlugin();
+  um("13:00");
+  wertSetzen(p.db, "profil:telefon", "+49 170 5550000", "antonio");
+  const a = auftragVonAntonio(p.db, "Ruf Antonio an", { arbeitsart: "anruf_antonio" });
+  spaeter(6000);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  const sitzung = String(laeufe(p.db, a)[0].sitzung);
+  um("23:30");
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  const wach = um("15:00");
+  um("14:00");
+  wertSetzen(p.db, "aktivitaet", "schlaf", "uhr", wach);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  um("16:00");
+  assert.ok(p.aufruf(sitzung, MAIL, { toAddress: "nora@example.org", content: "x" })?.block);
+  assert.equal(p.aufruf(sitzung, ANRUF, { to: "+491705550000" }), undefined);
+  assert.ok(p.aufruf(sitzung, ANRUF, { to: "+491705550000" })?.block);
+  assert.equal(ereignisse(p.db, { art: "ausgang.gestartet" }).length, 1);
+});
+
+test("PF05 k) Unteragent und Nachricht an Kollegen: nie an Ruhende, nur laut Mandat, Lauf im Register", async () => {
+  const p = ladePlugin();
+  const { a, sitzung } = await imLauf(p);
+  wertSetzen(p.db, "ruht:telcoradar", "ja", "antonio");
+  assert.equal(p.aufruf(sitzung, "sessions_spawn", { agentId: "engineer", task: "x" }), undefined);
+  assert.equal(p.aufruf(sitzung, "sessions_spawn", { task: "x" }), undefined);
+  assert.ok(p.aufruf(sitzung, "sessions_spawn", { agentId: "branding", task: "x" })?.block);
+  assert.ok(p.aufruf("agent:seneca:main", "sessions_spawn", { agentId: "telcoradar", task: "x" }, "s1", "seneca")?.block);
+  assert.ok(p.aufruf("agent:seneca:main", "mcp__openclaw__sessions_send", { sessionKey: "agent:telcoradar:main", message: "x" }, "s2", "seneca")?.block);
+  assert.ok(p.aufruf("agent:telcoradar:main", "sessions_spawn", { task: "x" }, "s3", "telcoradar")?.block);
+  p.haken("subagent_spawned", { childSessionKey: "agent:engineer:subagent:k1", agentId: "engineer", mode: "run", runId: "r1" }, { requesterSessionKey: sitzung });
+  p.ende("agent:engineer:subagent:k1", 50);
+  assert.equal(ereignisse(p.db, { art: "unteragent" })[0].auftrag_id, a);
+  assert.equal(ereignisse(p.db, { art: "unteragent.ende", schluessel: "agent:engineer:subagent:k1" }).length, 1);
 });
 
 test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich, Privat liest nur Seneca", () => {

@@ -9,9 +9,7 @@ export const uhr = { jetzt: (): number => Date.now() };
 
 const AKTIV = "('startet','laeuft','haengt')";
 
-function alle(db: Register, sql: string, ...p: SQLInputValue[]): Zeile[] {
-  return db.prepare(sql).all(...p);
-}
+const alle = (db: Register, sql: string, ...p: SQLInputValue[]): Zeile[] => db.prepare(sql).all(...p);
 
 export function hole(db: Register, tabelle: Tabelle, id: string): Zeile {
   const z = db.prepare(`SELECT * FROM ${tabelle} WHERE id = ?`).get(id);
@@ -71,6 +69,8 @@ export function wert(db: Register, schluessel: string): { wert: string; gueltig_
   const z = db.prepare("SELECT daten FROM ereignis WHERE art = 'wert.gesetzt' AND schluessel = ? ORDER BY nr DESC LIMIT 1").get(schluessel);
   return z ? JSON.parse(String(z.daten)) : undefined;
 }
+
+export const ruht = (db: Register, wer: string, jetzt: number): boolean => ((r) => r?.wert === "ja" && (r.gueltig_bis ?? Infinity) > jetzt)(wert(db, `ruht:${wer}`));
 
 export function werte(db: Register, praefix: string): Map<string, string> {
   const zeilen = alle(db, "SELECT schluessel, daten FROM ereignis WHERE art = 'wert.gesetzt' AND schluessel LIKE ? ORDER BY nr", `${praefix}%`);
