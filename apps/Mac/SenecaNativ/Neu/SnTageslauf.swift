@@ -71,7 +71,7 @@ enum HeuteBild {
                         }
                     case "start-weiter", "start-antwortet-nicht", "start-wieder":
                         let art = env["SENECA_SEITE"] ?? ""
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zurArbeit: {},
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, notiere: { SnHeuteMass.notiert.append($0) },
                                      neu: art == "start-wieder" ? Set((s.team ?? []).filter { $0.name == "Prüfer" }.map(SnHeuteTafel.kennung)) : [], laeuft: false).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
                         SnGeruestBild(stand: s)
                         SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
@@ -89,18 +89,19 @@ enum HeuteBild {
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)
                     default:
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zurArbeit: {}, laeuft: false)
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, notiere: { SnHeuteMass.notiert.append($0) }, laeuft: false)
                         SnGeruestBild(stand: s)
                     }
                 }
             }
             .frame(width: breite, height: hoehe)
             .preferredColorScheme(.dark)
-            let fenster = NSWindow(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: [.borderless], backing: .buffered, defer: true)
+            let fenster = NSWindow(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: env["SENECA_HEUTE_ABLAUF"] == nil ? [.borderless] : [.titled], backing: .buffered, defer: true)
             let host = NSHostingView(rootView: seite)
             fenster.contentView = host
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
             if let ablauf = env["SENECA_STAT_ABLAUF"] { await SnStatistikProbe.ablauf(host, ablauf) }
+            if let ablauf = env["SENECA_HEUTE_ABLAUF"] { await SnBedienProbe.heute(host, ablauf) }
             if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()

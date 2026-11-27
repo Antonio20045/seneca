@@ -110,7 +110,7 @@ uhr_frage_zeichen 90
 uhr_todos 3
 uhr_termine 4
 uhr_kurz_zeichen 9
-bereich_wachstum training|\blauf|gym|kraft|\brad\b|schwimm|yoga|\bsport|spanisch|kurs|lesen|meditat|mental|gewicht|körper|physio|arzt|schlaf
+bereich_wachstum training|\blauf|gym|kraft|\brad\b|schwimm|yoga|\bsport|spanisch|kurs|lernen|lesen|meditat|mental|gewicht|körper|physio|arzt|schlaf
 bereich_soziales geburtstag|abendessen|mittagessen|eltern|mama|papa|familie|freund|party|kino|kaffee|besuch|privat
 uhr_verlauf 3
 uhr_uebungen 12

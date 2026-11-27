@@ -21,57 +21,22 @@ private func weich(_ p: Double) -> Double { 0.5 - cos(Double.pi * min(max(p, 0),
 
 struct Kugel: View {
     var seite: CGFloat = 18
-    @Environment(\.fensterSichtbar) private var sichtbar
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar)) { ctx in
-            let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.6) / 2.6
-            let atmen = weich(p < 0.5 ? p * 2 : (1 - p) * 2)
-            let welle = Bezier.ease.wert(p)
-            ZStack {
-                Circle().strokeBorder(Farbe.himmel.opacity(0.30), lineWidth: 1)
-                    .scaleEffect(0.55 + 1.45 * welle).opacity(0.9 * (1 - welle))
-                Circle()
-                    .fill(RadialGradient(stops: [.init(color: Farbe.papier, location: 0), .init(color: Farbe.kugelLicht, location: 0.3),
-                                                 .init(color: Farbe.himmel, location: 0.62), .init(color: Farbe.himmel, location: 1)],
-                                         center: UnitPoint(x: 0.34, y: 0.32), startRadius: 0, endRadius: (seite - 6) / 1.6))
-                    .padding(3)
-                    .scaleEffect(1 - 0.2 * atmen)
-                    .shadow(color: Farbe.himmel.opacity(0.41 - 0.19 * atmen), radius: 12 - 7 * atmen)
-            }
+        Circle()
+            .fill(RadialGradient(stops: [.init(color: Farbe.papier, location: 0), .init(color: Farbe.kugelLicht, location: 0.3),
+                                         .init(color: Farbe.himmel, location: 0.62), .init(color: Farbe.himmel, location: 1)],
+                                 center: UnitPoint(x: 0.34, y: 0.32), startRadius: 0, endRadius: (seite - 6) / 1.6))
+            .padding(3)
+            .shadow(color: Farbe.himmel.opacity(0.3), radius: 8)
             .frame(width: seite, height: seite)
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-struct PulsPunkt: View {
-    var farbe: Color
-    var laeuft: Bool
-    var groesse: CGFloat = 7
-    @Environment(\.fensterSichtbar) private var sichtbar
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !laeuft || !sichtbar)) { ctx in
-            let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2) / 2
-            let f = Bezier.cssEase.wert(min(p / 0.7, 1))
-            let ring = laeuft ? 7 * f : 0
-            ZStack {
-                Circle().strokeBorder(Farbe.koralle.opacity(0.45 * (1 - f)), lineWidth: max(ring, 0.001))
-                    .frame(width: groesse + 2 * ring, height: groesse + 2 * ring)
-                Circle().fill(farbe).frame(width: groesse, height: groesse)
-            }
-            .frame(width: groesse, height: groesse)
-        }
+            .accessibilityHidden(true)
     }
 }
 
 struct BlinkStrich: View {
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
-            let an = Int(ctx.date.timeIntervalSinceReferenceDate / 0.5) % 2 == 0
-            RoundedRectangle(cornerRadius: 2).fill(Farbe.himmel).frame(width: 8, height: 16).opacity(an ? 1 : 0.25)
-        }
+        RoundedRectangle(cornerRadius: 2).fill(Farbe.himmel.opacity(0.7)).frame(width: 8, height: 16)
         .accessibilityHidden(true)
     }
 }

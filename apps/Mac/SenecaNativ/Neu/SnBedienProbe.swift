@@ -30,6 +30,42 @@ enum SnBedienProbe {
         try? (protokoll.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/ablauf-zurueck.txt", atomically: true, encoding: .utf8)
     }
 
+    static func heute(_ host: NSView, _ ordner: String) async {
+        var protokoll: [String] = []
+        func pruefe(_ was: String, _ ok: Bool) { protokoll.append((ok ? "OK      " : "FEHLER  ") + was) }
+        NSApp.setActivationPolicy(.accessory)
+        guard let f = host.window else { return }
+        f.setFrameOrigin(NSPoint(x: -6000, y: -6000))
+        f.makeKeyAndOrderFront(nil)
+        let k = SnHeuteMass.kalender, h = host.bounds.height
+        pruefe(String(format: "Fenster %.0f×%.0f: Kalender %.0f bis %.0f, ganz sichtbar ohne Rollen", host.bounds.width, h, k.minY, k.maxY), k.height > 0 && k.minY >= 0 && k.maxY <= h - 84)
+        bild(host, "\(ordner)/heute-a.png")
+        try? await Task.sleep(for: .seconds(3))
+        bild(host, "\(ordner)/heute-b.png")
+        func feld(_ v: NSView) -> NSTextField? { (v as? NSTextField).flatMap { $0.isEditable ? $0 : nil } ?? v.subviews.lazy.compactMap(feld).first }
+        guard let tf = feld(host) else { pruefe("Notizfeld gefunden", false); return schreibe(protokoll, ordner) }
+        let mitte = tf.convert(NSPoint(x: tf.bounds.midX, y: tf.bounds.midY), to: nil)
+        for art in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            if let e = NSEvent.mouseEvent(with: art, location: mitte, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) { f.sendEvent(e) }
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        for (zeichen, code) in Array("Steuer anrufen").map({ (String($0), UInt16(0)) }) + [("\r", UInt16(36))] {
+            for art in [NSEvent.EventType.keyDown, .keyUp] {
+                if let e = NSEvent.keyEvent(with: art, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: f.windowNumber, context: nil, characters: zeichen, charactersIgnoringModifiers: zeichen, isARepeat: false, keyCode: code) { f.sendEvent(e) }
+            }
+            try? await Task.sleep(for: .milliseconds(30))
+        }
+        for _ in 0..<12 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
+        pruefe("Klick ins Feld, „Steuer anrufen“ tippen, Enter: an den To-do-Weg übergeben \(SnHeuteMass.notiert)", SnHeuteMass.notiert == ["Steuer anrufen"])
+        pruefe("Feld danach leer und weiter bereit: „\(feld(host)?.stringValue ?? "?")“", feld(host)?.stringValue == "")
+        bild(host, "\(ordner)/heute-notiert.png")
+        schreibe(protokoll, ordner)
+    }
+
+    private static func schreibe(_ protokoll: [String], _ ordner: String) {
+        try? (protokoll.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/ablauf-heute.txt", atomically: true, encoding: .utf8)
+    }
+
     private static func wisch(_ f: NSWindow, dx: CGFloat, dy: CGFloat) async {
         let schritte = 12
         let invertiert = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: 0, wheel2: 0, wheel3: 0).flatMap(NSEvent.init(cgEvent:))?.isDirectionInvertedFromDevice ?? true

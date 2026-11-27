@@ -236,7 +236,7 @@ export default {
       { job: "gespraeche", ursache: "Neu beginnen braucht das Admin-Recht des Servers, die Apps haben es nicht", lauf: () => gespraecheJob(db, befehl) },
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderJob(db, kalender) },
-      { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
+      { job: "planen", ursache: "Los-Hinweis vor Terminen", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
       { job: "garmin", ursache: "Garmin, Kennzahlen und Statistiken der Mitarbeiter ohne Modell", abstand: () => regelMs("garmin_abgleich_min"), lauf: async () => {
         const r = await api.runtime.system.runCommandWithTimeout([regelText("garmin_python"), regelText("garmin_skript"), "abgleich", join(ordner, "register.sqlite"), String(regelZahl("garmin_tage"))], regelMs("garmin_haengt_s"));
         if (r.code !== 0) throw new Error(`garmin.py: ${(r.stdout || r.stderr).slice(0, 300)}`);

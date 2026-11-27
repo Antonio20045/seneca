@@ -453,9 +453,9 @@ struct SnHeuteMitFenster: View {
                                     schreiben: { id in modell.teamOffen = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
                             .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let s = store.stand {
-                        SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
+                        SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) }, notiere: { store.addTodoHeute($0) },
                                      antworte: { store.antworte(frage: $0, wahl: $1) }, handle: { store.handle($0, ziel: $1, text: $2) },
-                                     zumChat: { modell.zeigeMehr($0) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
+                                     zumChat: { modell.zeigeMehr($0) }, zumMeeting: { _ in modell.gehe(.kalender) }, neu: frischNeu)
                     } else {
                         SnHeuteSkelett()
                     }

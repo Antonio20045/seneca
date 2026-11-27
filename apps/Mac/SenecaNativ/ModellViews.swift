@@ -15,7 +15,6 @@ struct KontoPunkt: View {
     var body: some View {
         Circle().fill(warnt ? Farbe.koralle : farbe).frame(width: 7, height: 7)
             .background(Circle().fill((warnt ? Farbe.koralle : farbe).opacity(0.2)).frame(width: 13, height: 13))
-            .overlay { if warnt { PulsPunkt(farbe: Farbe.koralle, laeuft: true, groesse: 7) } }
             .frame(width: 13, height: 13)
     }
 }

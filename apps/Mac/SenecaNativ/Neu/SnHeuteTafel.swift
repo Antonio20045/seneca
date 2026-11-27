@@ -7,41 +7,49 @@ private extension View {
     }
 }
 
+enum SnHeuteMass {
+    static var kalender: CGRect = .zero
+    static var notiert: [String] = []
+}
+
 struct SnHeuteTafel: View {
     var stand: SenecaStand
     var wartend: Set<String>
     var erledige: (String) -> Void
+    var notiere: (String) -> Void = { _ in }
     var antworte: (String, String) -> Void = { _, _ in }
     var handle: (String, String, String?) -> Void = { _, _, _ in }
     var zumChat: (SenecaStand.Frage) -> Void = { _ in }
-    var zurArbeit: () -> Void
+    var zumMeeting: (SenecaStand.Termin) -> Void = { _ in }
     var neu: Set<String> = []
     var laeuft = true
 
     @State private var da = false
     @State private var beantwortet: [String: (wahl: String, um: Date)] = [:]
     @State private var alleTodos = false
+    @State private var notiz = ""
+    @State private var notiert: [String] = []
+    @FocusState private var notizFokus: Bool
     @Environment(\.accessibilityReduceMotion) private var ruhig
 
     private typealias L = HeuteTafelLogik
-    private typealias S = SnTagesschiene
+    private typealias K = SnTageskalender
     static func kennung(_ m: SenecaStand.Mitglied) -> String { "team:\(m.name):\(m.satz ?? m.zuletzt?.satz ?? m.zustand)" }
     private let linie = Color.white.opacity(0.07)
     private var an: Bool { da || !laeuft || ruhig }
-    private var bewegt: Bool { laeuft && !ruhig }
 
     var body: some View {
         TimelineView(.everyMinute) { t in
             let jetzt = laeuft ? max(stand.jetzt, t.date.timeIntervalSince1970 * 1000) : stand.jetzt
             GeometryReader { g in
                 let abstand: CGFloat = g.size.width < 1308 ? 48 : 80
-                let breite = min(860, g.size.width - 48 - abstand - 320)
+                let breite = min(820, g.size.width - 48 - abstand - K.breite)
                 ScrollView(.vertical, showsIndicators: false) {
                     HStack(alignment: .top, spacing: abstand) {
                         haupt(jetzt).frame(width: breite, alignment: .topLeading)
-                        seite(jetzt).frame(width: 320, alignment: .topLeading).rein(an, 1.0)
+                        kalender(jetzt, hoehe: max(420, g.size.height - 104 - 150)).rein(an, 0.3)
                     }
-                    .padding(.leading, max(24, (g.size.width - breite - abstand - 320) / 2 + 6))
+                    .padding(.leading, max(24, (g.size.width - breite - abstand - K.breite) / 2))
                     .padding(.top, 104).padding(.bottom, 170)
                     .frame(width: g.size.width, alignment: .topLeading)
                 }
@@ -55,28 +63,31 @@ struct SnHeuteTafel: View {
 
     private func haupt(_ jetzt: Double) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                datumZeile(jetzt).padding(.bottom, 14)
-                if let satz = L.satz(stand) {
-                    (Text(satz.vor + " ").font(Schrift.serif(44)).foregroundColor(.white) + Text(satz.akzent).font(Schrift.serif(44, kursiv: true)).foregroundColor(TafelFarbe.akzent))
-                        .tracking(-0.5).hoehe(46.6).fixedSize(horizontal: false, vertical: true).offset(y: -4)
-                }
-            }
-            .rein(an, 0.05)
-            if let f = frage { frageKarte(f).padding(.top, 26).rein(an, 0.22) }
-            mitte(jetzt)
-            jedenTag
+            Text("\(L.datumZeile(jetzt)) · \(L.uhr(jetzt))").font(Schrift.mono(13)).tracking(0.4).foregroundStyle(TafelFarbe.zweit).rein(an, 0.05)
+            lage(jetzt).padding(.top, 18).rein(an, 0.12)
+            if let f = frage { frageKarte(f).padding(.top, 30).rein(an, 0.22) }
+            todos(jetzt).padding(.top, 34).rein(an, 0.36)
         }
     }
 
-    private func datumZeile(_ jetzt: Double) -> some View {
-        let termine = (stand.termine ?? []).filter { $0.ganztag != true && $0.art != "fokus" }.count
-        let fokus = stand.ruhe.flatMap { r in r.grund == "fokus" ? r.bis : nil }
-        let pille = fokus.map { "FOKUS · NOCH \(Int(max(0, $0 - jetzt) / 60_000)) MIN" } ?? (termine == 0 ? "KEINE TERMINE" : termine == 1 ? "1 TERMIN" : "\(termine) TERMINE")
-        return HStack(spacing: 12) {
-            Text("\(L.datumZeile(jetzt)) · \(L.uhr(jetzt))").font(Schrift.mono(13)).tracking(0.4).foregroundStyle(TafelFarbe.zweit)
-            Text(pille).font(Schrift.mono(11)).tracking(1.2).foregroundStyle(TafelFarbe.akzent)
-                .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(TafelFarbe.himmel.opacity(0.16)))
+    private func lage(_ jetzt: Double) -> some View {
+        let termine = K.heute(stand, jetzt).filter { $0.ende > jetzt && $0.art != "fokus" }
+        let marken: [(Int, String, Color)] = [
+            (offeneFragen.filter { $0.antwort == nil }.count, "FRAGEN", TafelFarbe.bernstein),
+            (offeneTodos.count, "TO-DOS", TafelFarbe.himmel),
+            (termine.count, "TERMINE", TafelFarbe.text),
+            (termine.filter(K.istMeeting).count, "MEETINGS", TafelFarbe.koralle),
+            ((stand.team ?? []).filter { $0.zustand == "arbeitet" }.count, "ARBEITEN", TafelFarbe.gruen),
+        ]
+        return HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(marken.enumerated()), id: \.offset) { i, m in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(m.0)").font(Schrift.serif(46)).tracking(-0.5).hoehe(46).foregroundStyle(m.0 == 0 ? TafelFarbe.aus : m.2)
+                    Text(m.1).font(Schrift.mono(11)).tracking(1.3).foregroundStyle(m.0 == 0 ? TafelFarbe.aus : TafelFarbe.leise)
+                }
+                .padding(.trailing, 30).padding(.leading, i == 0 ? 0 : 30)
+                .overlay(alignment: .leading) { if i > 0 { linie.frame(width: 1).padding(.vertical, 4) } }
+            }
         }
     }
 
@@ -103,7 +114,7 @@ struct SnHeuteTafel: View {
         let n = offeneFragen.filter { $0.antwort == nil }.count
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                SnPuls(farbe: TafelFarbe.bernstein, groesse: 8, weite: 12, takt: 2.2, deckkraft: 0.55, laeuft: bewegt)
+                Circle().fill(TafelFarbe.bernstein).frame(width: 8, height: 8)
                 Text("\((f.von ?? "Seneca").uppercased()) FRAGT" + (n > 1 ? " · 1 VON \(n)" : "")).font(Schrift.mono(12)).tracking(1.4).foregroundStyle(TafelFarbe.bernstein)
                 Spacer(minLength: 12)
                 Text(herkunft(f)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
@@ -176,7 +187,7 @@ struct SnHeuteTafel: View {
         return HStack(spacing: 10) {
             ForEach(Array(optionen.enumerated()), id: \.offset) { i, o in
                 Button(o.knopf ?? o.text ?? "") { senden(f, o.wert ?? "") }
-                    .buttonStyle(SnHeuteKnopf(art: i == 0 ? .haupt : o.wert == "spaeter" ? .leise : .neben, glimmt: i == 0 && bewegt))
+                    .buttonStyle(SnHeuteKnopf(art: i == 0 ? .haupt : o.wert == "spaeter" ? .leise : .neben))
             }
             if !spaeter { Button("Später") { senden(f, "spaeter") }.buttonStyle(SnHeuteKnopf(art: .leise)) }
             Spacer(minLength: 12)
@@ -226,32 +237,19 @@ struct SnHeuteTafel: View {
     }
 
     private var offeneTodos: [SenecaStand.Todo] {
-        L.todosHeute(stand).sorted { ($0.geplant_von ?? .infinity) < ($1.geplant_von ?? .infinity) }
+        let liste = L.todosHeute(stand)
+        return liste.filter { $0.wichtig == true } + liste.filter { $0.wichtig != true }
     }
 
-    private var getan: [SenecaStand.Mitglied] {
-        let tag = stand.tag_beginn ?? 0
-        let liste = (stand.team ?? []).filter { $0.zustand == "arbeitet" || $0.zustand == "hängt" || ($0.zuletzt?.um ?? 0) >= tag }
-        return liste.filter { $0.zustand == "arbeitet" || $0.zustand == "hängt" } + liste.filter { $0.zustand != "arbeitet" && $0.zustand != "hängt" }
-    }
-
-    @ViewBuilder private func mitte(_ jetzt: Double) -> some View {
-        let todos = offeneTodos, team = getan
-        if !todos.isEmpty || !team.isEmpty {
-            HStack(alignment: .top, spacing: 44) {
-                if !todos.isEmpty { naechstes(todos, jetzt).frame(maxWidth: .infinity, alignment: .topLeading).rein(an, 0.42) }
-                if !team.isEmpty { heuteGetan(team).frame(maxWidth: .infinity, alignment: .topLeading).rein(an, 0.62) }
-            }
-            .padding(.top, 26)
-        }
-    }
-
-    private func naechstes(_ liste: [SenecaStand.Todo], _ jetzt: Double) -> some View {
-        let zeigen = alleTodos || liste.count <= 3 ? liste : Array(liste.prefix(3))
-        let bis = liste.compactMap(\.geplant_bis).max()
+    private func todos(_ jetzt: Double) -> some View {
+        let liste = offeneTodos
+        let eigene = notiert.filter { n in !liste.contains { $0.titel == n } }
+        let zeigen = alleTodos || liste.count <= 6 ? liste : Array(liste.prefix(5))
         return VStack(alignment: .leading, spacing: 0) {
-            kopf("ALS NÄCHSTES · \(liste.count == 1 ? "1 TO-DO" : "\(liste.count) TO-DOS")", bis.map { "bis \(L.uhr($0))" } ?? "")
-            ForEach(zeigen) { t in todoZeile(t, jetzt, erste: t.id == zeigen.first?.id) }
+            kopf("TO-DOS", liste.isEmpty ? "" : "\(liste.count)")
+            notizFeld
+            ForEach(eigene, id: \.self) { n in zeile(n, unter: "wird übertragen", kreis: TafelFarbe.gruen, gestrichelt: true) }
+            ForEach(zeigen) { t in todoZeile(t) }
             if liste.count > zeigen.count {
                 Button { withAnimation(Kurve.sn(0.4)) { alleTodos = true } } label: {
                     HStack {
@@ -266,323 +264,185 @@ struct SnHeuteTafel: View {
         }
     }
 
-    private func todoZeile(_ t: SenecaStand.Todo, _ jetzt: Double, erste: Bool) -> some View {
+    private var notizFeld: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(TafelFarbe.leise).frame(width: 18, height: 18).frame(width: 22, alignment: .leading)
+            TextField("", text: $notiz, prompt: Text("Für mich notieren …").foregroundColor(TafelFarbe.leise))
+                .textFieldStyle(.plain).font(Schrift.grotesk(15)).foregroundStyle(.white).focused($notizFokus)
+                .onSubmit {
+                    let t = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.isEmpty else { return }
+                    notiere(t)
+                    notiert.append(t)
+                    notiz = ""
+                    notizFokus = true
+                }
+            if notizFokus && !notiz.isEmpty { Text("⏎").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise) }
+        }
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) { linie.frame(height: 1) }
+        .contentShape(Rectangle())
+        .onTapGesture { notizFokus = true }
+    }
+
+    private func todoZeile(_ t: SenecaStand.Todo) -> some View {
         let w = wartend.contains(t.id)
-        let anteil: Double? = t.geplant_von.flatMap { von in t.geplant_bis.flatMap { bis in von <= jetzt && jetzt < bis ? (jetzt - von) / (bis - von) : nil } }
-        let frist = L.ueberfaellig(t, stand) ? t.bis_wann.map { L.fristWar($0, stand) } : nil
-        let unter = w ? "wird übertragen" : ([TafelFarbe.bereichWort(t.bereich), frist ?? (t.geplant_von == nil ? nil : "von Seneca eingeplant")] as [String?]).compactMap { $0 }.joined(separator: " · ")
+        let frist = t.bis_wann.map { L.ueberfaellig(t, stand) ? L.fristWar($0, stand) : L.frist($0, jetzt: stand.jetzt) }
+        let unter = w ? "wird übertragen" : ([TafelFarbe.bereichWort(t.bereich), frist] as [String?]).compactMap { $0 }.joined(separator: " · ")
         return Button { if !w { erledige(t.id) } } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Text(t.geplant_von.map { L.uhr($0) } ?? "").font(Schrift.mono(12)).foregroundStyle(erste ? TafelFarbe.akzent : TafelFarbe.leise).padding(.top, 2).frame(width: 44, alignment: .leading)
-                Circle().strokeBorder(w ? TafelFarbe.gruen : TafelFarbe.bereich(t.bereich).opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: w ? [3, 2.4] : []))
-                    .frame(width: 18, height: 18).frame(width: 22, alignment: .leading)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(t.titel).font(Schrift.grotesk(15)).hoehe(21).strikethrough(w).foregroundStyle(w ? TafelFarbe.aus : TafelFarbe.text).fixedSize(horizontal: false, vertical: true)
-                    if !unter.isEmpty { Text(unter).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).padding(.top, 2) }
-                    if let anteil {
-                        GeometryReader { g in
-                            Capsule().fill(Color.white.opacity(0.08)).overlay(alignment: .leading) {
-                                Capsule().fill(TafelFarbe.himmel).frame(width: max(2, g.size.width * anteil)).shadow(color: TafelFarbe.himmel, radius: 4)
-                            }
-                        }
-                        .frame(height: 2).padding(.top, 8)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 12)
-            .overlay(alignment: .bottom) { linie.frame(height: 1) }
-            .contentShape(Rectangle())
+            zeile(t.titel, unter: unter, kreis: w ? TafelFarbe.gruen : TafelFarbe.bereich(t.bereich).opacity(0.75), gestrichelt: w, durch: w, wichtig: t.wichtig == true)
         }
         .buttonStyle(.plain)
     }
 
-    private func heuteGetan(_ liste: [SenecaStand.Mitglied]) -> some View {
-        let alle = stand.team ?? []
-        let fertig = liste.filter { $0.zustand != "arbeitet" && $0.zustand != "hängt" }.count
-        return VStack(alignment: .leading, spacing: 0) {
-            kopf("HEUTE GETAN", "\(fertig) von \(alle.count)")
-            ForEach(liste.prefix(3), id: \.name) { m in
-                let laeuftGerade = m.zustand == "arbeitet" || m.zustand == "hängt"
-                Button(action: zurArbeit) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(m.name).font(Schrift.grotesk(15)).foregroundStyle(.white).frame(width: 86, alignment: .leading)
-                        Text((laeuftGerade ? m.satz : m.zuletzt?.satz) ?? m.zustand).font(Schrift.grotesk(14)).hoehe(20).lineLimit(2).foregroundStyle(TafelFarbe.text)
-                            .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
-                        Text(rechts(m)).font(Schrift.mono(12)).foregroundStyle(laeuftGerade ? TafelFarbe.gruen : TafelFarbe.leise).frame(minWidth: 40, alignment: .trailing).fixedSize()
-                    }
-                    .padding(.vertical, 11)
-                    .modifier(SnNeuHell(an: neu.contains(Self.kennung(m))))
-                    .overlay(alignment: .bottom) { linie.frame(height: 1) }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            buendel(alle).padding(.top, 12)
-        }
-    }
-
-    private func rechts(_ m: SenecaStand.Mitglied) -> String {
-        if m.zustand == "arbeitet" { return m.rest_min.map { "noch \(Int($0)) Min" } ?? m.seit.map { "seit \(L.uhr($0))" } ?? "" }
-        if m.zustand == "hängt" { return "hängt" }
-        return m.zuletzt?.um.map { L.uhr($0) } ?? ""
-    }
-
-    private func buendel(_ alle: [SenecaStand.Mitglied]) -> some View {
-        let reihe = ["arbeitet", "hängt", "frei", "ruht"]
-        let sortiert = alle.sorted { (reihe.firstIndex(of: $0.zustand) ?? 2) < (reihe.firstIndex(of: $1.zustand) ?? 2) }
-        let teile: [String] = reihe.compactMap { z in
-            let n = alle.filter { $0.zustand == z }.count
-            guard n > 0 else { return nil }
-            return "\(n) " + (z == "frei" ? "frei" : z == "arbeitet" ? (n == 1 ? "arbeitet" : "arbeiten") : z == "hängt" ? (n == 1 ? "hängt" : "hängen") : (n == 1 ? "ruht" : "ruhen"))
-        }
-        return HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(Array(sortiert.enumerated()), id: \.offset) { _, m in
-                    if m.zustand == "arbeitet" {
-                        SnPuls(farbe: TafelFarbe.gruen, groesse: 10, weite: 8, takt: 2.2, deckkraft: 0.5, laeuft: bewegt)
-                    } else {
-                        Circle().strokeBorder(m.zustand == "ruht" ? TafelFarbe.aus : m.zustand == "hängt" ? TafelFarbe.bernstein : TafelFarbe.himmel, lineWidth: 1.5).frame(width: 10, height: 10)
-                    }
-                }
-            }
-            Text(teile.joined(separator: " · ")).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.leise)
-        }
-    }
-
-    @ViewBuilder private var jedenTag: some View {
-        let liste = (stand.aufgaben?.jeden_tag ?? []).sorted { ($0.ab ?? "99") < ($1.ab ?? "99") }
-        if !liste.isEmpty {
+    private func zeile(_ titel: String, unter: String, kreis: Color, gestrichelt: Bool, durch: Bool = false, wichtig: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle().strokeBorder(kreis, style: StrokeStyle(lineWidth: 1.5, dash: gestrichelt ? [3, 2.4] : []))
+                .frame(width: 18, height: 18).frame(width: 22, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
-                kopf("JEDEN TAG", "\(liste.filter { $0.erledigt || wartend.contains($0.id) }.count) von \(liste.count)")
-                SnFluss(abstand: 8, zeilenAbstand: 8) { ForEach(liste) { routine($0) } }.padding(.top, 12)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(titel).font(Schrift.grotesk(15)).hoehe(21).strikethrough(durch).foregroundStyle(durch ? TafelFarbe.aus : TafelFarbe.text).fixedSize(horizontal: false, vertical: true)
+                    if wichtig { Text("WICHTIG").font(Schrift.mono(10)).tracking(1.2).foregroundStyle(TafelFarbe.bernstein) }
+                }
+                if !unter.isEmpty { Text(unter).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).padding(.top, 2) }
             }
-            .padding(.top, 22).rein(an, 0.82)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) { linie.frame(height: 1) }
+        .contentShape(Rectangle())
     }
 
-    private func routine(_ j: SenecaStand.Aufgaben.Taeglich) -> some View {
-        let fertig = j.erledigt || wartend.contains(j.id)
-        return Button { if !fertig { erledige(j.id) } } label: {
-            HStack(spacing: 6) {
-                if fertig { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
-                Text(j.titel).font(Schrift.grotesk(14)).lineLimit(1)
-                if let ab = j.ab { Text(ab).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.leading, 4) }
+    private func kalender(_ jetzt: Double, hoehe: CGFloat) -> some View {
+        let p = K.plan(stand, jetzt: jetzt, hoehe: hoehe - 40)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("DEIN TAG").font(Schrift.mono(12, .medium)).tracking(1.4).foregroundStyle(TafelFarbe.zweit)
+                Spacer()
+                if !p.ganztag.isEmpty { Text(p.ganztag.joined(separator: " · ")).font(Schrift.grotesk(12.5)).foregroundStyle(TafelFarbe.leise).lineLimit(1) }
             }
-            .foregroundStyle(fertig ? TafelFarbe.hex(0xA8EBBE) : TafelFarbe.text)
-            .padding(.horizontal, 14).frame(height: 34)
-            .background(Capsule().fill(fertig ? TafelFarbe.gruen.opacity(0.14) : Color.white.opacity(0.07)))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func seite(_ jetzt: Double) -> some View {
-        let plan = S.plan(stand, jetzt: jetzt)
-        return ZStack(alignment: .topLeading) {
-            Text("DEIN TAG").font(Schrift.mono(12, .medium)).tracking(1.4).foregroundStyle(TafelFarbe.zweit)
-            Rectangle().fill(LinearGradient(stops: [.init(color: .white.opacity(0.05), location: 0), .init(color: .white.opacity(0.14), location: 0.3), .init(color: .white.opacity(0.06), location: 1)], startPoint: .top, endPoint: .bottom))
-                .frame(width: 2, height: max(690, plan.hoehe - 70)).offset(x: 56, y: 46)
-            Rectangle().fill(LinearGradient(colors: [TafelFarbe.himmel.opacity(0.1), TafelFarbe.himmel.opacity(0.65)], startPoint: .top, endPoint: .bottom))
-                .frame(width: 2, height: an ? max(0, plan.jetztY - 46) : 0).offset(x: 56, y: 46)
-                .animation(Kurve.sn(1.6).delay(0.9), value: an)
-            ForEach(Array(plan.striche.enumerated()), id: \.offset) { _, y in
-                RoundedRectangle(cornerRadius: 1).fill(TafelFarbe.hex(0xA8EBBE, 0.55)).frame(width: 8, height: 2).offset(x: 53, y: y)
-            }
-            ForEach(plan.eintraege) { e in eintrag(e) }
-            Circle().fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: TafelFarbe.akzent, location: 0.3), .init(color: TafelFarbe.himmel.opacity(0), location: 0.7)], center: .center, startRadius: 0, endRadius: 13))
-                .frame(width: 26, height: 26)
-                .overlay { SnPuls(farbe: .white, ring: TafelFarbe.himmel, groesse: 12, weite: 14, takt: 2.4, deckkraft: 0.6, laeuft: bewegt) }
-                .offset(x: 44, y: plan.jetztY - 13)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plan.jetzt.titel).font(Schrift.grotesk(15)).foregroundStyle(.white).lineLimit(1)
-                Text(plan.jetzt.unter).font(Schrift.grotesk(12.5)).foregroundStyle(TafelFarbe.zweit).lineLimit(1)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .frame(width: 248, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(TafelFarbe.himmel.opacity(0.13)))
-            .offset(x: 84, y: plan.jetztY - 24)
-        }
-        .frame(width: 320, height: max(760, plan.hoehe), alignment: .topLeading)
-    }
-
-    private func eintrag(_ e: SnTagesschiene.Eintrag) -> some View {
-        ZStack(alignment: .topLeading) {
-            if e.punkt != .keiner {
-                Circle().fill(TafelFarbe.hex(0x0B2148)).overlay(Circle().strokeBorder(e.punkt == .bern ? TafelFarbe.bernstein : TafelFarbe.himmel, lineWidth: 1.5))
-                    .frame(width: 10, height: 10).offset(x: 52, y: 7)
-            }
-            HStack(alignment: .top, spacing: 24) {
-                Text(e.uhr).font(Schrift.mono(12)).foregroundStyle(e.punkt == .bern ? TafelFarbe.bernstein : TafelFarbe.leise).padding(.top, 3).frame(width: 44, alignment: .trailing)
-                VStack(alignment: .leading, spacing: 2) {
-                    if let t = e.titel { Text(t).font(Schrift.grotesk(15)).hoehe(20).foregroundStyle(TafelFarbe.text).lineLimit(1) }
-                    if let u = e.unter { Text(u).font(Schrift.grotesk(12.5)).hoehe(18).foregroundStyle(TafelFarbe.leise).lineLimit(1) }
+            .frame(height: 40, alignment: .top)
+            ZStack(alignment: .topLeading) {
+                ForEach(p.stunden, id: \.self) { h in
+                    let y = p.y(Double(h))
+                    Rectangle().fill(linie).frame(height: 1).offset(x: 40, y: y).frame(width: K.breite - 40)
+                    if h % 2 == 0 && (p.jetztY.map { abs($0 - y) > 12 } ?? true) {
+                        Text(String(format: "%02d", h)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).offset(y: y - 7)
+                    }
+                }
+                ForEach(p.bloecke) { b in block(b, jetzt) }
+                if let y = p.jetztY {
+                    Text(L.uhr(jetzt)).font(Schrift.mono(11, .medium)).foregroundStyle(TafelFarbe.jetzt).offset(y: y - 7)
+                    Rectangle().fill(TafelFarbe.jetzt).frame(width: K.breite - 40, height: 1.5).offset(x: 40, y: y - 0.75)
+                    Circle().fill(TafelFarbe.jetzt).frame(width: 7, height: 7).offset(x: 37, y: y - 3.5)
                 }
             }
-            .opacity(e.blass ? 0.6 : 1)
+            .frame(width: K.breite, height: hoehe - 40, alignment: .topLeading)
         }
-        .frame(width: 320, alignment: .topLeading)
-        .offset(y: e.oben)
+        .frame(width: K.breite, height: hoehe, alignment: .topLeading)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { SnHeuteMass.kalender = $0 }
     }
+
+    @ViewBuilder private func block(_ b: SnTageskalender.Block, _ jetzt: Double) -> some View {
+        let t = b.termin
+        let vorbei = t.ende <= jetzt
+        let farbe = t.art == "fokus" ? TafelFarbe.zweit : TafelFarbe.bereich(t.bereich)
+        let meeting = K.istMeeting(t)
+        let form = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        let inhalt = HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(t.titel).font(Schrift.grotesk(13, .medium)).foregroundStyle(vorbei ? TafelFarbe.leise : .white).lineLimit(b.hoehe >= 44 ? 2 : 1)
+                if b.hoehe >= 34 {
+                    Text("\(L.uhr(t.start)) · \(K.dauer(t.ende - t.start))").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            if b.hoehe < 34 { Text(L.uhr(t.start)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
+            if meeting {
+                Text("MEETING").font(Schrift.mono(9.5)).tracking(1.1).foregroundStyle(TafelFarbe.koralle)
+                    .padding(.horizontal, 6).frame(height: 16).overlay(Capsule().strokeBorder(TafelFarbe.koralle.opacity(0.5), lineWidth: 1))
+            }
+        }
+        .padding(.leading, 10).padding(.trailing, 6).padding(.top, b.hoehe >= 34 ? 5 : 2)
+        .frame(width: b.breite, height: b.hoehe, alignment: .topLeading)
+        .background(form.fill(farbe.opacity(vorbei ? 0.06 : t.art == "fokus" ? 0.08 : 0.16)))
+        .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 1.5).fill(farbe.opacity(vorbei ? 0.4 : 1)).frame(width: 3).padding(.vertical, 2) }
+        .clipShape(form)
+        .offset(x: b.x, y: b.y)
+        if meeting {
+            Button { zumMeeting(t) } label: { inhalt.contentShape(form) }.buttonStyle(.plain)
+        } else {
+            inhalt
+        }
+    }
+
 }
 
-enum SnTagesschiene {
-    enum Punkt { case keiner, himmel, bern }
-    struct Eintrag: Identifiable {
-        var id: String; var zeit: Double; var uhr: String; var titel: String?; var unter: String?
-        var punkt: Punkt = .himmel; var blass = false; var abstand: CGFloat = 24; var oben: CGFloat = 0
-        var hoehe: CGFloat { (titel == nil ? 0 : 20) + (unter == nil ? 0 : 18) + (titel != nil && unter != nil ? 2 : 0) }
-    }
-    struct Plan { var eintraege: [Eintrag]; var striche: [CGFloat]; var jetzt: (titel: String, unter: String); var jetztY: CGFloat; var hoehe: CGFloat }
-
-    private typealias L = HeuteTafelLogik
-    static let von = 5.0, bis = 22.0, oben: CGFloat = 46, laenge: CGFloat = 690
+enum SnTageskalender {
+    static let breite: CGFloat = 360
     private static let minute = 60_000.0
-
-    static func y(_ ms: Double, _ s: SenecaStand) -> CGFloat {
-        let k = Calendar.current.dateComponents([.day, .hour, .minute], from: L.datum(ms))
-        let tag = Calendar.current.isDate(L.datum(ms), inSameDayAs: L.datum(s.jetzt))
-        let h = tag ? Double(k.hour ?? 0) + Double(k.minute ?? 0) / 60 : ms < s.jetzt ? von : bis
-        return oben + laenge * CGFloat(min(1, max(0, (h - von) / (bis - von))))
+    struct Block: Identifiable { var termin: SenecaStand.Termin; var x: CGFloat; var y: CGFloat; var breite: CGFloat; var hoehe: CGFloat; var id: String { termin.uid } }
+    struct Plan {
+        var von: Double; var bis: Double; var proStunde: CGFloat; var bloecke: [Block]; var ganztag: [String]; var jetztY: CGFloat?
+        var stunden: [Int] { Array(Int(von)...Int(bis)) }
+        func y(_ h: Double) -> CGFloat { CGFloat(h - von) * proStunde }
     }
 
-    static func uhrAb(_ ab: String, _ s: SenecaStand) -> Double? {
-        let teile = ab.split(separator: ":").compactMap { Double($0) }
-        guard teile.count == 2 else { return nil }
-        return Calendar.current.startOfDay(for: L.datum(s.jetzt)).timeIntervalSince1970 * 1000 + (teile[0] * 60 + teile[1]) * minute
+    static func heute(_ s: SenecaStand, _ jetzt: Double) -> [SenecaStand.Termin] {
+        (s.termine ?? []).filter { $0.ganztag != true && Calendar.current.isDate(HeuteTafelLogik.datum($0.start), inSameDayAs: HeuteTafelLogik.datum(jetzt)) }.sorted { $0.start < $1.start }
+    }
+
+    static func istMeeting(_ t: SenecaStand.Termin) -> Bool {
+        guard t.art != "fokus" else { return false }
+        return !(t.teilnehmer ?? []).isEmpty || !(t.mit ?? []).isEmpty
+            || t.titel.range(of: #"(?i)\b(call|meeting|zoom|teams|meet|besprechung|telefonat|jour fixe|abstimmung|sync|standup)\b|\bmit [A-ZÄÖÜ]"#, options: .regularExpression) != nil
+    }
+
+    static func stunde(_ ms: Double) -> Double {
+        let k = Calendar.current.dateComponents([.hour, .minute], from: HeuteTafelLogik.datum(ms))
+        return Double(k.hour ?? 0) + Double(k.minute ?? 0) / 60
     }
 
     static func dauer(_ ms: Double) -> String {
         let min = Int((ms / minute).rounded())
-        if min < 60 { return "\(min) Minuten" }
-        let halbe = Int((Double(min) / 30).rounded()), h = halbe / 2
-        let wort = h < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[h] : "\(h)"
-        if halbe % 2 == 1 { return h == 1 ? "anderthalb Stunden" : "\(wort)einhalb Stunden" }
-        return h == 1 ? "eine Stunde" : "\(wort) Stunden"
+        if min < 60 { return "\(min) Min" }
+        return min % 60 == 0 ? "\(min / 60) Std" : String(format: "%d:%02d Std", min / 60, min % 60)
     }
 
-    private static func zahl(_ n: Int) -> String {
-        let w = n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)"
-        return w.prefix(1).uppercased() + w.dropFirst()
-    }
-
-    static func plan(_ s: SenecaStand, jetzt: Double) -> Plan {
-        var liste: [Eintrag] = []
-        var striche: [CGFloat] = []
-        var enden: [Double] = []
-        let routinen = (s.aufgaben?.jeden_tag ?? []).compactMap { r in r.ab.flatMap { uhrAb($0, s) }.map { (r, $0) } }.sorted { $0.1 < $1.1 }
-        if let erste = routinen.first, let letzte = routinen.last {
-            striche = routinen.map { y($0.1, s) }
-            let ende = letzte.1 + (letzte.0.dauer_min ?? 0) * minute
-            enden.append(ende)
-            let fertig = routinen.filter(\.0.erledigt).count
-            let stand = fertig == 0 ? "noch keine abgehakt" : fertig == routinen.count ? "alle abgehakt" : "\(VerlaufLogik.zahlwort[min(fertig, 10)]) abgehakt"
-            liste.append(Eintrag(id: "routinen", zeit: erste.1, uhr: L.uhr(erste.1), titel: "Routinen", unter: "\(VerlaufLogik.zahlwort[min(routinen.count, 10)]), bis \(L.uhr(ende)) · \(stand)", punkt: .keiner, blass: ende < jetzt))
-        }
-        let laeufe = (s.team ?? []).compactMap { m in m.zuletzt.flatMap { z in z.um.flatMap { $0 >= (s.tag_beginn ?? 0) ? (m.name, $0, z.art) : nil } } }.sorted { $0.1 < $1.1 }
-        var gruppen: [[(String, Double, String?)]] = []
-        for l in laeufe {
-            if let g = gruppen.last?.last, l.1 - g.1 <= 90 * minute { gruppen[gruppen.count - 1].append(l) } else { gruppen.append([l]) }
-        }
-        for g in gruppen {
-            let rund = g.allSatisfy { $0.2 == "rundgang" }
-            let titel = g.count == 1 ? (rund ? "Rundgang" : "\(g[0].0) fertig") : "\(zahl(g.count)) \(rund ? "Rundgänge" : "Läufe")"
-            let unter = (g.count == 1 ? g[0].0 : g.map(\.0).joined(separator: ", ")) + " · bis \(L.uhr(g.last?.1 ?? 0))"
-            liste.append(Eintrag(id: "team\(g[0].1)", zeit: g[0].1, uhr: L.uhr(g[0].1), titel: titel, unter: unter, blass: (g.last?.1 ?? 0) < jetzt))
-        }
-        let termine = (s.termine ?? []).filter { $0.ganztag != true && $0.ende - $0.start >= 15 * minute && $0.art != "fokus" }
-        for t in termine where !(t.start <= jetzt && t.ende > jetzt) {
-            liste.append(Eintrag(id: t.uid, zeit: t.start, uhr: L.uhr(t.start), titel: t.titel, unter: t.weg ?? [t.ort, "\(Int((t.ende - t.start) / minute)) Min"].compactMap { $0 }.joined(separator: " · "), blass: t.ende <= jetzt))
-        }
-        let geplant = L.todosHeute(s).compactMap { t in t.geplant_von.flatMap { von in t.geplant_bis.map { (von, $0) } } }.sorted { $0.0 < $1.0 }
-        var bloecke: [(von: Double, bis: Double, n: Int)] = []
-        for p in geplant {
-            if let b = bloecke.last, p.0 <= b.bis + minute { bloecke[bloecke.count - 1].bis = max(b.bis, p.1); bloecke[bloecke.count - 1].n += 1 } else { bloecke.append((p.0, p.1, 1)) }
-        }
-        for b in bloecke where b.von > jetzt {
-            liste.append(Eintrag(id: "todos\(b.von)", zeit: b.von, uhr: L.uhr(b.von), titel: b.n == 1 ? "Ein To-do" : "To-dos", unter: b.n == 1 ? "bis \(L.uhr(b.bis))" : "\(VerlaufLogik.zahlwort[min(b.n, 10)]), bis \(L.uhr(b.bis))"))
-        }
-        let fenster = s.buendel?.kurz == nil ? nil : s.buendel?.fenster
-        let fensterBis = s.entscheiden?.fenster_bis ?? (fenster ?? 0) + 30 * minute
-        if let f = fenster, f > jetzt { liste.append(Eintrag(id: "fenster", zeit: f, uhr: L.uhr(f), titel: "Entscheiden", unter: s.buendel?.kurz, punkt: .bern)) }
-
-        let jetztTermin = (s.termine ?? []).first { $0.ganztag != true && $0.start <= jetzt && $0.ende > jetzt }
-        let jetztBlock = bloecke.first { $0.von <= jetzt && jetzt < $0.bis }
-        let uhr = "jetzt \(L.uhr(jetzt))"
-        var frei: Double?
-        let karte: (titel: String, unter: String)
-        let zukunft = liste.filter { $0.zeit > jetzt }.map(\.zeit).min()
-        if let t = jetztTermin {
-            karte = t.art == "fokus" ? ("Fokus bis \(L.uhr(t.ende))", "Seneca hält Meldungen zurück · \(uhr)") : (t.titel, "bis \(L.uhr(t.ende)) · \(uhr)")
-            frei = t.ende
-        } else if let b = jetztBlock {
-            karte = (b.n == 1 ? "Ein To-do bis \(L.uhr(b.bis))" : "To-dos bis \(L.uhr(b.bis))", "von Seneca geblockt · \(uhr)")
-            frei = b.bis
-        } else if let f = fenster, f <= jetzt, jetzt < fensterBis {
-            karte = ("Entscheiden bis \(L.uhr(fensterBis))", "\(s.buendel?.kurz ?? "") · \(uhr)")
-            frei = fensterBis
-        } else {
-            karte = zukunft.map { ("Frei bis \(L.uhr($0))", "\(dauer($0 - jetzt)) · \(uhr)") } ?? ("Frei", "\((s.entscheiden?.danach ?? "Nichts mehr bis morgen.").split(separator: ".").first.map { $0.prefix(1).lowercased() + $0.dropFirst() } ?? "") · \(uhr)")
-        }
-        if let ab = frei, let bis = zukunft, bis - ab >= 60 * minute {
-            liste.append(Eintrag(id: "frei", zeit: ab, uhr: "", titel: nil, unter: "frei bis \(L.uhr(bis)) · \(dauer(bis - ab))", punkt: .keiner, abstand: 40))
-        }
-        if zukunft != nil {
-            let ende = (enden + [fenster.map { _ in fensterBis } ?? 0] + termine.map(\.ende) + bloecke.map(\.bis)).max() ?? jetzt
-            let danach = s.entscheiden?.danach ?? "Nichts mehr bis morgen."
-            liste.append(Eintrag(id: "danach", zeit: ende, uhr: L.uhr(ende), titel: nil, unter: "Danach " + danach.prefix(1).lowercased() + danach.dropFirst(), punkt: .keiner, blass: true, abstand: 40))
-        }
-
-        liste.sort { $0.zeit < $1.zeit || $0.zeit == $1.zeit && $0.id == "frei" && $1.id == "danach" }
-        var unten: CGFloat = 0
-        var jetztY = y(jetzt, s)
-        var gesetzt = false
-        var fertig: [Eintrag] = []
-        for var e in liste {
-            if !gesetzt && e.zeit > jetzt {
-                jetztY = max(jetztY, unten + 30 + 24)
-                unten = jetztY - 24 + 64
-                gesetzt = true
+    static func plan(_ s: SenecaStand, jetzt: Double, hoehe: CGFloat) -> Plan {
+        let liste = heute(s, jetzt)
+        let von = min(7, (liste.map { stunde($0.start) }.min() ?? 7).rounded(.down))
+        let bis = max(21, min(24, (liste.map { stunde($0.ende) + ($0.ende - $0.start > 20 * 3_600_000 ? 24 : 0) }.max() ?? 21).rounded(.up)))
+        let pro = hoehe / CGFloat(bis - von)
+        var spuren: [Double] = [], gruppe: [(SenecaStand.Termin, Int)] = [], bloecke: [Block] = []
+        func schliesse() {
+            let n = CGFloat(max(1, spuren.count)), w = (breite - 44) / n
+            bloecke += gruppe.map { t, i in
+                let a = stunde(t.start), e = max(a + 0.25, Calendar.current.isDate(HeuteTafelLogik.datum(t.ende), inSameDayAs: HeuteTafelLogik.datum(t.start)) ? stunde(t.ende) : 24)
+                return Block(termin: t, x: 44 + CGFloat(i) * w, y: CGFloat(a - von) * pro + 1, breite: w - 3, hoehe: max(18, CGFloat(e - a) * pro - 2))
             }
-            e.oben = max(y(e.zeit, s) - 12, unten + (unten == 0 ? 38 : e.abstand))
-            unten = e.oben + e.hoehe
-            fertig.append(e)
+            spuren = []; gruppe = []
         }
-        if !gesetzt { jetztY = max(jetztY, unten + 30 + 24); unten = jetztY + 40 }
-        return Plan(eintraege: fertig, striche: striche, jetzt: karte, jetztY: jetztY, hoehe: unten + 24)
-    }
-}
-
-struct SnPuls: View {
-    var farbe: Color
-    var ring: Color?
-    var groesse: CGFloat
-    var weite: CGFloat
-    var takt: Double
-    var deckkraft: Double
-    var laeuft = true
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !laeuft)) { t in
-            let p = laeuft ? t.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: takt) / takt : 0.9
-            let r = min(1, p / 0.7), w = 1 - pow(1 - r, 3)
-            Circle().fill(farbe).frame(width: groesse, height: groesse)
-                .background(Circle().fill((ring ?? farbe).opacity(p < 0.7 ? deckkraft * (1 - r) : 0)).frame(width: groesse + 2 * weite * w, height: groesse + 2 * weite * w))
+        for t in liste {
+            if !spuren.isEmpty && spuren.allSatisfy({ $0 <= t.start }) { schliesse() }
+            let i = spuren.firstIndex { $0 <= t.start } ?? spuren.count
+            if i == spuren.count { spuren.append(t.ende) } else { spuren[i] = t.ende }
+            gruppe.append((t, i))
         }
-        .frame(width: groesse, height: groesse)
+        schliesse()
+        let h = stunde(jetzt)
+        let ganztag = (s.termine ?? []).filter { $0.ganztag == true && Calendar.current.isDate(HeuteTafelLogik.datum($0.start), inSameDayAs: HeuteTafelLogik.datum(jetzt)) }.map(\.titel)
+        return Plan(von: von, bis: bis, proStunde: pro, bloecke: bloecke, ganztag: ganztag, jetztY: h >= von && h <= bis ? CGFloat(h - von) * pro : nil)
     }
 }
 
 struct SnHeuteKnopf: ButtonStyle {
     enum Art { case haupt, neben, leise }
     var art: Art
-    var glimmt = false
     @State private var hover = false
 
     func makeBody(configuration: Configuration) -> some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !glimmt)) { t in
-            let p = glimmt ? t.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 6) / 6 : 1
-            let g = p < 0.3 ? sin(p / 0.3 * .pi / 2) : p < 0.6 ? cos((p - 0.3) / 0.3 * .pi / 2) : 0
+        ZStack {
             configuration.label
                 .fixedSize()
                 .font(Schrift.grotesk(15, .medium))
@@ -590,8 +450,7 @@ struct SnHeuteKnopf: ButtonStyle {
                 .padding(.horizontal, art == .leise ? 12 : 20).frame(height: 44)
                 .background {
                     if art == .haupt {
-                        Capsule().fill(TafelFarbe.himmel.opacity(0.18 * g)).padding(-6)
-                        Capsule().fill(TafelFarbe.himmel.opacity(hover ? 0.9 : 1)).shadow(color: TafelFarbe.himmel.opacity(0.55 * g), radius: 15, y: 10)
+                        Capsule().fill(TafelFarbe.himmel.opacity(hover ? 0.9 : 1))
                     } else if art == .neben {
                         Capsule().fill(Color.white.opacity(hover ? 0.12 : 0.08)).overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
                     } else {

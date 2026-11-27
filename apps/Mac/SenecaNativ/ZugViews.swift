@@ -499,14 +499,9 @@ struct SnLaufPille: View {
 
 struct SnAtemPunkt: View {
     var an: Bool
-    @Environment(\.fensterSichtbar) private var sichtbar
     var body: some View {
         if an {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar)) { ctx in
-                let p = (sin(ctx.date.timeIntervalSinceReferenceDate / 1.6 * 2 * .pi) + 1) / 2
-                Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(0.55 + 0.45 * p)
-            }
-            .frame(width: 7, height: 7)
+            Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7)
         } else {
             Circle().strokeBorder(TafelFarbe.zweit, lineWidth: 1.5).frame(width: 7, height: 7)
         }

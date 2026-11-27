@@ -145,7 +145,7 @@ function gefragt(kurz: string | undefined, text: string) {
 
 function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   const abnahmen = auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio");
-  const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id));
+  const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id)).sort((a, b) => rang(db, b, jetzt) - rang(db, a, jetzt) || Number(a.gestellt) - Number(b.gestellt));
   return {
     fenster: fensterStart(jetzt), ...buendelText(abnahmen, offen.length), ...buendelFortschritt(db, abnahmen, jetzt),
     fragen: offen.map((f) => frageSicht(db, f, jetzt)),
