@@ -26,6 +26,14 @@ class TodoAnsicht extends ListenAnsicht {
         }
     }
 
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:todos);
+    }
+
+    function tippenOeffnet() as Boolean {
+        return false;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
     }

@@ -7,6 +7,14 @@ class UebungenAnsicht extends ListenAnsicht {
     const HAEUFIGSTE = 8;
     private var _alle as Boolean;
 
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:uebungen);
+    }
+
+    function vor() as Void {
+        waehlen();
+    }
+
     function initialize(alle as Boolean) {
         ListenAnsicht.initialize();
         _alle = alle;

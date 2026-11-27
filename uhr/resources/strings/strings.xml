@@ -1,4 +1,5 @@
 <resources>
     <string id="AppName">Seneca</string>
     <string id="SenecaZeile">Seneca</string>
+    <string id="SenecaTodos">Seneca To-dos</string>
 </resources>

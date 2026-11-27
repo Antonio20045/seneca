@@ -2,6 +2,20 @@ import Toybox.Graphics;
 import Toybox.Lang;
 
 class StartAnsicht extends ListenAnsicht {
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:start);
+    }
+
+    function oberhalb() as Void {
+        if (Inhalt.teamArbeitet() != null) {
+            Ansichten.oeffnen(new TeamAnsicht());
+        }
+    }
+
+    function vor() as Void {
+        waehlen();
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
     }
@@ -23,8 +37,14 @@ class StartAnsicht extends ListenAnsicht {
         return liste;
     }
 
-    function zumTraining() as Void {
-        _auswahl = eintraege().indexOf(:training);
+    private var _todosOeffnen as Boolean = false;
+
+    function vomZifferblatt(komplikation as Object) as Void {
+        if (komplikation == 1) {
+            _todosOeffnen = true;
+        } else {
+            _auswahl = eintraege().indexOf(:training);
+        }
     }
 
     function anzahl() as Number {
@@ -33,6 +53,11 @@ class StartAnsicht extends ListenAnsicht {
 
     function onShow() as Void {
         ListenAnsicht.onShow();
+        if (_todosOeffnen) {
+            _todosOeffnen = false;
+            Ansichten.oeffnen(new TodoAnsicht());
+            return;
+        }
         Hinweise.zeigen(true);
     }
 

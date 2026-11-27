@@ -7,6 +7,14 @@ class LesenAnsicht extends ListenAnsicht {
     const STUFEN = 16;
     private var _gestern as Boolean = false;
 
+    function zonen() as Array<Array<Number>> {
+        return Lesen.timerLaeuft() ? [] as Array<Array<Number>> : Bildschirm.zonen(:lesen);
+    }
+
+    function tippenOeffnet() as Boolean {
+        return false;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
         _auswahl = 2;
