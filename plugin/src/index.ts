@@ -54,9 +54,9 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       schritt_gesamt: O(Z), befunde: O(Type.Array(S)), stufe: O(S), abnahme_art: O(S), hoerprobe_s: O(Z),
       checkliste: O(Type.Array(Type.Object({ text: S, fertig: Type.Boolean() }))), bericht: O(S) }),
     (db, k, p) => werkzeugFortschreiben(db, k.sitzung, p as Fortschreibung)],
-  ["seneca_frage", "Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
+  ["seneca_frage", "Frage an Antonio stellen (mit Kontext, Folge, Empfehlung, kurz: „Testanruf freigeben?“, zeit_fuer: „den Anruf“, wenn er danach Zeit braucht, rueckfragen: drei kurze Fragen, die Antonio zurückstellen könnte) oder seine Antwort eintragen. Fassungen zur Wahl: je Option titel („Fassung A · klar“), preis, einheit, text.",
     Type.Object({ art: S, auftrag_id: O(S), text: O(S), was_passiert_ist: O(S), wenn_nichts: O(S), empfehlung: O(S), fragenart: O(S),
-      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S) }),
+      optionen: O(Type.Array(Type.Object({ wert: S, text: S, folge: S, titel: O(S), preis: O(S), einheit: O(S) }))), frist: O(Z), frage_id: O(S), antwort: O(S), nachricht_kennung: O(S), kurz: O(S), zeit_fuer: O(S), rueckfragen: O(Type.Array(S)) }),
     (db, k, p) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent }) }],
   ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",

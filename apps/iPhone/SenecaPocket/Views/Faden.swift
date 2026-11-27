@@ -46,10 +46,18 @@ struct FadenLayer: View {
         return h.finalize()
     }
 
+    private var offeneFrage: SenecaStand.Frage? {
+        guard partner.id != ChatPartner.seneca.id, let s = store.stand else { return nil }
+        return TeamLogik.offeneFragen(s).first { $0.von == partner.kopfName }
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             Seite(scrollt: false) {
                 VStack(spacing: 0) {
+                    if let f = offeneFrage {
+                        MehrKarte(f: f, antworte: { store.antworte(frage: f.id, wahl: $0) }, andereZeit: { feld = "Lieber um "; fokus = true }).padding(.top, 8).padding(.bottom, 4)
+                    }
                     zustandsZeile
                     fadenBereich(proxy)
                         .overlay(alignment: .bottom) { neuKnopf(proxy) }
@@ -67,6 +75,20 @@ struct FadenLayer: View {
             .unten {
                 VStack(alignment: .leading, spacing: 18) {
                     if let l = ChatTafelLogik.laeuft(store.stand) { HStack { ChatLaeuftZeile(satz: l); anhaltenKnopf } }
+                    if let r = offeneFrage?.rueckfragen, !r.isEmpty, feldLeer {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(r, id: \.self) { t in
+                                    Button { _ = model.senden(t, an: partner) } label: {
+                                        Text(t).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.akzent).padding(.horizontal, 16).frame(height: 44)
+                                            .overlay(Capsule().strokeBorder(TafelFarbe.himmel.opacity(0.45), lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden).padding(.bottom, -8)
+                    }
                     schreibzeile
                 }
             }

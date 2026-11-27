@@ -844,6 +844,7 @@ struct RootView: View {
                 }
                 else if action.hasPrefix("wisch:"), let ebene = Page(rawValue: String(action.dropFirst(6))) { await kunstWisch(ebene) }
                 else if action.hasPrefix("seitlich=") { t = TransitionState(p: Double(action.dropFirst(9)) ?? 0.5, dragging: true, seitlich: true) }
+                else if action.hasPrefix("mit:") { store.chat.waehle(ChatTafelLogik.partner(String(action.dropFirst(4)))) }
                 else if action.hasPrefix("halb:"), let ebene = Page(rawValue: String(action.dropFirst(5))) {
                     pagesAlive.insert(ebene); mountDay(); side = SideState.only(ebene, 0.45, dragging: true)
                 }

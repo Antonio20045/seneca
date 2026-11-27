@@ -159,10 +159,10 @@ export function vorschlagAnlegen(db: Register, v: NeuerVorschlag): string {
 
 export type NeueFrage = {
   auftrag_id: string; von: string; text: string; was_passiert_ist: string; wenn_nichts: string; empfehlung: string;
-  art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string;
+  art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string; rueckfragen?: string[];
 };
 
-export function frageStellen(db: Register, { kurz, zeit_fuer, ...f }: NeueFrage): string {
+export function frageStellen(db: Register, { kurz, zeit_fuer, rueckfragen, ...f }: NeueFrage): string {
   return schritt(db, () => {
     const fehlt = (["text", "was_passiert_ist", "wenn_nichts", "empfehlung", "art"] as const).filter((k) => !f[k]);
     if (fehlt.length || !f.optionen.length || f.optionen.some((o) => !o.folge)) throw new Error(`Frage unvollständig: ${[...fehlt, "optionen mit folge"].join(", ")}`);
@@ -176,7 +176,7 @@ export function frageStellen(db: Register, { kurz, zeit_fuer, ...f }: NeueFrage)
       ...f, roh: f.roh ?? null, wirkung_aussen: f.wirkung_aussen ?? "keine", ausgang_schluessel: f.ausgang_schluessel ?? null,
       inhalt_hash: f.inhalt_hash ?? null, frist: f.frist ?? null, id, optionen: JSON.stringify(optionen), zustand: "offen", gestellt: uhr.jetzt(),
     });
-    ereignis(db, { art: "frage.gestellt", wer: f.von, auftrag_id: f.auftrag_id, frage_id: id, satz: f.text, daten: { art: f.art, wirkung_aussen: f.wirkung_aussen ?? "keine", kurz, zeit_fuer } });
+    ereignis(db, { art: "frage.gestellt", wer: f.von, auftrag_id: f.auftrag_id, frage_id: id, satz: f.text, daten: { art: f.art, wirkung_aussen: f.wirkung_aussen ?? "keine", kurz, zeit_fuer, rueckfragen } });
     return id;
   });
 }

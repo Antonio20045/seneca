@@ -240,6 +240,47 @@ struct TeamDetail: View {
     }
 }
 
+struct MehrKarte: View {
+    var f: SenecaStand.Frage
+    var antworte: (String) -> Void
+    var andereZeit: () -> Void
+
+    var body: some View {
+        let o = TeamLogik.empfohlen(f)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Circle().fill(TafelFarbe.bernstein).frame(width: 6, height: 6)
+                Text((["FRAGT", f.seit.map { "SEIT \(HeuteTafelLogik.uhr($0))" }, f.projekt?.uppercased()] as [String?]).compactMap { $0 }.joined(separator: " · ")).mono(11, .medium, abstand: 1)
+            }
+            .foregroundStyle(TafelFarbe.bernstein)
+            Text(f.text).font(Sundartha.serif(28)).foregroundStyle(.white).zeilenHoehe(30.2, schrift: 28).fixedSize(horizontal: false, vertical: true).padding(.top, 10).padding(.bottom, 12)
+            if let o, let folge = o.folge { zeile((o.text ?? "").uppercased(), folge, TafelFarbe.leise) }
+            if let n = f.kontext?.wenn_nicht { zeile("NICHT", n, TafelFarbe.leise) }
+            if let o { zeile("EMPFIEHLT", "\(o.text ?? "").", TafelFarbe.akzent) }
+            HStack(spacing: 6) {
+                if let o, let w = o.wert {
+                    Button { antworte(w) } label: { Text(o.text ?? w).foregroundStyle(TafelFarbe.aufHimmel).padding(.horizontal, 20).frame(height: 44).background(Capsule().fill(TafelFarbe.himmel)) }
+                }
+                Button { antworte("spaeter") } label: { Text("Später").padding(.horizontal, 14).frame(height: 44) }
+                Button(action: andereZeit) { Text("Andere Zeit").padding(.horizontal, 14).frame(height: 44) }
+            }
+            .font(Sundartha.grotesk(15, .medium)).foregroundStyle(TafelFarbe.zweit).buttonStyle(.plain).padding(.top, 12)
+        }
+        .padding(.horizontal, 18).padding(.top, 18).padding(.bottom, 16)
+        .background(RoundedRectangle(cornerRadius: 22).fill(Color.white.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(LinearGradient(colors: [Color.white.opacity(0.14), .clear], startPoint: .top, endPoint: .center), lineWidth: 1))
+        .padding(.horizontal, 16)
+    }
+
+    private func zeile(_ titel: String, _ text: String, _ farbe: Color) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(titel).mono(11, .medium, abstand: 0.8).foregroundStyle(farbe).frame(width: 92, alignment: .leading).padding(.top, 2)
+            Text(text).font(Sundartha.grotesk(14)).foregroundStyle(.white).zeilenHoehe(20, schrift: 14).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
+    }
+}
+
 struct EntscheidenSeite: View {
     var frage: SenecaStand.Frage
     var mehr: () -> Void = {}
