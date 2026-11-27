@@ -146,7 +146,7 @@ export function monat(db: Register, jetzt: number) {
 export function tag(db: Register, jetzt: number) {
   const e = eintraegeSeit(db, tagVon(jetzt)).map(lesen), zeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
     uebungen = [...new Set(e.filter((x) => x.art === "satz").map((x) => String(x.w.u ?? "Satz")))];
-  const zeilen = [...e.filter((x) => x.art !== "satz" && x.art !== "notiz").map((x) => ({ id: x.id, zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
+  const zeilen = [...e.filter((x) => ["lauf", "lesen", "gewicht", "training"].includes(x.art)).map((x) => ({ id: x.id, zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
       wert: x.art === "lauf" ? `${zahl(Number(x.w.km), 1)} km` : x.art === "lesen" ? `${x.w.m} Min` : x.art === "gewicht" ? `${zahl(Number(x.w.kg), 1)} kg` : `${x.w.s ?? ""} Sätze` })),
     ...uebungen.map((u) => { const s = e.filter((x) => x.art === "satz" && String(x.w.u ?? "Satz") === u); return { zeit: s[0].zeit, titel: u, wert: `${s.length} ${s.length === 1 ? "Satz" : "Sätze"}` }; })]
     .sort((a, b) => a.zeit - b.zeit).map((z) => [zeit(z.zeit), z.titel, z.wert, "id" in z ? z.id : ""]);

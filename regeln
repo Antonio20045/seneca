@@ -152,6 +152,11 @@ kal_raster_fein_min 5 app
 kal_bb_gut_ab 60 vorschlag app
 ein_tag_tage 1
 stat_lang_km 15
+garmin_abgleich_min 20
+garmin_haengt_s 240
+garmin_tage 3
+garmin_python /home/ubuntu/.garmin-venv/bin/python
+garmin_skript /home/ubuntu/seneca/garmin/garmin.py
 stat_gute_woche_mal 3
 kraft_volle_wdh 8
 kraft_schritt_kg 2.5

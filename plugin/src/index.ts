@@ -28,7 +28,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { eintraegeSeit, revision, termineAm, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
-import { anzeigeSetzen, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
+import { anzeigeSetzen, eintragAendern, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
@@ -79,7 +79,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       nurSeneca(k);
       return { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 };
     }],
-  ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt).", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
+  ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt). Statistik ohne Code: anzeigenart statistik, werte { metrik: art.feld aus den Einträgen (lauf.km, lauf.pace_s, lauf.h, satz.1rm, satz.volumen, nacht.hrv, tag.ruhepuls, aktivitaet.anzahl …), filter: { u: \"Kniebeuge\" }, zeitraum_tage, gruppe: tag|woche|monat|einzeln, rechnung: summe|schnitt|max|min|anzahl|letzter, diagramm: balken|linie|ring|zahl, einheit, ziel, grund: ein Satz, warum }.", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
   ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; vorschlagen (felder.titel, felder.bereich): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
@@ -207,7 +207,7 @@ export default {
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.verstehen", ({ params }) => verstehen(db, String(params.satz ?? ""), uhr.jetzt()), { scope: "operator.read" });
-    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "datei" ? dateiVorschau(String(params.pfad ?? "")) : params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined) }
+    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "datei" ? dateiVorschau(String(params.pfad ?? "")) : params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined), kennzahlen: JSON.parse(wert(db, "statistik:kennzahlen")?.wert ?? "null") }
       : stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
     let gesendet = 0;
@@ -224,6 +224,14 @@ export default {
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },
       { job: "kalender", ursache: "Termine am Server statt am Mac", lauf: () => kalenderJob(db, kalender) },
       { job: "planen", ursache: "To-dos in Lücken und Los-Hinweis", lauf: () => planenJob(db), abstand: () => regelMs("planen_min") },
+      { job: "garmin", ursache: "Garmin, Kennzahlen und Statistiken der Mitarbeiter ohne Modell", abstand: () => regelMs("garmin_abgleich_min"), lauf: async () => {
+        const r = await api.runtime.system.runCommandWithTimeout([regelText("garmin_python"), regelText("garmin_skript"), "abgleich", join(ordner, "register.sqlite"), String(regelZahl("garmin_tage"))], regelMs("garmin_haengt_s"));
+        if (r.code !== 0) throw new Error(`garmin.py: ${(r.stdout || r.stderr).slice(0, 300)}`);
+        const a = JSON.parse(r.stdout) as { eintraege: { kennung: string; art: string; zeit: number; werte: object }[]; loeschen: string[]; kennzahlen: object }, k = JSON.stringify(a.kennzahlen);
+        for (const e of a.eintraege) eintragSetzen(db, { ...e, quelle: "garmin", handlung_kennung: e.kennung });
+        for (const id of a.loeschen) eintragAendern(db, id, { zustand: "geloescht" }, "garmin");
+        if (wert(db, "statistik:kennzahlen")?.wert !== k) wertSetzen(db, "statistik:kennzahlen", k, "garmin");
+      } },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
         const r = revision(db);
         if (r !== gesendet) melde?.(r);
