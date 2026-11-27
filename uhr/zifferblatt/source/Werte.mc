@@ -12,6 +12,7 @@ module Werte {
     const TAGE = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
     const MONATE = ["JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ"];
     const AKKU_WARNUNG = 20;
+    const AKKU_KRITISCH = 10;
     const BATTERIE_WARNUNG = 25;
     const SCHRITTZIEL = 10000;
 
@@ -23,9 +24,6 @@ module Werte {
 
     function stunde(fuehrend as Boolean) as String {
         var h = jetzt().hour as Number;
-        if (!System.getDeviceSettings().is24Hour) {
-            h = (h + 11) % 12 + 1;
-        }
         return fuehrend ? h.format("%02d") : h.toString();
     }
 

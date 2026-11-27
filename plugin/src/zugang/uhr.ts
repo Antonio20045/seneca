@@ -98,6 +98,13 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
   return { status: 200, inhalt: d.r === r || d.zs === LAUF ? { q, r, u: 1 } : { q, r, s: uhrStand(jetzt) } };
 }
 
+export function uhrZifferblatt(db: Register, kopf: Record<string, string | string[] | undefined>, sicht: (t: number) => object): Antwort {
+  const token = String(kopf.authorization ?? "").replace(/^Bearer /, "");
+  const gespeichert = wert(db, `uhr:${LAUF}`)?.wert;
+  if (!gespeichert || schluesselHash(token) !== gespeichert) return { status: 401, inhalt: { f: "unbekannt" } };
+  return { status: 200, inhalt: sicht(uhr.jetzt()) };
+}
+
 function aktivitaetSetzen(db: Register, zs: string | undefined, jetzt: number): void {
   const a = wert(db, "aktivitaet");
   const laeuft = a?.wert === LAUF && (a.gueltig_bis ?? 0) > jetzt;

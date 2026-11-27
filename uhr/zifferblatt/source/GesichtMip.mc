@@ -3,111 +3,136 @@ import Toybox.Lang;
 
 (:mip)
 module Gesicht {
-    const LINKS = Zeichnen.LINKS;
     const MITTIG = Zeichnen.MITTIG;
+    const LINKS = Zeichnen.LINKS;
     const RECHTS = Zeichnen.RECHTS;
+    const TAG_ANFANG_S = 21600;
+    const TAG_LAENGE_S = 64800;
+    const WENIG = 3.0;
+    const HIMMEL_DUNKEL = 0x0055AA;
+    const GRUEN_DUNKEL = 0x00AA55;
 
-    function grund(dc as Dc) as Void {
-        dc.setColor(Zeichnen.NAVY, Zeichnen.NAVY);
-        dc.clear();
+    function winkel(zeit as Number) as Float {
+        var anteil = (zeit - Kontext.tagBeginn(zeit) - TAG_ANFANG_S).toFloat() / TAG_LAENGE_S;
+        return 360.0 * (anteil < 0.0 ? 0.0 : anteil > 1.0 ? 1.0 : anteil);
     }
 
-    function wert(dc as Dc, x as Numeric, y as Numeric, zahl as Number?, id as ResourceId, farbe as Number, einheit as String) as Void {
-        if (zahl == null || einheit.length() == 0) {
-            Zeichnen.text(dc, x, y, id, farbe, Werte.zahl(zahl, false), MITTIG);
+    function bogen(dc as Dc, radius as Numeric, von as Float, bis as Float, farbe as Number, dicke as Numeric) as Void {
+        if (bis - von < WENIG) {
+            bis = von + WENIG;
+        }
+        dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
+        Zeichnen.stift(dc, dicke);
+        dc.drawArc(Zeichnen.p(Zeichnen.MITTE), Zeichnen.p(Zeichnen.MITTE), Zeichnen.p(radius), Graphics.ARC_CLOCKWISE, 90 - von, 90 - bis);
+        dc.setPenWidth(1);
+        var a = Zeichnen.strahl(von, radius);
+        var b = Zeichnen.strahl(bis, radius);
+        dc.fillCircle(a[0], a[1], Zeichnen.p(dicke / 2.0));
+        dc.fillCircle(b[0], b[1], Zeichnen.p(dicke / 2.0));
+    }
+
+    function teilen(dc as Dc, radius as Numeric, von as Float, bis as Float, jetzt as Float, hell as Number, dunkel as Number, dicke as Numeric) as Void {
+        if (bis <= jetzt) {
+            bogen(dc, radius, von, bis, dunkel, dicke);
+        } else if (von >= jetzt) {
+            bogen(dc, radius, von, bis, hell, dicke);
+        } else {
+            bogen(dc, radius, von, jetzt, dunkel, dicke);
+            bogen(dc, radius, jetzt, bis, hell, dicke);
+        }
+    }
+
+    function ring(dc as Dc, radius as Numeric, dicke as Numeric, teile as Number, zeit as Number) as Void {
+        dc.setColor(Zeichnen.MATT, Graphics.COLOR_TRANSPARENT);
+        Zeichnen.stift(dc, 2);
+        dc.drawCircle(Zeichnen.p(Zeichnen.MITTE), Zeichnen.p(Zeichnen.MITTE), Zeichnen.p(radius));
+        dc.setPenWidth(1);
+        for (var i = 0; i <= teile; i += 1) {
+            var w = 360.0 * i / teile;
+            var innen = radius - dicke - 3;
+            Zeichnen.balkenRund(dc, Zeichnen.strahl(w, innen), Zeichnen.strahl(w, innen - 4), 2);
+        }
+        var jetzt = winkel(zeit);
+        var tg = Kontext.termine();
+        for (var i = 0; i < tg.size(); i += 1) {
+            var t = tg[i] as Array;
+            var tag = Kontext.tagBeginn(zeit);
+            if ((t[0] as Number) < tag || (t[0] as Number) >= tag + Kontext.TAG_S) {
+                continue;
+            }
+            var training = "tr".equals(t[3]);
+            teilen(dc, radius, winkel(t[0] as Number), winkel(t[1] as Number), jetzt, training ? Zeichnen.GRUEN : Zeichnen.HIMMEL, training ? GRUEN_DUNKEL : HIMMEL_DUNKEL, dicke);
+        }
+        var punkt = Zeichnen.strahl(jetzt, radius);
+        dc.setColor(Zeichnen.SCHWARZ, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(punkt[0], punkt[1], Zeichnen.p(dicke + 3));
+        dc.setColor(Zeichnen.BERNSTEIN, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(punkt[0], punkt[1], Zeichnen.p(dicke / 2.0 + 2));
+    }
+
+    function zeile(dc as Dc, y as Numeric, id as ResourceId, z as Array) as Void {
+        var symbol = z[2] as Number;
+        var text = Zeichnen.passt(dc, z[0] as String, id, symbol > 0 ? 190 : 206);
+        if (symbol == 0) {
+            Zeichnen.mitte(dc, y, id, z[1] as Number, text);
             return;
         }
-        Zeichnen.gruppe(dc, x, y, [[id, farbe, zahl.toString()], [Rez.Fonts.Prozent, Zeichnen.LEISE, einheit]], 2, MITTIG);
+        var links = Zeichnen.MITTE - (18 + Zeichnen.breite(dc, id, text)) / 2.0;
+        if (symbol == Kontext.PUNKT) {
+            Zeichnen.punkt(dc, links + 4.5, y, 9, Zeichnen.BERNSTEIN);
+        } else {
+            Zeichnen.hakenStrich(dc, links + 6, y, 16, Zeichnen.GRUEN);
+        }
+        Zeichnen.text(dc, links + 18, y, id, z[1] as Number, text, LINKS);
     }
 
-    function marke(dc as Dc, x as Numeric, y as Numeric, text as String, warnung as Boolean) as Void {
-        Zeichnen.text(dc, x, y, Rez.Fonts.Marke, Zeichnen.LEISE, text, MITTIG);
-        if (warnung) {
-            Zeichnen.punkt(dc, x - Zeichnen.breite(dc, Rez.Fonts.Marke, text) / 2.0 - 8, y, 7, Zeichnen.BERNSTEIN);
+    function kontext(dc as Dc, oben as Numeric, zeit as Number) as Void {
+        var zeilen = Kontext.zeilen(zeit);
+        for (var i = 0; i < zeilen.size(); i += 1) {
+            zeile(dc, oben + i * 28, i == 0 ? Rez.Fonts.Zeile : Rez.Fonts.Datum, zeilen[i] as Array);
+        }
+        var teile = [] as Array<Array>;
+        var fuss = Kontext.fuss(zeit);
+        for (var i = 0; i < fuss.size(); i += 1) {
+            teile.add([Rez.Fonts.Marke, fuss[i][0], fuss[i][1]]);
+        }
+        if (teile.size() > 0) {
+            Zeichnen.gruppe(dc, Zeichnen.MITTE, 244, teile, 12, MITTIG);
         }
     }
 
-    function leiste(dc as Dc, oben as Numeric, id as ResourceId) as Void {
-        var akku = Werte.akku();
-        var batterie = Werte.batterie();
-        marke(dc, 68, oben, "AKKU", akku != null && akku < Werte.AKKU_WARNUNG);
-        marke(dc, Zeichnen.MITTE, oben, "SCHRITTE", false);
-        marke(dc, 212, oben, "BODY BATT", batterie != null && batterie < Werte.BATTERIE_WARNUNG);
-        wert(dc, 68, oben + 25, akku, id, Zeichnen.WEISS, "%");
-        Zeichnen.mitte(dc, oben + 25, id, Zeichnen.WEISS, Werte.zahl(Werte.schritte(), true));
-        wert(dc, 212, oben + 25, batterie, id, Zeichnen.WEISS, "");
+    function zeit(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, punkt as Number) as Void {
+        var halb = Zeichnen.breite(dc, id, ":") / 2.0;
+        Zeichnen.text(dc, Zeichnen.MITTE - halb, y, id, farbe, Werte.stunde(true), RECHTS);
+        Zeichnen.text(dc, Zeichnen.MITTE, y, id, punkt, ":", MITTIG);
+        Zeichnen.text(dc, Zeichnen.MITTE + halb, y, id, farbe, Werte.minute(), LINKS);
+    }
+
+    function elegantAuto(dc as Dc) as Void {
+        elegant(dc);
     }
 
     function elegant(dc as Dc) as Void {
-        grund(dc);
-        Zeichnen.mitte(dc, 64, Rez.Fonts.Datum, Zeichnen.LEISE, Werte.datumLang());
-        Zeichnen.mitte(dc, 128, Rez.Fonts.Zeit, Zeichnen.WEISS, Werte.stunde(false) + ":" + Werte.minute());
-        leiste(dc, 194, Rez.Fonts.Wert);
-    }
-
-    function mitSeneca(dc as Dc, zeile as String, wartet as Boolean) as Void {
-        grund(dc);
-        Zeichnen.mitte(dc, 58, Rez.Fonts.Datum, Zeichnen.LEISE, Werte.datumLang());
-        Zeichnen.mitte(dc, 114, Rez.Fonts.ZeitKlein, Zeichnen.WEISS, Werte.stunde(false) + ":" + Werte.minute());
-        var text = Zeichnen.kuerzen(dc, zeile, Rez.Fonts.Zeile, 210);
-        if (wartet) {
-            var links = Zeichnen.MITTE - (16 + Zeichnen.breite(dc, Rez.Fonts.Zeile, text)) / 2.0;
-            Zeichnen.punkt(dc, links + 4.5, 168, 9, Zeichnen.BERNSTEIN);
-            Zeichnen.text(dc, links + 16, 168, Rez.Fonts.Zeile, Zeichnen.WEISS, text, LINKS);
-        } else {
-            Zeichnen.mitte(dc, 168, Rez.Fonts.Zeile, Zeichnen.WEISS, text);
-        }
-        dc.setColor(Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(124, 186, 32, 1);
-        leiste(dc, 202, Rez.Fonts.Wert);
-    }
-
-    function striche(dc as Dc, anfang as Float, richtung as Number, wert as Number?, farbe as Number, warnung as Boolean) as Void {
-        var voll = wert == null ? 0 : ((wert + 2) / 5).toNumber();
-        for (var i = 0; i < 20; i += 1) {
-            dc.setColor(i < voll ? (warnung ? Zeichnen.BERNSTEIN : farbe) : Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
-            var winkel = anfang + richtung * i * 5;
-            Zeichnen.balkenRund(dc, Zeichnen.strahl(winkel, 125), Zeichnen.strahl(winkel, 136), 3);
-        }
-    }
-
-    function zeit(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, punkt as Number, stunde as String, minute as String) as Void {
-        var halb = Zeichnen.breite(dc, id, ":") / 2.0;
-        Zeichnen.text(dc, Zeichnen.MITTE - halb, y, id, farbe, stunde, RECHTS);
-        Zeichnen.text(dc, Zeichnen.MITTE, y, id, punkt, ":", MITTIG);
-        Zeichnen.text(dc, Zeichnen.MITTE + halb, y, id, farbe, minute, LINKS);
+        var jetzt = Kontext.jetzt();
+        Werte.anmelden();
+        ring(dc, 133, 4, 6, jetzt);
+        Zeichnen.mitte(dc, 62, Rez.Fonts.Datum, Zeichnen.LEISE, Werte.datumLang());
+        Zeichnen.mitte(dc, 120, Rez.Fonts.Zeit, Zeichnen.WEISS, Werte.stunde(true) + ":" + Werte.minute());
+        kontext(dc, 182, jetzt);
     }
 
     function sportlich(dc as Dc) as Void {
-        var akku = Werte.akku();
-        var batterie = Werte.batterie();
-        var schritte = Werte.schritte();
-        var akkuWarnung = akku != null && akku < Werte.AKKU_WARNUNG;
-        var batterieWarnung = batterie != null && batterie < Werte.BATTERIE_WARNUNG;
-        striche(dc, 222.5, 1, akku, Zeichnen.WEISS, akkuWarnung);
-        striche(dc, 137.5, -1, batterie, Zeichnen.GRUEN, batterieWarnung);
-        Zeichnen.mitte(dc, 52, Rez.Fonts.SportDatum, Zeichnen.LEISE, Werte.datumKurz());
-        zeit(dc, 112, Rez.Fonts.Sport, Zeichnen.WEISS, Zeichnen.HIMMEL, Werte.stunde(true), Werte.minute());
-        marke(dc, 88, 172, "AKKU", false);
-        marke(dc, 192, 172, "BODY BATT", false);
-        wert(dc, 88, 198, akku, Rez.Fonts.SportWert, akkuWarnung ? Zeichnen.BERNSTEIN : Zeichnen.WEISS, "%");
-        wert(dc, 192, 198, batterie, Rez.Fonts.SportWert, batterieWarnung ? Zeichnen.BERNSTEIN : Zeichnen.WEISS, "");
-        marke(dc, Zeichnen.MITTE, 224, "SCHRITTE", false);
-        Zeichnen.mitte(dc, 248, Rez.Fonts.Wert, Zeichnen.WEISS, Werte.zahl(schritte, true));
-        dc.setColor(Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
-        dc.fillRoundedRectangle(110, 266, 60, 4, 2);
-        if (schritte != null && schritte > 0) {
-            var anteil = schritte.toFloat() / Werte.ziel();
-            dc.setColor(Zeichnen.HIMMEL, Graphics.COLOR_TRANSPARENT);
-            dc.fillRoundedRectangle(110, 266, 60 * (anteil > 1.0 ? 1.0 : anteil), 4, 2);
-        }
+        var jetzt = Kontext.jetzt();
+        Werte.anmelden();
+        ring(dc, 131, 7, 18, jetzt);
+        Zeichnen.mitte(dc, 60, Rez.Fonts.SportDatum, Zeichnen.LEISE, Werte.datumKurz());
+        zeit(dc, 116, Rez.Fonts.Sport, Zeichnen.WEISS, Zeichnen.HIMMEL);
+        kontext(dc, 184, jetzt);
     }
 
     function immerAn(dc as Dc, sportlich as Boolean) as Void {
-        if (sportlich) {
-            sportlich(dc);
-        } else {
-            elegant(dc);
-        }
+        var jetzt = Kontext.jetzt();
+        ring(dc, 133, 2, 6, jetzt);
+        Zeichnen.mitte(dc, 128, Rez.Fonts.Zeit, Zeichnen.LEISE, Werte.stunde(true) + ":" + Werte.minute());
     }
 }

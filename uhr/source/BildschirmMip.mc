@@ -16,6 +16,7 @@ module Bildschirm {
     const WORT_RECHTS = 236;
     const WORT_LINKS = 44;
     const UP_Y = 112;
+    const FUSS_Y = 250;
 
     (:glance)
     function breiteBei(y as Numeric) as Number {
@@ -23,8 +24,30 @@ module Bildschirm {
         return abstand >= RADIUS ? 0 : (2 * Math.sqrt(RADIUS * RADIUS - abstand * abstand)).toNumber() - 2 * RAND;
     }
 
+    function umbruch(dc as Dc, inhalt as String, id as ResourceId, breite as Numeric, hoechstens as Number) as Array<String> {
+        var zeilen = [] as Array<String>;
+        var rest = inhalt;
+        while (rest.length() > 0 && zeilen.size() < hoechstens) {
+            var zeile = Zeichnen.passt(dc, rest, id, breite);
+            zeilen.add(zeile);
+            rest = rest.substring(zeile.length(), rest.length()) as String;
+            while (rest.length() > 0 && (rest.substring(0, 1).equals(" ") || rest.substring(0, 1).equals("·"))) {
+                rest = rest.substring(1, rest.length()) as String;
+            }
+        }
+        return zeilen;
+    }
+
+    function rechtsBei(y as Numeric) as Number {
+        return Zeichnen.MITTE + breiteBei(y) / 2;
+    }
+
     function zeile(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String) as Void {
-        Zeichnen.mitte(dc, y, id, farbe, Zeichnen.kuerzen(dc, inhalt, id, breiteBei(y)));
+        Zeichnen.mitte(dc, y, id, farbe, Zeichnen.passt(dc, inhalt, id, breiteBei(y)));
+    }
+
+    function fuss(dc as Dc, farbe as Number, inhalt as String) as Void {
+        zeile(dc, FUSS_Y, passend(dc, inhalt, [Rez.Fonts.Mono, Rez.Fonts.Kopf], breiteBei(FUSS_Y)), farbe, inhalt);
     }
 
     function kopf(dc as Dc, inhalt as String, farbe as Number) as Void {
@@ -41,7 +64,7 @@ module Bildschirm {
     }
 
     function vonOben(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, hoechstens as Number, abstand as Numeric) as Number {
-        var zeilen = Zeichnen.umbrechen(dc, inhalt, id, breiteBei(y + (hoechstens - 1) * abstand) - 8, hoechstens);
+        var zeilen = umbruch(dc, inhalt, id, breiteBei(y + (hoechstens - 1) * abstand) - 8, hoechstens);
         for (var i = 0; i < zeilen.size(); i += 1) {
             Zeichnen.mitte(dc, y + i * abstand, id, farbe, zeilen[i]);
         }
@@ -49,11 +72,12 @@ module Bildschirm {
     }
 
     function block(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, hoechstens as Number, abstand as Numeric) as Number {
-        var zeilen = Zeichnen.umbrechen(dc, inhalt, id, breiteBei(y + (hoechstens - 1) * abstand / 2.0) - 8, hoechstens);
+        var zeilen = umbruch(dc, inhalt, id, breiteBei(y + (hoechstens - 1) * abstand / 2.0) - 8, hoechstens);
         Zeichnen.block(dc, y, id, farbe, zeilen, abstand);
         return zeilen.size();
     }
 
+    (:glance)
     function passend(dc as Dc, inhalt as String, ids as Array<ResourceId>, breite as Numeric) as ResourceId {
         for (var i = 0; i < ids.size() - 1; i += 1) {
             if (Zeichnen.breite(dc, ids[i], inhalt) <= breite) {
@@ -100,7 +124,7 @@ module Bildschirm {
 
     function mitPunkt(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, punkt as Number, durchmesser as Numeric) as Void {
         var luecke = 8;
-        var text = Zeichnen.kuerzen(dc, inhalt, id, breiteBei(y) - durchmesser - luecke);
+        var text = Zeichnen.passt(dc, inhalt, id, breiteBei(y) - durchmesser - luecke);
         var links = Zeichnen.MITTE - (durchmesser + luecke + Zeichnen.breite(dc, id, text)) / 2.0;
         Zeichnen.punkt(dc, links + durchmesser / 2.0, y, durchmesser, punkt);
         Zeichnen.text(dc, links + durchmesser + luecke, y, id, farbe, text, LINKS);
@@ -137,8 +161,8 @@ module Bildschirm {
 
     function start(dc as Dc, status as String, statusFarbe as Number, zeilen as Array<Dictionary>, auswahl as Number) as Void {
         seneca(dc, KOPF_Y);
-        mitPunkt(dc, 90, Rez.Fonts.Klein, Zeichnen.LEISE, status, statusFarbe, 9);
-        linie(dc, 110);
+        mitPunkt(dc, 88, Rez.Fonts.Klein, Zeichnen.LEISE, status, statusFarbe, 9);
+        linie(dc, 108);
         var gewaehlt = zeilen[auswahl];
         var titel = gewaehlt["titel"] as String;
         if (gewaehlt["punkt"] != null) {
@@ -146,15 +170,15 @@ module Bildschirm {
         } else {
             zeile(dc, 138, passend(dc, titel, [Rez.Fonts.Titel, Rez.Fonts.Gross], 236), Zeichnen.WEISS, titel);
         }
-        zeile(dc, 171, Rez.Fonts.Mono, Zeichnen.LEISE, gewaehlt["unter"] as String);
-        linie(dc, 191);
+        zeile(dc, 169, Rez.Fonts.Mono, Zeichnen.LEISE, gewaehlt["unter"] as String);
+        linie(dc, 190);
         if (zeilen.size() > 1) {
             var naechste = zeilen[(auswahl + 1) % zeilen.size()];
             var buch = naechste["buch"] as String;
             if (buch.length() > 0) {
-                Zeichnen.gruppe(dc, Zeichnen.MITTE, 214, [[Rez.Fonts.Text, Zeichnen.LEISE, naechste["klein"]], [Rez.Fonts.Buch, Zeichnen.LEISE, Zeichnen.kuerzen(dc, buch, Rez.Fonts.Buch, 110)]], 7, MITTIG);
+                Zeichnen.gruppe(dc, Zeichnen.MITTE, 213, [[Rez.Fonts.Text, Zeichnen.LEISE, naechste["klein"]], [Rez.Fonts.Buch, Zeichnen.LEISE, Zeichnen.passt(dc, buch, Rez.Fonts.Buch, 110)]], 8, MITTIG);
             } else {
-                zeile(dc, 214, Rez.Fonts.Text, Zeichnen.LEISE, naechste["klein"] as String);
+                zeile(dc, 213, Rez.Fonts.Text, Zeichnen.LEISE, naechste["klein"] as String);
             }
         }
         if (zeilen.size() > 2) {
@@ -165,18 +189,18 @@ module Bildschirm {
     function uebungen(dc as Dc, kopfText as String, namen as Array<String>, unter as String, auswahl as Number, fuss as String) as Void {
         kopf(dc, kopfText, Zeichnen.GRUEN);
         if (auswahl > 0) {
-            zeile(dc, 84, Rez.Fonts.Klein, Zeichnen.MATT, namen[auswahl - 1]);
+            zeile(dc, 88, Rez.Fonts.Klein, Zeichnen.MATT, namen[auswahl - 1]);
         }
-        linie(dc, 104);
+        linie(dc, 108);
         var name = namen[auswahl];
-        zeile(dc, 134, passend(dc, name, [Rez.Fonts.Gross, Rez.Fonts.Haupt], 236), Zeichnen.WEISS, name);
-        zeile(dc, 166, Rez.Fonts.Mono, Zeichnen.LEISE, unter);
-        linie(dc, 186);
+        zeile(dc, 137, passend(dc, name, [Rez.Fonts.Gross, Rez.Fonts.Haupt], 236), Zeichnen.WEISS, name);
+        zeile(dc, 168, Rez.Fonts.Mono, Zeichnen.LEISE, unter);
+        linie(dc, 188);
         if (auswahl + 1 < namen.size()) {
-            zeile(dc, 210, Rez.Fonts.Text, Zeichnen.LEISE, namen[auswahl + 1]);
+            zeile(dc, 212, Rez.Fonts.Text, Zeichnen.LEISE, namen[auswahl + 1]);
         }
         if (auswahl + 2 < namen.size()) {
-            zeile(dc, 240, Rez.Fonts.Klein, Zeichnen.MATT, namen[auswahl + 2]);
+            zeile(dc, 242, Rez.Fonts.Klein, Zeichnen.MATT, namen[auswahl + 2]);
         }
     }
 
@@ -187,22 +211,22 @@ module Bildschirm {
         if (herz != null) {
             status = (status.substring(0, herz) as String) + "Puls" + (status.substring(herz + 1, status.length()) as String);
         }
-        zeile(dc, 88, Rez.Fonts.Klein, Zeichnen.GRUEN, status);
-        zahlMit(dc, 132, Rez.Fonts.Zahl2, Zeichnen.WEISS, kg, "kg");
+        zeile(dc, 94, Rez.Fonts.Klein, Zeichnen.GRUEN, status);
+        zahlMit(dc, 134, Rez.Fonts.Zahl2, Zeichnen.WEISS, kg, "kg");
         dc.setColor(Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(100, 170 + Zeichnen.versatz, 80, 2);
-        zahlMit(dc, 204, Rez.Fonts.Zahl2, Zeichnen.WEISS, wiederholungen, "Wdh");
-        zeile(dc, 252, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, wartend.length() > 0 ? wartend : heute);
+        dc.fillRectangle(110, 166 + Zeichnen.versatz, 60, 2);
+        zahlMit(dc, 198, Rez.Fonts.Zahl2, Zeichnen.WEISS, wiederholungen, "Wdh");
+        fuss(dc, Zeichnen.GEDAEMPFT, wartend.length() > 0 ? wartend : heute);
         tasteMit(dc, Zeichnen.UP, Zeichnen.MATT, Rez.Fonts.Haupt, Zeichnen.LEISE, "+");
         tasteMit(dc, Zeichnen.DOWN, Zeichnen.MATT, Rez.Fonts.Haupt, Zeichnen.LEISE, "–");
     }
 
     function pause(dc as Dc, kopfText as String, zeit as String, puls as String) as Void {
         kopf(dc, kopfText, Zeichnen.GRUEN);
-        Zeichnen.mitte(dc, 108, Rez.Fonts.Zahl1, Zeichnen.WEISS, zeit);
+        Zeichnen.mitte(dc, 120, Rez.Fonts.Zahl1, Zeichnen.WEISS, zeit);
         var links = Zeichnen.MITTE - (22 + Zeichnen.breite(dc, Rez.Fonts.Haupt, puls)) / 2.0;
-        herz(dc, links + 7, 164, 14);
-        Zeichnen.text(dc, links + 22, 164, Rez.Fonts.Haupt, Zeichnen.WEISS, puls, LINKS);
+        herz(dc, links + 7, 172, 14);
+        Zeichnen.text(dc, links + 22, 172, Rez.Fonts.Haupt, Zeichnen.WEISS, puls, LINKS);
     }
 
     function herz(dc as Dc, x as Numeric, y as Numeric, g as Numeric) as Void {
@@ -214,15 +238,15 @@ module Bildschirm {
     }
 
     function pauseFrisch(dc as Dc, eingetragen as String, anteil as Float) as Void {
-        block(dc, 202, Rez.Fonts.Klein, Zeichnen.TEXT, eingetragen, 2, 24);
+        zeile(dc, 202, passend(dc, eingetragen, [Rez.Fonts.Klein, Rez.Fonts.Mono, Rez.Fonts.Kopf], breiteBei(202)), Zeichnen.TEXT, eingetragen);
         Zeichnen.balken(dc, 100, 250, 80, anteil);
     }
 
     function pauseWeiter(dc as Dc, naechstes as String) as Void {
         var teile = "als Nächstes ";
         if (naechstes.find(teile) == 0) {
-            zeile(dc, 196, Rez.Fonts.Klein, Zeichnen.LEISE, "als Nächstes");
-            zeile(dc, 222, Rez.Fonts.Text, Zeichnen.WEISS, naechstes.substring(teile.length(), naechstes.length()) as String);
+            zeile(dc, 200, Rez.Fonts.Klein, Zeichnen.LEISE, "als Nächstes");
+            zeile(dc, 226, Rez.Fonts.Text, Zeichnen.WEISS, naechstes.substring(teile.length(), naechstes.length()) as String);
         } else {
             block(dc, 206, Rez.Fonts.Klein, Zeichnen.LEISE, naechstes, 2, 24);
         }
@@ -232,39 +256,44 @@ module Bildschirm {
         kopf(dc, "TRAINING FERTIG", Zeichnen.GEDAEMPFT);
         var namen = ["DAUER", "SÄTZE", "KG BEWEGT", "PULS Ø"];
         for (var i = 0; i < 4; i += 1) {
-            var x = i % 2 == 0 ? 86 : 194;
-            var y = i < 2 ? 100 : 166;
+            var x = i % 2 == 0 ? 88 : 192;
+            var y = i < 2 ? 94 : 148;
             Zeichnen.text(dc, x, y, Rez.Fonts.Zahl, Zeichnen.WEISS, werte[i], MITTIG);
-            Zeichnen.text(dc, x, y + 32, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, namen[i], MITTIG);
+            Zeichnen.text(dc, x, y + 26, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, namen[i], MITTIG);
         }
     }
 
     function bestwert(dc as Dc, text as String) as Void {
-        zeile(dc, 222, Rez.Fonts.Klein, Zeichnen.GRUEN, text);
+        if (text.length() == 0) {
+            return;
+        }
+        zeile(dc, 196, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, teil(text, " · ").toUpper());
+        var stelle = text.find(" · ");
+        zeile(dc, 218, Rez.Fonts.Klein, Zeichnen.GRUEN, stelle == null ? "" : text.substring(stelle + 3, text.length()) as String);
     }
 
     function fertigVorher(dc as Dc) as Void {
-        zeile(dc, 248, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "MENU · verwerfen");
+        fuss(dc, Zeichnen.GEDAEMPFT, "MENU · verwerfen");
     }
 
     function fertigGespeichert(dc as Dc) as Void {
         var links = Zeichnen.MITTE - (24 + Zeichnen.breite(dc, Rez.Fonts.Kopf, "GESPEICHERT")) / 2.0;
-        Zeichnen.hakenStrich(dc, links + 8, 248, 18, Zeichnen.GRUEN);
-        Zeichnen.text(dc, links + 24, 248, Rez.Fonts.Kopf, Zeichnen.GRUEN, "GESPEICHERT", LINKS);
+        Zeichnen.hakenStrich(dc, links + 8, FUSS_Y, 18, Zeichnen.GRUEN);
+        Zeichnen.text(dc, links + 24, FUSS_Y, Rez.Fonts.Kopf, Zeichnen.GRUEN, "GESPEICHERT", LINKS);
     }
 
     function lesen(dc as Dc, kopfText as String, buch as String, wahl as Array<String>, auswahl as Number) as Void {
         kopf(dc, ohne(kopfText, "HEUTE "), Zeichnen.GEDAEMPFT);
-        zeile(dc, 94, Rez.Fonts.Buch, Zeichnen.HELL, buch);
-        linie(dc, 118);
-        lesenWahl(dc, 138, wahl, auswahl - 1);
+        zeile(dc, 92, Rez.Fonts.Buch, Zeichnen.HELL, buch);
+        linie(dc, 112);
+        lesenWahl(dc, 134, wahl, auswahl - 1);
         if (wahl[auswahl].length() == 0) {
-            mitPlay(dc, 176, Rez.Fonts.Gross, Zeichnen.WEISS, "Lese-Timer", 24);
+            mitPlay(dc, 172, Rez.Fonts.Haupt, Zeichnen.WEISS, "Lese-Timer", 22);
         } else {
-            zahlMit(dc, 176, Rez.Fonts.Zahl2, Zeichnen.WEISS, wahl[auswahl], "Min");
+            zahlMit(dc, 172, Rez.Fonts.Zahl2, Zeichnen.WEISS, wahl[auswahl], "Min");
         }
-        lesenWahl(dc, 216, wahl, auswahl + 1);
-        zeile(dc, 248, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "MENU · Timer");
+        lesenWahl(dc, 212, wahl, auswahl + 1);
+        fuss(dc, Zeichnen.GEDAEMPFT, "MENU · Timer");
     }
 
     function lesenWahl(dc as Dc, y as Numeric, wahl as Array<String>, index as Number) as Void {
@@ -279,43 +308,43 @@ module Bildschirm {
     }
 
     function lesetimer(dc as Dc, buch as String, minuten as String, unter as String, hinweis as String) as Void {
-        zeile(dc, 76, Rez.Fonts.Buch, Zeichnen.HELL, buch);
-        zahlMit(dc, 136, Rez.Fonts.Zahl1, Zeichnen.WEISS, minuten, "Min");
-        zeile(dc, 188, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, unter);
-        zeile(dc, 216, Rez.Fonts.Klein, Zeichnen.LEISE, hinweis);
-        zeile(dc, 246, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "BACK · läuft weiter");
+        zeile(dc, 92, Rez.Fonts.Buch, Zeichnen.HELL, buch);
+        zahlMit(dc, 142, Rez.Fonts.Zahl1, Zeichnen.WEISS, minuten, "Min");
+        zeile(dc, 192, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, unter);
+        zeile(dc, 224, Rez.Fonts.Klein, Zeichnen.LEISE, hinweis);
     }
 
     function todos(dc as Dc, kopfText as String, zeilen as Array<Dictionary>, auswahl as Number) as Void {
         kopf(dc, "TO-DOS" + ohne(kopfText, "HEUTE"), Zeichnen.GEDAEMPFT);
         var eintrag = zeilen[auswahl];
         var erledigt = eintrag["erledigt"] as Boolean;
-        var titel = Zeichnen.umbrechen(dc, eintrag["x"] as String, Rez.Fonts.Haupt, 186, 2);
-        var oben = titel.size() > 1 ? 104 : 118;
+        var titel = umbruch(dc, eintrag["x"] as String, Rez.Fonts.Haupt, 180, 2);
+        var oben = titel.size() > 1 ? 108 : 120;
         if (erledigt) {
-            Zeichnen.haken(dc, 40, oben, 26, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
+            Zeichnen.haken(dc, 38, oben, 26, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
         } else {
-            Zeichnen.kreis(dc, 40, oben, 26, 3, Zeichnen.HIMMEL);
+            Zeichnen.kreis(dc, 38, oben, 26, 3, Zeichnen.HIMMEL);
         }
         for (var i = 0; i < titel.size(); i += 1) {
-            Zeichnen.text(dc, 64, oben + i * 30, Rez.Fonts.Haupt, erledigt ? Zeichnen.GEDAEMPFT : Zeichnen.WEISS, titel[i], LINKS);
+            Zeichnen.text(dc, 62, oben + i * 30, Rez.Fonts.Haupt, erledigt ? Zeichnen.GEDAEMPFT : Zeichnen.WEISS, titel[i], LINKS);
         }
-        var meta = eintrag["meta"] as String;
+        var meta = ohne(eintrag["meta"] as String, " auf iPhone");
         if (meta.length() > 0) {
-            Zeichnen.text(dc, 64, oben + titel.size() * 30 - 2, Rez.Fonts.Mono, erledigt ? Zeichnen.GRUEN : Zeichnen.LEISE, Zeichnen.kuerzen(dc, meta, Rez.Fonts.Mono, 186), LINKS);
+            var y = oben + titel.size() * 30 - 2;
+            Zeichnen.text(dc, 62, y, Rez.Fonts.Mono, erledigt ? Zeichnen.GRUEN : Zeichnen.LEISE, Zeichnen.passt(dc, meta, Rez.Fonts.Mono, rechtsBei(y) - 62), LINKS);
         }
         if (auswahl + 1 < zeilen.size()) {
-            linie(dc, 184);
+            linie(dc, 186);
             var naechste = zeilen[auswahl + 1];
             var fertig = naechste["erledigt"] as Boolean;
             if (fertig) {
-                Zeichnen.haken(dc, 50, 212, 18, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
+                Zeichnen.haken(dc, 48, 210, 18, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
             } else {
-                Zeichnen.kreis(dc, 50, 212, 18, 2, Zeichnen.GEDAEMPFT);
+                Zeichnen.kreis(dc, 48, 210, 18, 2, Zeichnen.GEDAEMPFT);
             }
-            Zeichnen.text(dc, 68, 212, Rez.Fonts.Klein, Zeichnen.LEISE, Zeichnen.kuerzen(dc, naechste["x"] as String, Rez.Fonts.Klein, 184), LINKS);
+            Zeichnen.text(dc, 66, 210, Rez.Fonts.Mono, Zeichnen.LEISE, Zeichnen.passt(dc, naechste["x"] as String, Rez.Fonts.Mono, rechtsBei(210) - 66), LINKS);
             if (auswahl + 2 < zeilen.size()) {
-                zeile(dc, 246, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "+ " + (zeilen.size() - auswahl - 2).toString() + " weitere");
+                fuss(dc, Zeichnen.GEDAEMPFT, "+ " + (zeilen.size() - auswahl - 2).toString() + " weitere");
             }
         }
     }
@@ -340,9 +369,10 @@ module Bildschirm {
     }
 
     function bestaetigung(dc as Dc, art as Symbol, titel as String, unter as String, pop as Float, anteil as Float) as Void {
-        symbol(dc, art, 90, 60, pop);
-        zeile(dc, 148, passend(dc, titel, [Rez.Fonts.Gross, Rez.Fonts.Haupt], breiteBei(148)), Zeichnen.WEISS, titel);
-        block(dc, 192, Rez.Fonts.Klein, Zeichnen.LEISE, unter, 2, 24);
+        symbol(dc, art, 84, 56, pop);
+        var zeilen = umbruch(dc, titel, Rez.Fonts.Gross, 220, 2);
+        Zeichnen.block(dc, zeilen.size() > 1 ? 144 : 136, Rez.Fonts.Gross, Zeichnen.WEISS, zeilen, 32);
+        zeile(dc, zeilen.size() > 1 ? 196 : 176, passend(dc, unter, [Rez.Fonts.Klein, Rez.Fonts.Mono], 200), Zeichnen.LEISE, unter);
         if (anteil >= 0.0) {
             Zeichnen.balken(dc, 100, 250, 80, anteil);
         }
@@ -350,11 +380,11 @@ module Bildschirm {
 
     function gewicht(dc as Dc, kg as String) as Void {
         kopf(dc, "GEWICHT", Zeichnen.GEDAEMPFT);
-        zahlMit(dc, 128, Rez.Fonts.Zahl1, Zeichnen.WEISS, kg, "kg");
+        zahlMit(dc, 130, Rez.Fonts.Zahl1, Zeichnen.WEISS, kg, "kg");
         zeile(dc, 192, Rez.Fonts.Klein, Zeichnen.GEDAEMPFT, "negativ = Unterstützung");
         tasteMit(dc, Zeichnen.UP, Zeichnen.MATT, Rez.Fonts.Haupt, Zeichnen.LEISE, "+");
         tasteMit(dc, Zeichnen.DOWN, Zeichnen.MATT, Rez.Fonts.Haupt, Zeichnen.LEISE, "–");
-        zeile(dc, 246, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "je 2,5 kg");
+        fuss(dc, Zeichnen.GEDAEMPFT, "je 2,5 kg");
     }
 
     (:glance)
@@ -364,9 +394,9 @@ module Bildschirm {
         var links = mitte - (14 + Zeichnen.breite(dc, Rez.Fonts.Kopf, "SENECA")) / 2.0;
         Zeichnen.punkt(dc, links + 3.5, oben, 7, Zeichnen.HIMMEL);
         Zeichnen.text(dc, links + 14, oben, Rez.Fonts.Kopf, Zeichnen.HIMMEL, "SENECA", LINKS);
-        Zeichnen.text(dc, mitte, oben + 28, Rez.Fonts.Haupt, Zeichnen.WEISS, Zeichnen.kuerzen(dc, satz, Rez.Fonts.Haupt, breite), MITTIG);
+        Zeichnen.text(dc, mitte, oben + 28, Rez.Fonts.Haupt, Zeichnen.WEISS, Zeichnen.passt(dc, satz, Rez.Fonts.Haupt, breite), MITTIG);
         if (danach.length() > 0) {
-            var text = Zeichnen.kuerzen(dc, danach, Rez.Fonts.Klein, breite - 16);
+            var text = Zeichnen.passt(dc, danach, Rez.Fonts.Klein, breite - 16);
             var start = mitte - (16 + Zeichnen.breite(dc, Rez.Fonts.Klein, text)) / 2.0;
             Zeichnen.punkt(dc, start + 4.5, oben + 56, 9, Zeichnen.BERNSTEIN);
             Zeichnen.text(dc, start + 16, oben + 56, Rez.Fonts.Klein, Zeichnen.TEXT, text, LINKS);
@@ -381,7 +411,7 @@ module Bildschirm {
         Zeichnen.punkt(dc, links + 3.5, y - 30, 7, Zeichnen.HELL);
         Zeichnen.text(dc, links + 14, y - 30, Rez.Fonts.Kopf, Zeichnen.HELL, "LESEN LÄUFT", LINKS);
         Zeichnen.text(dc, mitte, y + 2, Rez.Fonts.Zahl, Zeichnen.WEISS, zeit, MITTIG);
-        Zeichnen.text(dc, mitte, y + 32, Rez.Fonts.Klein, Zeichnen.LEISE, Zeichnen.kuerzen(dc, unter, Rez.Fonts.Klein, breite - 10), MITTIG);
+        Zeichnen.text(dc, mitte, y + 32, Rez.Fonts.Klein, Zeichnen.LEISE, Zeichnen.passt(dc, unter, Rez.Fonts.Klein, breite - 10), MITTIG);
         dc.setColor(Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(mitte - 60, y + 46, 120, 3);
         dc.setColor(Zeichnen.HELL, Graphics.COLOR_TRANSPARENT);
@@ -389,20 +419,20 @@ module Bildschirm {
     }
 
     function schon(dc as Dc, unter as String) as Void {
-        symbol(dc, :schon, 84, 56, 1.0);
-        block(dc, 150, Rez.Fonts.Gross, Zeichnen.WEISS, "Schon beantwortet", 2, 32);
-        zeile(dc, 202, Rez.Fonts.Klein, Zeichnen.LEISE, unter);
-        zeile(dc, 240, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, "NICHTS ZU TUN");
+        symbol(dc, :schon, 92, 52, 1.0);
+        block(dc, 156, Rez.Fonts.Gross, Zeichnen.WEISS, "Schon beantwortet", 2, 32);
+        zeile(dc, 206, Rez.Fonts.Klein, Zeichnen.LEISE, unter);
+        fuss(dc, Zeichnen.GEDAEMPFT, "NICHTS ZU TUN");
         tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.Text, Zeichnen.HIMMEL, "ok");
     }
 
     function frageKommt(dc as Dc, von as String, meta as String) as Void {
         Zeichnen.bogen(dc, Zeichnen.RING_RADIUS, 30.3, Zeichnen.BERNSTEIN);
-        Zeichnen.kreis(dc, Zeichnen.MITTE, 92, 40, 2, Zeichnen.BERNSTEIN);
-        Zeichnen.punkt(dc, Zeichnen.MITTE, 92, 16, Zeichnen.BERNSTEIN);
-        block(dc, 150, Rez.Fonts.Gross, Zeichnen.WEISS, von + " fragt", 2, 32);
+        Zeichnen.kreis(dc, Zeichnen.MITTE, 96, 40, 2, Zeichnen.BERNSTEIN);
+        Zeichnen.punkt(dc, Zeichnen.MITTE, 96, 16, Zeichnen.BERNSTEIN);
+        block(dc, 152, Rez.Fonts.Gross, Zeichnen.WEISS, von + " fragt", 2, 32);
         zeile(dc, 188, Rez.Fonts.Klein, Zeichnen.LEISE, "eine Ja-oder-Nein-Frage");
-        zeile(dc, 250, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, teil(meta, " · "));
+        fuss(dc, Zeichnen.GEDAEMPFT, teil(meta, " · "));
         tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.Text, Zeichnen.HIMMEL, "öffnen");
         tasteMit(dc, Zeichnen.BACK, Zeichnen.MATT, Rez.Fonts.Klein, Zeichnen.LEISE, "später");
     }
@@ -410,14 +440,10 @@ module Bildschirm {
     function entscheidung(dc as Dc, von as String, frage as String, kontext as String, meta as String) as Void {
         var kopfText = von.toUpper() + " FRAGT";
         mitPunkt(dc, KOPF_Y, Rez.Fonts.Kopf, Zeichnen.BERNSTEIN, kopfText, Zeichnen.BERNSTEIN, 7);
-        var zeilen = Zeichnen.umbrechen(dc, frage, Rez.Fonts.Gross, 206, 3);
-        var id = Rez.Fonts.Gross;
-        if (zeilen.size() == 3) {
-            id = Rez.Fonts.Haupt;
-            zeilen = Zeichnen.umbrechen(dc, frage, id, 214, 3);
-        }
-        Zeichnen.block(dc, zeilen.size() == 3 ? 130 : 126, id, Zeichnen.WEISS, zeilen, zeilen.size() == 3 ? 30 : 34);
-        Zeichnen.mitte(dc, 188, Rez.Fonts.Klein, Zeichnen.LEISE, Zeichnen.kuerzen(dc, kontext, Rez.Fonts.Klein, 186));
+        var zeilen = umbruch(dc, frage, Rez.Fonts.Haupt, 214, 3);
+        Zeichnen.block(dc, 112, Rez.Fonts.Haupt, Zeichnen.WEISS, zeilen, 30);
+        var unter = umbruch(dc, kontext, Rez.Fonts.Mono, 216, 2);
+        Zeichnen.block(dc, unter.size() > 1 ? 188 : 178, Rez.Fonts.Mono, Zeichnen.LEISE, unter, 22);
         tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.Haupt, Zeichnen.WEISS, "Ja");
         tasteMit(dc, Zeichnen.BACK, Zeichnen.MATT, Rez.Fonts.Text, Zeichnen.LEISE, "Später");
         tasteMit(dc, Zeichnen.DOWN, Zeichnen.MATT, Rez.Fonts.Text, Zeichnen.LEISE, "Nein");
@@ -425,48 +451,53 @@ module Bildschirm {
 
     function hinweis(dc as Dc, kopfText as String, uhrzeit as String, titel as String, ort as String) as Void {
         kopf(dc, kopfText, Zeichnen.HIMMEL);
-        Zeichnen.mitte(dc, 96, Rez.Fonts.Zahl2, Zeichnen.WEISS, uhrzeit);
+        Zeichnen.mitte(dc, 100, Rez.Fonts.Zahl2, Zeichnen.WEISS, uhrzeit);
         var n = block(dc, 160, Rez.Fonts.Gross, Zeichnen.WEISS, titel, 2, 32);
-        zeile(dc, n > 1 ? 212 : 196, Rez.Fonts.Klein, Zeichnen.LEISE, ort);
+        var unter = [teil(ort, " · ")] as Array<String>;
+        if (ort.find(" · ") != null) {
+            unter.add(ort.substring(ort.find(" · ") + 3, ort.length()) as String);
+        }
+        Zeichnen.block(dc, n > 1 ? 216 : 200, Rez.Fonts.Klein, Zeichnen.LEISE, unter, 24);
     }
 
     function morgen(dc as Dc, kopfText as String, schlaf as String, batterie as String, termine as Array<Array>, fragen as String) as Void {
         kopf(dc, kopfText, Zeichnen.LEISE);
-        Zeichnen.text(dc, 134, 96, Rez.Fonts.Gruss, Zeichnen.WEISS, "Guten Morgen.", MITTIG);
-        Zeichnen.text(dc, 92, 132, Rez.Fonts.Zahl, Zeichnen.WEISS, schlaf, MITTIG);
-        Zeichnen.text(dc, 92, 160, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, "SCHLAF", MITTIG);
+        Zeichnen.text(dc, 140, 94, Rez.Fonts.Gruss, Zeichnen.WEISS, "Guten Morgen.", MITTIG);
+        Zeichnen.text(dc, 92, 130, Rez.Fonts.Zahl, Zeichnen.WEISS, schlaf, MITTIG);
+        Zeichnen.text(dc, 92, 154, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, "SCHLAF", MITTIG);
         dc.setColor(Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(139, 116 + Zeichnen.versatz, 2, 50);
-        Zeichnen.text(dc, 190, 132, Rez.Fonts.Zahl, Zeichnen.GRUEN, batterie, MITTIG);
-        Zeichnen.text(dc, 190, 160, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, "BODY BATT", MITTIG);
+        dc.fillRectangle(139, 112 + Zeichnen.versatz, 2, 46);
+        Zeichnen.text(dc, 188, 130, Rez.Fonts.Zahl, Zeichnen.GRUEN, batterie, MITTIG);
+        Zeichnen.text(dc, 188, 154, Rez.Fonts.Kopf, Zeichnen.GEDAEMPFT, "BODY BATT", MITTIG);
         var farben = {"s" => Zeichnen.GRUEN, "f" => Zeichnen.HIMMEL, "t" => Zeichnen.LEISE};
-        var y = 190;
+        var y = 182;
         var platz = fragen.length() > 0 ? 2 : 3;
         for (var i = 0; i < termine.size() && i < platz; i += 1) {
-            var rechts = Zeichnen.MITTE + breiteBei(y) / 2;
-            Zeichnen.text(dc, 40, y, Rez.Fonts.Mono, farben[termine[i][2]] as Number, termine[i][0] as String, LINKS);
-            Zeichnen.text(dc, 108, y, Rez.Fonts.Klein, Zeichnen.TEXT, Zeichnen.kuerzen(dc, termine[i][1] as String, Rez.Fonts.Klein, rechts - 108), LINKS);
-            y += 26;
+            var links = Zeichnen.MITTE - breiteBei(y) / 2 + 6;
+            Zeichnen.text(dc, links, y, Rez.Fonts.Mono, farben[termine[i][2]] as Number, termine[i][0] as String, LINKS);
+            Zeichnen.text(dc, links + 60, y, Rez.Fonts.Klein, Zeichnen.TEXT, Zeichnen.passt(dc, termine[i][1] as String, Rez.Fonts.Klein, rechtsBei(y) - links - 60), LINKS);
+            y += 24;
         }
         if (fragen.length() > 0) {
-            mitPunkt(dc, y, Rez.Fonts.Klein, Zeichnen.TEXT, fragen, Zeichnen.BERNSTEIN, 9);
+            mitPunkt(dc, y, passend(dc, fragen, [Rez.Fonts.Klein, Rez.Fonts.Mono], breiteBei(y) - 17), Zeichnen.TEXT, fragen, Zeichnen.BERNSTEIN, 9);
         }
         taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "Tag");
     }
 
     function team(dc as Dc, kopfText as String, namen as Array<Array>, auswahl as Number) as Void {
         kopf(dc, kopfText, Zeichnen.GEDAEMPFT);
-        linie(dc, 76);
         var g = namen[auswahl];
-        mitPunkt(dc, 104, Rez.Fonts.Gross, Zeichnen.WEISS, g[2] as String, g[1] as Number, 12);
-        block(dc, 146, Rez.Fonts.Klein, Zeichnen.TEXT, g[3] as String, 2, 24);
-        zeile(dc, 182, Rez.Fonts.Mono, g[5] as Number, g[4] as String);
-        linie(dc, 200);
+        mitPunkt(dc, 94, Rez.Fonts.Gross, Zeichnen.WEISS, g[2] as String, g[1] as Number, 12);
+        block(dc, 130, Rez.Fonts.Klein, Zeichnen.TEXT, g[3] as String, 2, 22);
+        zeile(dc, 168, Rez.Fonts.Mono, g[5] as Number, g[4] as String);
+        linie(dc, 190);
         if (auswahl + 1 < namen.size()) {
-            zeile(dc, 222, Rez.Fonts.Text, Zeichnen.LEISE, namen[auswahl + 1][0] as String);
+            var n = namen[auswahl + 1][0] as String;
+            zeile(dc, 213, passend(dc, n, [Rez.Fonts.Text, Rez.Fonts.Klein, Rez.Fonts.Mono], breiteBei(213)), Zeichnen.LEISE, n);
         }
         if (auswahl + 2 < namen.size()) {
-            zeile(dc, 250, Rez.Fonts.Klein, Zeichnen.MATT, namen[auswahl + 2][0] as String);
+            var n = namen[auswahl + 2][0] as String;
+            zeile(dc, 243, passend(dc, n, [Rez.Fonts.Klein, Rez.Fonts.Mono], breiteBei(243)), Zeichnen.MATT, n);
         }
         tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.Klein, Zeichnen.HIMMEL, "Verlauf");
     }
@@ -478,17 +509,17 @@ module Bildschirm {
             return;
         }
         for (var i = 0; i < eintraege.size() && i < 3; i += 1) {
-            var y = 82 + i * 58;
+            var y = 90 + i * 56;
             zeile(dc, y, Rez.Fonts.Text, i == 0 ? Zeichnen.WEISS : Zeichnen.LEISE, eintraege[i][0] as String);
-            zeile(dc, y + 26, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "fertig · " + Zeit.uhrzeit(eintraege[i][1] as Number));
+            zeile(dc, y + 24, Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, "fertig · " + Zeit.uhrzeit(eintraege[i][1] as Number));
         }
     }
 
     function grenzfall(dc as Dc, kopfText as String, kopfFarbe as Number, titel as String, titelId as ResourceId, unter as Array<Array>) as Void {
         kopf(dc, kopfText, kopfFarbe);
-        var zeilen = Zeichnen.umbrechen(dc, titel, titelId, 206, 2);
-        Zeichnen.block(dc, zeilen.size() > 1 ? 122 : 118, titelId, Zeichnen.WEISS, zeilen, 34);
-        var y = zeilen.size() > 1 ? 168 : 152;
+        var zeilen = umbruch(dc, titel, titelId, 214, 2);
+        Zeichnen.block(dc, zeilen.size() > 1 ? 118 : 112, titelId, Zeichnen.WEISS, zeilen, 34);
+        var y = zeilen.size() > 1 ? 164 : 150;
         for (var i = 0; i < unter.size(); i += 1) {
             y += 8 + 24 * vonOben(dc, y, unter[i][0] as ResourceId, unter[i][1] as Number, unter[i][2] as String, 2, 24);
         }
@@ -496,7 +527,7 @@ module Bildschirm {
 
     function akku(dc as Dc, prozent as Number, stunden as String) as Void {
         grenzfall(dc, "AKKU " + prozent.toString() + " %", Zeichnen.BERNSTEIN, "Training läuft weiter.", Rez.Fonts.Gross,
-            [[Rez.Fonts.Klein, Zeichnen.LEISE, "Abgleich erst nach dem Speichern"], [Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, stunden]]);
+            [[Rez.Fonts.Klein, Zeichnen.LEISE, "Abgleich erst nach dem Speichern"], [Rez.Fonts.Mono, Zeichnen.GEDAEMPFT, ohne(stunden, "reicht ")]]);
         tasteMit(dc, Zeichnen.START, Zeichnen.GRUEN, Rez.Fonts.Klein, Zeichnen.GRUEN, "weiter");
     }
 
@@ -531,7 +562,7 @@ module Bildschirm {
             text += (i > 0 ? " " : "") + ziffern[i].toString();
         }
         seneca(dc, KOPF_Y);
-        Zeichnen.mitte(dc, 108, Rez.Fonts.Koppel, abgelaufen ? Zeichnen.MATT : Zeichnen.WEISS, text);
+        Zeichnen.mitte(dc, 104, Rez.Fonts.Koppel, abgelaufen ? Zeichnen.MATT : Zeichnen.WEISS, text);
         var zeile = "Gleiche Zahl am iPhone?";
         var unter = "Dort auf „Ja“ tippen.";
         var farbe = Zeichnen.WEISS;
@@ -548,8 +579,9 @@ module Bildschirm {
             unter = "am iPhone" + punkte();
             farbe = Zeichnen.HIMMEL;
         }
-        block(dc, 172, Rez.Fonts.Text, farbe, zeile, 2, 28);
-        Zeichnen.mitte(dc, 214, Rez.Fonts.Klein, Zeichnen.LEISE, unter);
+        var zeilen = umbruch(dc, zeile, Rez.Fonts.Text, 190, 2);
+        Zeichnen.block(dc, zeilen.size() > 1 ? 156 : 164, Rez.Fonts.Text, farbe, zeilen, 28);
+        Zeichnen.mitte(dc, zeilen.size() > 1 ? 206 : 196, Rez.Fonts.Klein, Zeichnen.LEISE, unter);
         tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.Klein, Zeichnen.HIMMEL, abgelaufen ? "neue Zahl" : wartet ? "" : "ok");
     }
 
@@ -586,9 +618,12 @@ module Bildschirm {
 
     function abgleich(dc as Dc, anzahl as String, was as String, wann as String, sicher as String, wannFarbe as Number) as Void {
         kopf(dc, "ABGLEICH", Zeichnen.GEDAEMPFT);
-        Zeichnen.mitte(dc, 108, Rez.Fonts.Zahl2, Zeichnen.WEISS, anzahl);
-        zeile(dc, 152, Rez.Fonts.Text, Zeichnen.TEXT, was);
-        zeile(dc, 180, Rez.Fonts.Klein, wannFarbe, wann);
-        zeile(dc, 206, Rez.Fonts.Klein, Zeichnen.GRUEN, sicher);
+        Zeichnen.mitte(dc, 104, Rez.Fonts.Zahl2, Zeichnen.WEISS, anzahl);
+        zeile(dc, 146, Rez.Fonts.Text, Zeichnen.TEXT, was);
+        var wanns = umbruch(dc, wann, Rez.Fonts.Klein, 200, 2);
+        Zeichnen.block(dc, wanns.size() > 1 ? 184 : 176, Rez.Fonts.Klein, wannFarbe, wanns, 22);
+        if (sicher.length() > 0) {
+            fuss(dc, Zeichnen.GRUEN, sicher);
+        }
     }
 }

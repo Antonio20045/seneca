@@ -50,6 +50,15 @@ module Gesicht {
         leiste(dc, [116, 350], 318, Rez.Fonts.M5_16L, Rez.Fonts.G4_32, Rez.Fonts.G4_20);
     }
 
+    function elegantAuto(dc as Dc) as Void {
+        var zeile = Werte.zeile();
+        if (zeile == null) {
+            elegant(dc);
+        } else {
+            mitSeneca(dc, zeile[0] as String, zeile[1] as Boolean);
+        }
+    }
+
     function mitSeneca(dc as Dc, zeile as String, wartet as Boolean) as Void {
         grund(dc);
         Zeichnen.mitte(dc, 100, Rez.Fonts.M5_20D, Zeichnen.LEISE, Werte.datumLang());

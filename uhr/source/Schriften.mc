@@ -5,9 +5,9 @@ import Toybox.Lang;
 module Schriften {
     const ROBOTO = "RobotoRegular";
     const MITTEL = "RobotoMedium";
-    const SCHMAL = "RobotoCondensedBold";
-    const ZIFFER = "BionicSemibold";
-    const ZIFFER_FETT = "BionicBold";
+    const SCHMAL = "RobotoCondensedRegular";
+    const FETT = "RobotoCondensedBold";
+    const ZIFFER = "BionicMedium";
     const KURSIV = "RobotoItalic";
 
     function f(art as String, groesse as Number) as FontType? {
@@ -16,43 +16,43 @@ module Schriften {
 
     function vektor(id as ResourceId) as FontType? {
         if (id == Rez.Fonts.Kopf) {
-            return f(SCHMAL, 19);
+            return f(SCHMAL, 18);
         }
         if (id == Rez.Fonts.Mono) {
-            return f(SCHMAL, 21);
+            return f(SCHMAL, 20);
         }
         if (id == Rez.Fonts.Klein) {
-            return f(MITTEL, 23);
+            return f(ROBOTO, 20);
         }
         if (id == Rez.Fonts.Text) {
-            return f(MITTEL, 27);
+            return f(ROBOTO, 24);
         }
         if (id == Rez.Fonts.Haupt) {
-            return f(SCHMAL, 31);
+            return f(MITTEL, 26);
         }
         if (id == Rez.Fonts.Gross) {
-            return f(SCHMAL, 35);
+            return f(FETT, 32);
         }
         if (id == Rez.Fonts.Titel) {
-            return f(SCHMAL, 46);
+            return f(FETT, 38);
         }
         if (id == Rez.Fonts.Zahl) {
-            return f(ZIFFER, 46);
+            return f(ZIFFER, 36);
         }
         if (id == Rez.Fonts.Zahl2) {
-            return f(ZIFFER, 80);
+            return f(ZIFFER, 64);
         }
         if (id == Rez.Fonts.Zahl1) {
-            return f(ZIFFER_FETT, 104);
+            return f(ZIFFER, 92);
         }
         if (id == Rez.Fonts.Koppel) {
-            return f(ZIFFER, 70);
+            return f(ZIFFER, 64);
         }
         if (id == Rez.Fonts.Buch) {
-            return f(KURSIV, 34);
+            return f(KURSIV, 28);
         }
         if (id == Rez.Fonts.Gruss) {
-            return f(KURSIV, 38);
+            return f(KURSIV, 34);
         }
         return null;
     }

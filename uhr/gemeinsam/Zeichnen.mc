@@ -68,7 +68,7 @@ module Zeichnen {
     (:rund) const RING_BREITE = 4;
     (:rund) const AUFTRITT = 22;
     (:mip) const RING_RADIUS = 135;
-    (:mip) const RING_BREITE = 6;
+    (:mip) const RING_BREITE = 4;
     (:mip) const AUFTRITT = 12;
     const AUFTRITT_S = 0.35;
     const WECHSEL_S = 0.22;
@@ -152,6 +152,32 @@ module Zeichnen {
             laenge -= 1;
         }
         return (inhalt.substring(0, laenge) as String) + "…";
+    }
+
+    (:glance)
+    function letzteLuecke(text as String) as Number {
+        for (var i = text.length() - 1; i > 0; i -= 1) {
+            if (text.substring(i, i + 1).equals(" ")) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    (:glance)
+    function passt(dc as Dc, inhalt as String, id as ResourceId, hoechstens as Numeric) as String {
+        var text = inhalt;
+        while (breite(dc, id, text) > hoechstens) {
+            var stelle = letzteLuecke(text);
+            if (stelle < 0) {
+                break;
+            }
+            text = text.substring(0, stelle) as String;
+            while (text.length() > 1 && (text.substring(text.length() - 1, text.length()).equals("·") || text.substring(text.length() - 1, text.length()).equals(" "))) {
+                text = text.substring(0, text.length() - 1) as String;
+            }
+        }
+        return text;
     }
 
     function gruppe(dc as Dc, x as Numeric, y as Numeric, teile as Array<Array>, luecke as Numeric, ausrichtung as Number) as Void {

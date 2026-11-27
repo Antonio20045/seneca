@@ -23,6 +23,10 @@ class StartAnsicht extends ListenAnsicht {
         return liste;
     }
 
+    function zumTraining() as Void {
+        _auswahl = eintraege().indexOf(:training);
+    }
+
     function anzahl() as Number {
         return eintraege().size();
     }

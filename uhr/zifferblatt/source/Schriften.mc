@@ -5,9 +5,9 @@ import Toybox.Lang;
 module Schriften {
     const ROBOTO = "RobotoRegular";
     const MITTEL = "RobotoMedium";
-    const SCHMAL = "RobotoCondensedBold";
-    const ZIFFER = "BionicSemibold";
-    const ZIFFER_FETT = "BionicBold";
+    const SCHMAL = "RobotoCondensedRegular";
+    const ZIFFER = "BionicMedium";
+    const ZIFFER_FETT = "BionicSemibold";
     const KURSIV = "RobotoItalic";
 
     function f(art as String, groesse as Number) as FontType? {
@@ -28,7 +28,7 @@ module Schriften {
             return f(SCHMAL, 17);
         }
         if (id == Rez.Fonts.Zeile) {
-            return f(MITTEL, 23);
+            return f(ROBOTO, 22);
         }
         if (id == Rez.Fonts.Sport) {
             return f(ZIFFER_FETT, 96);

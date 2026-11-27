@@ -9,9 +9,14 @@ import Toybox.WatchUi;
 (:background, :glance, :typecheck([disableBackgroundCheck, disableGlanceCheck]))
 class SenecaApp extends Application.AppBase {
     private var _vordergrund as Boolean = false;
+    private var _vomZifferblatt as Boolean = false;
 
     function initialize() {
         AppBase.initialize();
+    }
+
+    function onStart(zustand as Dictionary?) as Void {
+        _vomZifferblatt = zustand != null && zustand[:launchedFromComplication] != null;
     }
 
     function anmelden() as Void {
@@ -28,6 +33,9 @@ class SenecaApp extends Application.AppBase {
         Takt.starten();
         _vordergrund = true;
         var start = new StartAnsicht();
+        if (_vomZifferblatt) {
+            start.zumTraining();
+        }
         return [start, new Bedienung(start)];
     }
 

@@ -42,11 +42,6 @@ class Zifferblatt extends WatchUi.WatchFace {
             Gesicht.sportlich(dc);
             return;
         }
-        var zeile = Werte.zeile();
-        if (zeile == null) {
-            Gesicht.elegant(dc);
-        } else {
-            Gesicht.mitSeneca(dc, zeile[0] as String, zeile[1] as Boolean);
-        }
+        Gesicht.elegantAuto(dc);
     }
 }
