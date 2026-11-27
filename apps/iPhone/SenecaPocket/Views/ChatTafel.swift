@@ -143,15 +143,12 @@ struct ChatHinweis: View {
 
 struct ChatLaeuftZeile: View {
     var satz: String
-    @State private var atmet = false
-
     var body: some View {
         HStack(spacing: 9) {
-            Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(atmet ? 0.35 : 1)
+            Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7)
             Text(satz).font(Sundartha.grotesk(13)).zeilenHoehe(18, schrift: 13).foregroundStyle(TafelFarbe.zweit)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear { withAnimation(.timingCurve(0.22, 0.8, 0.24, 1, duration: 0.8).repeatForever()) { atmet = true } }
     }
 }
 

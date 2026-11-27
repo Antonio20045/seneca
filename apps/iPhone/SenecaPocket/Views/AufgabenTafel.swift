@@ -3,13 +3,13 @@ import SwiftUI
 enum AufgabenTafelLogik {
     static let zahl = ["Nichts", "Eine", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn"]
 
-    static func unter(_ t: SenecaStand.Todo, mitZeit: Bool) -> String {
-        [t.bereich, t.oeffnet, mitZeit ? t.geplant_von.map { HeuteTafelLogik.uhr($0) } : nil, t.dauer_min.map { "\(Int($0)) Min" }]
+    static func unter(_ t: SenecaStand.Todo, jetzt: Double) -> String {
+        [TafelFarbe.bereichWort(t.bereich), t.oeffnet, t.bis_wann.map { HeuteTafelLogik.frist($0, jetzt: jetzt) }, t.dauer_min.map { "\(Int($0)) Min" }]
             .compactMap { $0 }.joined(separator: " · ")
     }
 
     static func fertigUnter(_ f: SenecaStand.Aufgaben.Fertig) -> String {
-        f.satz ?? [f.von == "seneca" ? "Seneca" : f.bereich, f.um.map { HeuteTafelLogik.uhr($0) }].compactMap { $0 }.joined(separator: " · ")
+        f.satz ?? [f.von == "seneca" ? "Seneca" : TafelFarbe.bereichWort(f.bereich), f.um.map { HeuteTafelLogik.uhr($0) }].compactMap { $0 }.joined(separator: " · ")
     }
 
     static func zaehler(_ z: SenecaStand.Aufgaben.Zaehler) -> String {
@@ -64,7 +64,7 @@ struct AufgabenTafel: View {
                 .padding(.top, leer && !offline ? 8 : 14).padding(.bottom, offline || leer ? 6 : 0)
             if offline {
                 TafelKopf(links: "HEUTE", rechts: store.wartendeTodos.isEmpty && store.neueTodos.isEmpty ? nil : "TEILS NOCH NICHT AM MAC").padding(.top, 14).padding(.bottom, 2)
-                ForEach(offen.filter { !store.wartendeTodos.contains($0.id) }) { zeile($0, mitZeit: true) }
+                ForEach(offen.filter { !store.wartendeTodos.contains($0.id) }) { zeile($0) }
                 neueZeilen
                 ForEach(offen.filter { store.wartendeTodos.contains($0.id) }) { zeile($0) }
             } else if let g = a.gruppe, !leer {
@@ -73,12 +73,12 @@ struct AufgabenTafel: View {
                 let rest = offen.filter { !g.ids.contains($0.id) }
                 if !rest.isEmpty || !store.neueTodos.isEmpty {
                     TafelKopf(links: "IN RUHE").padding(.top, 14).padding(.bottom, 2)
-                    ForEach(rest) { zeile($0, mitZeit: true) }
+                    ForEach(rest) { zeile($0) }
                     neueZeilen
                 }
             } else if !leer {
                 TafelKopf(links: "HEUTE").padding(.top, 14).padding(.bottom, 2)
-                ForEach(offen) { zeile($0, mitZeit: true) }
+                ForEach(offen) { zeile($0) }
                 neueZeilen
             }
             if !fertig.isEmpty {
@@ -171,13 +171,13 @@ struct AufgabenTafel: View {
         }
     }
 
-    private func zeile(_ t: SenecaStand.Todo, mitZeit: Bool = false) -> some View {
+    private func zeile(_ t: SenecaStand.Todo) -> some View {
         let wartet = store.wartendeTodos.contains(t.id)
         let gruen = frisch.contains(t.id) && !offline
         return WischZeile(offenLinks: $offenLinks, id: t.id, aktiv: !wartet, erledigt: { abhaken(t) },
                           verschiebe: { tag in store.todo("verschieben", t.id, ["tag": tag.map { .text($0) } ?? .leer]) }) {
             Button { if !wartet { bearbeite = t } } label: {
-                TodoZeile(titel: t.titel, unter: wartet && !gruen ? "abgehakt, wird übertragen" : AufgabenTafelLogik.unter(t, mitZeit: mitZeit),
+                TodoZeile(titel: t.titel, unter: wartet && !gruen ? "abgehakt, wird übertragen" : AufgabenTafelLogik.unter(t, jetzt: jetzt),
                           kreis: gruen ? .fertig : wartet ? .abgehakt : .offen) { abhaken(t) }
             }
             .buttonStyle(.plain)
