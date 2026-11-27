@@ -24,13 +24,13 @@ aktivitaeten <von> <bis>            erledigte Aktivitäten, Kraft mit Sätzen
 koerper <datum>                     Schlaf, Body Battery, HRV, Trainingsbereitschaft
 uebungen <suche>                    Garmin-Übungskatalog durchsuchen
 
-lauf/rad: {"name": "...", "datum": "2026-12-01", "schritte": [Schritt|Gruppe]}
-  Schritt: {"art": "einlaufen|intervall|erholung|auslaufen", ENDE, ZIEL}
+lauf/rad: {"name": "...", "beschreibung": "...", "datum": "2026-12-01", "schritte": [Schritt|Gruppe]}
+  Schritt: {"art": "einlaufen|intervall|erholung|auslaufen", ENDE, ZIEL, "hinweis": "kurz, steht auf der Uhr"}
   ENDE genau eines: "min": 10 | "s": 90 | "m": 400 | "km": 1.5 | nichts = Rundentaste
   ZIEL höchstens eines: "pace": "4:30-4:20" (min/km) | "puls": "150-165" | "zone": 2 | "watt": "200-230"
   Gruppe: {"wiederholungen": 6, "schritte": [Schritt, ...]}
 kraft: {"name": "...", "datum": "...", "aufwaermen_min": 5, "uebungen": [
-  {"name": "Barbell Bench Press", "saetze": 4, "wdh": 8, "kg": 60, "pause_s": 90}]}
+  {"name": "Barbell Bench Press", "saetze": 4, "wdh": 8, "kg": 60, "pause_s": 90, "hinweis": "..."}]}
   statt "wdh": "dauer_s": 45 für Übungen nach Zeit. "name" wie im Katalog (siehe uebungen)."""
 
 SPORT = {
@@ -114,6 +114,8 @@ def schrittbau(schritt, nummer):
         gebaut |= {"targetValueOne": eins, "targetValueTwo": zwei}
     if zone is not None:
         gebaut["zoneNumber"] = zone
+    if schritt.get("hinweis"):
+        gebaut["description"] = schritt["hinweis"]
     return gebaut
 
 
@@ -181,6 +183,8 @@ def kraftschritt(uebung, zaehler):
     }
     if uebung.get("kg") is not None:
         uebung_schritt |= {"weightValue": float(uebung["kg"]) * 1000.0, "weightUnit": {"unitId": 8, "unitKey": "kilogram", "factor": 1000.0}}
+    if uebung.get("hinweis"):
+        uebung_schritt["description"] = uebung["hinweis"]
     pause = schrittbau({"art": "pause", "s": uebung.get("pause_s", 90)}, zaehler.weiter())
     return gruppe(uebung["saetze"], [uebung_schritt, pause], nummer)
 
@@ -204,7 +208,7 @@ def workout(sport, spec):
     else:
         schritte, sekunden = ausdauer(spec["schritte"], zaehler), geschaetzt(spec["schritte"])
     segment = {"segmentOrder": 1, "sportType": SPORT[sport], "workoutSteps": schritte}
-    return {"workoutName": spec["name"], "sportType": SPORT[sport], "estimatedDurationInSecs": sekunden, "workoutSegments": [segment], "author": {}}
+    return {"workoutName": spec["name"], "description": spec.get("beschreibung", ""), "sportType": SPORT[sport], "estimatedDurationInSecs": sekunden, "workoutSegments": [segment], "author": {}}
 
 
 def verbinden():
