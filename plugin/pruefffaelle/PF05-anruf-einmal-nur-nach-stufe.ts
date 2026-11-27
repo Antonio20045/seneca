@@ -154,8 +154,10 @@ test("PF05 k) Unteragent und Nachricht an Kollegen: nie an Ruhende, nur laut Man
   assert.equal(ereignisse(p.db, { art: "unteragent.ende", schluessel: "agent:engineer:subagent:k1" }).length, 1);
 });
 
-test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich und _arbeit/<name>, Privat liest nur Seneca", () => {
+test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich und _arbeit/<name>, Privat liest nur Seneca", async () => {
   const p = ladePlugin();
+  const { sitzung } = await imLauf(p);
+  assert.match(p.kontext(sitzung) ?? "", /schreiben Sundartha, _arbeit\/produkt\. Zwischendateien nur in _arbeit\/produkt\//);
   const pfad = (rel: string) => ({ path: `/home/ubuntu/Ablage/${rel}` });
   assert.equal(p.aufruf("s", "write", pfad("Sundartha/Hermes/plan.md"), "w1", "produkt"), undefined);
   assert.ok(p.aufruf("s", "write", pfad("Vodafone/x.md"), "w2", "produkt")?.block);

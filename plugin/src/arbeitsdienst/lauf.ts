@@ -3,7 +3,7 @@ import type { Register } from "../register/schema.ts";
 import {
   auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
 } from "../register/schreiben.ts";
-import { naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
+import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, rolle } from "../team.ts";
 import { aboReihenfolge } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
@@ -128,6 +128,7 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
   const teile: [string, boolean][] = [
     [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig.`, true],
     [`${rolle(wer)}\nBefugnisse: Unteraufträge an ${m.befugnisse.unterauftrag_an.join(", ")}; Werkzeuge ${m.befugnisse.werkzeuge.join(", ")}; Zugänge ${m.zugaenge.join(", ")}.`, false],
+    [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg.`, true],
     [skill(wer, String(a.arbeitsart)) ?? "", true],
     [(m.kontext[String(a.arbeitsart)] ?? []).map((s) => `${s}: ${wert(db, s)?.wert ?? "nicht hinterlegt"}`).join("\n"), false],
     [`Auftrag von ${a.auftraggeber}, Quelle ${a.wortlaut_quelle}, ${new Date(Number(a.erstellt)).toLocaleString("de-DE")}. Wortlaut:\n${a.wortlaut}`, true],

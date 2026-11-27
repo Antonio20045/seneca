@@ -62,7 +62,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 11 | Anzeige setzen (höchstens 4 je Projekt) | `register/schreiben.ts` · `anzeigeSetzen` |
 | 12, 13 | Fakt, Profil, Kontaktstufe, „ruht“ (neuester Wert gilt) | `register/schreiben.ts` · `wertSetzen` |
 | 14 | Register sichern | `register/sichern.ts`, nur vom Job `pflegen` |
-| 14a | Tägliche Sicherung (Register, OpenClaw-Zustand mit Skill-Werkstatt, `openclaw.json`, Skills) mit restic in `~/Ablage/_sicherung` | `arbeitsdienst/jobs.ts` · `tagesSicherung`, nur vom Job `pflegen` |
+| 14a | Tägliche Sicherung (Register, OpenClaw-Zustand mit Skill-Werkstatt, `openclaw.json`, Skills, die Ablage ohne `_sicherung`) mit restic in `~/Ablage/_sicherung` | `arbeitsdienst/jobs.ts` · `tagesSicherung`, nur vom Job `pflegen` |
 | 15, 16 | Wecken; „ruht“ prüfen (einzige Prüfstelle) | `arbeitsdienst/lauf.ts` · `starteLauf()` |
 | 17 | Hintergrundjobs mit wachsendem Abstand bei Fehlern | `arbeitsdienst/takt.ts` |
 | 18 | Rundgang, Morgenbericht, Rückblick, Briefing | Daueraufträge, geweckt von `faellige_auftraege` |
@@ -97,6 +97,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | – | Kalender: `seneca.stand.wochenplan` = Wochen (Kopf), Tage mit Body Battery, Ganztägigem, Blöcken (termin, bewegung, seneca, vorschlag, todos, fenster, zugleich) und Marken; `plant` = erste Überschneidung mit freier Zeit. Apps schreiben über `seneca.handeln`: `termin.anlegen`, `termin.verschieben` (mit Teilnehmern wird daraus ein Auftrag an Seneca), `termin.wegzeit` (Mac rechnet mit MapKit; `wegzeit:<uid>` Minuten, `wegstrecke:<uid>` Meter und Art), `kalender.lassen`. Schreibwünsche liegen als `kalender:schreiben:<kennung>`, der Kalender-Job trägt sie per CalDAV ein | `pforte/wochenplan.ts`, `quellen/kalender.ts`, `zugang/handeln.ts` |
 | 45 | Ablage-Rechte je Bereich (lesen: `bereich`, `ablage_alle_lesen`; schreiben: `ablage_schreiben` und `_arbeit/<name>`) | `zugang/rechte.ts` · Hook `before_tool_call` |
 | 78 | Arbeitsdateien in `_arbeit/` verfallen nach `arbeitsdateien_tage`, außer sie hängen an einem Auftrag | `arbeitsdienst/jobs.ts` · `arbeitVerfallen`, nur vom Job `pflegen` |
+| 78a | Jeder Lauf erfährt seine Ablage-Rechte und `_arbeit/<name>` (ein Satz, für alle gleich) | `arbeitsdienst/lauf.ts` · `kontext` |
 | 50 | Uhr-Abgleich (Kennung je Handlung) | `zugang/handeln.ts` |
 | 53, 54 | Kalender lesen und schreiben (CalDAV, Konflikte, Teilnehmer nur über den Ausgang) | `quellen/kalender.ts` · Werkzeug `seneca_kalender`; Tagesstand je Tag als Wert `kalender:<tag>` (`register/lesen.ts` · `termineAm`) |
 | 55, 74 | Tagesplanung (To-dos in Lücken, Fenster frei), Los-Hinweis mit Ankunft, Fokus aus dem Kalender | `pforte/planen.ts`; Fokus wirkt in `pforte/stand.ts` · `ruhe`; Terminvorbereitung offen |
