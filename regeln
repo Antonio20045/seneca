@@ -96,8 +96,9 @@ uhr_starten_min 10
 uhr_lauf_ruhe_min 12
 uhr_warteschlange_max 500
 uhr_verbunden_min 10 zu_messen
-kopplung_fenster_min 10
+kopplung_fenster_min 10 app
 kopplung_anfragen_je_std 30
+kopplung_modell_zeichen 40
 ablage_pfad /home/ubuntu/Ablage zu_messen
 datei_werkzeuge read/lesen/path,write/schreiben/path,edit/schreiben/path,Read/lesen/file_path,Write/schreiben/file_path,Edit/schreiben/file_path zu_messen
 caldav_url https://caldav.icloud.com/

@@ -154,7 +154,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var satz: [String]?; public var gruppe: Gruppe?; public var heute: [String]?; public var erledigt: [Fertig]?
         public var jeden_tag: [Taeglich]?; public var zaehler: Zaehler?
     }
-    public struct Kopplung: Codable, Equatable, Sendable { public var geraet: String; public var zahl: String }
+    public struct Kopplung: Codable, Equatable, Sendable { public var geraet: String; public var zahl: String; public var modell: String?; public var bestaetigt: Bool? }
     public struct Berichte: Codable, Equatable, Sendable {
         public struct Neu: Codable, Equatable, Sendable, Identifiable { public var id: String; public var kopf: String; public var um: Double; public var text: String; public var beleg: String?; public var wer: String; public var wer_name: String }
         public struct Gleich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String; public var seit_tage: Int }

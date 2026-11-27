@@ -4,6 +4,7 @@ import SwiftUI
 struct EinstellungenSeite: View {
     var zurueckName: String
     var schliessen: () -> Void
+    var uhrVerbinden: () -> Void
 
     @EnvironmentObject private var store: SenecaStore
     @ObservedObject private var sinne = Sinne.shared
@@ -48,6 +49,7 @@ struct EinstellungenSeite: View {
                 Bewegung.mit(.seite) { unterseite = .orte }
             }
             .accessibilityIdentifier("einstellungen.orte")
+            Zeile(titel: "Uhr verbinden", hinten: .pfeil, linie: false) { uhrVerbinden() }
             technikTeil
         }
         .onAppear {

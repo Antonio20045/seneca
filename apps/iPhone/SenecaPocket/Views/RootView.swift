@@ -35,6 +35,7 @@ struct RootView: View {
     @State private var lightPulse = 0
     @State private var lastDone: Int?
     @State private var einstellungen = false
+    @State private var ersterStart: ErsterStart.Schritt?
     @State private var arbeit: ArbeitReiter?
     @State private var entscheide: SenecaStand.Frage?
     @State private var auftragNeu: SenecaStand.AuftragNeu?
@@ -439,8 +440,14 @@ struct RootView: View {
                 .allowsHitTesting(t.p > 0.5 && reading == nil)
                 .modifier(AXHidden(hidden: t.p <= 0.5 || reading != nil))
                 .scrollClaims(visible: t.p > 0.5)
+            if ersterStart != nil {
+                ErsterStart(schritt: $ersterStart, adresseEingeben: { einstellungenOeffnen() })
+                    .transition(.opacity)
+                    .zIndex(0.4)
+            }
             if einstellungen {
-                EinstellungenSeite(zurueckName: senecaZurueckZiel, schliessen: { einstellungen = false })
+                EinstellungenSeite(zurueckName: senecaZurueckZiel, schliessen: { einstellungen = false },
+                                   uhrVerbinden: { einstellungen = false; Bewegung.mit(.seite) { ersterStart = .uhr } })
                     .transition(.move(edge: .trailing))
                     .zIndex(0.5)
             }
@@ -483,9 +490,6 @@ struct RootView: View {
 
     private var heroOverride: HeroText? {
         guard store.today == nil else { return nil }
-        if !store.isConfigured {
-            return HeroText(line1: "Verbinde mich", line2Prefix: "mit deinem ", emphasis: "Mac", line2Suffix: ".", sub: "Halte das Datum gedrückt, um die Verbindung einzurichten.", mode: .plain)
-        }
         let unreachable = store.connectionStatus == "Mac nicht erreichbar"
         return HeroText(line1: "Einen Moment,", line2Prefix: "ich hole deinen ", emphasis: "Tag", line2Suffix: ".",
                         sub: unreachable ? "Dein Mac ist gerade nicht erreichbar. Ich versuche es weiter." : "Seneca verbindet sich mit deinem Mac.", mode: .plain)
@@ -756,6 +760,7 @@ struct RootView: View {
             conversation.demoMute = env["SENECA_DEMO_MUTE"] == "1"
             if let mode = env["SENECA_DEMO_GATEWAYVOICE"] { conversation.speech.gateway = SpeechController.demoGateway(mode) }
             conversation.demoMic = env["SENECA_DEMO_MIC"] == "1"
+            ersterStart = ["1": .start, "2": .scannen, "3": .uhr][env["SENECA_DEMO_START"] ?? ""]
             await runDemoScript(env)
             return
         }
@@ -782,6 +787,8 @@ struct RootView: View {
                 sinneFrage = true
             }
             await reconnect()
+        } else {
+            ersterStart = .start
         }
     }
 

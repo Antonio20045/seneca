@@ -348,6 +348,7 @@ final class AppModell: ObservableObject {
         eingabeFehler = nil
         adresse = a
         await verbinde()
+        if zustand == .bereit { SnKopplung.gemeinsam.oeffne(minuten: store.stand?.regeln?["kopplung_fenster_min"]) }
     }
 
     private func uebernehmeNotizblock() {
@@ -381,6 +382,7 @@ final class AppModell: ObservableObject {
             uebernehmeNotizblock()
             uebersicht.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })
             installiereTasten()
+            store.aufPraesenz = { SnKopplung.gemeinsam.praesenz($0) }
             modelle.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) }, verbunden: { [store] in store.isConnected })
             gegenueber.stelleWiederHer()
             gegenueber.leiste.verdrahte(rufe: { [store] fn, p, t in try await store.rufe(fn, params: p, timeout: t) })

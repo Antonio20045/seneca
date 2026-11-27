@@ -45,13 +45,14 @@ function begrenzt(schluessel: string, grenze: number): boolean {
 }
 
 export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
-  const g = String((JSON.parse(roh.toString("utf8")) as Anfrage).g ?? "");
+  const d = JSON.parse(roh.toString("utf8")) as Anfrage & { m?: string };
+  const g = String(d.g ?? "");
   const fenster = wert(db, "kopplung:fenster");
   if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
   const zahl = String(randomInt(0, 10000)).padStart(4, "0");
   const abholen = randomBytes(16).toString("hex");
-  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false }), "uhr", fenster.gueltig_bis);
+  wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false, modell: d.m?.slice(0, regelZahl("kopplung_modell_zeichen")) }), "uhr", fenster.gueltig_bis);
   return { status: 200, inhalt: { zahl, abholen } };
 }
 

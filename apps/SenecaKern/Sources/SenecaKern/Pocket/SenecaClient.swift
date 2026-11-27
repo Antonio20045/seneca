@@ -257,7 +257,10 @@ final class SenecaStore: ObservableObject {
         await loadToday()
     }
 
+    var aufPraesenz: (([[String: Any]]) -> Void)?
+
     private func gatewayEreignis(_ name: String, _ payload: [String: Any]) {
+        if name == "presence" { aufPraesenz?(payload["presence"] as? [[String: Any]] ?? []) }
         guard ["chat", "session.tool", "session.message"].contains(name), matchesSession(payload) else { return }
         receiveSessionEvent(name, payload)
     }
