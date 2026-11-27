@@ -1,0 +1,15 @@
+<resources>
+    <fonts>
+        <font id="M5_14" filename="M5_14.fnt" antialias="true"/>
+        <font id="M5_17W" filename="M5_17W.fnt" antialias="true"/>
+        <font id="M5_13W" filename="M5_13W.fnt" antialias="true"/>
+        <font id="G5_88" filename="G5_88.fnt" antialias="true"/>
+        <font id="G5_72" filename="G5_72.fnt" antialias="true"/>
+        <font id="G5_48" filename="G5_48.fnt" antialias="true"/>
+        <font id="G5_40" filename="G5_40.fnt" antialias="true"/>
+        <font id="G5_20" filename="G5_20.fnt" antialias="true"/>
+    </fonts>
+    <drawables>
+        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"/>
+    </drawables>
+</resources>

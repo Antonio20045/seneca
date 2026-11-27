@@ -10,7 +10,10 @@ from PIL import Image, ImageDraw, ImageFont
 UHR = Path(__file__).resolve().parent.parent
 QUELLE = Path(sys.argv[1])
 ENTWURF = 466
-GERAETE = {'resources': 466, 'resources-fenix9pro47mm': 454, 'resources-fenix9pro43mm': 416}
+GERAETE = {'resources': 466, 'resources-fenix9pro47mm': 454, 'resources-fenix9pro43mm': 416, 'resources-fenix9prosolar51mm': 280}
+MIP = {280: 10}
+SCHARF = 20
+BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 ERSATZ = [Path('/System/Library/Fonts/Menlo.ttc'), Path('/System/Library/Fonts/Apple Symbols.ttf')]
 
 GROSS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789·:%●Ø/.,–-+'
@@ -129,7 +132,7 @@ def schnitt(daten, zeichen, px):
     return None
 
 
-def schrift(name, daten, px, sperrung, zeichen, ziel):
+def schrift(name, daten, px, sperrung, zeichen, ziel, scharf):
     ober, unter = ImageFont.truetype(io.BytesIO(daten), px).getmetrics()
     glyphen = []
     for z in dict.fromkeys(zeichen):
@@ -138,7 +141,9 @@ def schrift(name, daten, px, sperrung, zeichen, ziel):
             continue
         links, oben, rechts, boden = f.getbbox(z, anchor='ls')
         bild = Image.new('L', (max(rechts - links, 0) + 2, max(boden - oben, 0) + 2), 0)
-        ImageDraw.Draw(bild).text((1 - links, 1 - oben), z, font=f, fill=255, anchor='ls')
+        stift = ImageDraw.Draw(bild)
+        stift.fontmode = '1' if scharf else 'L'
+        stift.text((1 - links, 1 - oben), z, font=f, fill=255, anchor='ls')
         glyphen.append((z, bild, links - 1, ober + oben - 1, round(f.getlength(z) + sperrung)))
     seite = 128
     while True:
@@ -194,7 +199,11 @@ def hintergrund(n):
         grund = verlauf(oben, y / n)
         for x in range(n):
             a = verlauf([(t, (w,)) for t, w in glanz], math.hypot(x / n - .74, y / n - .16) * ENTWURF / weit)[0]
-            bild.putpixel((x, y), tuple(round(g + (h - g) * a) for g, h in zip(grund, (0x8F, 0xB6, 0xE3))))
+            farbe = [g + (h - g) * a for g, h in zip(grund, (0x8F, 0xB6, 0xE3))]
+            if n in MIP:
+                schwelle = (BAYER[y % 4 * 4 + x % 4] + .5) / 16
+                farbe = [min(int(c / 85 + schwelle), 3) * 85 for c in farbe]
+            bild.putpixel((x, y), tuple(round(c) for c in farbe))
     return bild
 
 
@@ -205,14 +214,15 @@ def gestalt(projekt, schriften, mitHintergrund, mitBlick):
         ziel.mkdir(parents=True, exist_ok=True)
         zeilen = ['<resources>', '    <fonts>']
         for name, (daten, px, sperrung, zeichen, blick) in schriften.items():
-            schrift(name, daten, px * s, sperrung * s, zeichen, ziel)
+            groesse = max(px * s, MIP.get(breite, 0))
+            schrift(name, daten, groesse, sperrung * s, zeichen, ziel, breite in MIP and groesse < SCHARF)
             zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{" scope=\"glance\"" if blick else ""}/>')
         lichtpunkt(14 * s).save(ziel / 'lichtpunkt.png')
         umfang = ' scope="glance"' if mitBlick else ''
         zeilen += ['    </fonts>', '    <drawables>', f'        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"{umfang}/>']
         if mitHintergrund:
             hintergrund(breite).save(ziel / 'hintergrund.png')
-            zeilen.append('        <bitmap id="Hintergrund" filename="hintergrund.png"/>')
+            zeilen.append(f'        <bitmap id="Hintergrund" filename="hintergrund.png"/>')
         zeilen += ['    </drawables>', '</resources>', '']
         (ziel / 'gestalt.xml').write_text('\n'.join(zeilen))
 

@@ -9,7 +9,7 @@ LAUF=$HOME/.seneca/uhr-lauf
 mkdir -p bin/adresse
 printf '(:background, :glance)\nmodule Adresse {\n    const SERVER = "%s";\n    const LAUF = "%s";\n}\n' "${ADRESSE%/}" "$(cat "$LAUF")" > bin/adresse/Adresse.mc
 for projekt in .:seneca zifferblatt:zifferblatt trail:trail; do
-  for geraet in fenix9pro43mm fenix9pro47mm fenix9pro51mm; do
+  for geraet in fenix9pro43mm fenix9pro47mm fenix9pro51mm fenix9prosolar51mm; do
     "$SDK/bin/monkeyc" -d "$geraet" -f "${projekt%%:*}/monkey.jungle" -o "bin/${projekt#*:}-$geraet.prg" -y "$SCHLUESSEL" -r -w
   done
 done

@@ -14,7 +14,7 @@ class Zifferblatt extends WatchUi.WatchFace {
     }
 
     function onEnterSleep() as Void {
-        _ruht = true;
+        _ruht = Zeichnen.amoled();
         WatchUi.requestUpdate();
     }
 
