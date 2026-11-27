@@ -44,6 +44,7 @@ final class AppModell: ObservableObject {
     var chat: ChatService { store.chat }
 
     private var tastenMonitor: Any?
+    private lazy var zurueckGeste = ZurueckGeste { [weak self] f in self?.geheZurueck(f) }
     private var doppelSperre = TastenDoppelSperre()
     private var gBis = Date.distantPast
 
@@ -189,7 +190,14 @@ final class AppModell: ObservableObject {
         Fensterstand(rahmen: rahmen, route: route.pfad, chatOffen: gespraechAn).schreibe()
     }
 
+    func geheZurueck(_ fenster: NSWindow) {
+        guard zustand == .bereit, let esc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                             windowNumber: fenster.windowNumber, context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}", isARepeat: false, keyCode: 53) else { return }
+        if !fenster.performKeyEquivalent(with: esc) { _ = taste(esc) }
+    }
+
     func installiereTasten() {
+        zurueckGeste.installiere()
         guard tastenMonitor == nil else { return }
         tastenMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }

@@ -34,6 +34,15 @@ enum GespraecheTafelLogik {
             .enumerated().sorted { (rang.firstIndex(of: $0.element.punkt) ?? 9, $0.offset) < (rang.firstIndex(of: $1.element.punkt) ?? 9, $1.offset) }.map(\.element)
     }
 
+    static func hilfe(_ m: SenecaStand.Mitglied, _ zeilen: [Zeile]) -> String {
+        var s = zeilen.map(\.text).joined()
+        if m.zustand == "arbeitet" || m.zustand == "hängt" {
+            if let t = m.titel, !t.isEmpty { s += " · Auftrag „\(t)“" }
+            if let r = m.rest_min { s += " · noch etwa \(Int(r)) Min" }
+        }
+        return s.prefix(1).uppercased() + s.dropFirst()
+    }
+
     static func laufSatz(_ m: SenecaStand.Mitglied) -> String {
         let w = (m.satz ?? "arbeitet").split(separator: " ", maxSplits: 1).map(String.init)
         return "Solange du überlegst, \(w[0]) \(m.name)\(w.count > 1 ? " " + w[1] : "")" + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")

@@ -100,11 +100,11 @@ struct SnStatistikTafel: View {
                 if let k {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("Der Weg zu 100 km").font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)
+                            Text("Kilometer je Woche").font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)
                             Spacer()
-                            Text("LÄNGSTER LAUF JE WOCHE").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus)
+                            Text("DIE LETZTEN 12 WOCHEN").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus)
                         }
-                        SnWegLinie(weg: StatistikLogik.weg(k)).frame(height: 104)
+                        SnStatBalken(werte: Array(k.lauf.km.suffix(12)), farbe: TafelFarbe.gruen, beschriftung: nil).frame(height: 104)
                     }
                 }
             }

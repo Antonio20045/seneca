@@ -30,7 +30,7 @@ enum HeuteBild {
                         SnKopplungTafel(code: Kopplungscode(adresse: "https://seneca.beispiel.ts.net", schluessel: "beispiel", name: "MacBook Pro von Antonio", bis: Date().addingTimeInterval(582)), iphone: false, neu: {})
                             .frame(maxHeight: .infinity, alignment: .top)
                     case "projekte":
-                        SnProjekteTafel(stand: s, zuDenFragen: {})
+                        SnProjekteTafel(stand: s, zuDenFragen: {}, lauf: HeuteTafelLogik.beispielStatistik(env["SENECA_STATISTIK"])?.kennzahlen)
                         SnGeruestBild(stand: s, aktiv: .projekte)
                     case "kalender", "kalender-detail", "kalender-neu", "kalender-vorschlag":
                         SnKalenderTafel(stand: s, handeln: { _, _, _ in }, antworte: { _, _ in }, zumChat: { _ in }, rechneWeg: { _ in nil })
@@ -101,6 +101,7 @@ enum HeuteBild {
             fenster.contentView = host
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
             if let ablauf = env["SENECA_STAT_ABLAUF"] { await SnStatistikProbe.ablauf(host, ablauf) }
+            if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()
                 var nr = 0, zeiten: [String] = []

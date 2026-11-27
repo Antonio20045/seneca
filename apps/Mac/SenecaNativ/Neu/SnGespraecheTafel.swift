@@ -14,13 +14,17 @@ struct SnGespraechLeiste: View {
     var zieht = false
     var fragt: SenecaStand.Frage? = nil
     var ablegen: (String, [URL]) -> Void = { _, _ in }
+    @State private var hilfeFuer: String?
+    @State private var hilfeWarte: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [GL.Zeile(text: stand.flatMap(GL.seneca) ?? "Frag Seneca etwas.")], punkt: nil).padding(.vertical, 2)
             etikett("DEIN TEAM").padding(.horizontal, 14).padding(.top, 26).padding(.bottom, 8)
             ForEach(stand.map(GL.leiste) ?? [], id: \.m.name) { e in
-                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: fragt?.von == e.m.name ? [GL.Zeile(text: "fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))", hervor: true)] : e.zeilen, punkt: fragt?.von == e.m.name ? .wartet : e.punkt)
+                let fragtHier = fragt?.von == e.m.name
+                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: [], punkt: fragtHier ? .wartet : e.punkt,
+                        hilfe: fragtHier ? "Fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))" : GL.hilfe(e.m, e.zeilen))
             }
             Spacer(minLength: 20)
             if zieht {
@@ -36,7 +40,7 @@ struct SnGespraechLeiste: View {
         .frame(width: 268, alignment: .topLeading)
     }
 
-    private func eintrag(id: String, name: String, zeilen: [GL.Zeile], punkt: GL.Punkt?) -> some View {
+    private func eintrag(id: String, name: String, zeilen: [GL.Zeile], punkt: GL.Punkt?, hilfe: String? = nil) -> some View {
         let gewaehlt = id == aktiv
         return Button { waehle(id) } label: {
             HStack(alignment: .top, spacing: 12) {
@@ -47,8 +51,8 @@ struct SnGespraechLeiste: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(name).font(Schrift.grotesk(15, .medium)).lineHeight(.exact(points: 21))
                         .foregroundStyle(punkt == .ruht ? TafelFarbe.zweit : punkt == .fertig ? TafelFarbe.text : Color.white)
-                    zeilen.reduce(Text("")) { $0 + Text($1.text).foregroundColor($1.hervor ? TafelFarbe.bernstein : punkt == .fertig || punkt == .ruht ? TafelFarbe.leise : TafelFarbe.zweit) }
-                        .font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).fixedSize(horizontal: false, vertical: true)
+                    if !zeilen.isEmpty { zeilen.reduce(Text("")) { $0 + Text($1.text).foregroundColor($1.hervor ? TafelFarbe.bernstein : punkt == .fertig || punkt == .ruht ? TafelFarbe.leise : TafelFarbe.zweit) }
+                        .font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).fixedSize(horizontal: false, vertical: true) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -59,6 +63,34 @@ struct SnGespraechLeiste: View {
         }
         .buttonStyle(.plain)
         .dropDestination(for: URL.self) { urls, _ in ablegen(id, urls.filter(\.isFileURL)); return true }
+        .onHover { zeige(id, $0, hilfe: hilfe) }
+        .overlay(alignment: .topLeading) {
+            if let hilfe, hilfeFuer == id { SnLeisteHilfe(text: hilfe).offset(x: 54, y: 38).transition(.opacity) }
+        }
+        .zIndex(hilfeFuer == id ? 1 : 0)
+        .accessibilityHint(hilfe ?? "")
+    }
+
+    private func zeige(_ id: String, _ drauf: Bool, hilfe: String?) {
+        hilfeWarte?.cancel()
+        guard drauf, hilfe != nil else { withAnimation(Kurve.sn(0.15)) { if hilfeFuer == id || !drauf { hilfeFuer = nil } }; return }
+        hilfeWarte = Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            if !Task.isCancelled { withAnimation(Kurve.sn(0.18)) { hilfeFuer = id } }
+        }
+    }
+}
+
+struct SnLeisteHilfe: View {
+    var text: String
+    var body: some View {
+        Text(text).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.text)
+            .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 220, alignment: .leading)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TafelFarbe.hex(0x16294D)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.28), radius: 14, y: 6)
+            .allowsHitTesting(false)
     }
 }
 
