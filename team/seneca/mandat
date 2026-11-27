@@ -9,7 +9,7 @@ signale:
     was: "Termine mit Teilnehmern, freie Lücken"
 rundgang: ["08:30", "17:00"]
 befugnisse:
-  unterauftrag_an: [produkt, engineer, pruefer, recherche, sundartha, branding, telcoradar, trainer, probe-gaertner]
+  unterauftrag_an: [produkt, engineer, pruefer, recherche, sundartha, branding, telcoradar, trainer]
   werkzeuge: [mcp:zoho-mail]
   ablage_schreiben: [Privat, Sundartha, Vodafone, Boardinghouse, _eingang, _wissen]
   live_nur_mit_ja: true
