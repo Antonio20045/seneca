@@ -136,6 +136,7 @@ kalender_abgleich_min 5
 kalender_titel_zeichen 60
 kalender_standard Privat
 kalender_seneca Seneca
+kalender_schreiber seneca,trainer
 kal_monate_zurueck 1
 kal_wochen_vor 4
 kal_marke_bis_min 10

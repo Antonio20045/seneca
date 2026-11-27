@@ -1,7 +1,7 @@
 import { kalenderTag, termineAm, uhr, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { ereignis, wertSetzen } from "../register/schreiben.ts";
-import { kalenderSpanne, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { kalenderSpanne, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Zugang = { benutzer?: string; passwort?: string };
 type Termin = { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; namen: string[]; notiz?: string; kalender?: string; ganztag: boolean };
@@ -126,7 +126,7 @@ function wann(t: number): string {
 export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe, sitzung = ""): Promise<object> {
   if (!z.benutzer || !z.passwort) throw new Error("Kalender ist noch nicht verbunden (App-Passwort fehlt).");
   if (p.aktion === "lesen") return { termine: termineAm(db, p.start ?? uhr.jetzt()) };
-  if (agent !== regelText("dauerauftraege_von")) throw new Error("Nur Seneca schreibt in den Kalender.");
+  if (!regelListe("kalender_schreiber").includes(agent)) throw new Error("Nur Seneca und der Trainer schreiben in den Kalender.");
   const r = await schreiben(db, z, { ...p, kalender: p.kalender ?? regelText("kalender_seneca") }) as { ok?: boolean; uid?: string; titel?: string; vorher?: Termin };
   if (r.ok && p.aktion !== "loeschen") ereignis(db, { art: "quittung", schluessel: sitzung, daten: { teil: "Kalender", ergebnis: `${r.titel} · ${wann(Number(p.start))}`,
     zurueck: r.vorher ? { uid: r.uid, start: r.vorher.start, ende: r.vorher.ende } : null } });

@@ -1,0 +1,20 @@
+bereich: [Privat]
+ziele:
+  - kennzahl: geplante_einheiten_erledigt
+    ziel: ">= 80 %"
+signale:
+  - quelle: kalender
+    was: "freie Lücken in Antonios Tagen, Termine mit Titel „Training: …“"
+rundgang: []
+befugnisse:
+  unterauftrag_an: [recherche]
+  werkzeuge: [exec, seneca_kalender]
+  ablage_schreiben: [Privat]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 300
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, planen: sonnet, steuern: sonnet }
+kontext: {}
+zugaenge: [garmin]
