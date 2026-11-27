@@ -89,6 +89,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 48 | Uhr koppeln (Zahlenvergleich, Fenster 10 Min, Schlüssel genau einmal) | `zugang/uhr.ts`; Bestätigung als Handlung in `zugang/handeln.ts` |
 | 49 | Uhr-Zugang (Abgleich, Token, Begrenzung) | `zugang/uhr.ts` |
 | 49 | Körperwerte im Abgleich: Feld `k` = `bb` [Body Battery, Zeit s], `st` Stress, `sc` Schritte; Server legt `koerper` und `koerper:morgens` als Wert ab, Ausgabe in `seneca.stand.koerper`. Schlaf liest das iPhone aus HealthKit und schickt ihn per `seneca.handeln` (Art `koerper`: `schlaf_min`, `bis` in ms) → `koerper.schlaf` | `uhr/source/Abgleich.mc` → `zugang/uhr.ts` → `pforte/stand.ts` |
+| – | Entscheiden-Seite: `seneca.stand.entscheiden` (Kopfsatz, Fenster, heute schon entschieden, Danach), `buendel.fortschritt` (3 von 14, ✓/↺, „Danach noch …“) und `buendel.abnahmen` mit Satz, Prüfer-Urteil, Art und Hörprobe; Optionen mit `titel`, `preis`, `einheit`, `knopf`, Frage mit `folge` (Wirkung nach außen) | `pforte/entscheiden.ts` |
 | 45 | Ablage-Rechte je Bereich (lesen: `bereich`, schreiben: `ablage_schreiben`) | `zugang/rechte.ts` · Hook `before_tool_call` |
 | 50 | Uhr-Abgleich (Kennung je Handlung) | `zugang/handeln.ts` |
 | 53, 54 | Kalender lesen und schreiben (CalDAV, Konflikte, Teilnehmer nur über den Ausgang) | `quellen/kalender.ts` · Werkzeug `seneca_kalender`; Tagesstand je Tag als Wert `kalender:<tag>` (`register/lesen.ts` · `termineAm`) |

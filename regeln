@@ -115,7 +115,7 @@ fenster_dauer_min 30
 todo_dauer_standard_min 30
 luecke_faktor 1.5
 fokus_worte Fokus,Seneca-Block
-sport_worte Gym,Training,Laufen,Lauf,Yoga,Schwimmen,Rad
+sport_worte Gym,Training,Laufen,Lauf,Trail,Yoga,Schwimmen,Rad
 wegzeit_vorlauf_min 60
 ankunft_puffer_min 0
 eine_minute_min 1

@@ -376,18 +376,6 @@ final class OverviewStore: ObservableObject {
         return ("agent:\(leiter):main", leiter)
     }
 
-    func vertage(_ e: OvEntscheidung, bis: Double, label: String) async {
-        lokalSpaeter[e.id] = bis
-        let wann = label == "Morgen" ? "morgen" : label == "Montag" ? "am Montag" : "nächste Woche"
-        hinweis("Später: \(Menschlich.kuerzen(e.frage, 48)) kommt \(wann) wieder.")
-        do {
-            _ = try await rufe("seneca.entscheidung.spaeter", ["id": e.id, "bis": Menschlich.isoTag(bis)], 20)
-            await aktualisiere()
-        } catch {
-            hinweis("Später ging nicht: \(Self.fehlertext(error))")
-        }
-    }
-
     func aktualisiereSitzungen() async {
         guard verbunden(), let r = await lies("sessions.list", ["limit": 200, "configuredAgentsOnly": true, "includeDerivedTitles": true]) else { return }
         var d = daten
@@ -536,42 +524,11 @@ final class OverviewStore: ObservableObject {
     }
 
     @discardableResult
-    func legeVorschlagAn(_ v: NachrichtVorschlag) async -> Bool {
-        do {
-            _ = try await rufe("workboard.cards.create", NachrichtVorschlaege.kartenParameter(v), 20)
-        } catch { hinweis("Konnte nicht anlegen: \(Self.schreibFehlertext(error))"); return false }
-        await markiere([v.id])
-        await aktualisiereKarten()
-        return true
-    }
-
-    func verwirfVorschlag(_ v: NachrichtVorschlag) async { await markiere([v.id]) }
 
     func legeMeetingAufgabeAn(_ aufgabe: String, meetingDatei: String) async throws {
         let p = MeetingAufgaben.kartenParameter(aufgabe: aufgabe, meetingDatei: meetingDatei, schluessel: MeetingAufgaben.schluessel(meetingDatei: meetingDatei, aufgabe: aufgabe))
         _ = try await rufe("workboard.cards.create", p, 20)
         await aktualisiereKarten()
-    }
-
-    func nimmAn(_ id: String) async -> Bool {
-        guard let c = aktuell(id) else { hinweis("Die Aufgabe gibt es nicht mehr."); return false }
-        do {
-            if c.labels.contains("wartet-auf-antonio") { try await aendere(id, patch: ["labels": c.labels.filter { $0 != "wartet-auf-antonio" }]) }
-            _ = try await verschiebe(aktuell(id) ?? c, nach: "done")
-            return true
-        } catch { hinweis("Konnte nicht annehmen: \(Self.schreibFehlertext(error))"); return false }
-    }
-
-    func gibZurueck(_ id: String, satz: String) async -> Bool {
-        let t = satz.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, let c = aktuell(id) else { return false }
-        do {
-            _ = try await rufe("workboard.cards.comment", ["id": id, "body": "Zurückgegeben von Antonio: " + t], 20)
-            await aktualisiereKarten()
-            if c.labels.contains("wartet-auf-antonio") { try await aendere(id, patch: ["labels": c.labels.filter { $0 != "wartet-auf-antonio" }]) }
-            if c.status != "todo" { _ = try await verschiebe(aktuell(id) ?? c, nach: "todo") }
-            return true
-        } catch { hinweis("Konnte nicht zurückgeben: \(Self.schreibFehlertext(error))"); return false }
     }
 
     func kommentiere(_ id: String, text: String) async -> Bool {

@@ -55,18 +55,3 @@ private struct SnBelegStil: ButtonStyle {
             .onHover { hover = $0 }
     }
 }
-
-struct SnRandKnopfStil: ButtonStyle {
-    @State private var hover = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Schrift.grotesk(14, .medium))
-            .foregroundStyle(hover ? Color.white : Farbe.ink)
-            .padding(.horizontal, 20).padding(.vertical, 10)
-            .background(Capsule().fill(configuration.isPressed ? Farbe.flaeche2 : (hover ? Farbe.flaeche : .clear)))
-            .overlay(Capsule().strokeBorder(Farbe.linie, lineWidth: 1))
-            .contentShape(Capsule())
-            .onHover { hover = $0 }
-            .animation(Kurve.sn(0.2), value: hover)
-    }
-}

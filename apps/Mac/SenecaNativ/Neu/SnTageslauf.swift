@@ -62,8 +62,14 @@ enum HeuteBild {
             let seite = ZStack {
                 SnGrund(fortschritt: 0)
                 if let s = HeuteTafelLogik.beispiel(env["SENECA_DEMO_STAND"] ?? "Beispiel-Stand") {
-                    SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {})
-                    SnGeruestBild(stand: s)
+                    switch env["SENECA_SEITE"] {
+                    case "entscheiden":
+                        SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
+                        SnGeruestBild(stand: s, aktiv: .fragen)
+                    default:
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {})
+                        SnGeruestBild(stand: s)
+                    }
                 }
             }
             .frame(width: breite, height: hoehe)

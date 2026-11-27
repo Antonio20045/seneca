@@ -3,7 +3,10 @@ import Foundation
 public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Zaehler: Codable, Equatable, Sendable { public var braucht: Int }
     public struct Ruhe: Codable, Equatable, Sendable { public var grund: String; public var bis: Double?; public var durchbruch: Bool }
-    public struct Option: Codable, Equatable, Sendable { public var wert: String?; public var text: String?; public var folge: String? }
+    public struct Option: Codable, Equatable, Sendable {
+        public var wert: String?; public var text: String?; public var folge: String?
+        public var titel: String?; public var preis: String?; public var einheit: String?; public var knopf: String?
+    }
     public struct Kontext: Codable, Equatable, Sendable { public var worum: String?; public var wenn_nicht: String? }
     public struct Zustellung: Codable, Equatable, Sendable { public var geraet: String?; public var zeit: Double?; public var was: String?; public var bis: Double?; public var grund: String? }
     public struct Antwort: Codable, Equatable, Sendable { public var wahl: String; public var geraet: String?; public var zeit: Double? }
@@ -16,6 +19,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var art: String?
         public var wirkung_aussen: String?
         public var optionen: [Option]?
+        public var folge: String?
         public var empfehlung: String?
         public var kontext: Kontext?
         public var frist: Double?
@@ -23,10 +27,22 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
     }
-    public struct Abnahme: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var projekt: String? }
+    public struct Abnahme: Codable, Equatable, Sendable, Identifiable {
+        public var id: String; public var titel: String; public var projekt: String?
+        public var art: String?; public var satz: String?; public var hoerprobe_s: Double?; public var an: String?; public var beleg: String?
+    }
+    public struct Fortschritt: Codable, Equatable, Sendable {
+        public var titel: String?; public var fertig: Int; public var gesamt: Int; public var rest_min: Double?
+        public var passt: [String]?; public var zurueck: [String]?; public var danach: String?
+    }
     public struct Buendel: Codable, Equatable, Sendable {
         public var fenster: Double?; public var abnahmen: [Abnahme]?; public var fragen: [Frage]?
-        public var dauer_min: Double?; public var satz: String?; public var kurz: String?
+        public var dauer_min: Double?; public var satz: String?; public var kurz: String?; public var fortschritt: Fortschritt?
+    }
+    public struct Entschieden: Codable, Equatable, Sendable { public var zeit: Double?; public var titel: String; public var unter: String? }
+    public struct Entscheiden: Codable, Equatable, Sendable {
+        public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
+        public var heute: [Entschieden]?; public var danach: String?
     }
     public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double? }
     public struct Mitglied: Codable, Equatable, Sendable {
@@ -78,6 +94,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var koerper: Koerper?
     public var braucht_dich: [Frage]?
     public var buendel: Buendel?
+    public var entscheiden: Entscheiden?
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var termine: [Termin]?
