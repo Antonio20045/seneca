@@ -30,6 +30,8 @@ struct StatistikLayer: View {
     @State private var seite: Seite?
     @State private var reiter = 1
     @State private var blatt: Blatt?
+    @State private var ziel: (art: String, bisher: Double)?
+    @State private var zielNeu = 0.0
 
     var body: some View {
         ZStack {
@@ -64,6 +66,7 @@ struct StatistikLayer: View {
             seite = env["SENECA_DEMO_STAT_SEITE"].flatMap(Seite.init(rawValue:))
             reiter = Int(env["SENECA_DEMO_STAT_REITER"] ?? "") ?? 1
             if let b = env["SENECA_DEMO_STAT_BLATT"].flatMap(Blatt.init(rawValue:)) { blatt = b }
+            if env["SENECA_DEMO_STAT_STELL"] == "ziel", let k = model.daten?.woche.karten.first { zielOeffnen(k); zielNeu = 25 }
             #endif
         }
     }
@@ -73,6 +76,11 @@ struct StatistikLayer: View {
     private func aktivitaet(_ a: String) {
         guard allowTap() else { return }
         _ = store.daten?.handeln("geraet.aktivitaet", wert: .objekt(["wert": .text(a)]))
+    }
+
+    private func handeln(_ art: String, _ ziel: String, _ wert: JSONWert?) {
+        _ = store.daten?.handeln(art, ziel: ziel, wert: wert)
+        Task { try? await Task.sleep(for: .seconds(1.5)); await model.laden(store: store) }
     }
 
     private func eintragen(_ art: String, _ werte: [String: JSONWert]) {
@@ -88,7 +96,7 @@ struct StatistikLayer: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     switch reiter {
-                    case 0: d?.tag.map { TagSicht(t: $0) }
+                    case 0: d?.tag.map { TagSicht(t: $0, aendern: { id, w in handeln("eintrag.aendern", id, .objekt(w)) }, loeschen: { id, ja in handeln(ja ? "eintrag.loeschen" : "eintrag.wiederherstellen", id, nil) }) }
                     case 2: d?.monat.map { JahrSicht(j: $0, breite: m.size.width - 48, monat: true) }
                     case 3: d?.jahr.map { JahrSicht(j: $0, breite: m.size.width - 48) }
                     default:
@@ -145,6 +153,12 @@ struct StatistikLayer: View {
                         .overlay(alignment: .leading) { Capsule().fill(farbe(k.art)).frame(width: 56 * min(1, k.anteil ?? 0.6), height: 3) }
                     Text(k.rechts).mono(11).foregroundStyle(TafelFarbe.leise)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { zielOeffnen(k) }
+            }
+            if let z = ziel, z.art == k.art, let a = StatistikLayer.ziele[k.art] {
+                StatStellKarte(titel: a.titel, wert: $zielNeu, einheit: a.einheit, schritt: a.schritt,
+                               unten: "Gilt ab dieser Woche. Bisher \(Int(z.bisher)) \(a.einheit.lowercased()).") { zielSchliessen() }
             }
         }
         .padding(.vertical, 14)
@@ -154,6 +168,23 @@ struct StatistikLayer: View {
             let ziel: Seite? = k.art == "laufen" && model.daten?.lauf != nil ? .lauf : k.art == "kraft" && model.daten?.uebung != nil ? .kraft : k.art == "lesen" && model.daten?.buch != nil ? .lesen : nil
             if let ziel, allowTap() { Bewegung.mit(.wechsel) { seite = ziel } }
         }
+    }
+
+    static let ziele: [String: (schluessel: String, titel: String, einheit: String, schritt: Double)] = [
+        "laufen": ("laufen_km", "Laufen pro Woche", "KM", 1), "kraft": ("kraft_mal", "Krafttraining pro Woche", "MAL", 1), "lesen": ("lesen_min", "Lesen pro Tag", "MIN", 5)]
+
+    private func zielOeffnen(_ k: SenecaStatistik.Karte) {
+        guard allowTap(), StatistikLayer.ziele[k.art] != nil else { return }
+        if ziel != nil { zielSchliessen(); return }
+        let bisher = (k.rechts + " " + k.einheit).firstMatch(of: /VON (\d+)/).flatMap { Double($0.1) } ?? 0
+        zielNeu = bisher
+        Bewegung.mit(.wechsel) { ziel = (k.art, bisher) }
+    }
+
+    private func zielSchliessen() {
+        guard let z = ziel, let a = StatistikLayer.ziele[z.art] else { return }
+        if zielNeu != z.bisher { handeln("ziel.setzen", a.schluessel, .text(String(Int(zielNeu)))) }
+        Bewegung.mit(.wechsel) { ziel = nil }
     }
 
     private func knopf(_ k: SenecaStatistik.Karte) {

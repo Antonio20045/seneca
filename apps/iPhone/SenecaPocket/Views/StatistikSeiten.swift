@@ -128,13 +128,129 @@ struct JahrSicht: View {
     }
 }
 
+struct StatStellKarte: View {
+    var titel: String
+    var rechts = ""
+    @Binding var wert: Double
+    var einheit: String
+    var schritt: Double
+    var unten: String?
+    var schliessen: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(titel).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.zweit)
+                Spacer()
+                Text(rechts).font(.custom("IBMPlexMono-Regular", fixedSize: 10.5)).foregroundStyle(TafelFarbe.leise)
+            }
+            .contentShape(Rectangle()).onTapGesture(perform: schliessen)
+            HStack(spacing: 10) {
+                if unten != nil { knopf("−", -schritt) }
+                TextField("", value: $wert, format: .number.precision(.fractionLength(schritt < 1 ? 1 : 0)).locale(Locale(identifier: "de_DE")))
+                    .font(Sundartha.grotesk(30, .medium)).foregroundStyle(.white).keyboardType(.decimalPad).fixedSize()
+                Text(einheit).mono(11).foregroundStyle(TafelFarbe.leise)
+                if unten == nil { Spacer(); knopf("−", -schritt) }
+                knopf("+", schritt)
+            }
+            .padding(.top, unten == nil ? 8 : 6)
+            if let unten { Text(unten).font(Sundartha.grotesk(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 8) }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 16).fill(LinearGradient(colors: [TafelFarbe.hex(0x153A6E), TafelFarbe.hex(0x0A2148)], startPoint: .top, endPoint: .bottom)))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(LinearGradient(colors: [Color.white.opacity(0.12), .clear], startPoint: .top, endPoint: .center), lineWidth: 1))
+        .padding(.vertical, 6)
+    }
+
+    private func knopf(_ zeichen: String, _ d: Double) -> some View {
+        Button { wert = max(0, ((wert + d) / schritt).rounded() * schritt) } label: {
+            Text(zeichen).font(Sundartha.grotesk(12, .medium)).foregroundStyle(.white).padding(.horizontal, 11).frame(height: 26)
+                .background(Capsule().fill(Color.white.opacity(0.1))).frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct TagSicht: View {
     var t: SenecaStatistik.TagSicht
+    var aendern: (String, [String: JSONWert]) -> Void
+    var loeschen: (String, Bool) -> Void
+    @State private var offen: Int?
+    @State private var neu = 0.0
+    @State private var neuWerte: [String: String] = [:]
+    @State private var weg: (id: String, satz: String, marke: UUID)?
+    @State private var fort = Set<String>()
+    @State private var zug: [Int: CGFloat] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             TafelSatz(vor: t.satz.first ?? "", akzent: t.satz.dropFirst().joined(separator: " "), groesse: 30, hoehe: 1.1).padding(.top, 14).padding(.bottom, 16)
-            ForEach(Array(t.zeilen.enumerated()), id: \.offset) { _, z in StatZeile(links: z.first ?? "", wert: z.count > 1 ? z[1] : "", unter: z.last ?? "") }
+            ForEach(Array(t.zeilen.enumerated()), id: \.offset) { i, z in
+                let id = z.count > 3 ? z[3] : "", wert = neuWerte[id] ?? z[2]
+                if !fort.contains(id) {
+                    if offen == i, let a = TagSicht.art(wert) {
+                        StatStellKarte(titel: "\(z[1]) · \(tagName)", rechts: "VORHER \(z[2].split(separator: " ")[0])", wert: $neu, einheit: a.einheit, schritt: a.schritt, unten: nil) { schliessen(i) }
+                    } else {
+                        StatZeile(links: z[0], wert: z[1], unter: wert)
+                            .opacity(weg?.id == id ? 0.35 : 1)
+                            .offset(x: min(0, zug[i] ?? 0))
+                            .contentShape(Rectangle())
+                            .onTapGesture { if !id.isEmpty, weg == nil, let a = TagSicht.art(wert) { if let o = offen { schliessen(o) }; neu = a.zahl; offen = i } }
+                            .simultaneousGesture(DragGesture(minimumDistance: 20).onChanged { v in if !id.isEmpty, abs(v.translation.width) > abs(v.translation.height) { zug[i] = v.translation.width } }
+                                .onEnded { v in
+                                    Bewegung.mit(.wechsel) { zug[i] = 0 }
+                                    if !id.isEmpty, v.translation.width < -80 { loesche(id, "\(z[1]), \(wert) am \(tagName), gelöscht.") }
+                                })
+                    }
+                    if let w = weg, w.id == id {
+                        TafelRueck(satz: w.satz, dauer: 5) { loeschen(id, false); Bewegung.mit(.wechsel) { weg = nil } }.padding(.horizontal, -16).padding(.vertical, 6)
+                    }
+                }
+            }
+        }
+        #if DEBUG
+        .onAppear(perform: demo)
+        #endif
+    }
+
+    #if DEBUG
+    private func demo() {
+        switch ProcessInfo.processInfo.environment["SENECA_DEMO_STAT_STELL"] {
+        case "korrektur": neu = 81.6; offen = 0
+        case "loeschen": if let z = t.zeilen.first { loesche(z[3], "\(z[1]), \(z[2]) am \(tagName), gelöscht.") }
+        default: break
+        }
+    }
+    #endif
+
+    private var tagName: String { String(t.kopf.split(separator: ",").first ?? "") }
+
+    static func art(_ wert: String) -> (zahl: Double, einheit: String, feld: String, schritt: Double)? {
+        let teile = wert.split(separator: " ")
+        guard teile.count == 2, let z = Double(teile[0].replacingOccurrences(of: ",", with: ".")) else { return nil }
+        switch teile[1] {
+        case "kg": return (z, "KG", "kg", 0.1)
+        case "km": return (z, "KM", "km", 0.1)
+        case "Min": return (z, "MIN", "m", 1)
+        default: return nil
+        }
+    }
+
+    private func schliessen(_ i: Int) {
+        let z = t.zeilen[i]
+        offen = nil
+        guard let a = TagSicht.art(neuWerte[z[3]] ?? z[2]), neu != a.zahl else { return }
+        neuWerte[z[3]] = "\(neu.formatted(.number.precision(.fractionLength(a.schritt < 1 ? 1 : 0)).locale(Locale(identifier: "de_DE")))) \(z[2].split(separator: " ")[1])"
+        aendern(z[3], [a.feld: .zahl(neu)])
+    }
+
+    private func loesche(_ id: String, _ satz: String) {
+        let marke = UUID()
+        loeschen(id, true)
+        Bewegung.mit(.wechsel) { weg = (id, satz, marke) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 10 : 5))
+            if weg?.marke == marke { Bewegung.mit(.wechsel) { weg = nil; fort.insert(id) } }
         }
     }
 }

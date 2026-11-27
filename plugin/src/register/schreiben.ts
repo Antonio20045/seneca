@@ -340,6 +340,14 @@ export function eintragSetzen(db: Register, e: { art: string; werte: object; zei
   });
 }
 
+export function eintragAendern(db: Register, id: string, a: { werte?: object; zustand?: string }, geraet: string): void {
+  schritt(db, () => {
+    const alt = hole(db, "eintrag", id);
+    setzen(db, "eintrag", id, a.werte ? { werte: JSON.stringify({ ...JSON.parse(String(alt.werte)), ...a.werte }) } : { zustand: a.zustand ?? "gueltig" });
+    ereignis(db, { art: "eintrag.geaendert", schluessel: id, geraet, daten: { art: alt.art } });
+  });
+}
+
 export function anzeigeSetzen(db: Register, a: { id?: string; projekt: string; art: string; titel: string; werte: object; besitzer: string; beantwortet?: string; zustand?: string }): string {
   return schritt(db, () => {
     const id = a.id ?? neueId();
