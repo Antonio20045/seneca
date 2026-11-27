@@ -53,8 +53,8 @@ export function laeufeSeit(db: Register, mitarbeiter: string, seit: number): Zei
   return alle(db, "SELECT * FROM lauf WHERE mitarbeiter = ? AND gestartet >= ? ORDER BY gestartet", mitarbeiter, seit);
 }
 
-export function anzeigen(db: Register, besitzer?: string): Zeile[] {
-  return alle(db, `SELECT * FROM anzeige WHERE ${besitzer ? "besitzer = ?" : "art = 'statistik'"} AND zustand != 'entfernt'`, ...(besitzer ? [besitzer] : []));
+export function anzeigen(db: Register, besitzer?: string, projekt?: string): Zeile[] {
+  return alle(db, `SELECT * FROM anzeige WHERE ${projekt ? "projekt = ?" : besitzer ? "besitzer = ? AND projekt NOT LIKE 'gespraech:%'" : "art = 'statistik'"} AND zustand != 'entfernt'`, ...(projekt ?? besitzer ? [projekt ?? besitzer] : []));
 }
 
 export function laeufe(db: Register, auftragId: string): Zeile[] {

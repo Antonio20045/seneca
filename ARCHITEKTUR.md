@@ -61,7 +61,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 8 | To-do anlegen, abhaken, verschieben („Erledigt gewinnt“) | `register/schreiben.ts` · `todoSetzen` |
 | 9 | Statistik-Eintrag | `register/schreiben.ts` · `eintragSetzen` |
 | 10 | Ziele, Serien, Bestwerte | `pforte/stand.ts` |
-| 11 | Anzeige setzen (höchstens 4 je Projekt) | `register/schreiben.ts` · `anzeigeSetzen` |
+| 11 | Anzeige setzen (höchstens 4 je Projekt). Im Gespräch (`kennzahl`, `tabelle`, `verweis` auf eine Statistik, Projekt `gespraech:<Sitzung>`) erscheint sie rechts im Chat der Mac-App (`seneca.stand` Sicht `gespraech`); die fünfte verdrängt die älteste, Schließen = `anzeige.weg`; der Rundgang greift sie nicht an | `register/schreiben.ts` · `anzeigeSetzen`, `pforte/gespraech.ts` |
 | 12, 13 | Fakt, Profil, Kontaktstufe, „ruht“ (neuester Wert gilt) | `register/schreiben.ts` · `wertSetzen` |
 | 14 | Register sichern | `register/sichern.ts`, nur vom Job `pflegen` |
 | 14a | Tägliche Sicherung (Register, OpenClaw-Zustand mit Skill-Werkstatt, `openclaw.json`, Skills, die Ablage ohne `_sicherung`) mit restic in `~/Ablage/_sicherung` | `arbeitsdienst/jobs.ts` · `tagesSicherung`, nur vom Job `pflegen` |

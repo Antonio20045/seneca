@@ -171,6 +171,7 @@ struct SnChatSeite: View {
     @ObservedObject private var store: SenecaStore
     @State private var ziehtZiel = false
     @State private var ziehSatz = ""
+    @State private var anzeigen: [GespraechAnzeige] = []
     @StateObject private var buehne = SnBildBuehne()
     var schliesse: () -> Void
 
@@ -266,8 +267,18 @@ struct SnChatSeite: View {
                 }
                 .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
                 if rand > 0 {
-                    SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
-                        .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
+                    Group {
+                        if !anzeigen.isEmpty && mehrFrage == nil {
+                            SnGespraechAnzeigen(anzeigen: anzeigen) { id in
+                                anzeigen.removeAll { $0.id == id }
+                                modell.store.handle("anzeige.weg", ziel: id)
+                            }
+                            .frame(width: rand, height: max(0, g.size.height - 108 - 128), alignment: .topLeading)
+                        } else {
+                            SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
+                        }
+                    }
+                    .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
                 }
             }
             }
@@ -286,6 +297,7 @@ struct SnChatSeite: View {
         .animation(Kurve.sn(0.15), value: ziehtZiel)
         .animation(Kurve.sn(0.2), value: buehne.offen)
         .environment(\.bildBuehne, buehne)
+        .task(id: "\(key)|\(store.stand?.revision ?? 0)") { anzeigen = await GespraechAnzeige.lade(store, sitzung: key) }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             chat.isShowing = true
