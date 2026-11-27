@@ -27,6 +27,7 @@ final class AppModell: ObservableObject {
     @Published var mehrFrage: String?
     @Published var teamOffen = false
     @Published var meetingOffen = false
+    @Published var meetingTermin: String?
     let ansichten: AnsichtModell
     let dienste = MacDienste()
     weak var hauptfenster: NSWindow?
