@@ -94,6 +94,9 @@ struct RootView: View {
                            chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
         .task { await launch() }
+        #if DEBUG
+        .overlay { SperreProbe.aus(store.stand) }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
         .onOpenURL { _ in eingangVerarbeiten() }
         .onChange(of: scenePhase) { _, phase in

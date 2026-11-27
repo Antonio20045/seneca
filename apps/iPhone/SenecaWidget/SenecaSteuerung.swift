@@ -7,6 +7,7 @@ struct SenecaWidgets: WidgetBundle {
     var body: some Widget {
         SenecaDayWidget()
         SenecaSagenControl()
+        SenecaLiveWidget()
     }
 }
 

@@ -84,6 +84,7 @@ final class Sinne: NSObject, ObservableObject {
         guard !gestartet else { return }
         gestartet = true
         self.store = store
+        LiveAnzeige.shared.starten(store: store)
         guard !Self.stumm else { return }
         manager.delegate = self
         ortsRecht = manager.authorizationStatus

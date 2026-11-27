@@ -15,6 +15,9 @@
 		B30000000000000000000014 /* WidgetSnapshot.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014; };
 		B30000000000000000000015 /* InstrumentSerif-Regular.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015; };
 		B30000000000000000000016 /* SpaceGrotesk-Regular.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016; };
+		B30000000000000000000017 /* SpaceGrotesk-Medium.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017; };
+		B30000000000000000000018 /* IBMPlexMono-Medium.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018; };
+		B30000000000000000000019 /* SenecaLive.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000019; };
 		B30000000000000000000022 /* TeilenEingang.swift in Teilen */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012; };
 		B30000000000000000000025 /* InstrumentSerif-Regular.ttf in Teilen */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015; };
 		B30000000000000000000026 /* SpaceGrotesk-Regular.ttf in Teilen */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016; };
@@ -30,6 +33,9 @@
 		A30000000000000000000014 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = Shared/WidgetSnapshot.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* InstrumentSerif-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = InstrumentSerif-Regular.ttf; path = SenecaPocket/Fonts/InstrumentSerif-Regular.ttf; sourceTree = "<group>"; };
 		A30000000000000000000016 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Regular.ttf; path = SenecaPocket/Fonts/SpaceGrotesk-Regular.ttf; sourceTree = "<group>"; };
+		A30000000000000000000017 /* SpaceGrotesk-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Medium.ttf; path = SenecaPocket/Fonts/SpaceGrotesk-Medium.ttf; sourceTree = "<group>"; };
+		A30000000000000000000018 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = IBMPlexMono-Medium.ttf; path = SenecaPocket/Fonts/IBMPlexMono-Medium.ttf; sourceTree = "<group>"; };
+		A30000000000000000000019 /* SenecaLive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaLive.swift; path = Shared/SenecaLive.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -191,6 +197,9 @@
 				A30000000000000000000014 /* WidgetSnapshot.swift */,
 				A30000000000000000000015 /* InstrumentSerif-Regular.ttf */,
 				A30000000000000000000016 /* SpaceGrotesk-Regular.ttf */,
+				A30000000000000000000017 /* SpaceGrotesk-Medium.ttf */,
+				A30000000000000000000018 /* IBMPlexMono-Medium.ttf */,
+				A30000000000000000000019 /* SenecaLive.swift */,
 			);
 			name = "Gemeinsam (Erweiterungen)";
 			sourceTree = "<group>";
@@ -333,6 +342,8 @@
 			files = (
 				B30000000000000000000015 /* InstrumentSerif-Regular.ttf in Widget */,
 				B30000000000000000000016 /* SpaceGrotesk-Regular.ttf in Widget */,
+				B30000000000000000000017 /* SpaceGrotesk-Medium.ttf in Widget */,
+				B30000000000000000000018 /* IBMPlexMono-Medium.ttf in Widget */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,6 +374,7 @@
 				B30000000000000000000012 /* TeilenEingang.swift in Widget */,
 				B30000000000000000000013 /* WidgetFace.swift in Widget */,
 				B30000000000000000000014 /* WidgetSnapshot.swift in Widget */,
+				B30000000000000000000019 /* SenecaLive.swift in Widget */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
