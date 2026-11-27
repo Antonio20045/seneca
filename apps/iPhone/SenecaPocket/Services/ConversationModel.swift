@@ -42,8 +42,9 @@ final class ConversationModel: ObservableObject {
         return !store.isConnected && store.connectionStatus == "Mac nicht erreichbar"
     }
 
-    struct Wartend: Identifiable { var id = UUID().uuidString; var text: String; var partner: ChatPartner; var anhaenge: [ChatAnhang]; var zeit: Date }
-    @Published var wartet: [Wartend] = []
+    struct Wartend: Identifiable, Codable { var id = UUID().uuidString; var text: String; var partner: ChatPartner; var anhaenge: [ChatAnhang]; var zeit: Date }
+    private static let wartetAblage = Ablage(MacPfade.datenOrdner, "wartet.json")
+    @Published var wartet: [Wartend] = ConversationModel.wartetAblage.lies([Wartend].self) ?? [] { didSet { Self.wartetAblage.schreibe(wartet) } }
 
     func nachreichen() {
         let alle = wartet

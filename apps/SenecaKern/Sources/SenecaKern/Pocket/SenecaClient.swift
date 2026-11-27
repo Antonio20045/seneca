@@ -60,6 +60,9 @@ final class SenecaStore: ObservableObject {
     @Published private(set) var stand: SenecaStand?
     @Published private(set) var wartendeTodos: Set<String> = []
     @Published private(set) var neueTodos: [Handlung] = []
+    @Published private(set) var ohneNetz = false
+    @Published var abgleich: Abgleich?
+    struct Abgleich: Equatable { var text: String; var ansehen = false }
     private var generation = UUID()
     private var answerWaiters: [String: CheckedContinuation<String, Error>] = [:]
     private var asks: [String: AskTracker] = [:]
@@ -73,7 +76,7 @@ final class SenecaStore: ObservableObject {
 
     init() {
         if let data = defaults.data(forKey: "seneca-pocket.days"), let saved = try? JSONDecoder().decode([String: DayRecord].self, from: data) { days = saved }
-        if let data = defaults.data(forKey: "seneca-pocket.outbox"), let saved = try? JSONDecoder().decode([PendingOp].self, from: data) { outbox = saved }
+        outbox = Self.outboxAblage.lies([PendingOp].self) ?? []
         if let data = defaults.data(forKey: "seneca-pocket.seen"), let saved = try? JSONDecoder().decode([String: Double].self, from: data) {
             let cutoff = Date().timeIntervalSince1970 * 1000 - 45 * 86_400_000
             localSeen = saved.filter { $0.value > cutoff }
@@ -177,10 +180,26 @@ final class SenecaStore: ObservableObject {
             self?.chat.setAccess(rechte: scopes.compactMap { ["operator.read": "lesen", "operator.write": "schreiben"][$0] }, admin: .notGranted)
         }.store(in: &zustandsAbos)
         d.$zustand.dropFirst().sink { [weak self] z in self?.zustandGeaendert(z, gen) }.store(in: &zustandsAbos)
+        d.$netz.sink { [weak self] da in self?.ohneNetz = !da }.store(in: &zustandsAbos)
+        d.$letztesErgebnis.compactMap { $0 }.sink { [weak self] e in self?.nachErgebnis(e.handlung, e.ergebnis) }.store(in: &zustandsAbos)
         return d
     }
 
     private var zustandsAbos: Set<AnyCancellable> = []
+
+    private func nachErgebnis(_ h: Handlung, _ e: HandlungsErgebnis) {
+        let neu: Abgleich
+        switch e {
+        case .schonBeantwortet(let wahl, let geraet, let um):
+            let f = stand?.braucht_dich?.first { $0.id == h.ziel }
+            neu = Abgleich(text: "Schon beantwortet · " + HeuteTafelLogik.antwortZeile(f, SenecaStand.Antwort(wahl: wahl, geraet: geraet, zeit: um)))
+        case .abgelehnt where h.art.hasPrefix("todo."):
+            neu = Abgleich(text: (stand?.todos?.first { $0.id == h.ziel }?.titel).map { "\($0) · Ging nicht mehr" } ?? "Ging nicht mehr", ansehen: true)
+        default: return
+        }
+        abgleich = neu
+        Task { try? await Task.sleep(for: .seconds(5)); if abgleich == neu { abgleich = nil } }
+    }
 
     func zeigeBeispiel(_ name: String) {
         stand = HeuteTafelLogik.beispiel(name)
@@ -681,9 +700,11 @@ final class SenecaStore: ObservableObject {
         if reload && outbox.allSatisfy({ $0.kind == .day }) { await loadToday() }
     }
 
+    private static let outboxAblage = Ablage(MacPfade.datenOrdner, "outbox.json")
+
     private func persistOutbox() {
         guard !demo else { return }
-        if let data = try? JSONEncoder().encode(outbox) { defaults.set(data, forKey: "seneca-pocket.outbox") }
+        Self.outboxAblage.schreibe(outbox)
     }
     private func persistDays() {
         guard !demo else { return }

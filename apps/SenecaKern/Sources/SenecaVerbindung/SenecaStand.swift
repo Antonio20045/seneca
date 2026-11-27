@@ -181,6 +181,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var heute: Heute?
     public var koerper: Koerper?
     public var braucht_dich: [Frage]?
+    public var eben_beantwortet: [Frage]?
     public var buendel: Buendel?
     public var entscheiden: Entscheiden?
     public var projekte: Projekte?

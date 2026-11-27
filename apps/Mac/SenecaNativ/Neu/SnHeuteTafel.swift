@@ -63,10 +63,24 @@ struct SnHeuteTafel: View {
 
     @ViewBuilder private var fragen: some View {
         let liste = stand.ruhe == nil ? stand.braucht_dich ?? [] : wartende
-        if !liste.isEmpty {
+        if !liste.isEmpty || stand.eben_beantwortet?.isEmpty == false {
             VStack(alignment: .leading, spacing: 0) {
                 let titel = stand.ruhe?.bis.map { "WARTET BIS \(L.uhr($0)) · " } ?? "BRAUCHT DICH · "
-                kopf(titel + (liste.count == 1 ? "1 FRAGE" : "\(liste.count) FRAGEN"), "nach Folge sortiert")
+                if !liste.isEmpty { kopf(titel + (liste.count == 1 ? "1 FRAGE" : "\(liste.count) FRAGEN"), "nach Folge sortiert") }
+                TimelineView(.periodic(from: .now, by: 1)) { t in
+                    ForEach(HeuteTafelLogik.ebenBeantwortet(stand, jetzt: t.date)) { f in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(f.text).font(Schrift.grotesk(16)).hoehe(22).foregroundStyle(TafelFarbe.text)
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(TafelFarbe.gruen)
+                                Text(f.antwort.map { HeuteTafelLogik.antwortZeile(f, $0) } ?? "").font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.gruen)
+                            }
+                        }
+                        .padding(.leading, 40).padding(.vertical, 10)
+                        .overlay(alignment: .top) { linie.frame(height: 1) }
+                        .transition(.opacity)
+                    }
+                }
                 ForEach(Array(liste.enumerated()), id: \.element.id) { i, f in
                     Button(action: zuDenFragen) {
                         HStack(alignment: .firstTextBaseline, spacing: 14) {

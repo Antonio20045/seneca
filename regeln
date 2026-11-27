@@ -54,6 +54,7 @@ nachtruhe_bis 06:30
 ruhe_ohne_durchbruch schlaf,training,laufen,trail
 durchbruch_h 2
 braucht_dich_max 3
+frage_nachklang_s 6 app
 lange_wartend_h 24
 push_abstand_min 20
 tag_grenze 04:00
@@ -102,6 +103,9 @@ uhr_uebungen 12
 uhr_starten_min 10
 uhr_lauf_ruhe_min 12
 uhr_warteschlange_max 500
+uhr_nachgereicht_min 5
+uhr_nachgereicht_ab 2
+uhr_hinweis_min 60
 uhr_verbunden_min 10 zu_messen
 kopplung_fenster_min 10 app
 kopplung_anfragen_je_std 30

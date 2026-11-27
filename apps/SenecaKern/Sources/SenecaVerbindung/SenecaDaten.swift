@@ -9,6 +9,7 @@ public final class SenecaDaten: ObservableObject {
     @Published public private(set) var gestrichelt: [Handlung] = []
     @Published public private(set) var letztesErgebnis: (handlung: Handlung, ergebnis: HandlungsErgebnis)?
     @Published public private(set) var rechte: [String] = []
+    @Published public private(set) var netz = true
 
     public let verbindung: Verbindung
     public var aufEreignis: ((String, [String: Any]) -> Void)?
@@ -47,6 +48,7 @@ public final class SenecaDaten: ObservableObject {
             }
         }
         verbindung.aufVerbunden = { [weak self] r in self?.rechte = r }
+        verbindung.aufNetz = { [weak self] da in self?.netz = da }
         verbindung.aufEreignis = { [weak self] name, inhalt in
             guard let self else { return }
             if name == "plugin.seneca.stand", let r = (inhalt["revision"] as? NSNumber)?.intValue {

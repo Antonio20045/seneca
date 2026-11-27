@@ -90,6 +90,7 @@ struct HeuteTafel: View {
     @State private var atmet = false
     @State private var wartetBeiAusfall: Set<String> = []
     @State private var nachgereicht: Set<String> = []
+    @State private var nachklang = 0
     @EnvironmentObject private var store: SenecaStore
 
     private var offline: Bool {
@@ -99,8 +100,25 @@ struct HeuteTafel: View {
         return store.macUnerreichbar
     }
 
+    private var ohneNetz: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SENECA_DEMO_OHNE_NETZ"] == "1" { return true }
+        #endif
+        return store.ohneNetz
+    }
+
+    private var ebenBeantwortet: SenecaStand.Frage? {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SENECA_DEMO_BEANTWORTET"] == "1", var f = stand.braucht_dich?.first {
+            f.antwort = SenecaStand.Antwort(wahl: f.optionen?.first?.wert ?? "ja", geraet: "uhr", zeit: stand.jetzt)
+            return f
+        }
+        #endif
+        return nachklang >= 0 ? HeuteTafelLogik.ebenBeantwortet(stand, jetzt: store.clock()).first : nil
+    }
+
     var body: some View {
-        let frage = offline ? nil : HeuteTafelLogik.frage(stand)
+        let frage = offline ? nil : HeuteTafelLogik.frage(stand).flatMap { f in ebenBeantwortet?.id == f.id ? nil : f }
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(HeuteTafelLogik.datumZeile(stand.jetzt)).mono(12).foregroundStyle(TafelFarbe.leise)
@@ -128,6 +146,16 @@ struct HeuteTafel: View {
             }
             if let frage {
                 frageBlock(frage).padding(.top, 24)
+            } else if let f = ebenBeantwortet, let a = f.antwort {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(f.text).font(Sundartha.grotesk(20)).foregroundStyle(.white).zeilenHoehe(26, schrift: 20)
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 17)).foregroundStyle(TafelFarbe.gruen)
+                        Text(HeuteTafelLogik.antwortZeile(f, a)).font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.gruen)
+                    }
+                    .frame(height: 44, alignment: .leading).padding(.top, 14)
+                }
+                .padding(.top, 24).transition(.opacity)
             } else if !offline, let w = HeuteTafelLogik.wartenZeile(stand) {
                 HStack(spacing: 8) {
                     Circle().fill(TafelFarbe.bernstein).frame(width: 6, height: 6)
@@ -157,7 +185,15 @@ struct HeuteTafel: View {
                     .padding(.leading, 40).padding(.top, 4)
             }
             Spacer(minLength: 0)
-            if !nachgereicht.isEmpty {
+            if let a = store.abgleich {
+                HStack(spacing: 10) {
+                    Text(a.text).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.text)
+                    if a.ansehen { Button("Ansehen") { oeffne(.aufgaben) }.font(Sundartha.grotesk(14, .medium)).foregroundStyle(TafelFarbe.himmel).buttonStyle(.plain) }
+                }
+                .padding(.horizontal, 16).frame(height: 40).background(Capsule().fill(TafelFarbe.hex(0x0A1530, 0.85)))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                .frame(maxWidth: .infinity).transition(.opacity)
+            } else if !nachgereicht.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 17)).foregroundStyle(TafelFarbe.gruen)
                     Text("Wieder verbunden · \(nachgereicht.count) \(nachgereicht.count == 1 ? "Sache" : "Sachen") nachgereicht").font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.text)
@@ -186,6 +222,11 @@ struct HeuteTafel: View {
         .foregroundStyle(TafelFarbe.text)
         .background(TafelGrund())
         .onChange(of: wartend) { if offline { wartetBeiAusfall.formUnion(wartend) } }
+        .task(id: stand.revision) {
+            guard stand.eben_beantwortet?.isEmpty == false else { return }
+            try? await Task.sleep(for: .seconds(stand.regeln?["frage_nachklang_s"] ?? 6))
+            Bewegung.mit(.wechsel) { nachklang += 1 }
+        }
         .onChange(of: offline) { _, jetzt in
             if jetzt { wartetBeiAusfall = wartend; return }
             guard !wartetBeiAusfall.isEmpty else { return }
@@ -197,6 +238,7 @@ struct HeuteTafel: View {
             let env = ProcessInfo.processInfo.environment
             if env["SENECA_DEMO_ABGEHAKT"] == "1", let t = HeuteTafelLogik.todosHeute(stand).first { erledige(t.id) }
             if env["SENECA_DEMO_WIEDER"] == "1", let t = HeuteTafelLogik.todosHeute(stand).first { zeigeNachgereicht([t.id]) }
+            if let a = env["SENECA_DEMO_ABGLEICH"] { store.abgleich = SenecaStore.Abgleich(text: a, ansehen: a.hasSuffix("Ging nicht mehr")) }
         }
         #endif
     }
@@ -264,7 +306,7 @@ struct HeuteTafel: View {
                          : wartet && !offline ? "abgehakt, wird übertragen" : HeuteTafelLogik.todoZeile(t)).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
                         .zeilenHoehe(17, schrift: 12)
                     if wartet && offline {
-                        Text("abgehakt · geht raus, sobald der Mac antwortet").font(Sundartha.grotesk(11)).foregroundStyle(TafelFarbe.leise)
+                        Text(ohneNetz ? "abgehakt · wartet aufs Netz" : "abgehakt · geht raus, sobald der Mac antwortet").font(Sundartha.grotesk(11)).foregroundStyle(TafelFarbe.leise)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

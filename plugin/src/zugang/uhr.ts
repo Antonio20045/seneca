@@ -86,6 +86,8 @@ export function uhrAbgleich(db: Register, roh: Buffer, kopf: Record<string, stri
     if (h.a === "frage.antwort" && z.ziel !== fuerUhr && !beantwortet(db, String(z.ziel))) return [h.id, "nein:nicht_fuer_uhr"];
     return [h.id, kurz(handeln(db, { kennung: h.id, geraet: "uhr", art: h.a, zeit_geraet: msAusSekunden(h.t), ...z }).ergebnis)];
   });
+  const nach = (d.h ?? []).filter((h, i) => h.a === "eintrag.neu" && h.p?.k === "satz" && q[i][1] === "ok" && jetzt - msAusSekunden(h.t) > regelMs("uhr_nachgereicht_min")).length;
+  if (nach >= regelZahl("uhr_nachgereicht_ab")) wertSetzen(db, "hinweis:uhr", `${nach} Sätze aus dem Training übernommen`, "uhr", jetzt + regelMs("uhr_hinweis_min"));
   const amArm = wert(db, "uhr_am_arm");
   if ((amArm?.gueltig_bis ?? 0) <= jetzt) wertSetzen(db, "uhr_am_arm", "ja", "uhr", jetzt + regelMs("uhr_verbunden_min"));
   aktivitaetSetzen(db, d.zs, jetzt);
