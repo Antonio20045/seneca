@@ -158,9 +158,7 @@ struct FadenLayer: View {
             model.stoppeVorlesen()
         }
         .onChange(of: model.entwurfTick) { _, _ in if feldLeer { feld = chat.entwurf(fuer: partner) } }
-        .onChange(of: model.sprechWunsch) { _, _ in sprechWunschErfuellen() }
         .onAppear {
-            sprechWunschErfuellen()
             #if DEBUG
             if let t = ProcessInfo.processInfo.environment["SENECA_DEMO_WARTET"], model.wartet.isEmpty { _ = model.senden(t, an: partner) }
             #endif

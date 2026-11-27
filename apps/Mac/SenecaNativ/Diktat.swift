@@ -447,7 +447,6 @@ final class DiktatDienst: ObservableObject {
     private var beendetHinweisArbeit: Task<Void, Never>?
     private var zustandSeit = Date()
     private(set) var aufnahmeBeginn = Date()
-    @Published var imFeld = false
     private var startKontext: String?
     private var senecaKontext: String?
     private var zielApp: NSRunningApplication?

@@ -426,7 +426,7 @@ struct SnAnZeile: View {
     var body: some View { Text("an \(name)").font(Schrift.mono(12)).foregroundStyle(seneca ? TafelFarbe.himmel : TafelFarbe.gruen).fixedSize() }
 
     static func platzhalter(seneca: Bool, anhang: Bool = false) -> some View {
-        Text(anhang ? "Dazu schreiben …" : seneca ? "Schreib oder halte die rechte ⌘-Taste zum Sprechen …" : "Antworte oder gib einen neuen Auftrag …")
+        Text(anhang ? "Dazu schreiben …" : seneca ? "Schreib an Seneca …" : "Antworte oder gib einen neuen Auftrag …")
             .font(Schrift.grotesk(16)).foregroundStyle(TafelFarbe.leise).lineLimit(1)
     }
 }
