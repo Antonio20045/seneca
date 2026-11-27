@@ -457,7 +457,7 @@ def aufbau(montag, lang0, km0):
 def kennzahlen(e, anzeigen, prognose, jetzt):
     heute = tag_von(jetzt)
     montag = heute - timedelta(days=heute.weekday())
-    wochen = [montag - timedelta(weeks=i) for i in range(25, -1, -1)]
+    wochen = [montag - timedelta(weeks=i) for i in range(51, -1, -1)]
     art = lambda *arten: [x for x in e if x["art"] in arten]
     laeufe, saetze, akt = [x for x in art("lauf") if x["w"].get("km")], art("satz"), art("aktivitaet")
     je_woche = lambda xs, f, r=sum: [round(r([f(x) for x in xs if woche_von(x["zeit"]) == w] or [0]), 1) for w in wochen]
