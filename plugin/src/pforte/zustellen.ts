@@ -1,4 +1,4 @@
-import { ereignisse, fragen, hole, kinder, uhr, vorschlaege, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, kinder, uhr, vorschlaege, vorschlagDaten, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, ereignis, uebergang } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelUhrzeitNach, regelZahl } from "../regeln.ts";
@@ -6,6 +6,7 @@ import { anzeigeName } from "../team.ts";
 import type { Sender } from "./push.ts";
 import { ruhe, uhrTauglich } from "./stand.ts";
 
+export type Poster = (sitzung: string, text: string, daten: Record<string, unknown>, schluessel: string) => Promise<string>;
 type Entscheidung = { was: "zurueckgehalten" | "leise" | "zugestellt"; geraet?: string; grund: string; durchsicht: string[] };
 
 function letzte(db: Register, f: Zeile): Record<string, string> | undefined {
@@ -61,8 +62,24 @@ function anrufWennFest(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   });
 }
 
-export async function zustellenJob(db: Register, senden?: Sender): Promise<void> {
+async function gespraechZeilen(db: Register, poste: Poster): Promise<void> {
+  for (const a of auftraege(db, ["wartet", "wartet_auf_abnahme", "erledigt"]).filter((x) => x.quelle === "du")) {
+    const id = String(a.id);
+    const sitzung = JSON.parse(String(ereignisse(db, { art: "auftrag.angelegt", auftrag_id: id, grenze: 1 })[0]?.daten ?? "{}")).sitzung;
+    const stand = ereignisse(db, { art: "fortschreibung", auftrag_id: id, grenze: 1 })[0];
+    const f = String(a.wartet_auf).startsWith("frage:") ? hole(db, "frage", String(a.wartet_auf).slice(6)) : undefined;
+    const schluessel = f ? `frage:${f.id}` : `stand:${stand?.nr}`;
+    if (!sitzung || !stand || (a.zustand === "wartet" && f?.zustand !== "offen") || ereignisse(db, { art: "zustellung", auftrag_id: id, schluessel, grenze: 1 }).length) continue;
+    const wer = anzeigeName(String(a.verantwortlich));
+    const text = `${f ? `${wer} braucht dich bei „${a.titel}“: ${f.text}` : `${wer} ist fertig mit „${a.titel}“: ${stand.satz}`}\nBeleg: ${stand.beleg ?? "keiner"} · Auftrag ${id}${a.zustand === "erledigt" ? "" : " · unter Entscheiden"}`;
+    const grund = await poste(sitzung, text, { auftrag_id: id, zustand: a.zustand, beleg: stand.beleg }, `seneca:${id}:${schluessel}`);
+    ereignis(db, { art: "zustellung", auftrag_id: id, geraet: "gespraech", schluessel, satz: text, daten: { was: "zeile", grund } });
+  }
+}
+
+export async function zustellenJob(db: Register, senden?: Sender, poste?: Poster): Promise<void> {
   const jetzt = uhr.jetzt();
+  if (poste) await gespraechZeilen(db, poste);
   for (const f of fragen(db, "offen")) {
     const a = hole(db, "auftrag", String(f.auftrag_id));
     if (f.frist !== null && Number(f.frist) < jetzt) {

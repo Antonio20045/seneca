@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
-import { auftraege, ereignisse, fragen, hole, laeufe } from "../src/register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, laeufe, wert } from "../src/register/lesen.ts";
 import { auftragSetzen, frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
 
@@ -77,18 +77,23 @@ test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife,
   assert.match(p.kontext(p.starts[0].sessionKey) ?? "", /# Bauregeln/);
 });
 
-test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
+test("PF12 Abo am echten Limit: genau ein Satz, kein Lauf, der sicher scheitert", async () => {
   const p = ladePlugin();
   um("09:00");
-  for (const abo of ["anthropic:antonio", "anthropic:sundartha", "anthropic:regius"]) wertSetzen(p.db, `abo_pause:${abo}`, "ja", "test", um("23:00"));
-  um("09:00");
-  auftragVonAntonio(p.db, "Etwas bauen");
+  const id = auftragVonAntonio(p.db, "Etwas bauen");
   spaeter(6000);
+  for (let i = 0; i < 3; i++) {
+    await faelligeAuftraegeJob(p.db, p.starte);
+    p.haken("agent_end", { messages: [], success: false, error: "All models failed (2): anthropic/claude-sonnet-5-5: You've hit your weekly limit · resets Dec 1, 6am (Europe/Berlin) (rate_limit)" }, { sessionKey: p.starts[i].sessionKey });
+    if (i === 0) assert.match(String(wert(p.db, "hinweis:abos")?.wert), /^Abo antonio bis Di\.?, 06:00 aufgebraucht, Läufe nutzen jetzt sundartha\.$/);
+    spaeter(5 * 60000);
+  }
   await faelligeAuftraegeJob(p.db, p.starte);
-  await faelligeAuftraegeJob(p.db, p.starte);
-  assert.equal(p.starts.length, 0);
-  assert.equal(ereignisse(p.db, { art: "wert.gesetzt", schluessel: "hinweis:abos" }).length, 1);
-  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { hinweise: string[] }).hinweise.length, 1);
+  assert.equal(p.starts.length, 3);
+  assert.deepEqual(laeufe(p.db, id).map((l) => [l.abo, l.grund]), ["antonio", "sundartha", "regius"].map((a) => [`anthropic:${a}`, "Abo am Limit"]));
+  assert.equal(wert(p.db, "abo_pause:anthropic:regius")?.gueltig_bis, new Date("2026-12-01T06:00").getTime());
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { hinweise: string[] }).hinweise.filter((h) => h.startsWith("Abo")), [String(wert(p.db, "hinweis:abos")?.wert)]);
+  assert.match(String(wert(p.db, "hinweis:abos")?.wert), /^Abo antonio bis Di\.?, 06:00 aufgebraucht, Läufe warten\.$/);
 });
 
 test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {

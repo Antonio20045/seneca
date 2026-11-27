@@ -22,9 +22,7 @@ function zahl(n: number, [artikel, eins, viele]: [string, string, string]): stri
   return n === 1 ? `${artikel} ${eins}` : `${ZAHLWORT[n] ?? n} ${viele}`;
 }
 
-function gross(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+const gross = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function optionenSicht(f: Zeile): { optionen: Option[]; folge: string | null } {
   const optionen = (JSON.parse(String(f.optionen)) as Option[]).map((o) => {

@@ -156,6 +156,8 @@ export function nachNeustart(db: Register): void {
   }
 }
 
+const ZUSTAENDE = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt", "verworfen"];
+
 const DAUERAUFTRAEGE: Record<string, string> = {
   morgenbericht: "Morgenbericht: je Auftrag des Vortags Stand, Beleg und was fehlt.",
   rueckblick: "Rückblick am Abend: Erledigtes, Wiederholungen, Bestwerte, was gefehlt hat.",
@@ -163,9 +165,7 @@ const DAUERAUFTRAEGE: Record<string, string> = {
 };
 
 function dauerauftrag(db: Register, wer: string, arbeitsart: string, wortlaut: string): void {
-  const da = auftraege(db, ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"])
-    .some((a) => a.quelle === "dauerauftrag" && a.verantwortlich === wer && a.arbeitsart === arbeitsart);
-  if (da) return;
+  if (auftraege(db, ZUSTAENDE.slice(0, 6)).some((a) => a.quelle === "dauerauftrag" && a.verantwortlich === wer && a.arbeitsart === arbeitsart)) return;
   auftragAnlegen(db, {
     art: "dauerauftrag", wortlaut, wortlaut_quelle: "mandat", titel: wortlaut.split(":")[0], ziel: wortlaut, abnahme: "Fortschreibung mit Beleg", abnahme_durch: "beleg",
     pruefer_noetig: false, verantwortlich: wer, auftraggeber: wer, quelle: "dauerauftrag", bereich: mandat(wer).bereich[0], arbeitsart,
@@ -174,8 +174,6 @@ function dauerauftrag(db: Register, wer: string, arbeitsart: string, wortlaut: s
 }
 
 export type Befehl = (argv: string[], ms: number) => Promise<{ code: number | null; stderr: string }>;
-
-const ZUSTAENDE = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt", "verworfen"];
 
 function arbeitVerfallen(db: Register): void {
   const ablage = regelText("ablage_pfad");

@@ -2,14 +2,17 @@ bereich: [Sundartha, Vodafone, Boardinghouse]
 ziele:
   - kennzahl: abnahmen_spaeter_widerlegt
     ziel: "0"
-rundgang: []
+signale:
+  - quelle: register
+    was: "Prüfaufträge, die warten; Abnahmen, die später widerlegt wurden"
+rundgang: ["11:00"]
 befugnisse:
   unterauftrag_an: []
   werkzeuge: [exec, browser]
   ablage_schreiben: []
   live_nur_mit_ja: true
 budget:
-  eigene_auftraege_woche_cent: 0
+  eigene_auftraege_woche_cent: 300
 modellstufen:
   standard: sonnet
   arbeitsarten: { mechanisch: haiku, pruefen: sonnet }

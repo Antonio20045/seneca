@@ -13,7 +13,7 @@ import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
 import { verstehen } from "./pforte/verstehen.ts";
 import { pushSender } from "./pforte/push.ts";
-import { zustellenJob } from "./pforte/zustellen.ts";
+import { zustellenJob, type Poster } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen, unteragentEnde, unteragentMerken } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
 import { dateiVorschau } from "./quellen/ablage.ts";
@@ -28,7 +28,7 @@ import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
-import { regelMs, regelZahl } from "./regeln.ts";
+import { regelMs, regelText, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
 type Ausfuehren = (db: Register, k: Kontext, p: Record<string, unknown>) => unknown;
@@ -137,9 +137,19 @@ export default {
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
       (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)]];
     for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
-    const starte: Starter = ({ werkzeuge, ...p }) => api.runtime.subagent.run({ ...p, toolsAlsoAllow: [...alle.map((w) => w[0]), ...werkzeuge], deliver: false });
-    const stupse = async (sessionKey: string, text: string, idempotencyKey: string) => (await api.session.workflow.steerActiveRun({ sessionKey, text, idempotencyKey })).steered;
     const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
+    let reihe = "";
+    const starte: Starter = async ({ werkzeuge, abos, ...p }) => {
+      const r = JSON.stringify(abos) === reihe ? undefined : await befehl([regelText("openclaw_befehl"), "config", "set", "auth.order.anthropic", JSON.stringify(abos), "--strict-json"], regelMs("takt_job_haengt_s"));
+      if (r && r.code !== 0) throw new Error(`Abo-Reihenfolge nicht gesetzt: ${r.stderr.slice(0, 200)}`);
+      reihe = JSON.stringify(abos);
+      return api.runtime.subagent.run({ ...p, toolsAlsoAllow: [...alle.map((w) => w[0]), ...werkzeuge], deliver: false });
+    };
+    const poste: Poster = async (sitzung, text, data, idempotencyKey) => {
+      const generation = await api.runtime.system.captureSessionGeneration({ agentId: sitzung.split(":")[1], sessionKey: sitzung });
+      return generation ? (await api.runtime.system.postSessionNotice({ generation, notice: { type: "auftrag", text, data }, idempotencyKey, systemEvent: text })).status : "ohne Gespräch";
+    };
+    const stupse = async (sessionKey: string, text: string, idempotencyKey: string) => (await api.session.workflow.steerActiveRun({ sessionKey, text, idempotencyKey })).steered;
     const knotenListe = async () => (await api.runtime.nodes.list({ connected: true })).nodes
       .map((k) => ({ name: k.displayName ?? k.nodeId, ollama: (k.invocableCommands ?? []).includes("ollama.chat") }));
 
@@ -157,7 +167,7 @@ export default {
       const summe = (f: (u: Nutzung) => number | undefined) => nutzung.reduce((n, u) => n + (f(u) ?? 0), 0);
       const dollar = nutzung.some((u) => u.cost?.total !== undefined) ? summe((u) => u.cost?.total) : undefined;
       const tokens = { ein: summe((u) => (u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0)), aus: summe((u) => u.output), cent: dollar === undefined ? undefined : Math.round(dollar * 100) };
-      agentEnde(db, ctx.sessionKey ?? "", JSON.stringify(event.messages.at(-1) ?? event.error ?? ""), tokens);
+      agentEnde(db, ctx.sessionKey ?? "", `${event.error ?? ""}${JSON.stringify(event.messages.at(-1) ?? "")}`, tokens);
       unteragentEnde(db, ctx.sessionKey ?? "", tokens);
     });
     api.on("subagent_spawned", (event, ctx) => unteragentMerken(db, event.childSessionKey, { an: event.agentId, modus: event.mode, lauf: event.runId, modell: event.resolvedModel ?? null }, ctx.requesterSessionKey ?? ""));
@@ -200,7 +210,7 @@ export default {
       { job: "faellige_wirkungen", ursache: "Antworten wirken erst nach der Rückgängig-Frist", lauf: () => faelligeWirkungenJob(db) },
       { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db, stupse) },
       { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
-      { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden) },
+      { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden, poste) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter, Arbeitsdateien verfallen", lauf: () => pflegenJob(db, join(ordner, "sicherung"), befehl), abstand: () => regelMs("pflegen_h") },
       { job: "gespraeche", ursache: "Neu beginnen braucht das Admin-Recht des Servers, die Apps haben es nicht", lauf: () => gespraecheJob(db, befehl) },
       { job: "eingang", ursache: "Meeting, Datei und Sensor werden Anlass oder Vorschlag", lauf: () => eingangJob(db) },

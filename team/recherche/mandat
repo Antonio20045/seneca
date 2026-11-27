@@ -2,14 +2,17 @@ bereich: [Sundartha, Vodafone, Boardinghouse]
 ziele:
   - kennzahl: behauptungen_ohne_quelle
     ziel: "0"
-rundgang: []
+signale:
+  - quelle: register
+    was: "eigene Aufträge ohne Bewegung, Ergebnisse ohne Quelle"
+rundgang: ["10:00"]
 befugnisse:
   unterauftrag_an: []
   werkzeuge: [browser, web_search, web_fetch]
   ablage_schreiben: []
   live_nur_mit_ja: true
 budget:
-  eigene_auftraege_woche_cent: 0
+  eigene_auftraege_woche_cent: 300
 modellstufen:
   standard: sonnet
   arbeitsarten: { mechanisch: haiku, zusammenfassen: lokal, recherche: sonnet, synthese: opus }

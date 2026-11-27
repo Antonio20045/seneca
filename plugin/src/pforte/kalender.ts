@@ -11,17 +11,11 @@ export const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Jul
 
 type Termin = ReturnType<typeof termineAm>[number];
 
-export function istSport(titel: string): boolean {
-  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
-}
+export const istSport = (titel: string): boolean => regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
 
-export function art(t: Termin): string {
-  return istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin";
-}
+export const art = (t: Termin): string => istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin";
 
-function kurz(titel: string): string {
-  return titel.split(/ mit | · /)[0];
-}
+const kurz = (titel: string): string => titel.split(/ mit | · /)[0];
 
 function unter(db: Register, t: Termin): string {
   const ankunft = wert(db, `ankunft:${t.uid}`)?.wert;

@@ -29,9 +29,7 @@ function vertagt(db: Register, f: Zeile, jetzt: number): boolean {
   return !!v && JSON.parse(String(v.daten)).bis > jetzt;
 }
 
-function haengtDaran(db: Register, f: Zeile): number {
-  return auftraege(db, ["wartet"]).filter((a) => a.wartet_auf === `frage:${f.id}` || a.wartet_auf === `auftrag:${f.auftrag_id}`).length;
-}
+const haengtDaran = (db: Register, f: Zeile): number => auftraege(db, ["wartet"]).filter((a) => a.wartet_auf === `frage:${f.id}` || a.wartet_auf === `auftrag:${f.auftrag_id}`).length;
 
 function zaehlt(db: Register, f: Zeile, jetzt: number): boolean {
   if (f.art === "vorschlag" || vertagt(db, f, jetzt)) return false;
@@ -51,9 +49,7 @@ function brauchtDich(db: Register, jetzt: number): Zeile[] {
     .slice(0, regelZahl("braucht_dich_max"));
 }
 
-export function uhrTauglich(f: Zeile): boolean {
-  return (f.art === "ja_nein" || f.art === "vorschlag") && f.wirkung_aussen === "keine";
-}
+export const uhrTauglich = (f: Zeile): boolean => (f.art === "ja_nein" || f.art === "vorschlag") && f.wirkung_aussen === "keine";
 
 function vorschlagAnUhr(db: Register): Zeile | undefined {
   return fragen(db, "offen").find((f) => f.art === "vorschlag" && ereignisse(db, { art: "zustellung", frage_id: String(f.id), grenze: 1 }).some((e) => e.geraet === "uhr"));

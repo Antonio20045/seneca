@@ -5,27 +5,20 @@ import {
 } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { bauregeln, mandat, rolle } from "../team.ts";
-import { aboReihenfolge } from "./abo.ts";
+import { aboReihenfolge, limitMerken } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
 import { knoten } from "./rechenknoten.ts";
 import { nachfassen, rundgangSicht, rundgangVorbereiten } from "./rundgang.ts";
 
-export type Starter = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string; werkzeuge: string[] }) => Promise<{ runId: string }>;
+export type Starter = (p: { sessionKey: string; message: string; model: string; idempotencyKey: string; werkzeuge: string[]; abos: string[] }) => Promise<{ runId: string }>;
 type SkillLeser = (mitarbeiter: string, arbeitsart: string) => string | undefined;
 type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 
 const AKTIV = ["startet", "laeuft", "haengt"];
 const nachrichten = new Map<string, Nachricht>();
-const ABO_HINWEIS = "Alle Abos sind aufgebraucht. Die Arbeit ruht, bis eines wieder frei ist.";
-
-export function merkeNachricht(sitzung: string, n: Nachricht): void {
-  nachrichten.set(sitzung, n);
-}
-
-export function nachrichtVon(sitzung: string): Nachricht | undefined {
-  return nachrichten.get(sitzung);
-}
+export const merkeNachricht = (sitzung: string, n: Nachricht): void => void nachrichten.set(sitzung, n);
+export const nachrichtVon = (sitzung: string): Nachricht | undefined => nachrichten.get(sitzung);
 
 export function naechsterTermin(a: Zeile, jetzt: number): number {
   const zeiten: Record<string, () => string[]> = {
@@ -91,12 +84,7 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
   if (r !== "frei") return rahmenFrage(db, a, r, jetzt);
   if (aktiveLaeufe(db).length >= regelZahl("parallel_max")) return "voll";
   const abos = aboReihenfolge(db, jetzt);
-  const hinweis = wert(db, "hinweis:abos")?.wert ?? "";
-  if (!abos.length) {
-    if (hinweis !== ABO_HINWEIS) wertSetzen(db, "hinweis:abos", ABO_HINWEIS, "arbeitsdienst");
-    return "abos";
-  }
-  if (hinweis) wertSetzen(db, "hinweis:abos", "", "arbeitsdienst");
+  if (!abos.length) return "abos";
   const { stufe, modell, ort, lokal } = waehle(a, m);
   const verbunden = knoten(db);
   const name = regelText("rechenknoten_name");
@@ -108,12 +96,12 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
   if (a.arbeitsart === "rundgang") rundgangVorbereiten(db, a, jetzt);
   try {
     const { runId } = await starte({
-      sessionKey: String(lauf.sitzung), message: `Arbeite am Auftrag „${a.titel}“. Der Auftrag steht oben im Kontext.${zusatz}`, model: modell, idempotencyKey: laufId, werkzeuge: ollama ? ["node_inference"] : [],
+      sessionKey: String(lauf.sitzung), message: `Arbeite am Auftrag „${a.titel}“. Der Auftrag steht oben im Kontext.${zusatz}`, model: modell, idempotencyKey: laufId, werkzeuge: ollama ? ["node_inference"] : [], abos,
     });
     laufSchritt(db, laufId, "angenommen", { run_id: runId });
   } catch (fehler) {
-    const grund = `Start abgelehnt: ${String(fehler)}`;
-    const wieder = laeufe(db, String(a.id)).at(-2)?.grund === grund;
+    const grund = limitMerken(db, abos[0], String(fehler), uhr.jetzt()) ? "Abo am Limit" : `Start abgelehnt: ${String(fehler)}`;
+    const wieder = grund !== "Abo am Limit" && laeufe(db, String(a.id)).at(-2)?.grund === grund;
     laufEnde(db, laufId, "abgebrochen", { grund });
     if (wieder) startFrage(db, hole(db, "auftrag", String(a.id)), grund);
     else zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_abgelehnt");
@@ -121,9 +109,7 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
   return "gestartet";
 }
 
-function zeit(t: number): string {
-  return new Date(t).toTimeString().slice(0, 5);
-}
+const zeit = (t: number): string => new Date(t).toTimeString().slice(0, 5);
 
 function anlassSatz(db: Register, a: Zeile): string {
   const wirkt = ereignisse(db, { art: "frage.wirkt", auftrag_id: String(a.id), grenze: 1 })[0];
@@ -217,7 +203,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   const { id, kostenrahmen_cent } = auftragAnlegen(db, {
     ...felder, art: p.art, quelle: { auftrag: "du", unterauftrag: "kollege", idee: "eigene_idee", eigener: "eigene_idee" }[p.art],
     nachricht: n && p.art === "auftrag" ? { kennung: n.kennung, text: n.text } : undefined,
-  });
+  }, { sitzung: ctx.sitzung });
   const satz = p.schaetzung_min ? `Notiert. ${verantwortlich} kümmert sich, etwa ${euro(kostenrahmen_cent)}.` : `Notiert. ${verantwortlich} kümmert sich, Rahmen ${euro(kostenrahmen_cent)}.`;
   return { auftrag_id: id, satz };
 }
@@ -277,7 +263,7 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   const jetzt = uhr.jetzt();
   const verbrauch = { tokens_ein: tokens.ein, tokens_aus: tokens.aus, kosten_cent: tokens.cent ?? kostenCent(tokens.ein, tokens.aus) };
   if (!l.fortgeschrieben) {
-    laufEnde(db, String(l.id), "abgebrochen", { grund: "ohne Stand", ...verbrauch });
+    laufEnde(db, String(l.id), "abgebrochen", { grund: limitMerken(db, String(l.abo ?? ""), letzteAntwort, jetzt) ? "Abo am Limit" : "ohne Stand", ...verbrauch });
     befund(db, { art: "ohne_stand", auftrag_id: String(a.id), lauf_id: String(l.id), satz: "Der Lauf endete ohne Fortschreibung.", daten: { letzte_antwort: letzteAntwort.slice(0, regelZahl("befund_antwort_zeichen")) } });
     zurueckMitWartezeit(db, a, "ohne_stand");
     return;

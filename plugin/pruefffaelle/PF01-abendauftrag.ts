@@ -4,6 +4,7 @@ import { faelligeAuftraegeJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, hole, laeufe } from "../src/register/lesen.ts";
 import { auftragSetzen, wertSetzen } from "../src/register/schreiben.ts";
 import { uhr } from "../src/register/lesen.ts";
+import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { ladePlugin, nurWach, spaeter, um } from "./aufbau.ts";
 
 const WORTLAUT = "Verschaff dir einen Überblick und setz um, was fehlt";
@@ -44,6 +45,13 @@ test("PF01 Abendauftrag: Wortlaut in jedem Lauf, Teil 2 ohne Eingabe, ohne Stand
   p.ende(p.starts[2].sessionKey);
   assert.equal(hole(p.db, "auftrag", id).zustand, "wartet_auf_abnahme");
   assert.ok(laeufe(p.db, id).every((l) => l.anlass));
+  const zeilen: string[][] = [];
+  const poste = async (sitzung: string, text: string) => (zeilen.push([sitzung, text]), "posted");
+  await zustellenJob(p.db, undefined, poste);
+  await zustellenJob(p.db, undefined, poste);
+  assert.equal(zeilen.length, 1);
+  assert.equal(zeilen[0][0], "agent:seneca:main");
+  assert.match(zeilen[0][1], new RegExp(`fertig mit „${WORTLAUT}“: Alles umgesetzt\nBeleg: PR #12 · Auftrag ${id} · unter Entscheiden`));
 });
 
 test("PF01 nie „du“, wenn es nicht Antonio war", async () => {

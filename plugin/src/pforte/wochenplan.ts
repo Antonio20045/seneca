@@ -30,9 +30,7 @@ function plusTage(t: number, n: number): number {
   return d.getTime();
 }
 
-function wochenZwischen(a: number, b: number): number {
-  return Math.round((b - a) / (7 * regelMs("ein_tag_tage")));
-}
+const wochenZwischen = (a: number, b: number): number => Math.round((b - a) / (7 * regelMs("ein_tag_tage")));
 
 function wochenKopf(von: number, jetzt: number) {
   const bis = plusTage(von, 6);
