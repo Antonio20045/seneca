@@ -23,7 +23,7 @@ WIE_ALT=$(( ( $(date +%s) - $(cat "$STAND" 2>/dev/null || echo 0) ) / 86400 ))
 if [ "$SOFORT" != --jetzt ] && [ "$WIE_ALT" -lt "$TAGE" ]; then echo "Installation $WIE_ALT Tage alt, nichts zu tun."; exit 0; fi
 
 if [ "$ZIEL" = iphone ]; then
-  GERAET=$(xcrun devicectl list devices --timeout 15 2>/dev/null | awk '/physical/ && /iPhone/ && /available/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i }' | head -1)
+  GERAET=$(xcrun devicectl list devices --timeout 15 2>/dev/null | awk '/physical/ && /iPhone/ && /available|connected/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i }' | head -1)
   if [ -z "$GERAET" ]; then
     echo "iPhone nicht im WLAN erreichbar."
     [ "$WIE_ALT" -gt "$TAGE" ] && melden "Die Seneca-App läuft bald ab. iPhone bitte ins WLAN des Macs bringen."
