@@ -69,7 +69,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | 18 | Rundgang, Morgenbericht, Rückblick, Briefing | Daueraufträge, geweckt von `faellige_auftraege` |
 | 18a | Rundgang: Feststeckendes, Team, Eingänge, Signale und Ziele im Kontext; Anzeigen grau; Regel-Vorschläge aus Mustern (dreimal Ja zum selben Kontakt, dreimal vertagt, Anzeige ungesehen); Folgezug (`seneca_auftrag` art `nachfassen`) und eigener Auftrag (art `eigener`) nur im Rundgang | `arbeitsdienst/rundgang.ts` |
 | 19 | Kontext für den Lauf | `arbeitsdienst/lauf.ts` · Hook `before_prompt_build` |
-| 20 | Lauf-Ende: Fortschreibung erzwingen | `arbeitsdienst/lauf.ts` · Hook `agent_end` (ohne Fortschreibung: Befund `ohne_stand`) |
+| 20 | Lauf-Ende: Fortschreibung erzwingen | `arbeitsdienst/lauf.ts` · Hooks `agent_end` (ohne Fortschreibung: Befund `ohne_stand`) und `run_stopped` (Stopp von außen: Lauf abgebrochen, Auftrag geparkt) · Job `laeufe_pruefen` bricht Läufe verworfener oder geparkter Aufträge über `chat.abort` ab |
 | 21 | Mandat lesen, frisch bei jedem Lauf | `team.ts` |
 | 22, 27 | Modellstufe wählen, Rückfall lokal → Haiku; lokale Textarbeit über das native Werkzeug `node_inference` im Lauf, wenn ein Knoten `ollama.chat` anbietet | `arbeitsdienst/modell.ts`, `arbeitsdienst/lauf.ts` |
 | 23 | Abo-Reihenfolge | `arbeitsdienst/abo.ts` |
@@ -122,7 +122,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | Werkzeuge | `seneca_lesen` → `pforte/stand.ts` · `seneca_auftrag`, `seneca_fortschreiben` → `arbeitsdienst/lauf.ts` · `seneca_frage`, `seneca_einstellen`, `seneca_anzeige`, `seneca_todo`, `seneca_eintrag` → `register/schreiben.ts` · `seneca_lernen` → `lernen/lernen.ts` · `seneca_kalender` → `quellen/kalender.ts` |
 | Gateway-Methoden | `seneca.stand` → `pforte/stand.ts` · `seneca.handeln` → `zugang/handeln.ts` · `seneca.verstehen` (Satz → To-do-Felder, Kalender des Tages) → `pforte/verstehen.ts` |
 | HTTP-Routen | `/seneca/uhr/v1/abgleich`, `/seneca/uhr/v1/koppeln`, `/seneca/uhr/v1/abholen`, `/seneca/uhr/v1/zifferblatt` (nur Lesen, Schlüssel der Lauf-Ruhe) → `zugang/uhr.ts` · `/seneca/github` → `quellen/github.ts` (Lesen des Körpers mit Grenze: `index.ts`) |
-| Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call`, `subagent_spawned` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
+| Hooks | `before_prompt_build`, `agent_end`, `run_stopped` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call`, `subagent_spawned` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |
 | Verlauf je Gespräch: Quittung (was Seneca getan hat, Ergebnis, „Termin zurücklegen“), Gerät je Nachricht (Schlüssel `<geraet>-<uuid>`), Antworten ohne eigene Frage | `pforte/verlauf.ts` → `seneca.stand.verlauf`; Apps: `SenecaKern/Pocket/VerlaufLogik.swift` |
 | Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `kalender_wache` (Vorschläge verfallen still, „Zu spät“ fragt einmal), `laeufe_pruefen`, `pflegen`, `gespraeche` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |

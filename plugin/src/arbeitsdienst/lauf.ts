@@ -1,8 +1,6 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import {
-  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage,
-} from "../register/schreiben.ts";
+import { auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { bauregeln, mandat, rolle } from "../team.ts";
 import { aboReihenfolge, limitMerken } from "./abo.ts";
@@ -30,12 +28,7 @@ export const nachrichtVon = (sitzung: string): Nachricht | undefined => nachrich
 const antonios = (sitzung: string, kennung?: string) => [nachrichten.get(sitzung)].find((n) => n?.vonAntonio && (!kennung || n.kennung === kennung));
 
 export function naechsterTermin(a: Zeile, jetzt: number): number {
-  const zeiten: Record<string, () => string[]> = {
-    rundgang: () => mandat(String(a.verantwortlich)).rundgang,
-    morgenbericht: () => [regelText("morgenbericht_um")],
-    rueckblick: () => [regelText("rueckblick_um")],
-    briefing: () => [regelText("briefing_um")],
-  };
+  const zeiten: Record<string, () => string[]> = { rundgang: () => mandat(String(a.verantwortlich)).rundgang, morgenbericht: () => [regelText("morgenbericht_um")], rueckblick: () => [regelText("rueckblick_um")], briefing: () => [regelText("briefing_um")] };
   return Math.min(...zeiten[String(a.arbeitsart)]().map((z) => naechsteUhrzeit(z, jetzt)));
 }
 
@@ -48,8 +41,7 @@ export function zurueckMitWartezeit(db: Register, a: Zeile, anlass: string): voi
 }
 
 function rahmenFrage(db: Register, a: Zeile, art: "auftrag" | "woche", jetzt: number): string {
-  const wer = String(a.verantwortlich);
-  const id = String(a.id);
+  const wer = String(a.verantwortlich), id = String(a.id);
   if (art === "woche" && wocheSchonGefragt(db, wer, jetzt)) {
     auftragSetzen(db, id, { naechster_anlass: wochenbeginn(jetzt, 1) }, "Wochenbudget erreicht.");
     return "rahmen";
@@ -81,8 +73,7 @@ function startFrage(db: Register, a: Zeile, grund: string): void {
 }
 
 export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promise<string> {
-  const jetzt = uhr.jetzt();
-  const wer = String(a.verantwortlich);
+  const jetzt = uhr.jetzt(), wer = String(a.verantwortlich);
   const ruht = wert(db, `ruht:${wer}`);
   if (ruht?.wert === "ja" && (ruht.gueltig_bis ?? Infinity) > jetzt) {
     auftragSetzen(db, String(a.id), { naechster_anlass: Math.min(ruht.gueltig_bis ?? Infinity, jetzt + regelMs("ruht_pruefen_h")) }, `${wer} ruht.`);
@@ -262,6 +253,13 @@ export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschr
   if (p.stufe === "hoch") auftragSetzen(db, String(l.auftrag_id), { stufe_fest: "opus" }, "Lauf bittet um höhere Stufe.");
   fortschreibung(db, String(l.id), p);
   return { zustand: "notiert" };
+}
+
+export function laufGestoppt(db: Register, sitzung: string): void {
+  const l = laufZurSitzung(db, sitzung);
+  if (!l || !AKTIV.includes(String(l.zustand))) return;
+  laufEnde(db, String(l.id), "abgebrochen", { grund: "gestoppt" });
+  if (hole(db, "auftrag", String(l.auftrag_id)).zustand === "laeuft") uebergang(db, "auftrag", String(l.auftrag_id), "geparkt", "gestoppt");
 }
 
 export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, tokens: { ein: number; aus: number; cent?: number }): void {

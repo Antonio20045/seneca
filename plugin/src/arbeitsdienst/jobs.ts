@@ -3,9 +3,7 @@ import { dirname, join, relative } from "node:path";
 import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
-import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
-} from "../register/schreiben.ts";
+import { anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung } from "../register/schreiben.ts";
 import { regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
 import { naechsterTermin, starteLauf, zurueckMitWartezeit, type Starter } from "./lauf.ts";
@@ -115,11 +113,16 @@ function neuStarten(db: Register, l: Zeile, grund: string): void {
 
 type Stupser = (sitzung: string, text: string, kennung: string) => Promise<boolean>;
 
-export async function laeufePruefenJob(db: Register, stupse: Stupser): Promise<void> {
+export async function laeufePruefenJob(db: Register, stupse: Stupser, befehl: Befehl): Promise<void> {
   const jetzt = uhr.jetzt();
   for (const l of aktiveLaeufe(db)) {
-    const still = jetzt - Number(l.letzter_schritt_um);
-    const auftragId = String(l.auftrag_id);
+    const still = jetzt - Number(l.letzter_schritt_um), auftragId = String(l.auftrag_id), aus = String(hole(db, "auftrag", auftragId).zustand);
+    if (aus === "verworfen" || aus === "geparkt") {
+      laufEnde(db, String(l.id), "abgebrochen", { grund: `Auftrag ${aus}` });
+      const r = await befehl([regelText("openclaw_befehl"), "gateway", "call", "chat.abort", "--json", "--params", JSON.stringify({ sessionKey: l.sitzung })], regelMs("takt_job_haengt_s"));
+      if (r.code !== 0) ereignis(db, { art: "lauf.abbruch_offen", lauf_id: String(l.id), auftrag_id: auftragId, satz: r.stderr.slice(0, 200) });
+      continue;
+    }
     const stups = wert(db, `anstupsen:${l.id}`);
     if (stups?.wert === "offen") {
       const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);

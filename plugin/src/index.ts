@@ -7,7 +7,7 @@ import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, gespraecheJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
-import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, werkzeugFrage, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
+import { agentEnde, fragenZurueckziehen, laufGestoppt, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, werkzeugFrage, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
@@ -176,6 +176,7 @@ export default {
       agentEnde(db, ctx.sessionKey ?? "", `${event.error ?? ""}${JSON.stringify(event.messages.at(-1) ?? "")}`, tokens);
       unteragentEnde(db, ctx.sessionKey ?? "", tokens);
     });
+    api.on("run_stopped", (event) => event.sessions.forEach((s) => laufGestoppt(db, s.sessionKey)));
     api.on("subagent_spawned", (event, ctx) => unteragentMerken(db, event.childSessionKey, { an: event.agentId, modus: event.mode, lauf: event.runId, modell: event.resolvedModel ?? null }, ctx.requesterSessionKey ?? ""));
 
     api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "", aufrufId: event.toolCallId, ruhe: () => ruhe(db, uhr.jetzt()) }, nachrichtVon(ctx.sessionKey ?? "")));
@@ -215,7 +216,7 @@ export default {
       { job: "faellige_auftraege", ursache: "Aufträge mit fälligem Anlass wecken, nur hier", lauf: () => faelligeAuftraegeJob(db, starte) },
       { job: "kalender_wache", ursache: "Vorschläge verfallen still, zu spät fragt einmal", lauf: () => kalenderWacheJob(db), abstand: () => regelMs("weg_neu_min") },
       { job: "faellige_wirkungen", ursache: "Antworten wirken erst nach der Rückgängig-Frist", lauf: () => faelligeWirkungenJob(db) },
-      { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db, stupse) },
+      { job: "laeufe_pruefen", ursache: "hängende Läufe erkennen statt still warten", lauf: () => laeufePruefenJob(db, stupse, befehl) },
       { job: "knoten", ursache: "Rechenknoten nur bei Bedarf an", lauf: () => knotenJob(db, geheim(api, "aws"), knotenListe), abstand: () => regelMs("knoten_pruefen_min") },
       { job: "zustellen", ursache: "Fragen nach Ruhe, Eile und Gerät zustellen", lauf: () => zustellenJob(db, senden, poste) },
       { job: "pflegen", ursache: "Sicherung, volle Platte, neue Mitarbeiter, Arbeitsdateien verfallen", lauf: () => pflegenJob(db, join(ordner, "sicherung"), befehl), abstand: () => regelMs("pflegen_h") },
