@@ -149,7 +149,6 @@ final class OverviewStore: ObservableObject {
 
     func aktualisiere() async {
         guard verbunden() else { return }
-        async let wb = lies("workboard.cards.list")
         async let cron = lies("cron.list")
         async let ag = lies("agents.list")
         async let kal = lies("seneca.kalender")
@@ -157,19 +156,13 @@ final class OverviewStore: ObservableObject {
         async let ber = lies("seneca.bereiche")
         async let str = lies("seneca.projekte")
         async let ent = lies("seneca.entscheidungen")
-        let w = await wb, c = await cron, a = await ag, k = await kal
+        let c = await cron, a = await ag, k = await kal
         let g = await ges, b = await ber, s = await str, e = await ent
-        let neueKarten = await w.asyncMap { await self.karten(aus: $0) }
         stelleUhr()
         var d = daten
         if let s, let pm = OvProjektOrdnung(json: s) { d.pm = pm }
         if let g, let m = g["gesehen"] as? [String: Any] { d.gesehen = m.compactMapValues { ($0 as? NSNumber)?.doubleValue } }
         if let b { d.bereiche = SenecaPayloadParser.areas(b); d.unterabteilungen = Self.unterabteilungen(b) } else if d.bereiche == nil { d.bereiche = AreaRegistry() }
-        if let neueKarten {
-            if let neu = neueKarten.karten { d.cards = neu }
-            if let bl = neueKarten.boards { d.boards = bl }
-            d.workboardFehler = false
-        } else { d.workboardFehler = true }
         if let c { d.jobs = (c["jobs"] as? [[String: Any]] ?? []).compactMap(OvAuftrag.init(json:)) }
         if let a {
             d.agents = (a["agents"] as? [[String: Any]] ?? []).compactMap(OvAgent.init(json:))
@@ -226,31 +219,6 @@ final class OverviewStore: ObservableObject {
         var z = daten.rows[i]
         aendere(&z)
         daten.rows[i] = z
-    }
-
-    private struct Roh: @unchecked Sendable { let w: [String: Any] }
-    private var zerlegt: AnyObject?
-
-    private func karten(aus w: [String: Any]) async -> (karten: [OvKarte]?, boards: [OvBoard]?) {
-        let quelle = w["cards"] as AnyObject
-        if let z = zerlegt, z === quelle, !daten.cards.isEmpty { return (nil, nil) }
-        let roh = Roh(w: w)
-        let r = await Task.detached(priority: .userInitiated) { () -> ([OvKarte], [OvBoard]?) in
-            ((roh.w["cards"] as? [[String: Any]] ?? []).compactMap(OvKarte.init(json:)).filter { !$0.archiviert },
-             (roh.w["boards"] as? [[String: Any]])?.compactMap(OvBoard.init(json:)))
-        }.value
-        zerlegt = quelle
-        return r
-    }
-
-    func aktualisiereKarten() async {
-        guard verbunden(), let w = await lies("workboard.cards.list") else { return }
-        let k = await karten(aus: w)
-        var d = daten
-        if let neu = k.karten { d.cards = neu }
-        if let bl = k.boards { d.boards = bl }
-        setze(d)
-        stelleUhr()
     }
 
     func entscheide(_ e: OvEntscheidung, _ w: Entscheiden.Wahl) {
@@ -354,7 +322,7 @@ final class OverviewStore: ObservableObject {
         ticks += 1
         stelleUhr()
         guard verbunden() else { return }
-        if ticks % 4 == 0 { await aktualisiere() } else if daten.cards.contains(where: { $0.status == "running" }) { await aktualisiereKarten() }
+        if ticks % 4 == 0 { await aktualisiere() }
         await aktualisiereSitzungen()
     }
 
@@ -379,13 +347,9 @@ final class OverviewStore: ObservableObject {
 
     func verschiebe(_ c: OvKarte, nach status: String) async throws -> OvKarte? {
         if let i = daten.cards.firstIndex(where: { $0.id == c.id }) { daten.cards[i].status = status; daten.cards[i].updatedAt = uhr() }
-        do {
-            var p: [String: Any] = ["id": c.id, "status": status]
-            if let u = c.updatedAt { p["expectedUpdatedAt"] = u }
-            let r = try await rufe("workboard.cards.move", p, 20)
-            await aktualisiereKarten()
-            return karte(r)
-        } catch { await aktualisiereKarten(); throw error }
+        var p: [String: Any] = ["id": c.id, "status": status]
+        if let u = c.updatedAt { p["expectedUpdatedAt"] = u }
+        return karte(try await rufe("workboard.cards.move", p, 20))
     }
 
     @discardableResult
@@ -462,11 +426,7 @@ final class OverviewStore: ObservableObject {
     func aendere(_ id: String, patch: [String: Any]) async throws -> OvKarte? {
         var p: [String: Any] = ["id": id, "patch": patch]
         if let u = aktuell(id)?.updatedAt { p["expectedUpdatedAt"] = u }
-        do {
-            let r = try await rufe("workboard.cards.update", p, 20)
-            await aktualisiereKarten()
-            return karte(r) ?? aktuell(id)
-        } catch { await aktualisiereKarten(); throw error }
+        return karte(try await rufe("workboard.cards.update", p, 20)) ?? aktuell(id)
     }
 
     @discardableResult
@@ -476,7 +436,6 @@ final class OverviewStore: ObservableObject {
         let p: [String: Any] = ["title": t, "boardId": boardId, "status": "todo", "idempotencyKey": UUID().uuidString.lowercased()]
         do {
             let r = try await rufe("workboard.cards.create", p, 20)
-            await aktualisiereKarten()
             return karte(r)
         } catch { hinweis("Konnte nicht anlegen: \(Self.schreibFehlertext(error))"); return nil }
     }
@@ -486,27 +445,20 @@ final class OverviewStore: ObservableObject {
     func kommentiere(_ id: String, text: String) async -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return false }
-        do { _ = try await rufe("workboard.cards.comment", ["id": id, "body": t], 20); await aktualisiereKarten(); return true }
+        do { _ = try await rufe("workboard.cards.comment", ["id": id, "body": t], 20); return true }
         catch { hinweis("Konnte nicht kommentieren: \(Self.schreibFehlertext(error))"); return false }
     }
 
     func starteKarte(_ id: String, agent: String?) async -> Bool {
         do {
             if let agent, !agent.isEmpty, aktuell(id)?.agentId != agent { try await aendere(id, patch: ["agentId": agent]) }
-            guard let w = await lies("workboard.cards.list"),
-                  let c = (w["cards"] as? [[String: Any]] ?? []).compactMap(OvKarte.init(json:)).first(where: { $0.id == id }), !c.archiviert
-            else { throw SenecaError.message("Die Aufgabe gibt es nicht mehr.") }
-            if let bekannt = aktuell(id)?.updatedAt, let neu = c.updatedAt, bekannt != neu {
-                await aktualisiereKarten()
-                throw SenecaError.message("stale")
-            }
+            guard let c = aktuell(id), !c.archiviert else { throw SenecaError.message("Die Aufgabe gibt es nicht mehr.") }
             if (c.agentId ?? "").isEmpty { throw SenecaError.message("Wähle zuerst einen Agenten aus.") }
             if (c.notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 throw SenecaError.message("Schreib zuerst in die Notiz, was das Ergebnis sein soll. Der Agent braucht einen Auftrag.")
             }
             if !["todo", "backlog", "ready"].contains(c.status) { throw SenecaError.message("Die Aufgabe ist schon in Arbeit.") }
             _ = try await rufe("workboard.cards.start", ["id": id], 60)
-            await aktualisiereKarten()
             hinweis("Der Agent hat den Auftrag übernommen.")
             return true
         } catch {
@@ -581,12 +533,5 @@ final class OverviewStore: ObservableObject {
         guard let tu = aktionen[id] else { return }
         schliesse(id)
         await tu()
-    }
-}
-
-private extension Optional {
-    func asyncMap<U>(_ f: (Wrapped) async -> U) async -> U? {
-        guard let w = self else { return nil }
-        return await f(w)
     }
 }

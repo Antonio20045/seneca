@@ -257,41 +257,6 @@ enum SenecaPayloadParser {
         }
     }
 
-    static func cards(_ result: [String: Any]) -> [WorkCard] {
-        (result["cards"] as? [[String: Any]] ?? []).compactMap { card in
-            let metadata = card["metadata"] as? [String: Any]
-#if os(iOS)
-            if let archived = metadata?["archivedAt"] ?? card["archivedAt"], !(archived is NSNull) { return nil }
-            if card["archived"] as? Bool == true { return nil }
-#else
-            if let archived = metadata?["archivedAt"], !(archived is NSNull) { return nil }
-#endif
-            guard let id = card["id"] as? String else { return nil }
-            let automation = metadata?["automation"] as? [String: Any]
-#if os(iOS)
-            let ereignisse = card["events"] as? [[String: Any]] ?? []
-            if ereignisse.last?["kind"] as? String == "archived" { return nil }
-            let lauf = card["execution"] as? [String: Any]
-            let zeichen = ([(lauf?["updatedAt"] as? NSNumber)?.doubleValue] + ereignisse.suffix(3).map { ($0["at"] as? NSNumber)?.doubleValue }).compactMap { $0 }.max()
-            return WorkCard(id: id, title: card["title"] as? String ?? "", status: card["status"] as? String ?? "todo",
-                            agentId: card["agentId"] as? String, sessionKey: card["sessionKey"] as? String,
-                            boardId: automation?["boardId"] as? String ?? "default",
-                            updatedAt: (card["updatedAt"] as? NSNumber)?.doubleValue,
-                            priority: card["priority"] as? String, notes: card["notes"] as? String,
-                            labels: (card["labels"] as? [Any])?.compactMap { $0 as? String },
-                            startedAt: ((lauf?["startedAt"] ?? card["startedAt"]) as? NSNumber)?.doubleValue, lebenszeichen: zeichen,
-                            stand: automation?["summary"] as? String)
-#else
-            return WorkCard(id: id, title: card["title"] as? String ?? "", status: card["status"] as? String ?? "todo",
-                            agentId: card["agentId"] as? String, sessionKey: card["sessionKey"] as? String,
-                            boardId: automation?["boardId"] as? String ?? "default",
-                            updatedAt: (card["updatedAt"] as? NSNumber)?.doubleValue,
-                            priority: card["priority"] as? String, notes: card["notes"] as? String,
-                            labels: (card["labels"] as? [Any])?.compactMap { $0 as? String })
-#endif
-        }
-    }
-
     static func sessions(_ result: [String: Any]) -> [SessionRow] {
         (result["sessions"] as? [[String: Any]] ?? []).compactMap { row in
             guard let key = row["key"] as? String else { return nil }

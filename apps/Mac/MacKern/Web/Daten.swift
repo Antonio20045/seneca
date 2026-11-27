@@ -502,7 +502,6 @@ struct OvDaten: Equatable {
     var entRoh: [OvEntscheidung]?
     var liste: ArbeitsListe?
     var geladen = false
-    var workboardFehler = false
 
     func label(_ id: String?) -> String {
         guard let id, !id.isEmpty else { return "" }

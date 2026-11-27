@@ -101,7 +101,7 @@ struct RahmenView: View {
             }
         }
         .onChange(of: chat.lives.isEmpty) { _, _ in
-            Task { await store.aktualisiereSitzungen(); await store.aktualisiereKarten() }
+            Task { await store.aktualisiereSitzungen() }
         }
         .task { await SnWeg.gemeinsam.laufe(modell.store) }
     }
