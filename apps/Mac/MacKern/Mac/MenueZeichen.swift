@@ -1,7 +1,7 @@
 import Foundation
 
 struct MenueZeichen: Equatable {
-    enum Bild: Equatable { case blase, blaseVoll, mikrofon, erkennt, aufnahme, arbeitet, fokus }
+    enum Bild: Equatable { case blase, blaseVoll, aufnahme, arbeitet, fokus }
 
     var bild: Bild
     var text: String?
@@ -13,29 +13,17 @@ struct MenueZeichen: Equatable {
         switch bild {
         case .blase: return "text.bubble"
         case .blaseVoll: return "text.bubble.fill"
-        case .mikrofon: return "mic.fill"
-        case .erkennt: return "waveform"
         case .aufnahme: return "record.circle.fill"
         case .arbeitet: return "ellipsis.bubble"
         case .fokus: return "circle.lefthalf.filled"
         }
     }
 
-    static func entscheide(diktat: DiktatWache.Phase, meetingNimmtAuf: Bool, meetingDauer: TimeInterval,
+    static func entscheide(meetingNimmtAuf: Bool, meetingDauer: TimeInterval,
                            meetingArbeitet: Bool, braucht: Int, fokus: Bool = false) -> MenueZeichen {
         let zeit = meetingNimmtAuf ? MeetingTranskript.zeit(meetingDauer) : nil
         var teile = ["Seneca"]
-        let bild: Bild
-        switch diktat {
-        case .hoert:
-            bild = .mikrofon
-            teile.append("Diktat hört zu")
-        case .erkennt:
-            bild = .erkennt
-            teile.append("Diktat wird erkannt")
-        default:
-            bild = meetingNimmtAuf ? .aufnahme : meetingArbeitet ? .arbeitet : fokus ? .fokus : braucht > 0 ? .blaseVoll : .blase
-        }
+        let bild: Bild = meetingNimmtAuf ? .aufnahme : meetingArbeitet ? .arbeitet : fokus ? .fokus : braucht > 0 ? .blaseVoll : .blase
         if let zeit { teile.append("Meeting wird aufgenommen, \(zeit)") } else if meetingArbeitet { teile.append("Meeting wird ausgewertet") }
         if braucht > 0 { teile.append("\(braucht) braucht dich") }
         if fokus { teile.append("Fokus") }

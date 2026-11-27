@@ -249,7 +249,7 @@ enum Zuege {
 
             if role == "user" {
                 toolRun = nil
-                var roh = textVon(m["content"]).ersetze(#"\s*\[Vom iPhone[^\]]*\]\s*$"#, "")
+                var roh = ChatLogic.ohneHinweis(textVon(m["content"]))
                 if let rest = SystemMuster.fortgesetztRest(roh) { roh = rest }
                 if roh.isEmpty || SystemMuster.istVersteckt(roh) { continue }
                 let bereinigt = Werkzeugtext.bereinige(roh).rest

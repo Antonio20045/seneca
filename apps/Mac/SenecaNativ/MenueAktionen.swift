@@ -8,18 +8,18 @@ import Vision
 
 @MainActor
 final class MenueZeichenModell: ObservableObject {
-    @Published private(set) var zeichen = MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: 0)
+    @Published private(set) var zeichen = MenueZeichen.entscheide(meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: 0)
     private var abos: Set<AnyCancellable> = []
 
     func starte(dienste: MacDienste, store: SenecaStore) {
         guard abos.isEmpty else { return }
-        Publishers.CombineLatest4(DiktatDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, store.$stand)
+        Publishers.CombineLatest3(MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, store.$stand)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] d, m, dauer, stand in
+            .sink { [weak self] m, dauer, stand in
                 MainActor.assumeIsolated {
                     var arbeitet = false
                     if case .wertAus = m { arbeitet = true }
-                    let neu = MenueZeichen.entscheide(diktat: DiktatDienst.phase(d), meetingNimmtAuf: m == .nimmtAuf, meetingDauer: dauer,
+                    let neu = MenueZeichen.entscheide(meetingNimmtAuf: m == .nimmtAuf, meetingDauer: dauer,
                                                       meetingArbeitet: arbeitet, braucht: stand?.zaehler?.braucht ?? 0, fokus: stand?.ruhe?.grund == "fokus")
                     if neu.text != nil { MenueZeichenModell.festeZiffern() }
                     if let self, neu != self.zeichen { self.zeichen = neu }
@@ -60,6 +60,7 @@ final class VorneMerker: ObservableObject {
 
     @Published private(set) var stand = 0
     private var fremde: NSRunningApplication?
+    var zuletztFremd: NSRunningApplication? { fremde.flatMap { $0.isTerminated ? nil : $0 } }
     private var senecaAktivSeit: Date?
     private var menueOffenSeit: Date?
     private var senecaWarVornBeimKlick: Bool?
@@ -293,7 +294,7 @@ enum MenueProbe {
         }
         w["breite"] = breite
         w["knopfSchrift"] = k.font?.fontName ?? ""
-        dienste.zeichen.probeSetze(MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.braucht))
+        dienste.zeichen.probeSetze(MenueZeichen.entscheide(meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: dienste.braucht))
         return w
     }
 

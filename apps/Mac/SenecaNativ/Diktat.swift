@@ -448,7 +448,8 @@ final class DiktatDienst: ObservableObject {
     private var zustandSeit = Date()
     private(set) var aufnahmeBeginn = Date()
     @Published var imFeld = false
-    @Published private(set) var zielText: String?
+    private var startKontext: String?
+    private var senecaKontext: String?
     private var zielApp: NSRunningApplication?
     private(set) var letzterAusschlag = Date()
     @Published private(set) var geraeteName: String?
@@ -520,7 +521,6 @@ final class DiktatDienst: ObservableObject {
         wacheAus = true
         switch art {
         case "hoert":
-            zielText = "Mail · An Steuerberater"
             geraeteName = "MacBook Pro-Mikrofon"
             aufnahmeBeginn = Date()
             letzterAusschlag = Date()
@@ -677,7 +677,7 @@ final class DiktatDienst: ObservableObject {
                 self.aufnahmeBeginn = Date()
                 self.letzterAusschlag = Date()
                 self.zielApp = NSApp.isActive ? nil : DiktatFremdeApp.vorne
-                self.zielText = self.zielApp.map(DiktatFremdeApp.zielText)
+                self.startKontext = NSApp.isActive ? VorneMerker.gemeinsam.zuletztFremd.map(DiktatFremdeApp.beschreibung) : nil
                 self.geraeteName = a.geraeteName
                 self.pegel = 0
                 self.zustand = .hoert
@@ -777,6 +777,7 @@ final class DiktatDienst: ObservableObject {
         let ende = Date()
         eintrag.eingefuegt = DiktatProtokoll.zeit.string(from: ende)
         eintrag.wartezeitMs = Int((ende.timeIntervalSince(losgelassen) * 1000).rounded())
+        if ziel == "fokus" || ziel == "chat" { senecaKontext = startKontext }
         if let ziel {
             eintrag.ergebnis = "erfolgreich"
             eintrag.ziel = ziel
@@ -806,6 +807,11 @@ final class DiktatDienst: ObservableObject {
             guard let self, case .eingefuegt = self.zustand else { return }
             self.zustand = .ruht
         }
+    }
+
+    func nimmKontext() -> String? {
+        defer { senecaKontext = nil }
+        return senecaKontext
     }
 
     func schliessePille() {

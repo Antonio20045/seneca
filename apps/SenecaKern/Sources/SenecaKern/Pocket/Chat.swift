@@ -180,12 +180,9 @@ enum ChatCommand: Equatable, Sendable {
 }
 
 enum ChatLogic {
-    static let phoneMarker = "\n\n[Vom iPhone"
+    static let hinweisMuster = #"\s*\[Vom (iPhone|Mac)[^\]]*\]\s*$"#
 
-    static func stripPhoneHint(_ text: String) -> String {
-        guard let r = text.range(of: phoneMarker) ?? text.range(of: "[Vom iPhone") else { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return String(text[..<r.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    static func ohneHinweis(_ text: String) -> String { text.ersetze(hinweisMuster, "").trimmingCharacters(in: .whitespacesAndNewlines) }
 
     static func text(of value: Any?) -> String {
         if let text = value as? String { return text }
@@ -283,7 +280,7 @@ enum ChatLogic {
 
     static func preview(_ raw: String?) -> String? {
         guard let raw else { return nil }
-        let text = stripPhoneHint(raw)
+        let text = ohneHinweis(raw)
         if text.isEmpty || isTechnicalText(text) { return nil }
         var lines: [String] = []
         for line in text.components(separatedBy: .newlines) {
