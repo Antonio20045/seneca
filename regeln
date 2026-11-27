@@ -63,6 +63,7 @@ nachtruhe_bis 06:30
 ruhe_ohne_durchbruch schlaf,training,laufen,trail
 durchbruch_h 2
 braucht_dich_max 3
+status_laeufe 5
 frage_nachklang_s 6 app
 lange_wartend_h 24
 push_abstand_min 20

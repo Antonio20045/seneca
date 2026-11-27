@@ -43,7 +43,7 @@ function nurSeneca(k: Kontext): void {
 }
 
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
-  ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), auftrag, team, fragen, profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
+  ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), status (ehrliche Lage auf „Status“: alle offenen Fragen an Antonio, geparkte Aufträge mit Zahl, was läuft, nächste Läufe, Team), auftrag mit id, team, fragen (alle offenen), profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
     (db, _k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined)],
   ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),

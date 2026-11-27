@@ -279,10 +279,16 @@ export function lesenWerkzeug(db: Register, was: string, id?: string): string {
   }
   if (was === "tag") return tagSicht(db, jetzt);
   if (was === "team") return team(db, jetzt).map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`).join("\n");
-  if (was === "fragen") return brauchtDich(db, jetzt).map((f) => `${f.id}: ${f.text}`).join("\n") || "Nichts braucht Antonio gerade.";
+  if (was === "status" || was === "fragen" || was === "auftrag") return statusSicht(db, jetzt);
   const praefix = { profil: "profil:", fakten: "fakt:", kontakt: "kontakt:" }[was];
   if (!praefix) throw new Error(`seneca_lesen kennt ${was} nicht.`);
   return [...werte(db, praefix)].map(([k, v]) => `${k}: ${v}`).join("\n") || "Nichts hinterlegt.";
+}
+
+function statusSicht(db: Register, jetzt: number): string {
+  const dringend = brauchtDich(db, jetzt).filter((f) => f.zustand === "offen"), offen = [...dringend, ...fragen(db, "offen").filter((f) => !dringend.some((d) => d.id === f.id))], wer = (a: Zeile) => anzeigeName(String(a.verantwortlich)), geparkt = auftraege(db, ["geparkt"]), zeit = (t: unknown) => new Date(Number(t)).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const fragenText = offen.map((f) => `- ${f.id} von ${anzeigeName(String(f.von))}: ${f.text} (${dringend.includes(f) ? "dringend" : `kommt im Entscheidungsfenster ${uhrzeit(fensterStart(jetzt))}`})`).join("\n"), jeWer = [...Map.groupBy(geparkt, wer)].map(([w, l]) => `${w} ${l.length}`).join(", ");
+  return [`Offene Fragen an Antonio: ${offen.length}${fragenText ? `\n${fragenText}` : ""}`, `Geparkt: ${geparkt.length} Aufträge${geparkt.length ? ` (${jeWer}), sie warten auf Antonios Entscheidung` : ""}.`, `In Arbeit: ${auftraege(db, ["laeuft", "wartet", "wartet_auf_abnahme"]).map((a) => `${a.titel} (${wer(a)}, ${a.zustand})`).join("; ") || "nichts"}.`, `Nächste Läufe: ${auftraege(db, ["bereit"]).filter((a) => a.naechster_anlass).sort((a, b) => Number(a.naechster_anlass) - Number(b.naechster_anlass)).slice(0, regelZahl("status_laeufe")).map((a) => `${zeit(a.naechster_anlass)} ${a.titel} (${wer(a)})`).join("; ") || "keine geplant"}.`, `Team: ${team(db, jetzt).map((t) => `${anzeigeName(t.name)} ${t.zustand}`).join(", ")}.`].join("\n");
 }
 
 const ZEITFELDER = ["jetzt", "start", "ende", "geplant", "zeit", "bis", "von", "um"];
