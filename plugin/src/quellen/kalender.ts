@@ -65,16 +65,17 @@ async function finde(z: Zugang): Promise<Kalender[]> {
   const p = '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:current-user-principal/><c:calendar-home-set/></d:prop></d:propfind>';
   const prinzipal = absolut(basis, href((await dav(z, basis, "PROPFIND", p, { depth: "0" })).text, "current-user-principal") ?? "/");
   const heim = absolut(prinzipal, href((await dav(z, prinzipal, "PROPFIND", p, { depth: "0" })).text, "calendar-home-set") ?? "/");
-  const liste = (await dav(z, heim, "PROPFIND", '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>', { depth: "1" })).text;
-  kalender = [...liste.matchAll(/<[^>]*response[^>]*>([\s\S]*?)<\/[^>]*response>/gi)].filter((m) => /calendar\s*\/>|:calendar\b/i.test(m[1]) && !/-(in|out)box/i.test(m[1]))
+  const liste = (await dav(z, heim, "PROPFIND", '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/></d:prop></d:propfind>', { depth: "1" })).text;
+  kalender = [...liste.matchAll(/<[^>]*response[^>]*>([\s\S]*?)<\/[^>]*response>/gi)].filter((m) => /<(?:[\w-]+:)?calendar[\s/>]/i.test(m[1]) && (!/<[^>]*comp\s+name=/i.test(m[1]) || /name=["']VEVENT["']/i.test(m[1])))
     .map((m) => ({ url: absolut(heim, /<[^>]*href[^>]*>([^<]+)</i.exec(m[1])?.[1] ?? ""), name: /<[^>]*displayname[^>]*>([^<]*)</i.exec(m[1])?.[1] ?? "Kalender" }));
   return kalender;
 }
 
 export async function kalenderAbgleich(db: Register, z: Zugang): Promise<void> {
   if (!z.benutzer || !z.passwort) return;
-  const von = uhr.jetzt();
-  const bis = von + regelMs("kalender_vorschau_tage");
+  const heute = new Date(uhr.jetzt());
+  const von = new Date(heute.getFullYear(), heute.getMonth(), heute.getDate() - ((heute.getDay() + 6) % 7)).getTime();
+  const bis = uhr.jetzt() + regelMs("kalender_vorschau_tage");
   const abfrage = `<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data><c:expand start="${ics(von)}" end="${ics(bis)}"/></c:calendar-data></d:prop>
     <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="${ics(von)}" end="${ics(bis)}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`;
   const tage = new Map<string, Termin[]>();
@@ -88,7 +89,8 @@ export async function kalenderAbgleich(db: Register, z: Zugang): Promise<void> {
       }
     }
   }
-  for (let t = von; t < bis; t += regelMs("ein_tag_tage")) {
+  for (const tag = new Date(von); tag.getTime() < bis; tag.setDate(tag.getDate() + 1)) {
+    const t = tag.getTime();
     const liste = (tage.get(kalenderTag(t)) ?? []).sort((a, b) => a.start - b.start).map((x) => ({ ...x, titel: x.titel?.slice(0, regelZahl("kalender_titel_zeichen")) }));
     const neu = JSON.stringify(liste);
     if (wert(db, kalenderTag(t))?.wert !== neu) wertSetzen(db, kalenderTag(t), neu, "kalender");

@@ -134,8 +134,6 @@ final class SenecaStore: ObservableObject {
 
     var isActive = true { didSet { if isActive { daten?.jetztVersuchen() } } }
 
-    private struct KartenAntwort: @unchecked Sendable { let w: [String: Any] }
-
     func addTodoHeute(_ title: String) {
         addTask(title, plan: DayLogic.dayKey(clock(), .current))
     }
@@ -289,7 +287,7 @@ final class SenecaStore: ObservableObject {
     func rufe(_ fn: String, params: [String: Any] = [:], timeout: Double = 20) async throws -> [String: Any] {
         guard let daten, isConnected else { throw SenecaError.offline }
         guard let fenster = Self.lesefenster[fn] else {
-            let betroffen = fn.hasPrefix("workboard.") ? "workboard.cards.list" : fn.hasPrefix("sessions.") || fn == "chat.send" ? "sessions.list" : nil
+            let betroffen = fn.hasPrefix("sessions.") || fn == "chat.send" ? "sessions.list" : nil
             if let betroffen {
                 leseStand = leseStand.filter { !$0.key.hasPrefix(betroffen) }
                 leseLaeuft = leseLaeuft.filter { !$0.key.hasPrefix(betroffen) }
@@ -315,7 +313,7 @@ final class SenecaStore: ObservableObject {
         catch let f as VerbindungsFehler { throw f.alsSenecaFehler }
     }
 
-    private static let lesefenster: [String: Double] = ["workboard.cards.list": 60, "agents.list": 60, "sessions.list": 10]
+    private static let lesefenster: [String: Double] = ["agents.list": 60, "sessions.list": 10]
     private var leseStand: [String: (zeit: Date, antwort: [String: Any])] = [:]
     private var leseLaeuft: [String: Task<[String: Any], Error>] = [:]
     private var leseGeneration = UUID()
@@ -345,13 +343,6 @@ final class SenecaStore: ObservableObject {
         defer { if generation == current { isLoading = false } }
         var failures: [String] = []
         var snapshot = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
-        do {
-            let result = try await rufe("workboard.cards.list")
-            let roh = KartenAntwort(w: result)
-            (snapshot.tasks, snapshot.cards, snapshot.boardNames) = await Task.detached(priority: .userInitiated) {
-                (Self.personalTasks(roh.w), SenecaPayloadParser.cards(roh.w), Self.boardNames(roh.w))
-            }.value
-        } catch { failures.append("Aufgaben") }
         do {
             let result = try await rufe("seneca.kalender")
             snapshot.calendarStatus = SenecaPayloadParser.calendarStatus(result)
@@ -446,37 +437,6 @@ final class SenecaStore: ObservableObject {
     }
 
     private var reloadAgain = false
-
-    nonisolated static func boardNames(_ result: [String: Any]) -> [String: String] {
-        var names: [String: String] = [:]
-        for b in result["boards"] as? [[String: Any]] ?? [] {
-            if let id = b["id"] as? String, let name = b["name"] as? String, !name.isEmpty { names[id] = name }
-        }
-        return names
-    }
-
-    nonisolated static func personalTasks(_ result: [String: Any]) -> [SenecaTask] {
-        let boardNames = Self.boardNames(result)
-        return (result["cards"] as? [[String: Any]] ?? []).compactMap { card in
-            let metadata = card["metadata"] as? [String: Any]
-            if metadata?["archivedAt"] != nil { return nil }
-            guard let id = card["id"] as? String, let title = card["title"] as? String else { return nil }
-            let automation = metadata?["automation"] as? [String: Any]
-            let board = automation?["boardId"] as? String ?? "default"
-            let assignedAgent = card["agentId"] as? String ?? ""
-            guard board == "privat" || assignedAgent.isEmpty else { return nil }
-            let status = card["status"] as? String ?? "todo"
-            let displayTitle = title.replacingOccurrences(of: "^\\[[^\\]]*\\]\\s*", with: "", options: .regularExpression)
-            let labels = (card["labels"] as? [Any])?.compactMap { $0 as? String }
-            return SenecaTask(id: id, title: displayTitle, isDone: ["done", "completed"].contains(status), status: status,
-                              updatedAt: (card["updatedAt"] as? NSNumber)?.doubleValue, notes: card["notes"] as? String,
-                              isParked: title.uppercased().hasPrefix("[PARKIERT"),
-                              completedAt: (card["completedAt"] as? NSNumber)?.doubleValue,
-                              priority: card["priority"] as? String, rawTitle: title,
-                              projektId: board, projektName: boardNames[board] ?? (board == "privat" ? "Privat" : nil),
-                              plan: AufgabenLogic.labelTag(labels, "plan"), frist: AufgabenLogic.labelTag(labels, "frist"))
-        }
-    }
 
     func toggleTask(_ id: String) {
         guard var snap = today, let index = snap.tasks.firstIndex(where: { $0.id == id }) else { return }
