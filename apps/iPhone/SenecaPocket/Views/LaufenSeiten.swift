@@ -384,7 +384,7 @@ struct LaufEinzelTafel: View {
                 LaufZurueck(text: zurueck, tun: schliessen)
                 if let lauf {
                     Text(lauf.kopf).mono(11, abstand: 1.1).foregroundStyle(TafelFarbe.leise).padding(.top, 10)
-                    TafelSatz(vor: lauf.satz.first ?? "", akzent: lauf.satz.dropFirst().joined(separator: " ")).padding(.top, 8).padding(.bottom, 18)
+                    TafelSatz(vor: vor(lauf), akzent: lauf.satz.dropFirst().joined(separator: " ")).padding(.top, 8).padding(.bottom, 18)
                     karte
                     kern(lauf)
                     splits(lauf)
@@ -399,7 +399,14 @@ struct LaufEinzelTafel: View {
             .padding(.horizontal, 24).padding(.top, 62).padding(.bottom, 60)
         }
         .scrollIndicators(.hidden)
+        .scrollDisabled(stelle != nil)
         .accessibilityAction(.escape, schliessen)
+    }
+
+    private func vor(_ lauf: SenecaStatistik.Lauf) -> String {
+        guard lauf.satz.first == "Lauf.", let l = daten?.kennzahlen?.lauf.liste?.first(where: { $0.id == id }) else { return lauf.satz.first ?? "" }
+        let h = Calendar.current.component(.hour, from: l.datum)
+        return "\(LaufRechnen.zahl(l.km)) km am \(LaufRechnen.datum(l.datum, "EEEE"))\(h < 11 ? "morgen" : h < 14 ? "mittag" : h < 18 ? "nachmittag" : "abend")."
     }
 
     private var koordinaten: [CLLocationCoordinate2D] { LaufRechnen.koordinaten(spur?.p) }
@@ -496,9 +503,12 @@ struct LaufEinzelTafel: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
+                .highPriorityGesture(DragGesture(minimumDistance: 0)
                     .onChanged { stelle = min(1, max(0, $0.location.x / max(1, g.size.width))) }
-                    .onEnded { _ in withAnimation(.easeOut(duration: 0.4).delay(1.2)) { stelle = nil } })
+                    .onEnded { _ in
+                        let war = stelle
+                        Task { try? await Task.sleep(for: .seconds(1.5)); if stelle == war { withAnimation(.easeOut(duration: 0.3)) { stelle = nil } } }
+                    })
             }
             .frame(height: CGFloat(1 + (mitPuls ? 1 : 0) + (mitHoehe ? 1 : 0)) * 64)
             .accessibilityIdentifier("verlauf")
@@ -537,6 +547,7 @@ struct LaufEinzelTafel: View {
     @ViewBuilder private var zonen: some View {
         LaufTitel(text: "Pulszonen")
         if let z = LaufRechnen.zonen(spur?.r ?? [], pulsMax: daten?.kennzahlen?.lauf.puls_max) {
+            Text("Bezogen auf deinen höchsten gemessenen Puls: \(Int(daten?.kennzahlen?.lauf.puls_max ?? (spur?.r ?? []).compactMap { $0.count > 2 ? $0[2] : nil }.max() ?? 0))").font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.aus).padding(.bottom, 6)
             let hi = max(1, z.max() ?? 1)
             VStack(spacing: 5) {
                 ForEach((0..<5).reversed(), id: \.self) { i in
