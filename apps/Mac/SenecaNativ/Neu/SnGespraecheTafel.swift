@@ -12,6 +12,7 @@ struct SnGespraechLeiste: View {
     var waehle: (String) -> Void
     var neu: () -> Void
     var zieht = false
+    var fragt: SenecaStand.Frage? = nil
     var ablegen: (String, [URL]) -> Void = { _, _ in }
 
     var body: some View {
@@ -19,7 +20,7 @@ struct SnGespraechLeiste: View {
             eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [GL.Zeile(text: stand.flatMap(GL.seneca) ?? "Frag Seneca etwas.")], punkt: nil).padding(.vertical, 2)
             etikett("DEIN TEAM").padding(.horizontal, 14).padding(.top, 26).padding(.bottom, 8)
             ForEach(stand.map(GL.leiste) ?? [], id: \.m.name) { e in
-                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: e.zeilen, punkt: e.punkt)
+                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: fragt?.von == e.m.name ? [GL.Zeile(text: "fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))", hervor: true)] : e.zeilen, punkt: fragt?.von == e.m.name ? .wartet : e.punkt)
             }
             Spacer(minLength: 20)
             if zieht {
@@ -76,13 +77,14 @@ struct SnLeistePunkt: View {
 struct SnGespraechRand: View {
     var stand: SenecaStand?
     var agent: String
+    var frage: SenecaStand.Frage? = nil
     var zuProjekten: () -> Void
 
     private var mitglied: SenecaStand.Mitglied? { stand?.team?.first { $0.id == agent } }
     private var projekt: SenecaStand.Projekt? { mitglied?.projekt.flatMap { p in stand?.projekte?.liste?.first { $0.name == p } } }
 
     var body: some View {
-        if agent == Hauptagent.id { heute } else if let s = stand, let p = projekt { projektRand(s, p) }
+        if let s = stand, let f = frage { SnFrageMehrRand(frage: f, stand: s) } else if agent == Hauptagent.id { heute } else if let s = stand, let p = projekt { projektRand(s, p) }
     }
 
     private var heute: some View {
@@ -129,7 +131,7 @@ struct SnGespraechFrage: View {
     var frage: SenecaStand.Frage
     var fokus: Bool
     var antworte: (String) -> Void
-    @State private var mehr = false
+    var mehr: () -> Void = {}
     @State private var bericht = false
 
     var body: some View {
@@ -148,12 +150,9 @@ struct SnGespraechFrage: View {
             HStack(spacing: 10) {
                 if let h = haupt { Button(h.knopf ?? h.text ?? "Ja") { antworte(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 14)) }
                 Button("Später") { antworte("spaeter") }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14))
-                Button("Mehr") { mehr.toggle() }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 14))
+                Button("Mehr", action: mehr).buttonStyle(SnTafelKnopf(art: .leise, groesse: 14))
             }
             .padding(.top, 2)
-            if mehr, let w = frage.kontext?.wenn_nicht {
-                Text(w).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
-            }
             if let l = frage.checkliste, !l.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(l, id: \.text) { p in
@@ -204,10 +203,14 @@ struct SnGespraechLauf: View {
 struct SnGespraecheBild: View {
     var stand: SenecaStand
     var agent: String
+    var mehr = false
 
     private func ms(_ h: Int, _ m: Int) -> Double { KalenderLogik.cal().startOfDay(for: HeuteTafelLogik.datum(stand.jetzt)).timeIntervalSince1970 * 1000 + Double(h * 60 + m) * 60_000 }
 
     private var zuege: [Zug] {
+        if mehr {
+            return [Zug(id: "m1", antwort: ZugAntwort(id: "a1", text: "Die Begrüßung ist fast fertig, die kürzeste Fassung hat elf Sekunden. Für den Test brauche ich einmal deine Nummer, sonst höre ich sie nur über meinen eigenen Lautsprecher.", ts: ms(9, 58)))]
+        }
         if agent != Hauptagent.id {
             return [Zug(id: "t1", start: .user(id: "u1", text: "Bereite den Testanruf auf Staging vor. Ich will den Ablauf einmal mit echter Nummer hören.", ts: ms(9, 14), pending: false)),
                     Zug(id: "t2", start: .ereignis(ZugEreignis(id: "e1", art: .system, titel: "Engineer hat angefangen · Prüfer schaut mit", ts: ms(9, 15))))]
@@ -224,21 +227,35 @@ struct SnGespraecheBild: View {
         GeometryReader { g in
             let sp = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id)
             let m = stand.team?.first { $0.id == agent }
+            let f = mehr ? GL.fragen(stand, von: m?.name ?? "").first : nil
             ZStack(alignment: .topLeading) {
-                SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { _ in }, neu: {}).padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
-                VStack(alignment: .leading, spacing: 26) {
+                SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { _ in }, neu: {}, fragt: f).padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
+                VStack(alignment: .leading, spacing: mehr ? 16 : 26) {
+                    if let f {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(GL.mehrSeite(f, stand)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
+                            SnFrageMehr(frage: f, stand: stand, antworte: { _ in }, zuruecknehmen: {}, andereZeit: {})
+                        }
+                    }
                     ForEach(zuege) { z in
-                        ZugView(zug: z, lauf: nil, frisch: nil, zustand: nil, neu: false, name: "Seneca", gross: true,
+                        ZugView(zug: z, lauf: nil, frisch: nil, zustand: nil, neu: false, name: mehr ? (m?.name ?? "") : "Seneca", gross: !mehr,
                                 quittung: VerlaufLogik.quittung(stand, sitzung: "agent:\(agent):main", von: z.startTs, bis: zuege.last(where: { $0.startTs != nil && $0.id != z.id && ($0.startTs ?? 0) > (z.startTs ?? 0) })?.startTs),
                                 alt: z.startTs != nil && z.id != zuege.last(where: { $0.startTs != nil })?.id, erneut: {}).fixedSize(horizontal: false, vertical: true)
                     }
-                    if let m, agent != Hauptagent.id {
+                    if let f, let h = GL.gehaltenSatz(f, stand) {
+                        HStack(alignment: .firstTextBaseline, spacing: 14) {
+                            Text(HeuteTafelLogik.uhr(h.um)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).frame(width: 52, alignment: .leading)
+                            Text(h.satz).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                        }
+                    }
+                    if let f { Spacer(minLength: 0); SnFrageMehrFuss(frage: f) { _ in }.padding(.leading, 1).padding(.bottom, 14) }
+                    if let m, agent != Hauptagent.id, !mehr {
                         ForEach(GL.fragen(stand, von: m.name)) { f in SnGespraechFrage(frage: f, fokus: stand.ruhe?.grund == "fokus", antworte: { _ in }) }
                         if m.zustand == "arbeitet" { SnGespraechLauf(mitglied: m) }
                     }
                 }
-                .frame(width: sp.breite, height: max(0, g.size.height - 220), alignment: .bottom).clipped().environment(\.festeZeit, stand.jetzt).padding(.leading, sp.links).padding(.top, 92)
-                SnGespraechRand(stand: stand, agent: agent, zuProjekten: {}).padding(.leading, g.size.width - 40 - sp.rand).padding(.top, 108)
+                .frame(width: sp.breite, height: max(0, g.size.height - (mehr ? 196 : 220)), alignment: mehr ? .top : .bottom).clipped().environment(\.festeZeit, stand.jetzt).padding(.leading, sp.links).padding(.top, mehr ? 104 : 92)
+                SnGespraechRand(stand: stand, agent: agent, frage: f, zuProjekten: {}).padding(.leading, g.size.width - 40 - (f == nil ? sp.rand : 312)).padding(.top, 108)
                 HStack(spacing: 14) {
                     SnAnZeile(name: m?.name ?? "Seneca", seneca: agent == Hauptagent.id)
                     SnAnZeile.platzhalter(seneca: agent == Hauptagent.id)

@@ -49,7 +49,7 @@ struct SnEntscheidenTafel: View {
     var handle: (String, String, String?) -> Void
 
     @State private var wahl: [String: String] = [:]
-    @State private var mehr: Set<String> = []
+    @Environment(\.mehrZu) private var mehrZu
     @State var beantwortet: [String: (wahl: String, um: Date)] = [:]
     @State var spaeter: [String: Date] = [:]
     @State var zurueck: Set<String> = []
@@ -141,11 +141,6 @@ struct SnEntscheidenTafel: View {
             if zurueck.contains(f.id) {
                 Text("Zurückgenommen. Die Frage ist wieder offen.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit).padding(.top, 10).transition(.opacity)
             }
-            if mehr.contains(f.id) {
-                Text([f.kontext?.worum, f.kontext?.wenn_nicht.map { "Wenn nichts passiert: \($0)" }].compactMap { $0 }.joined(separator: "\n"))
-                    .font(Schrift.grotesk(14)).hoehe(21).foregroundStyle(TafelFarbe.zweit).padding(.top, 8).fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
-            }
             if optionen.contains(where: { $0.titel != nil }) {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(optionen, id: \.wert) { o in fassung(o, an: o.wert == gewaehlt, empfohlen: o.wert == f.empfehlung) { wahl[f.id] = o.wert } }
@@ -166,7 +161,7 @@ struct SnEntscheidenTafel: View {
                         }
                     }
                     Button("Später") { zurueck.remove(f.id); spaeter[f.id] = Date() }.buttonStyle(SnTafelKnopf(art: .rand))
-                    Button("Mehr") { withAnimation(Kurve.sn(0.3)) { if mehr.contains(f.id) { mehr.remove(f.id) } else { mehr.insert(f.id) } } }
+                    Button("Mehr") { mehrZu(f) }
                         .buttonStyle(SnTafelKnopf(art: .leise))
                     Spacer(minLength: 12)
                     if let folge = f.folge ?? option?.folge {

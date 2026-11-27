@@ -24,6 +24,8 @@ final class AppModell: ObservableObject {
     @Published private(set) var neuesTodoZaehler = 0
     @Published private(set) var route: Route
     @Published var gespraechAn: Bool
+    @Published var mehrFrage: String?
+    @Published var teamOffen = false
     let ansichten: AnsichtModell
     let dienste = MacDienste()
     weak var hauptfenster: NSWindow?
@@ -213,6 +215,13 @@ final class AppModell: ObservableObject {
     }
 
     func gehe(_ seite: Seite) { gehe(Route(seite)) }
+
+    func zeigeMehr(_ f: SenecaStand.Frage) {
+        let id = store.stand?.team?.first { $0.name == f.von }?.id ?? Hauptagent.id
+        mehrFrage = f.id
+        gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id)
+        gespraechAn = true; route = Route(.chat); merke()
+    }
 
     func zeigeGespraechSeite() {
         if route.seite == .chat { gespraechAn = false; route = .heute; merke() } else { gespraechAn = true; route = Route(.chat); merke() }

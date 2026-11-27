@@ -210,6 +210,7 @@ struct SnChatSeite: View {
     private var istSeneca: Bool { agent == Hauptagent.id }
     private var stand: SenecaStand? { modell.store.stand }
     private var mitglied: SenecaStand.Mitglied? { stand?.team?.first { $0.id == agent } }
+    private var mehrFrage: SenecaStand.Frage? { stand.flatMap { s in GL.fragen(s, von: mitglied?.name ?? "").first { $0.id == modell.mehrFrage } } }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -217,11 +218,18 @@ struct SnChatSeite: View {
             let (links, breite, rand) = Self.spalte(g.size.width, seneca: istSeneca)
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { id in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id) },
-                                  neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) }, zieht: ziehtZiel,
+                                  neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) }, zieht: ziehtZiel, fragt: mehrFrage,
                                   ablegen: { id, urls in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); steuerung.fuegeHinzu(urls) })
                     .padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
-                VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 24) {
                     if !store.isConnected { SnNichtErreichbar { await modell.verbinde() } }
+                    if let s = stand, let f = mehrFrage {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(GL.mehrSeite(f, s)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
+                            SnFrageMehr(frage: f, stand: s, antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, zuruecknehmen: { modell.store.handle("rueckgaengig", ziel: f.id) },
+                                        andereZeit: { steuerung.eingabe = "Andere Zeit: "; steuerung.fokussiere() })
+                        }
+                    }
                     VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
                                 stand: stand, agent: agent, neuLaden: neuLaden,
@@ -229,14 +237,24 @@ struct SnChatSeite: View {
                         .equatable()
                         .verlaufRein()
                     if let s = stand, !istSeneca {
-                        ForEach(GespraecheTafelLogik.fragen(s, von: mitglied?.name ?? "")) { f in
-                            SnGespraechFrage(frage: f, fokus: s.ruhe?.grund == "fokus") { modell.store.antworte(frage: f.id, wahl: $0) }
+                        if let f = mehrFrage, let g = GL.gehaltenSatz(f, s) {
+                            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                                Text(HeuteTafelLogik.uhr(g.um)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).frame(width: 52, alignment: .leading)
+                                Text(g.satz).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+                            }
                         }
-                        if let m = mitglied, m.zustand == "arbeitet" { SnGespraechLauf(mitglied: m) }
+                        ForEach(GL.fragen(s, von: mitglied?.name ?? "").filter { $0.id != mehrFrage?.id }) { f in
+                            SnGespraechFrage(frage: f, fokus: s.ruhe?.grund == "fokus", antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, mehr: { modell.mehrFrage = f.id })
+                        }
+                        if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { SnGespraechLauf(mitglied: m) }
+                        else if let m = mitglied, let st = GL.station(s, m) {
+                            SnAuftragKarte(station: st, ansehen: { modell.teamOffen = true; modell.gehe(Route.heute) }, anstupsen: { steuerung.sende("Wo hängst du gerade?") })
+                        }
+                        if let f = mehrFrage { SnFrageMehrFuss(frage: f) { steuerung.sende($0) } }
                     }
                 }
                 .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
-                SnGespraechRand(stand: stand, agent: agent, zuProjekten: { modell.gehe(.projekte) })
+                SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
                     .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
             }
             }

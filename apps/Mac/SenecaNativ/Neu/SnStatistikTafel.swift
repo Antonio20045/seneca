@@ -43,11 +43,13 @@ struct SnStatistikTafel: View {
                 (Text(w.satz.first ?? "") + Text(w.satz.dropFirst().map { " " + $0 }.joined()).italic().foregroundColor(TafelFarbe.akzent))
                     .font(Schrift.serif(28)).foregroundStyle(Color.white).padding(.top, 22)
                 HStack(alignment: .top, spacing: 16) { ForEach(w.karten) { karte($0) } }.padding(.top, 26)
-                HStack(alignment: .top, spacing: 16) {
-                    if let u = daten.uebung { uebung(u).frame(maxWidth: .infinity) }
-                    if let j = daten.jahr { bewegung(j).frame(maxWidth: .infinity) }
+                GeometryReader { g in
+                    HStack(alignment: .top, spacing: 16) {
+                        if let u = daten.uebung { uebung(u).frame(width: (g.size.width - 16) * 1.15 / 2.15) }
+                        if let j = daten.jahr { bewegung(j).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
+                    }
                 }
-                .padding(.top, 56)
+                .frame(height: 290).padding(.top, 56)
                 if let h = w.hinweis {
                     HStack(spacing: 14) { SnKugel(groesse: 10, atmet: false); Text(h).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.zweit) }.padding(.top, 52)
                 }
@@ -86,18 +88,20 @@ struct SnStatistikTafel: View {
                         VStack(spacing: 6) {
                             Spacer(minLength: 0)
                             if k.art == "gewicht" {
+                                Text(t.wert.map { String(format: "%.1f", $0).replacingOccurrences(of: ".", with: ",") } ?? (t.zustand == "leer" ? "–" : " "))
+                                    .font(Schrift.grotesk(11)).foregroundStyle(TafelFarbe.zweit).fixedSize()
                                 Circle().fill(t.zustand == "da" ? Color.white.opacity(0.85) : Color.clear).overlay(Circle().strokeBorder(Color.white.opacity(t.zustand == "kommt" ? 0.12 : 0.6), lineWidth: 1.5)).frame(width: 9, height: 9)
                             } else if t.zustand == "da" {
-                                RoundedRectangle(cornerRadius: 3).fill(farbe(k.art)).frame(height: 34)
+                                RoundedRectangle(cornerRadius: 3).fill(farbe(k.art)).frame(height: max(6, 54 * (t.hoehe ?? 0.6)))
                             } else {
                                 RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(t.zustand == "kommt" ? 0.05 : 0.14)).frame(height: 3)
                             }
                             Text(["MO", "DI", "MI", "DO", "FR", "SA", "SO"][i]).font(Schrift.mono(10)).foregroundStyle(t.heute ? Color.white : TafelFarbe.aus)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: 74)
+                        .frame(maxWidth: .infinity, maxHeight: 80)
                     }
                 }
-                .frame(height: 74)
+                .frame(height: 80)
             }
         }
     }
@@ -148,14 +152,14 @@ struct SnStatistikTafel: View {
                     Spacer()
                     Text(String(Calendar.current.component(.year, from: Date(timeIntervalSince1970: stand / 1000)))).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise)
                 }
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(j.raster.enumerated()), id: \.offset) { m, tage in
-                        HStack(spacing: 4) {
-                            Text(["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][m]).font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).frame(width: 14, alignment: .leading)
+                        HStack(spacing: 3) {
+                            Text(["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][m]).font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).frame(width: 16, alignment: .leading)
                             ForEach(Array(tage.enumerated()), id: \.offset) { _, t in
-                                RoundedRectangle(cornerRadius: 2).fill(t.hasSuffix("2") ? TafelFarbe.gruen : t.hasSuffix("1") ? TafelFarbe.gruen.opacity(0.55) : Color.white.opacity(t == " " ? 0.04 : 0.08))
+                                RoundedRectangle(cornerRadius: 2).fill(t.hasSuffix("2") ? TafelFarbe.gruen : t.hasSuffix("1") ? TafelFarbe.gruen.opacity(0.45) : Color.white.opacity(t == " " ? 0.04 : 0.07))
                                     .overlay { if t.hasPrefix("h") { RoundedRectangle(cornerRadius: 2).strokeBorder(Color.white, lineWidth: 1.5) } }
-                                    .frame(width: 10, height: 10)
+                                    .frame(width: 11, height: 11)
                             }
                         }
                     }

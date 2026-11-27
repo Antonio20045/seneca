@@ -433,7 +433,6 @@ struct SnHeuteMitFenster: View {
         _store = ObservedObject(wrappedValue: modell.store)
     }
 
-    @State private var team = false
 
     var body: some View {
         GeometryReader { g in
@@ -442,13 +441,13 @@ struct SnHeuteMitFenster: View {
             let quelle = SnQuelleMitEntscheidungen(basis: daten, entschieden: daten.istEcht ? [] : Set(fenster.entschieden.keys))
             ZStack(alignment: .top) {
                 Group {
-                    if let s = store.stand, team {
+                    if let s = store.stand, modell.teamOffen {
                         SnTeamTafel(stand: s, handle: { store.handle($0, ziel: $1, text: $2) },
-                                    schreiben: { id in team = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
-                            .background { Button("") { team = false }.keyboardShortcut(.cancelAction).opacity(0) }
+                                    schreiben: { id in modell.teamOffen = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
+                            .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let s = store.stand {
                         SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
-                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { team = true })
+                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true })
                     } else {
                         SnHeuteSkelett()
                     }

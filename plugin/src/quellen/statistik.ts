@@ -29,11 +29,11 @@ function wochenBeginn(jetzt: number): number {
   return heute - ((new Date(heute).getDay() + 6) % 7) * regelMs("ein_tag_tage");
 }
 
-function karte(e: Eintrag[], art: string[], montag: number, heute: number) {
+function karte(e: Eintrag[], art: string[], montag: number, heute: number, w = (_: Eintrag) => 1, voll = 1) {
   return TAG.map((t, i) => {
     const von = montag + i * regelMs("ein_tag_tage");
-    const da = e.some((x) => art.includes(x.art) && x.zeit >= von && x.zeit < von + regelMs("ein_tag_tage"));
-    return { t, zustand: da ? "da" : von <= heute ? "leer" : "kommt", heute: von === heute };
+    const s = e.filter((x) => art.includes(x.art) && x.zeit >= von && x.zeit < von + regelMs("ein_tag_tage")).map(w), wert = art[0] === "gewicht" ? s.at(-1) : s.reduce((a, b) => a + b, 0);
+    return { t, zustand: s.length ? "da" : von <= heute ? "leer" : "kommt", heute: von === heute, wert: s.length ? wert : null, hoehe: s.length ? Math.min(1, Number(wert) / voll) : null };
   });
 }
 
@@ -54,13 +54,13 @@ export function woche(db: Register, jetzt: number) {
     kopf: `Woche ${kalenderwoche(montag)} · ${datum(montag, { day: "numeric" })}. bis ${datum(sonntag, { day: "numeric", month: "long" })}`,
     satz: [gut ? "Eine gute Woche." : "Eine ruhige Woche.", schafft ? `Mit dem ${sport.titel} heute Abend ist das Laufziel geschafft.` : lauZiel && lauf >= lauZiel ? "Das Laufziel ist geschafft." : ""].filter(Boolean),
     karten: [
-      { art: "laufen", titel: "Laufen", wert: zahl(lauf, 1), einheit: "KM", tage: karte(e, ["lauf"], montag, heute), anteil: lauZiel ? lauf / lauZiel : null, rechts: lauZiel ? `VON ${zahl(lauZiel)} KM` : "", knopf: "+" },
+      { art: "laufen", titel: "Laufen", wert: zahl(lauf, 1), einheit: "KM", tage: karte(e, ["lauf"], montag, heute, (x) => Number(x.w.km ?? 0), regelZahl("stat_balken_km")), anteil: lauZiel ? lauf / lauZiel : null, rechts: lauZiel ? `VON ${zahl(lauZiel)} KM` : "", knopf: "+" },
       { art: "lesen", titel: "Lesen", buch, wert: lesWert, einheit: "STD",
-        unter: [zuletzt?.w.s && zuletzt.w.von ? `SEITE ${zuletzt.w.s} VON ${zuletzt.w.von}` : "", `DIESE WOCHE ${lesWert} STD`].filter(Boolean).join(" · "), tage: karte(e, ["lesen"], montag, heute),
+        unter: [zuletzt?.w.s && zuletzt.w.von ? `SEITE ${zuletzt.w.s} VON ${zuletzt.w.von}` : "", `DIESE WOCHE ${lesWert} STD`].filter(Boolean).join(" · "), tage: karte(e, ["lesen"], montag, heute, (x) => Number(x.w.m ?? 0), regelZahl("stat_balken_min")),
         anteil: lesZiel ? lesHeute / lesZiel : null, rechts: lesZiel ? `HEUTE ${lesHeute} VON ${lesZiel}` : "", knopf: lesZiel ? `+ ${lesZiel}` : "+" },
-      { art: "kraft", titel: "Krafttraining", wert: String(kraftTage), einheit: kraftZiel ? `VON ${kraftZiel}` : "MAL", tage: karte(e, ["satz", "training"], montag, heute),
+      { art: "kraft", titel: "Krafttraining", wert: String(kraftTage), einheit: kraftZiel ? `VON ${kraftZiel}` : "MAL", tage: karte(e, ["satz", "training"], montag, heute, (x) => Number(x.art === "satz"), regelZahl("stat_balken_saetze")),
         anteil: kraftZiel ? kraftTage / kraftZiel : null, rechts: `${heuteE.filter((x) => x.art === "satz").length} SÄTZE HEUTE`, knopf: "Starten" },
-      gewicht.length ? { art: "gewicht", titel: "Gewicht", wert: zahl(Number(gewicht.at(-1)?.w.kg), 1), einheit: "KG", tage: karte(e, ["gewicht"], montag, heute), anteil: null,
+      gewicht.length ? { art: "gewicht", titel: "Gewicht", wert: zahl(Number(gewicht.at(-1)?.w.kg), 1), einheit: "KG", tage: karte(e, ["gewicht"], montag, heute, (x) => Number(x.w.kg)), anteil: null,
         rechts: `${zahl(Number(gewicht.at(-1)?.w.kg) - Number(gewicht[0].w.kg), 1).replace("-", "−")} SEIT ${KURZ[(new Date(gewicht[0].zeit).getDay() + 6) % 7]}`, knopf: "+" } : null,
     ].filter(Boolean),
     hinweis: lesZiel && lesHeute < lesZiel ? `Lesen fehlt heute noch.${sport ? ` Nach dem ${sport.titel} passt ${MINUTEN[lesZiel - lesHeute] ?? `${lesZiel - lesHeute} Minuten`}.` : ""}` : null,
@@ -165,7 +165,9 @@ export function uebung(db: Register, jetzt: number, name?: string) {
   const l = tage.at(-1), vorschlag = l && voll(l); return {
     titel: `${u}.`, wochen, satz: acht.length > 1 && diff ? `Seit ${datum(wochenBeginn(jetzt) - (51 - erste) * 7 * regelMs("ein_tag_tage") + 3 * regelMs("ein_tag_tage"), { month: "long" })} ${kilo} ${diff > 0 ? "mehr" : "weniger"}.` : "",
     zeilen: tage.slice(-4).reverse().map((t) => { const neu = tage.some((v) => v.zeit < t.zeit) && tage.filter((v) => v.zeit < t.zeit).every((v) => v.kg < t.kg);
-      return [tagVon(t.zeit) === tagVon(jetzt) ? `HEUTE ${new Date(t.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : kurz(t.zeit), `${kgText(t.kg)} kg × ${t.w.join(" · ")}`, neu ? `erstmals ${kgText(t.kg)} kg` : t === l ? voll(t) : "", neu];
+      const besser = tage.filter((v) => v.zeit < t.zeit && (v.kg > t.kg || (v.kg === t.kg && Math.max(...v.w) >= Math.max(...t.w)))).at(-1);
+      return [tagVon(t.zeit) === tagVon(jetzt) ? `HEUTE ${new Date(t.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : kurz(t.zeit), `${kgText(t.kg)} kg × ${t.w.join(" · ")}`,
+        neu ? `erstmals ${kgText(t.kg)} kg` : t === l ? [voll(t), besser ? `Bestwert seit ${datum(besser.zeit, { weekday: "long" })}` : ""].filter(Boolean).join(". ") : "", neu];
     }),
     hinweis: vorschlag && l ? `${gross(vorschlag)}. Nächstes Mal ${kgText(l.kg + regelZahl("kraft_schritt_kg"))} kg im ersten Satz? Die Uhr schlägt es dann vor.` : null,
     uhr: l ? [u, u, vorschlag ? l.kg + regelZahl("kraft_schritt_kg") : l.kg, l.w[0]] : null,

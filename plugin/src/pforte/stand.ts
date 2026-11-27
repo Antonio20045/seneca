@@ -1,4 +1,4 @@
-import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
 import { berichte, rueckblick } from "./berichte.ts";
@@ -9,7 +9,7 @@ import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
 import { buendelFortschritt, entscheiden, fensterStart, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
+import { appRegeln, letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { anzeigeName, mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
@@ -69,6 +69,8 @@ function frageSicht(db: Register, f: Zeile, jetzt: number) {
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab, spaeter_bis: spaeterBis(db, String(f.id), jetzt),
     zustellung: zst, rueckfragen: g.rueckfragen ?? [], zurueckgehalten: frei ? `Bis ${stundeAlsWort(frei.zeit)} zurückgehalten${halt.grund === "fokus" ? ", weil du im Fokus warst" : ""}.` : null,
     antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null, ...bericht(db, String(f.auftrag_id)),
+    grund: g.grund ?? null, lage: g.lage ?? null, haengt: g.haengt ?? [],
+    davor: heuteSaetze(db, String(f.von), letzteUhrzeit(regelText("tag_grenze"), jetzt)).slice(-regelZahl("mehr_davor")),
   };
 }
 
@@ -106,7 +108,6 @@ function arbeitSicht(db: Register, l: Zeile, name: string, tagBeginn: number, je
   const gross = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   const cent = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
   const danach = auftraege(db, ["bereit"]).find((x) => x.verantwortlich === name && x.id !== a.id);
-  const mein = (e: Zeile) => !!e.auftrag_id && hole(db, "auftrag", String(e.auftrag_id))?.verantwortlich === name;
   const rest = restMin(db, l, jetzt);
   return {
     kopf: [`${anzeigeName(name)} ${l.letzter_schritt ?? "arbeitet"}.`, rest ? `In etwa ${w(rest)} ${rest === 1 ? "Minute" : "Minuten"} ${a.pruefer_noetig ? `geht es an ${anzeigeName(regelText("pruefer"))}` : "ist es fertig"}.` : null],
@@ -116,13 +117,18 @@ function arbeitSicht(db: Register, l: Zeile, name: string, tagBeginn: number, je
     schritt: `Schritt ${w(schritte.length)} · seit ${uhrzeit(Number(schritte[0]?.zeit ?? l.gestartet))}`,
     naechstes: [daten(ereignisse(db, { art: "fortschreibung", auftrag_id: String(a.id), grenze: 1 })[0] ?? {}).naechster_schritt ?? null, danach ? `danach ${danach.titel}` : "danach nichts geplant"],
     wartet: offen ? ["Auf dich.", `${gross(w(offen))} ${offen === 1 ? "Frage" : "Fragen"} offen`] : ["Nichts. Kommt ohne dich weiter.", "keine Frage offen"],
-    heute: [...ereignisse(db, { art: "fortschreibung", seit: tagBeginn }), ...ereignisse(db, { art: "frage.gestellt", seit: tagBeginn })].filter(mein)
-      .sort((x, y) => Number(x.zeit) - Number(y.zeit)).map((e) => ({ um: e.zeit, satz: e.art === "fortschreibung" ? daten(e).letzter_stand : `Dich gefragt: ${hole(db, "frage", String(e.frage_id)).text}` })),
+    heute: heuteSaetze(db, name, tagBeginn),
     protokoll: werkzeuge.slice(-regelZahl("team_protokoll")).map((e) => ({ um: e.zeit, werkzeug: daten(e).werkzeug, satz: e.satz, ms: daten(e).ms })),
     zahlen: [`${dauer} Min Dauer`, `${schritte.length} Schritte`, `${(Number(l.tokens_ein ?? 0) + Number(l.tokens_aus ?? 0)).toLocaleString("de-DE").replace(/\./g, " ")} Tokens`,
       `${cent(Number(l.kosten_cent ?? 0))} von ${cent(Number(a.kostenrahmen_cent))}`],
     dateien: [...new Set(werkzeuge.filter((e) => /write|edit/i.test(daten(e).werkzeug)).map((e) => String(e.satz).split("/").at(-1)))],
   };
+}
+
+function heuteSaetze(db: Register, name: string, tagBeginn: number) {
+  const mein = (e: Zeile) => !!e.auftrag_id && hole(db, "auftrag", String(e.auftrag_id))?.verantwortlich === name;
+  return [...ereignisse(db, { art: "fortschreibung", seit: tagBeginn }), ...ereignisse(db, { art: "frage.gestellt", seit: tagBeginn })].filter(mein).sort((x, y) => Number(x.zeit) - Number(y.zeit))
+    .map((e) => ({ um: e.zeit, frage_id: e.frage_id, satz: e.art === "fortschreibung" ? JSON.parse(String(e.daten ?? "{}")).letzter_stand : `Dich gefragt: ${hole(db, "frage", String(e.frage_id)).text}` }));
 }
 
 function buendel(db: Register, braucht: Zeile[], jetzt: number) {
@@ -164,15 +170,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
   const aufg = aufgaben(db, ruhe(db, jetzt), tagBeginn, jetzt);
   const inhalt = {
     schema: SCHEMA, revision: rev, jetzt, erzeugt: jetzt, geraet: eingabe.geraet, tag_beginn: tagBeginn,
-    regeln: { rueckgaengig_s: regelZahl("rueckgaengig_s"), rueckgaengig_vo_s: regelZahl("rueckgaengig_vo_s"), uhr_abfrage_min: regelZahl("uhr_abfrage_min"),
-      gespraech_haengt_hinweis_min: regelZahl("gespraech_haengt_hinweis_min"), gespraech_haengt_stopp_min: regelZahl("gespraech_haengt_stopp_min"),
-      verbinden_start_s: regelZahl("verbinden_start_s"), verbinden_max_s: regelZahl("verbinden_max_s"),
-      anmeldefehler_max: regelZahl("anmeldefehler_max"), getrennt_nach_s: regelZahl("getrennt_nach_s"), fenster_dauer_min: regelZahl("fenster_dauer_min"),
-      sensor_verweilen_s: regelZahl("sensor_verweilen_s"), sensor_sicherheit_prozent: regelZahl("sensor_sicherheit_prozent"),
-      sensor_modell_s: regelZahl("sensor_modell_s"), sensor_markiert_zeichen: regelZahl("sensor_markiert_zeichen"),
-      kal_raster_min: regelZahl("kal_raster_min"), kal_raster_fein_min: regelZahl("kal_raster_fein_min"), wegzeit_vorlauf_min: regelZahl("wegzeit_vorlauf_min"),
-      weg_neu_min: regelZahl("weg_neu_min"), weg_zu_fuss_bis_min: regelZahl("weg_zu_fuss_bis_min"), weg_erinnern_vor_min: regelZahl("weg_erinnern_vor_min"),
-      kal_bb_gut_ab: regelZahl("kal_bb_gut_ab"), los_erinnern_min: regelZahl("los_erinnern_min") },
+    regeln: appRegeln(),
     zaehler: { braucht: braucht.length },
     wartet: wartetSatz(db, [...braucht, ...fragen(db, "offen").filter((f) => !braucht.some((x) => x.id === f.id))].filter((f) => f.zustand === "offen")),
     ruhe: ruhe(db, jetzt) ?? null,
@@ -191,7 +189,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       .map((a) => ({ id: a.id, titel: a.titel, ziel: a.ziel, wer: a.verantwortlich, pruefer: !!a.pruefer_noetig, erteilt: a.erstellt,
         bis: a.schaetzung_min ? Number(a.erstellt) + msAusMinuten(Number(a.schaetzung_min)) : null, dauer_min: a.schaetzung_min,
         danach: a.abnahme_durch === "antonio" ? `${a.pruefer_noetig ? "Prüfer schaut drüber, dann kommt es" : "Es kommt"} als Abnahme ins Fenster um ${regelText("fenster").split(" ")[0]}` : "Fertig ohne Abnahme" })),
-    heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
+    heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")),
+      wer: anzeigeName(String(a.verantwortlich)), pruefer: !!a.pruefer_noetig, min: Math.round((Number(a.geaendert) - Number(a.erstellt)) / 60000), kosten_cent: kostenSeit(db, 0, { auftrag_id: String(a.id) }) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...terminSicht(db, t), weg: weg(db, t).kurz })),
     wochenplan: wochenplan(db, jetzt),
     verlauf: verlauf(db, tagBeginn, jetzt),

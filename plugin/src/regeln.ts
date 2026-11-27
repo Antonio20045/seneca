@@ -12,6 +12,10 @@ export function regelText(name: string): string {
   return zeile.trim().split(/\s+/)[1];
 }
 
+export function appRegeln(): Record<string, number> {
+  return Object.fromEntries(readFileSync(datei(), "utf8").split("\n").map((z) => z.trim().split(/\s+/)).filter((t) => t.includes("app")).map((t) => [t[0], Number(t[1])]));
+}
+
 export function regelZahl(name: string): number {
   const wert = Number(regelText(name));
   if (Number.isNaN(wert)) throw new Error(`regeln: ${name} ist keine Zahl`);
