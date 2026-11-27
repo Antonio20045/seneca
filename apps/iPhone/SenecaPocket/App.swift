@@ -56,11 +56,6 @@ struct SenecaPocketApp: App {
             GrundMusterSeite.ansicht(muster)
         } else if ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"] == "sinne" {
             SinneView(zurueck: nil)
-        } else if let richtung = EntwurfKalenderBuehne.ausDemo {
-            EntwurfKalenderBuehne(richtung: richtung)
-        } else if ProcessInfo.processInfo.environment["SENECA_DEMO"] == "1",
-                  let richtung = EntwurfHeuteScreen.richtung(ProcessInfo.processInfo.environment["SENECA_DEMO_PAGE"]) {
-            EntwurfHeuteScreen(richtung: richtung)
         } else {
             RootView()
         }

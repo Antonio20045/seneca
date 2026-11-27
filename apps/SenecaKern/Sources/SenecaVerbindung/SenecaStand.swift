@@ -109,6 +109,16 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wiederkehrend: String?
         public var wichtig: Bool?
         public var revision: Int?
+        public var geschaetzt: String?; public var geplant_bis: Double?; public var oeffnet: String?; public var notiz: String?
+        public var anhang: String?; public var verschoben: Int?
+    }
+    public struct Aufgaben: Codable, Equatable, Sendable {
+        public struct Gruppe: Codable, Equatable, Sendable { public var titel: String; public var zeit: String; public var ids: [String] }
+        public struct Fertig: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var bereich: String?; public var von: String?; public var um: Double?; public var satz: String? }
+        public struct Taeglich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var erledigt: Bool }
+        public struct Zaehler: Codable, Equatable, Sendable { public var morgen: Int; public var woche: Int; public var ohne_tag: Int }
+        public var satz: [String]?; public var gruppe: Gruppe?; public var heute: [String]?; public var erledigt: [Fertig]?
+        public var jeden_tag: [Taeglich]?; public var zaehler: Zaehler?
     }
     public struct Kopplung: Codable, Equatable, Sendable { public var geraet: String; public var zahl: String }
 
@@ -138,6 +148,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var sitzung: String; public var von: Double; public var bis: Double; public var teile: [String]; public var ergebnis: [String]; public var raus: String?; public var zuruecklegen: Zuruecklegen?
     }
     public var todos: [Todo]?
+    public var aufgaben: Aufgaben?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
 }

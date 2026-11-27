@@ -301,32 +301,6 @@ extension SenecaStore {
     func aufgaben(fuerTag tag: Date, jetzt: Date? = nil, _ cal: Calendar = .current) -> [SenecaTask] {
         AufgabenLogic.aufgaben(aufgaben, fuerTag: tag, jetzt: jetzt ?? clock(), cal)
     }
-
-    func aendereAufgabe(_ id: String, _ aenderung: AufgabenAenderung) async throws {
-        guard var snap = today, let i = snap.tasks.firstIndex(where: { $0.id == id }) else { return }
-        var params: [String: Any] = ["id": id]
-        switch aenderung {
-        case .plan(let tag):
-            snap.tasks[i].plan = tag
-            params["plan"] = tag ?? NSNull()
-        case .frist(let tag):
-            snap.tasks[i].frist = tag
-            params["frist"] = tag ?? NSNull()
-        case .prioritaet(let p):
-            snap.tasks[i].priority = p
-            params["prioritaet"] = p
-        }
-        today = snap
-        guard !demo, !id.hasPrefix("local-") else { return }
-        _ = try await rufe("seneca.aufgaben.planen", params: params, timeout: 15)
-        await loadToday()
-    }
-}
-
-enum AufgabenAenderung: Equatable, Sendable {
-    case plan(String?)
-    case frist(String?)
-    case prioritaet(String)
 }
 #else
 extension SenecaStore {

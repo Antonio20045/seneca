@@ -74,7 +74,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     }],
   ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt).", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
-  ["seneca_todo", "To-do anlegen, ändern, erledigt, verschieben, löschen, wiederherstellen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z) }),
+  ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
       nurSeneca(k);
       return todoSetzen(db, { ...(p as unknown as TodoAktion), geraet: "seneca" });

@@ -107,14 +107,14 @@ struct HeuteTafel: View {
                 .padding(.top, 14)
             }
             HStack {
-                Text("HEUTE · \((stand.todos ?? []).count) TO-DOS").mono(11, .medium, abstand: 1.1).foregroundStyle(TafelFarbe.leise)
+                Text("HEUTE · \(HeuteTafelLogik.todosHeute(stand).count) TO-DOS").mono(11, .medium, abstand: 1.1).foregroundStyle(TafelFarbe.leise)
                 Spacer()
                 Button { if allowTap() { oeffne(.aufgaben) } } label: { Text("alle ↓").mono(11).foregroundStyle(TafelFarbe.leise) }
                     .buttonStyle(.plain)
             }
             .padding(.top, frage == nil ? 38 : 26)
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(stand.todos ?? []) { t in todoZeile(t) }
+                ForEach(HeuteTafelLogik.todosHeute(stand)) { t in todoZeile(t) }
             }
             .padding(.top, 6)
             ForEach(stand.hinweise ?? [], id: \.self) { h in

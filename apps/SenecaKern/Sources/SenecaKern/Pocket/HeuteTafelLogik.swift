@@ -85,6 +85,11 @@ enum HeuteTafelLogik {
         return "\(m.name) \(satz)\(min)"
     }
 
+    static func todosHeute(_ s: SenecaStand) -> [SenecaStand.Todo] {
+        guard let ids = s.aufgaben?.heute else { return (s.todos ?? []).filter { $0.wiederkehrend == nil } }
+        return ids.compactMap { id in s.todos?.first { $0.id == id } }
+    }
+
     static func todoZeile(_ t: SenecaStand.Todo) -> String {
         [t.bereich, t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
     }

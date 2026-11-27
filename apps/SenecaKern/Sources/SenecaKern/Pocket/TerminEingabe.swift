@@ -22,11 +22,6 @@ enum TerminEingabeLogik {
         return (.morgen, neun, neun.addingTimeInterval(3600))
     }
 
-    static func bisNachVon(altVon: Date, altBis: Date, neuVon: Date, _ cal: Calendar = .current) -> Date {
-        let dauer = altBis.timeIntervalSince(altVon)
-        return min(neuVon.addingTimeInterval(dauer > 0 ? dauer : 3600), tagesEnde(neuVon, cal))
-    }
-
     static func zeitraum(tag: NeueAufgabeLogik.TagWahl, datum: Date, von: Date, bis: Date, jetzt: Date,
                          _ cal: Calendar = .current) -> (start: Date, ende: Date) {
         let heute = cal.startOfDay(for: jetzt)

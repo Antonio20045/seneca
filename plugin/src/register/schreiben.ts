@@ -297,7 +297,7 @@ export function fortschreibung(db: Register, laufId: string, f: { letzter_stand:
   });
 }
 
-export type TodoAktion = { aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen"; id?: string; felder?: Felder; gesehen_revision?: number; geraet: string };
+export type TodoAktion = { aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loeschen" | "wiederherstellen"; id?: string; felder?: Felder; gesehen_revision?: number; geraet: string; satz?: string };
 
 const ZIEL_JE_AKTION = { erledigt: "erledigt", loeschen: "geloescht", wiederherstellen: "offen" } as const;
 
@@ -315,6 +315,8 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (a.aktion in ZIEL_JE_AKTION) {
       const nach = ZIEL_JE_AKTION[a.aktion as keyof typeof ZIEL_JE_AKTION];
       if (alt.zustand !== nach) uebergang(db, "todo", id, nach, a.aktion, nach === "erledigt" ? { erledigt_von: a.geraet, revision: revision(db) + 1 } : { revision: revision(db) + 1 });
+      else if (nach === "erledigt" && alt.wiederkehrend) setzen(db, "todo", id, { erledigt_von: a.geraet, revision: revision(db) + 1 });
+      if (nach === "erledigt") ereignis(db, { art: "todo.erledigt", geraet: a.geraet, schluessel: id, satz: a.satz });
       return { id, ergebnis: "angenommen" };
     }
     if (alt.zustand === "erledigt") return { id, ergebnis: "ueberholt", hinweis: "Schon erledigt. Abhaken gewinnt." };

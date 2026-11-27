@@ -58,6 +58,7 @@ final class SenecaStore: ObservableObject {
     private(set) var daten: SenecaDaten?
     @Published private(set) var stand: SenecaStand?
     @Published private(set) var wartendeTodos: Set<String> = []
+    @Published private(set) var neueTodos: [Handlung] = []
     private var generation = UUID()
     private var answerWaiters: [String: CheckedContinuation<String, Error>] = [:]
     private var asks: [String: AskTracker] = [:]
@@ -167,7 +168,10 @@ final class SenecaStore: ObservableObject {
             self.gatewayEreignis(name == "agent" ? "session.tool" : name, inhalt)
         }
         d.$stand.sink { [weak self] s in self?.stand = s }.store(in: &zustandsAbos)
-        d.$gestrichelt.sink { [weak self] h in self?.wartendeTodos = Set(h.filter { $0.art == "todo.erledigt" }.compactMap(\.ziel)) }.store(in: &zustandsAbos)
+        d.$gestrichelt.sink { [weak self] h in
+            self?.wartendeTodos = Set(h.filter { $0.art == "todo.erledigt" }.compactMap(\.ziel))
+            self?.neueTodos = h.filter { $0.art == "todo.anlegen" }
+        }.store(in: &zustandsAbos)
         d.$rechte.dropFirst().sink { [weak self] scopes in
             self?.chat.setAccess(rechte: scopes.compactMap { ["operator.read": "lesen", "operator.write": "schreiben"][$0] }, admin: .notGranted)
         }.store(in: &zustandsAbos)
@@ -181,9 +185,17 @@ final class SenecaStore: ObservableObject {
         stand = HeuteTafelLogik.beispiel(name)
     }
 
-    func erledige(todo id: String) {
-        guard !demo else { wartendeTodos.insert(id); return }
-        daten?.handeln("todo.erledigt", ziel: id)
+    func erledige(todo id: String) { todo("erledigt", id) }
+
+    func todo(_ aktion: String, _ id: String? = nil, _ felder: [String: JSONWert] = [:]) {
+        let wert: JSONWert? = felder.isEmpty ? nil : .objekt(felder)
+        guard !demo else {
+            if aktion == "erledigt", let id { wartendeTodos.insert(id) }
+            if aktion == "wiederherstellen", let id { wartendeTodos.remove(id) }
+            if aktion == "anlegen" { neueTodos.append(Handlung(kennung: UUID().uuidString, geraet: "demo", art: "todo.anlegen", wert: wert, zeit_geraet: 0, gesehen_revision: 0)) }
+            return
+        }
+        daten?.handeln("todo." + aktion, ziel: id, wert: wert)
     }
 
     func antworte(frage id: String, wahl: String) {
@@ -477,27 +489,6 @@ final class SenecaStore: ObservableObject {
 
     private var inFlightOp: String? { flushing ? outbox.first?.id : nil }
 
-    func parkTask(_ id: String) -> TodoUndo? {
-        guard var snap = today, let i = snap.tasks.firstIndex(where: { $0.id == id }) else { return nil }
-        let task = snap.tasks[i]
-        let raw = TodoEdits.parkedTitle(task.fullTitle, on: clock(), .current)
-        snap.tasks[i].rawTitle = raw
-        snap.tasks[i].isParked = true
-        var box = outbox
-        let change = TodoEdits.setTitle(&box, taskId: id, title: raw, previous: task.fullTitle, inFlight: inFlightOp)
-        commitTaskChange(snap, box)
-        return TodoUndo(kind: .park, task: task, index: i, change: change)
-    }
-
-    func archiveTask(_ id: String) -> TodoUndo? {
-        guard var snap = today, let i = snap.tasks.firstIndex(where: { $0.id == id }) else { return nil }
-        let task = snap.tasks.remove(at: i)
-        var box = outbox
-        let change = TodoEdits.archive(&box, taskId: id, title: task.fullTitle, inFlight: inFlightOp)
-        commitTaskChange(snap, box)
-        return TodoUndo(kind: .archive, task: task, index: i, change: change)
-    }
-
     func renameTask(_ id: String, to text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, var snap = today, let i = snap.tasks.firstIndex(where: { $0.id == id }), snap.tasks[i].title != text else { return }
@@ -507,15 +498,6 @@ final class SenecaStore: ObservableObject {
         snap.tasks[i].title = text
         var box = outbox
         _ = TodoEdits.setTitle(&box, taskId: id, title: raw, previous: previous, inFlight: inFlightOp)
-        commitTaskChange(snap, box)
-    }
-
-    func undoTask(_ undo: TodoUndo) {
-        var box = outbox
-        TodoEdits.undo(&box, undo.change, inFlight: inFlightOp)
-        var snap = today ?? TodaySnapshot(calendar: [], tasks: [], briefings: [], updatedAt: .distantPast)
-        if let i = snap.tasks.firstIndex(where: { $0.id == undo.task.id }) { snap.tasks[i] = undo.task }
-        else { snap.tasks.insert(undo.task, at: min(undo.index, snap.tasks.count)) }
         commitTaskChange(snap, box)
     }
 
