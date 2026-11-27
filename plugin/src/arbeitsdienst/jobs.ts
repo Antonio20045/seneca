@@ -41,7 +41,7 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   if (f.art === "vorschlag" && antwort === "nein" && termin && f.antwort_geraet !== "frist") zweitesNein(db, id, termin);
   if (f.art === "vorschlag") return;
   if (f.von === "arbeitsdienst:kostenrahmen" && antwort === "weiter") auftragSetzen(db, id, { kostenrahmen_cent: Number(a.kostenrahmen_cent) * 2 }, "Rahmen erhöht.");
-  const anhalten = antwort === "anhalten" && ["arbeitsdienst:kostenrahmen", "arbeitsdienst:haengt"].includes(String(f.von));
+  const anhalten = antwort === "anhalten" && ["arbeitsdienst:kostenrahmen", "arbeitsdienst:haengt", "arbeitsdienst:start"].includes(String(f.von));
   if (f.von === "arbeitsdienst:haengt") {
     const lauf = aktiveLaeufe(db).find((l) => l.auftrag_id === id);
     if (lauf && anhalten) laufEnde(db, String(lauf.id), "abgebrochen", { grund: "angehalten" });

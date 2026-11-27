@@ -1,4 +1,4 @@
-import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
   auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
@@ -66,6 +66,18 @@ function rahmenFrage(db: Register, a: Zeile, art: "auftrag" | "woche", jetzt: nu
   return "rahmen";
 }
 
+function startFrage(db: Register, a: Zeile, grund: string): void {
+  const id = String(a.id);
+  befund(db, { art: "fehler", auftrag_id: id, satz: `${a.verantwortlich} startet nicht, zweimal gleich abgelehnt. ${grund}` });
+  const frage = frageStellen(db, {
+    auftrag_id: id, von: "arbeitsdienst:start", art: "auswahl", text: `${a.verantwortlich} kann „${a.titel}“ nicht starten. Neu versuchen?`,
+    was_passiert_ist: `Der Start wurde zweimal gleich abgelehnt. ${grund}`, wenn_nichts: `Seneca versucht es in ${regelText("start_nachfassen_h")} Stunden noch einmal.`,
+    empfehlung: "Erst die Ursache beheben, dann neu versuchen.",
+    optionen: [{ wert: "weiter", text: "Neu versuchen", folge: "Der Auftrag startet sofort." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
+  });
+  uebergang(db, "auftrag", id, "wartet", "start_abgelehnt", { wartet_auf: `frage:${frage}`, folge: "Der Auftrag ruht bis zur Antwort.", naechster_anlass: uhr.jetzt() + regelMs("start_nachfassen_h") });
+}
+
 export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promise<string> {
   const jetzt = uhr.jetzt();
   const wer = String(a.verantwortlich);
@@ -100,8 +112,11 @@ export async function starteLauf(db: Register, a: Zeile, starte: Starter): Promi
     });
     laufSchritt(db, laufId, "angenommen", { run_id: runId });
   } catch (fehler) {
-    laufEnde(db, laufId, "abgebrochen", { grund: `Start abgelehnt: ${String(fehler)}` });
-    zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_abgelehnt");
+    const grund = `Start abgelehnt: ${String(fehler)}`;
+    const wieder = laeufe(db, String(a.id)).at(-2)?.grund === grund;
+    laufEnde(db, laufId, "abgebrochen", { grund });
+    if (wieder) startFrage(db, hole(db, "auftrag", String(a.id)), grund);
+    else zurueckMitWartezeit(db, hole(db, "auftrag", String(a.id)), "start_abgelehnt");
   }
   return "gestartet";
 }

@@ -50,6 +50,32 @@ test("PF12 Rahmen überschritten: genau eine Frage, nur dieser Auftrag hält", a
   assert.equal(hole(p.db, "auftrag", billig).zustand, "laeuft");
 });
 
+test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife, Neu versuchen startet sofort", async () => {
+  const p = ladePlugin();
+  um("09:00");
+  const a = auftragVonAntonio(p.db, "Rundgang Engineer");
+  let versuche = 0;
+  const abgelehnt = async () => {
+    versuche++;
+    throw new Error("Agent engineer deletion is in progress; new work is unavailable.");
+  };
+  for (const t of ["09:01", "09:03", "09:10", "10:00", "12:00", "20:00"]) {
+    um(t);
+    await faelligeAuftraegeJob(p.db, abgelehnt);
+  }
+  assert.equal(versuche, 2);
+  assert.equal(hole(p.db, "auftrag", a).zustand, "wartet");
+  assert.equal(ereignisse(p.db, { art: "befund", auftrag_id: a }).filter((e) => /zweimal gleich/.test(String(e.satz))).length, 1);
+  const frage = fragen(p.db, "offen").filter((f) => f.auftrag_id === a);
+  assert.equal(frage.length, 1);
+  frageBeantworten(p.db, { frage_id: String(frage[0].id), antwort: "weiter", geraet: "iphone", kennung: "k1" });
+  spaeter(6000);
+  faelligeWirkungenJob(p.db);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.equal(p.starts.length, 1);
+  assert.equal(hole(p.db, "auftrag", a).zustand, "laeuft");
+});
+
 test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
   const p = ladePlugin();
   um("09:00");
