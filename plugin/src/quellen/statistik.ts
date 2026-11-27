@@ -187,4 +187,3 @@ export function buch(db: Register, jetzt: number, name?: string) {
     uhr: { b, h: heute, z }, notiz: notiz ? { kopf: `DEINE NOTIZ${notiz.w.s ? ` · S. ${notiz.w.s}` : ""} · ${kurz(notiz.zeit)}`, text: String(notiz.w.t) } : null,
   };
 }
-export const mitBereich = (k: { statistiken?: { titel: string; grund?: string; bereich?: string }[] } | null) => k && { ...k, statistiken: (k.statistiken ?? []).map((s) => ({ ...s, bereich: lebensbereich(`${s.titel} ${s.grund ?? ""}`, s.bereich) })) };
