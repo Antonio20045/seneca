@@ -13,32 +13,60 @@ private func randKnopf(_ t: String, groesse: CGFloat, _ tun: @escaping () -> Voi
     .buttonStyle(.plain)
 }
 
-struct SnFrageMehr: View {
+struct SnFrageMehr: View, Equatable {
     var frage: SenecaStand.Frage
-    var stand: SenecaStand
-    var antworte: (String) -> Void
-    var zuruecknehmen: () -> Void
-    var andereZeit: () -> Void
-    @State private var gesendet: (wahl: String, um: Date)?
+    var kopf: String
+    var namen: [String]
+
+    init(frage: SenecaStand.Frage, stand: SenecaStand) {
+        self.frage = frage
+        kopf = GL.mehrKopf(frage, stand)
+        namen = (stand.team ?? []).map(\.name)
+    }
 
     var body: some View {
         let h = GL.haupt(frage)
+        let w = GL.worum(frage.kontext?.worum, namen: namen)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Circle().fill(TafelFarbe.bernstein).frame(width: 8, height: 8)
-                Text(GL.mehrKopf(frage, stand)).font(Schrift.mono(11, .medium)).kerning(1.2).foregroundStyle(TafelFarbe.bernstein)
+                Text(kopf).font(Schrift.mono(11, .medium)).kerning(1.2).foregroundStyle(TafelFarbe.bernstein)
             }
             Text(frage.text).font(Schrift.serif(36)).lineHeight(.exact(points: 39)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12).padding(.bottom, 20)
+                .textSelection(.enabled).padding(.top, 12).padding(.bottom, 20)
             Grid(alignment: .topLeading, horizontalSpacing: 30, verticalSpacing: 18) {
-                GridRow { feld("WORUM ES GEHT", frage.kontext?.worum, TafelFarbe.zweit); feld(GL.wennJa(frage), h?.folge) }
+                GridRow { feld("WORUM ES GEHT", w.satz, TafelFarbe.zweit); feld(GL.wennJa(frage), h?.folge) }
+                if !w.gruppen.isEmpty { GridRow { gruppen(w.gruppen).gridCellColumns(2) } }
                 GridRow { feld("WENN NICHT", frage.kontext?.wenn_nicht); feld("\((frage.von ?? "").uppercased()) EMPFIEHLT", GL.empfiehlt(frage), kopf: TafelFarbe.akzent) }
             }
-            if let g = gesendet { quittung(g) } else { knoepfe(h) }
         }
-        .padding(.horizontal, 26).padding(.top, 24).padding(.bottom, 22)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.07)).shadow(color: .black.opacity(0.6), radius: 25, y: 24))
+        .padding(.horizontal, 26).padding(.top, 24).padding(.bottom, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.07)))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.14), location: 0), .init(color: .clear, location: 0.03)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+        .accessibilityIdentifier("frage-karte")
+    }
+
+    private func gruppen(_ g: [GL.Gruppe]) -> some View {
+        HStack(alignment: .top, spacing: 30) {
+            ForEach(Array(GL.spalten(g).enumerated()), id: \.offset) { _, spalte in
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(spalte, id: \.name) { x in
+                        VStack(alignment: .leading, spacing: 6) {
+                            klein("\(x.name.uppercased()) · \(x.punkte.count)")
+                            ForEach(Array(x.punkte.enumerated()), id: \.offset) { i, t in
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text("\(i + 1)").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.himmel).frame(width: 16, alignment: .trailing)
+                                    Text(t).font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func feld(_ k: String, _ t: String?, _ farbe: Color = .white, kopf: Color = TafelFarbe.leise) -> some View {
@@ -48,20 +76,39 @@ struct SnFrageMehr: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+struct SnFrageMehrKnoepfe: View {
+    var frage: SenecaStand.Frage
+    var stand: SenecaStand
+    var antworte: (String) -> Void
+    var zuruecknehmen: () -> Void
+    var andereZeit: () -> Void
+    @State private var gesendet: (wahl: String, um: Date)?
+
+    var body: some View {
+        Group { if let g = gesendet { quittung(g) } else { knoepfe(GL.haupt(frage)) } }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("frage-knoepfe")
+    }
 
     private func knoepfe(_ h: SenecaStand.Option?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                if let h { Button(h.knopf ?? h.text ?? "Ja") { senden(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf()) }
-                ForEach((frage.optionen ?? []).filter { $0.wert != h?.wert && $0.wert != "spaeter" }, id: \.wert) { o in
-                    Button(o.knopf ?? o.text ?? "") { senden(o.wert ?? "") }.buttonStyle(SnTafelKnopf(art: .rand))
-                }
-                Button("Später") { senden("spaeter") }.buttonStyle(SnTafelKnopf(art: .leise))
-                randKnopf("Andere Zeit vorschlagen", groesse: 15, andereZeit)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { knopfReihe(h) }
+                VStack(alignment: .leading, spacing: 8) { knopfReihe(h) }
             }
             Text(GL.wirktSatz(frage, stand)).font(Schrift.grotesk(12)).lineHeight(.exact(points: 18)).foregroundStyle(TafelFarbe.leise)
         }
-        .padding(.top, 22)
+    }
+
+    @ViewBuilder private func knopfReihe(_ h: SenecaStand.Option?) -> some View {
+        if let h { Button(h.knopf ?? h.text ?? "Ja") { senden(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf()) }
+        ForEach((frage.optionen ?? []).filter { $0.wert != h?.wert && $0.wert != "spaeter" }, id: \.wert) { o in
+            Button(o.knopf ?? o.text ?? "") { senden(o.wert ?? "") }.buttonStyle(SnTafelKnopf(art: .rand))
+        }
+        Button("Später") { senden("spaeter") }.buttonStyle(SnTafelKnopf(art: .leise))
+        randKnopf("Andere Zeit vorschlagen", groesse: 15, andereZeit)
     }
 
     private func quittung(_ g: (wahl: String, um: Date)) -> some View {
@@ -77,7 +124,6 @@ struct SnFrageMehr: View {
                 }
             }
         }
-        .padding(.top, 22)
     }
 
     private func senden(_ w: String) {

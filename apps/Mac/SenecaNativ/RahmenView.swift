@@ -38,7 +38,8 @@ struct RahmenView: View {
             .padding(.top, 24)
             GeometryReader { g in
                 let offen = modell.route.seite == .chat
-                let s = SnChatSeite.spalte(g.size.width, seneca: modell.gegenueber.aktuellerAgent == Hauptagent.id)
+                let agent = modell.gegenueber.ziel?.agentId ?? Hauptagent.id
+                let s = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id, frage: SnChatSeite.mehrFrage(modell.store.stand, agent: agent, id: modell.mehrFrage) != nil)
                 VStack {
                     Spacer()
                     SnDock(offen: offen, breiteOffen: s.breite, oeffne: { modell.zeigeGespraechSeite() }, schliesse: { modell.zeigeGespraechSeite() },

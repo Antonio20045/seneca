@@ -225,16 +225,17 @@ struct SnGespraecheBild: View {
 
     var body: some View {
         GeometryReader { g in
-            let sp = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id)
             let m = stand.team?.first { $0.id == agent }
             let f = mehr ? GL.fragen(stand, von: m?.name ?? "").first : nil
+            let sp = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id, frage: f != nil)
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { _ in }, neu: {}, fragt: f).padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
                 VStack(alignment: .leading, spacing: mehr ? 16 : 26) {
                     if let f {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(GL.mehrSeite(f, stand)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
-                            SnFrageMehr(frage: f, stand: stand, antworte: { _ in }, zuruecknehmen: {}, andereZeit: {})
+                            SnFrageMehr(frage: f, stand: stand)
+                            SnFrageMehrKnoepfe(frage: f, stand: stand, antworte: { _ in }, zuruecknehmen: {}, andereZeit: {})
                         }
                     }
                     ForEach(zuege) { z in
@@ -255,7 +256,7 @@ struct SnGespraecheBild: View {
                     }
                 }
                 .frame(width: sp.breite, height: max(0, g.size.height - (mehr ? 196 : 220)), alignment: mehr ? .top : .bottom).clipped().environment(\.festeZeit, stand.jetzt).padding(.leading, sp.links).padding(.top, mehr ? 104 : 92)
-                SnGespraechRand(stand: stand, agent: agent, frage: f, zuProjekten: {}).padding(.leading, g.size.width - 40 - (f == nil ? sp.rand : 312)).padding(.top, 108)
+                SnGespraechRand(stand: stand, agent: agent, frage: f, zuProjekten: {}).padding(.leading, g.size.width - 40 - sp.rand).padding(.top, 108)
                 HStack(spacing: 14) {
                     SnAnZeile(name: m?.name ?? "Seneca", seneca: agent == Hauptagent.id)
                     SnAnZeile.platzhalter(seneca: agent == Hauptagent.id)

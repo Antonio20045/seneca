@@ -41,6 +41,8 @@ enum HeuteBild {
                         SnGeruestBild(stand: s, aktiv: .gespraeche, dock: false)
                     case "g-karten", "g-text", "g-lebenslauf", "g-fehler", "g-bild", "g-anhaenge", "g-verlauf", "g-ziehen", "z-konflikt", "t-todo-03":
                         SnGBild(seite: env["SENECA_SEITE"] ?? "", stand: s)
+                    case "chat-echt":
+                        SnChatBild(stand: s, agent: env["SENECA_AGENT"] ?? Hauptagent.id, frageId: env["SENECA_FRAGE"], strom: env["SENECA_STROM"])
                     case "statistik":
                         if let d = HeuteTafelLogik.beispielStatistik() { SnStatistikTafel(daten: d, stand: s.jetzt) }
                         SnGeruestBild(stand: s, aktiv: .statistik, dock: false)
@@ -100,6 +102,30 @@ enum HeuteBild {
             let host = NSHostingView(rootView: seite)
             fenster.contentView = host
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
+            if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
+                let t0 = Date()
+                var nr = 0, zeiten: [String] = []
+                let a = (env["SENECA_FILM_AUSSCHNITT"] ?? "").split(separator: ",").compactMap { Double($0) }
+                let rahmen = a.count == 4 ? NSRect(x: a[0], y: hoehe - a[1] - a[3], width: a[2], height: a[3]) : host.bounds
+                while Date().timeIntervalSince(t0) < dauer {
+                    host.layoutSubtreeIfNeeded()
+                    let m = 1.5
+                    if let layer = host.layer, let ctx = CGContext(data: nil, width: Int(rahmen.width * m), height: Int(rahmen.height * m), bitsPerComponent: 8, bytesPerRow: 0,
+                                                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) {
+                        ctx.setFillColor(CGColor(red: 0.05, green: 0.11, blue: 0.24, alpha: 1))
+                        ctx.fill(CGRect(x: 0, y: 0, width: rahmen.width * m, height: rahmen.height * m))
+                        ctx.translateBy(x: 0, y: rahmen.height * m)
+                        ctx.scaleBy(x: m, y: -m)
+                        ctx.translateBy(x: -rahmen.minX, y: -(hoehe - rahmen.maxY))
+                        layer.render(in: ctx)
+                        nr += 1
+                        if let bild = ctx.makeImage() { try? NSBitmapImageRep(cgImage: bild).representation(using: .jpeg, properties: [.compressionFactor: 0.85])?.write(to: URL(fileURLWithPath: film + String(format: "/b%05d.jpg", nr))) }
+                        zeiten.append(String(format: "%.3f", Date().timeIntervalSince(t0)))
+                    }
+                    try? await Task.sleep(for: .milliseconds(16))
+                }
+                try? zeiten.joined(separator: "\n").write(toFile: film + "/zeiten.txt", atomically: true, encoding: .utf8)
+            }
             if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds), let z = ziel {
                 host.cacheDisplay(in: host.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: z))
