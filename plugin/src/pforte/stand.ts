@@ -248,11 +248,6 @@ function uhrTeam(db: Register, jetzt: number) {
   });
 }
 
-function spracheWeg(db: Register): string {
-  const u = JSON.parse(wert(db, "uhr-sonde")?.wert ?? "{}").upload?.w;
-  return u?.code === 200 && u.bytes > 0 && u.server?.n === u.bytes ? "roh" : "stueck";
-}
-
 export function uhrStand(db: Register, jetzt: number) {
   const braucht = brauchtDich(db, jetzt);
   const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f)) ?? vorschlagAnUhr(db);
@@ -269,7 +264,7 @@ export function uhrStand(db: Register, jetzt: number) {
     st: (start?.gueltig_bis ?? 0) > jetzt ? [start?.wert, sekundenAusMs(Number(start?.gueltig_bis))] : null,
     koerper: { schlaf: koerper(db, letzteUhrzeit(regelText("tag_grenze"), jetzt), r)?.schlaf ?? null },
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
-    sw: spracheWeg(db),
+    sw: ((u) => u?.code === 200 && u.bytes > 0 && u.server?.n === u.bytes ? "roh" : "stueck")(JSON.parse(wert(db, "uhr-sonde")?.wert ?? "{}").upload?.w),
   };
 }
 

@@ -2,7 +2,7 @@ import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitz
 import type { Register } from "../register/schema.ts";
 import { auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
-import { bauregeln, mandat, rolle } from "../team.ts";
+import { bauregeln, mandat, mitarbeiter, rolle } from "../team.ts";
 import { aboReihenfolge, limitMerken } from "./abo.ts";
 import { euro, kostenCent, rahmen, wochenbeginn, wocheSchonGefragt } from "./kosten.ts";
 import { waehle } from "./modell.ts";
@@ -113,21 +113,22 @@ const zeit = (t: number): string => new Date(t).toTimeString().slice(0, 5);
 
 function anlassSatz(db: Register, a: Zeile): string {
   const wirkt = ereignisse(db, { art: "frage.wirkt", auftrag_id: String(a.id), grenze: 1 })[0];
+  if (a.anlass === "kind_haengt") return "Anlass: Ein Unterauftrag hängt (siehe Unteraufträge). Arbeite an dem weiter, was nicht davon abhängt.";
   if (!wirkt || !["antwort", "freigabe"].includes(String(a.anlass))) return `Anlass: ${a.anlass}.`;
   const f = hole(db, "frage", String(wirkt.frage_id));
   return `Anlass: Antwort auf deine Frage ${zeit(Number(f.gestellt))} „${f.text}“: ${f.antwort}, ${zeit(Number(f.antwort_um))} am Gerät ${f.antwort_geraet}.`;
 }
 
 export function kontext(db: Register, sitzung: string, skill: SkillLeser): string | undefined {
-  const l = laufZurSitzung(db, sitzung);
-  if (!l || !AKTIV.includes(String(l.zustand))) return undefined;
+  const l = laufZurSitzung(db, sitzung), wer0 = sitzung.split(":")[1];
+  if (!l || !AKTIV.includes(String(l.zustand))) return wer0 !== regelText("dauerauftraege_von") && mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
   const wer = String(l.mitarbeiter);
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const m = mandat(wer);
   const eltern = a.eltern_id ? hole(db, "auftrag", String(a.eltern_id)) : undefined;
   const verbraucht = kostenSeit(db, 0, { auftrag_id: String(a.id) });
   const teile: [string, boolean][] = [
-    [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig.`, true],
+    [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Hängt ein Teil an einem Unterauftrag, einer Frage oder einem Zugang, arbeite am nächsten Teil weiter, der nicht davon abhängt, und schreib weiter fort; wartet nur, wenn kein Teil mehr ohne das geht. Braucht ein Teil etwas von Antonio (Zugang, Entscheidung), frag ihn mit seneca_frage samt Empfehlung, statt es nur in den nächsten Schritt zu schreiben.`, true],
     [`${rolle(wer)}\nBefugnisse: Unteraufträge an ${m.befugnisse.unterauftrag_an.join(", ")}; Werkzeuge ${m.befugnisse.werkzeuge.join(", ")}; Zugänge ${m.zugaenge.join(", ")}.`, false],
     [bauregeln(wer), true],
     [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg. Berichte und fertige Dateien legst du in _arbeit/${wer}/ oder im Projektordner deines Bereichs in der Ablage ab, nie unter ~/Bereiche und nicht nur im eigenen Arbeitsordner.`, true],
@@ -138,6 +139,8 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
     [`Letzter Stand: ${a.letzter_stand || "noch nichts"}\nNächster Schritt: ${a.naechster_schritt || "offen"}${a.schritt_nr ? `\nPunkt ${a.schritt_nr} von ${a.schritt_gesamt}` : ""}`, false],
     [anlassSatz(db, a), false],
     [a.arbeitsart === "rundgang" ? rundgangSicht(db, a, uhr.jetzt()) : "", true],
+    [kinder(db, String(a.id)).filter((k) => !["erledigt", "verworfen"].includes(String(k.zustand)))
+      .map((k) => `Unterauftrag ${k.id} (${k.verantwortlich}, „${k.titel}“): ${k.zustand}${k.zustand === "wartet" ? ` auf ${k.wartet_auf}` : ""}. Stand: ${String(k.letzter_stand).slice(0, regelZahl("kontext_eltern_zeichen"))} Nächster Schritt: ${String(k.naechster_schritt).slice(0, regelZahl("kontext_eltern_zeichen"))}`).join("\n"), true],
     [eltern ? `Elternauftrag: ${String(eltern.wortlaut).slice(0, regelZahl("kontext_eltern_zeichen"))}\nZiel: ${eltern.ziel}` : "", false],
     [[...ereignisse(db, { art: "befund", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") }), ...ereignisse(db, { art: "entscheidung", auftrag_id: String(a.id), grenze: regelZahl("kontext_befunde") })]
       .sort((x, y) => Number(y.nr) - Number(x.nr)).slice(0, regelZahl("kontext_befunde"))

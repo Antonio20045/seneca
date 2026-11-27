@@ -22,7 +22,7 @@ export async function faelligeAuftraegeJob(db: Register, starte: Starter): Promi
   for (const a of faelligeAuftraege(db, jetzt)) {
     const id = String(a.id);
     if (a.zustand === "bereit") await starteOderBefund(db, a, starte);
-    else if (a.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", "nachfassen", { naechster_anlass: jetzt });
+    else if (a.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", Number(a.naechster_anlass) <= jetzt ? "nachfassen" : "kind_haengt", { naechster_anlass: jetzt });
     else auftragSetzen(db, id, { naechster_anlass: regelUhrzeitNach("fenster", jetzt) }, "Abnahme rutscht ins nächste Fenster.");
   }
   return naechsteFaelligkeit(db);

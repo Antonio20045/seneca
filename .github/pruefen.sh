@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
-BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|780" "plugin/src/pforte|1184" "plugin/src/ausgang|250"
-  "plugin/src/lernen|120" "plugin/src/zugang|311" "plugin/src/quellen|400" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
+BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|780" "plugin/src/pforte|1185" "plugin/src/ausgang|250" "plugin/src/mitarbeiter|50"
+  "plugin/src/lernen|120" "plugin/src/zugang|310" "plugin/src/quellen|400" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
   "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150"
   "apps/Mac|28737" "apps/iPhone|20658" "apps/SenecaKern|11092")
 TRY_BESTAND=602
 ERLAUBT=" openclaw typescript @types/node typebox yaml "
 PF_MAX=12
-MODULE="arbeitsdienst pforte ausgang lernen zugang quellen"
+MODULE="arbeitsdienst pforte ausgang lernen zugang quellen mitarbeiter"
 fehler=0
 melde() { echo "$1: $2"; fehler=1; }
 verbot() { local r=$1 t; shift; t=$(rg -n "$@" 2>/dev/null) && melde "$r" "$t"; }
