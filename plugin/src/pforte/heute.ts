@@ -1,7 +1,8 @@
-import { hole, letztesTraining, termineAm, wert, type Zeile } from "../register/lesen.ts";
+import { hole, letztesTraining, termineAm, todos, wert, type Zeile } from "../register/lesen.ts";
+import { passtNicht } from "./aufgaben.ts";
 import type { Register } from "../register/schema.ts";
 import { regelListe, regelMs, regelZahl } from "../regeln.ts";
-import { istFokus } from "./planen.ts";
+import { einplanen, istFokus } from "./planen.ts";
 
 export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn", "zwanzig"];
 const STUNDE = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"];
@@ -59,7 +60,10 @@ export function heute(db: Register, ruhe: { grund: string; bis: number } | undef
       satz_folge: [vor, b ? `Danach zuerst ${erster}, dann ${artikel(b.titel)[0]}.` : `Danach ${erster}.`],
     };
   }
-  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."] : ["Heute steht", "nichts mehr an."];
+  const offen = todos(db, "offen");
+  const n = ZAHLWORT[offen.length] ?? String(offen.length);
+  const satz = a ? [`${kurzName(a.titel)},`, b ? dann(a, b) : "danach Ruhe."]
+    : offen.length ? [`${n[0].toUpperCase()}${n.slice(1)} für heute.`, passtNicht(einplanen(db, offen, jetzt))] : ["Heute steht", "nichts mehr an."];
   return { satz, satz_folge: satz };
 }
 

@@ -19,7 +19,7 @@ enum TeamLogik {
 
     static func kopf(_ s: SenecaStand) -> String {
         let team = s.team ?? [], n = offeneFragen(s).count
-        var k = "\(team.filter { $0.zustand == "arbeitet" }.count) VON \(team.count) ARBEITET"
+        var k = "\(team.filter { $0.zustand == "arbeitet" }.count) VON \(team.filter { $0.zustand != "ruht" }.count) ARBEITET"
         if n > 0 { k += " · \(n) \(n == 1 ? "FRAGE WARTET" : "FRAGEN WARTEN")" + (s.ruhe?.bis.map { " BIS \(HeuteTafelLogik.uhr($0))" } ?? "") }
         return k
     }

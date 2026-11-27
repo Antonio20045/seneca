@@ -54,7 +54,7 @@ struct SnStatistikTafel: View {
                     HStack(spacing: 14) { SnKugel(groesse: 10, atmet: false); Text(h).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.zweit) }.padding(.top, 52)
                 }
             }
-            .padding(.horizontal, 96).padding(.top, 90).padding(.bottom, 40)
+            .padding(.horizontal, 96).padding(.top, 90).padding(.bottom, 140)
         }
         .scrollIndicators(.never)
     }

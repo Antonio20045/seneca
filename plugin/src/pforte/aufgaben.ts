@@ -2,7 +2,7 @@ import { ereignisse, termineAm, todos, wert, type Zeile } from "../register/lese
 import type { Register } from "../register/schema.ts";
 import { naechsteUhrzeit, regelMs, regelText } from "../regeln.ts";
 import { stundeAlsWort, uhrzeit, zumWort } from "./heute.ts";
-import { belegtAm, istFokus, luecken } from "./planen.ts";
+import { belegtAm, einplanen, istFokus, luecken } from "./planen.ts";
 
 export const ZAHL = ["Nichts", "Eine", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn", "Elf", "Zwölf"];
 
@@ -11,6 +11,11 @@ const datum = (t: number) => { const d = new Date(t); return `${d.getFullYear()}
 function erledigt(db: Register, id: unknown): { um: number; satz: string | null } {
   const e = ereignisse(db, { art: "todo.erledigt", schluessel: String(id), grenze: 1 })[0];
   return { um: e ? Number(e.zeit) : 0, satz: e?.satz ? String(e.satz) : null };
+}
+
+export function passtNicht(plaene: { geplant_von: number | null }[]): string {
+  const rest = plaene.filter((p) => !p.geplant_von).length;
+  return rest ? `Für ${ZAHL[rest]?.toLowerCase() ?? rest} reicht die Zeit heute nicht.` : "Seneca hat sie über den Tag verteilt.";
 }
 
 export function wann(t: Zeile, tagBeginn: number): "heute" | "morgen" | "woche" | "ohne_tag" | "spaeter" {
@@ -42,7 +47,7 @@ export function aufgaben(db: Register, ruhe: { grund: string; bis: number } | un
   const weg = naechster && naechster.start === l?.bis ? Number(wert(db, `wegzeit:${naechster.uid}`)?.wert ?? 0) * regelMs("eine_minute_min") : 0;
   const akzent = !heute.length ? `Bis ${bisWort(db, ab, jetzt)} gehört die Zeit dir.`
     : drin.length === heute.length && naechster ? `Alle passen ${nachFokus ? "zwischen Fokus und" : "bis"} ${nachFokus ? naechster.titel.split(" ")[0] : zumWort(naechster.titel)}.`
-    : geplant.length === heute.length ? "Seneca hat sie über den Tag verteilt." : `Für ${ZAHL[heute.length - geplant.length]?.toLowerCase() ?? heute.length - geplant.length} reicht die Zeit heute nicht.`;
+    : passtNicht(einplanen(db, heute, jetzt));
   const taeglich = [...todos(db, "offen"), ...todos(db, "erledigt")].filter((t) => t.wiederkehrend);
   const zaehle = (w: string) => offen.filter((t) => wann(t, tagBeginn) === w).length;
   return {

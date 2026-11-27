@@ -1,4 +1,4 @@
-import { termineAm, todos, uhr, wert } from "../register/lesen.ts";
+import { termineAm, todos, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { todoSetzen, wertSetzen } from "../register/schreiben.ts";
 import { wann, ZAHL } from "./aufgaben.ts";
@@ -45,16 +45,25 @@ function grund(db: Register, alt: number, neu: number, jetzt: number): string {
   return `Verschoben auf ${stundeAlsWort(neu)}.${vor}`;
 }
 
-export function planenJob(db: Register): void {
-  const jetzt = uhr.jetzt();
+export function einplanen(db: Register, liste: Zeile[], jetzt: number): { geplant_von: number | null; geplant_bis: number | null }[] {
   const ende = naechsteUhrzeit(regelText("plan_bis"), jetzt);
   const beginn = Math.max(jetzt, naechsteUhrzeit(regelText("plan_von"), ende - regelMs("ein_tag_tage")));
   const belegt = belegtAm(db, beginn);
-  for (const t of todos(db, "offen").filter((x) => !x.wiederkehrend && wann(x, letzteUhrzeit(regelText("tag_grenze"), jetzt)) === "heute")) {
+  return liste.map((t) => {
     const dauer = Number(t.dauer_min ?? regelZahl("todo_dauer_standard_min")) * regelMs("eine_minute_min");
     const l = luecken(belegt, beginn, ende).find((x) => x.bis - x.von >= dauer * regelZahl("luecke_faktor"));
-    const plan = l ? { geplant_von: l.von, geplant_bis: l.von + dauer } : { geplant_von: null, geplant_bis: null };
     if (l) belegt.push({ von: l.von, bis: l.von + dauer });
+    return l ? { geplant_von: l.von, geplant_bis: l.von + dauer } : { geplant_von: null, geplant_bis: null };
+  });
+}
+
+export function planenJob(db: Register): void {
+  const jetzt = uhr.jetzt();
+  const ende = naechsteUhrzeit(regelText("plan_bis"), jetzt);
+  const liste = todos(db, "offen").filter((x) => !x.wiederkehrend && wann(x, letzteUhrzeit(regelText("tag_grenze"), jetzt)) === "heute");
+  const plaene = einplanen(db, liste, jetzt);
+  for (const [i, t] of liste.entries()) {
+    const plan = plaene[i];
     if (t.geplant_von && plan.geplant_von && plan.geplant_von > Number(t.geplant_von)) wertSetzen(db, `todo_grund:${t.id}`, JSON.stringify({ vorher: Number(t.geplant_von), satz: grund(db, Number(t.geplant_von), plan.geplant_von, jetzt) }), "planen", ende);
     if (t.geplant_von !== plan.geplant_von || t.geplant_bis !== plan.geplant_bis) todoSetzen(db, { aktion: "aendern", id: String(t.id), felder: plan, geraet: "planen" });
   }

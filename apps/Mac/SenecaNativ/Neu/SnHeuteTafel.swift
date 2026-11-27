@@ -18,13 +18,16 @@ struct SnHeuteTafel: View {
 
     var body: some View {
         GeometryReader { g in
-            HStack(alignment: .top, spacing: 80) {
-                haupt.frame(width: 860, alignment: .topLeading)
-                seite.frame(width: 320, alignment: .topLeading)
+            ScrollView(.vertical, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 80) {
+                    haupt.frame(width: 860, alignment: .topLeading)
+                    seite.frame(width: 320, alignment: .topLeading)
+                }
+                .padding(.leading, max(24, (g.size.width - 1260) / 2 + 6))
+                .padding(.top, 108).padding(.bottom, 140)
+                .frame(width: g.size.width, alignment: .topLeading)
             }
-            .padding(.leading, max(24, (g.size.width - 1260) / 2 + 6))
-            .padding(.top, 108)
-            .frame(width: g.size.width, height: g.size.height, alignment: .topLeading)
+            .scrollClipDisabled()
         }
         .foregroundStyle(TafelFarbe.text)
     }
@@ -125,8 +128,8 @@ struct SnHeuteTafel: View {
         if !mitglieder.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 let arbeiten = mitglieder.filter { $0.zustand == "arbeitet" }.count
-                kopf("LÄUFT GERADE", "\(arbeiten) von \(mitglieder.count) arbeitet")
-                ForEach(mitglieder.filter { $0.zustand != "ruht" }, id: \.name) { m in
+                kopf("LÄUFT GERADE", "\(arbeiten) von \(mitglieder.filter { $0.zustand != "ruht" }.count) arbeitet")
+                ForEach(mitglieder, id: \.name) { m in
                     let fragen = (stand.braucht_dich ?? []).filter { $0.von == m.name }.count + (stand.buendel?.fragen ?? []).filter { $0.von == m.name }.count
                     Button(action: zurArbeit) {
                         HStack(alignment: .firstTextBaseline, spacing: 20) {
@@ -141,7 +144,7 @@ struct SnHeuteTafel: View {
                                 } else if let satz = m.satz {
                                     Text(satz + " ") + Text(m.projekt.map { "· \($0)" } ?? "").foregroundColor(TafelFarbe.leise)
                                 } else {
-                                    Text(m.zuletzt?.satz.map { "fertig: \($0)" } ?? (m.zustand == "ruht" ? "ruht" : "frei"))
+                                    Text(m.zustand == "ruht" ? m.ruht_seit.map { VerlaufLogik.ruhtSeit($0, jetzt: stand.jetzt) } ?? "ruht" : m.zuletzt?.satz.map { "fertig: \($0)" } ?? "frei")
                                 }
                             }
                             .font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.text).frame(maxWidth: .infinity, alignment: .leading)
