@@ -4,7 +4,7 @@ cd "$(git rev-parse --show-toplevel)"
 BUDGET=("plugin/src/register|610" "plugin/src/arbeitsdienst|800" "plugin/src/pforte|1150" "plugin/src/ausgang|250"
   "plugin/src/lernen|120" "plugin/src/zugang|310" "plugin/src/quellen|400" "plugin/src/index.ts plugin/src/regeln.ts plugin/src/team.ts|360"
   "plugin/src|4000" "plugin/pruefffaelle|1500" ".github/pruefen.sh|150" ".github/workflows|150"
-  "apps/Mac|28737" "apps/iPhone|20758" "apps/SenecaKern|10992")
+  "apps/Mac|28737" "apps/iPhone|20658" "apps/SenecaKern|11092")
 TRY_BESTAND=602
 ERLAUBT=" openclaw typescript @types/node typebox yaml "
 PF_MAX=12

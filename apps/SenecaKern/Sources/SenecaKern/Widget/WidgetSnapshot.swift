@@ -2,7 +2,7 @@ import Foundation
 
 struct WidgetLage: Codable, Equatable, Sendable {
     struct Termin: Codable, Equatable, Sendable { var titel: String; var unter: String?; var von: Date; var bis: Date; var art: String }
-    struct Frage: Codable, Equatable, Sendable { var kurz: String; var von: String; var seit: Date?; var frist: Date? }
+    struct Frage: Codable, Equatable, Sendable { var kurz: String; var text: String?; var von: String; var seit: Date?; var frist: Date? }
     var stand: Date
     var termine: [Termin]
     var fokusVon: Date?
@@ -12,12 +12,19 @@ struct WidgetLage: Codable, Equatable, Sendable {
     var wartend: Int
     var team: String?
     var bodyBattery: Int?
+    var satz: String?
+    var teamZeile: String?
+    var teamSatz: String?
 }
 
 enum WidgetZustand: Equatable, Sendable { case ruhig, fokus, frage, alt }
 
 enum WidgetStore {
+    #if os(macOS)
+    static let group = "5K75RX8FHZ.de.antonio.seneca.nativ"
+    #else
     static let group = "group.de.antonio.senecapocket"
+    #endif
     static let key = "seneca-widget.lage"
 
     static func read(_ defaults: UserDefaults? = UserDefaults(suiteName: group)) -> WidgetLage? {
@@ -32,6 +39,7 @@ enum WidgetStore {
 }
 
 enum WidgetLogik {
+
     static let altNach: TimeInterval = 30 * 60
     private static let stunde = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"]
     private static let tage = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"]

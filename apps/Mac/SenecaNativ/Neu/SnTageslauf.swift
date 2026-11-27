@@ -63,6 +63,13 @@ enum HeuteBild {
                 SnGrund(fortschritt: 0)
                 if let s = HeuteTafelLogik.beispiel(env["SENECA_DEMO_STAND"] ?? "Beispiel-Stand") {
                     switch env["SENECA_SEITE"] {
+                    case "widget-mac":
+                        HStack(spacing: 24) {
+                            ForEach(WidgetLogik.faelle(s), id: \.0) { _, jetzt, l in
+                                WidgetFace(lage: l, jetzt: jetzt, art: .mac).padding(.horizontal, 16).padding(.vertical, 14).frame(width: 344, height: 160)
+                                    .background(RoundedRectangle(cornerRadius: 22).fill(Color(hex: 0x1E2430, deckkraft: 0.86)))
+                            }
+                        }
                     case "start-code":
                         SnOrteKapsel(aktiv: .heute, fragen: SnOrt.fragen(s), waehle: { _ in }).opacity(0.5).padding(.top, 18).frame(maxHeight: .infinity, alignment: .top)
                         SnKopplungTafel(code: Kopplungscode(adresse: "https://seneca.beispiel.ts.net", schluessel: "beispiel", name: "MacBook Pro von Antonio", bis: Date().addingTimeInterval(582)), iphone: false, neu: {})

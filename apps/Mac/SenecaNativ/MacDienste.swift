@@ -448,27 +448,23 @@ final class MacDienste: ObservableObject {
         if zahl != letzteZahl || NSApp.dockTile.badgeLabel != zahl { letzteZahl = zahl; NSApp.dockTile.badgeLabel = zahl }
         guard !MacPfade.nebenher else { return }
         kuerzel.setze(einstellungen.kuerzel)
-        if modell.zustand == .bereit { waechter.pruefe(u); schreibeWidgetStand(u) }
+        if modell.zustand == .bereit { waechter.pruefe(u); schreibeWidgetStand() }
     }
 
-    private func schreibeWidgetStand(_ u: OverviewStore) {
+    private func schreibeWidgetStand() {
         switch MacPfade.profil {
         case .test, .probe: return
         case .demo: guard ProcessInfo.processInfo.environment["SENECA_WIDGET"] == "1" else { return }
         case .echt: break
         }
-        let tag = TageslaufModell.gemeinsam.tag
-        guard let neu = MacPfade.profil.echteDaten ? WidgetStand.aus(u, fuerDich: tag?.fuerDich, laeuft: tag?.laeuft) : WidgetStand.aus(u) else { return }
-        let jetzt = Date()
-        let veraltet = letzterWidgetSchreibzeitpunkt.map { jetzt.timeIntervalSince($0) > 600 } ?? true
-        guard veraltet || (letzterWidgetStand.map { Self.sichtbarGleich($0, neu) } != true) else { return }
-        letzterWidgetSchreibzeitpunkt = jetzt
-        letzterWidgetStand = neu
-        if WidgetSpeicher.schreibe(neu) { WidgetCenter.shared.reloadAllTimelines() }
+        guard let s = modell?.store.stand else { return }
+        let neu = WidgetLogik.lage(s)
+        guard letzteLage.map({ var a = $0; a.stand = neu.stand; return a != neu }) ?? true else { return }
+        letzteLage = neu
+        WidgetStore.write(neu)
+        WidgetCenter.shared.reloadAllTimelines()
     }
-    private var letzterWidgetStand: WidgetStand?
-    private var letzterWidgetSchreibzeitpunkt: Date?
-    private static func sichtbarGleich(_ a: WidgetStand, _ b: WidgetStand) -> Bool { var x = a; x.geschrieben = b.geschrieben; return x == b }
+    private var letzteLage: WidgetLage?
 
     func setzeAufgabenMelden(_ an: Bool) {
         einstellungen.aufgabenMelden = an

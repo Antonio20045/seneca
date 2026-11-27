@@ -35,6 +35,7 @@ Geschwister kennen sich nicht. Sie arbeiten über das Register zusammen: ein Mod
 | `apps/Mac/MacKern` | Fachlogik nur für den Mac (Meeting, Menüleiste, Tageslauf, Übersicht) | `apps/SenecaKern` |
 | `apps/Mac/SenecaNativ`, `SenecaWidget` | Oberfläche der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
 | `apps/iPhone/*` | Oberfläche, Widget, Teilen-Erweiterung der iPhone-App | `apps/SenecaKern` |
+| `apps/SenecaKern/Sources/SenecaKern/Widget` | Ein Widget für iPhone (Home, Sperre) und Mac (Mitteilungszentrale): Lage, Zustände, Aussehen. Beide Widget-Erweiterungen übersetzen diese Dateien; die Apps schreiben `WidgetLage` in ihre App-Group | nichts außerhalb |
 
 Die Apps sprechen mit dem Plugin nur über das Gateway. Ihre Zeilen dürfen nicht wachsen (Budget in `pruefen.sh`, Prüfung P1).
 

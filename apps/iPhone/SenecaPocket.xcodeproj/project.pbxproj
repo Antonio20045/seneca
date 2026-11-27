@@ -13,6 +13,7 @@
 		B30000000000000000000012 /* TeilenEingang.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012; };
 		B30000000000000000000013 /* WidgetFace.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013; };
 		B30000000000000000000014 /* WidgetSnapshot.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014; };
+		B3000000000000000000001A /* SenecaWidgetKit.swift in Widget */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B; };
 		B30000000000000000000015 /* InstrumentSerif-Regular.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015; };
 		B30000000000000000000016 /* SpaceGrotesk-Regular.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016; };
 		B30000000000000000000017 /* SpaceGrotesk-Medium.ttf in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017; };
@@ -33,8 +34,9 @@
 		A30000000000000000000011 /* SenecaOeffnen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaOeffnen.swift; path = Shared/SenecaOeffnen.swift; sourceTree = "<group>"; };
 		A3000000000000000000001A /* TeilenBlatt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenBlatt.swift; path = Shared/TeilenBlatt.swift; sourceTree = "<group>"; };
 		A30000000000000000000012 /* TeilenEingang.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenEingang.swift; path = Shared/TeilenEingang.swift; sourceTree = "<group>"; };
-		A30000000000000000000013 /* WidgetFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetFace.swift; path = Shared/WidgetFace.swift; sourceTree = "<group>"; };
-		A30000000000000000000014 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = Shared/WidgetSnapshot.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* WidgetFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetFace.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetFace.swift; sourceTree = "<group>"; };
+		A3000000000000000000001B /* SenecaWidgetKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaWidgetKit.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/SenecaWidgetKit.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetSnapshot.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* InstrumentSerif-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = InstrumentSerif-Regular.ttf; path = SenecaPocket/Fonts/InstrumentSerif-Regular.ttf; sourceTree = "<group>"; };
 		A30000000000000000000016 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Regular.ttf; path = SenecaPocket/Fonts/SpaceGrotesk-Regular.ttf; sourceTree = "<group>"; };
 		A30000000000000000000017 /* SpaceGrotesk-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Medium.ttf; path = SenecaPocket/Fonts/SpaceGrotesk-Medium.ttf; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 				A3000000000000000000001A /* TeilenBlatt.swift */,
 				A30000000000000000000013 /* WidgetFace.swift */,
 				A30000000000000000000014 /* WidgetSnapshot.swift */,
+				A3000000000000000000001B /* SenecaWidgetKit.swift */,
 				A30000000000000000000015 /* InstrumentSerif-Regular.ttf */,
 				A30000000000000000000016 /* SpaceGrotesk-Regular.ttf */,
 				A30000000000000000000017 /* SpaceGrotesk-Medium.ttf */,
@@ -381,6 +384,7 @@
 				B30000000000000000000012 /* TeilenEingang.swift in Widget */,
 				B30000000000000000000013 /* WidgetFace.swift in Widget */,
 				B30000000000000000000014 /* WidgetSnapshot.swift in Widget */,
+				B3000000000000000000001A /* SenecaWidgetKit.swift in Widget */,
 				B30000000000000000000019 /* SenecaLive.swift in Widget */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -11,7 +11,7 @@ enum WidgetFarbe {
 }
 
 struct WidgetFace: View {
-    enum Art { case klein, mittel, zeile, rechteck, kreis }
+    enum Art { case klein, mittel, zeile, rechteck, kreis, mac }
     var lage: WidgetLage?
     var jetzt: Date
     var art: Art
@@ -26,12 +26,72 @@ struct WidgetFace: View {
                 case .zeile: Text(WidgetLogik.zeile(l, jetzt))
                 case .rechteck: rechteck(l, z)
                 case .kreis: kreis(l, z)
+                case .mac: mac(l, z)
                 }
             }
             .widgetURL(WidgetLogik.ziel(l, jetzt))
         } else {
             Text("Öffne Seneca einmal.").font(.custom("SpaceGrotesk-Regular", size: 13)).foregroundStyle(WidgetFarbe.zweit)
         }
+    }
+
+    @ViewBuilder private func mac(_ l: WidgetLage, _ z: WidgetZustand) -> some View {
+        let akzent = WidgetFarbe.hex(0xCFE4FA)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                switch z {
+                case .ruhig: Text("SENECA · JETZT").font(mono(11)).tracking(1).foregroundStyle(WidgetFarbe.leise)
+                case .fokus:
+                    HStack(spacing: 6) {
+                        Circle().fill(LinearGradient(stops: [.init(color: akzent, location: 0.5), .init(color: .clear, location: 0.5)], startPoint: .leading, endPoint: .trailing))
+                            .overlay(Circle().strokeBorder(akzent, lineWidth: 1.5)).frame(width: 10, height: 10)
+                        Text("FOKUS · NOCH \(WidgetLogik.minuten(jetzt, l.fokusBis ?? jetzt)) MIN").font(mono(11)).tracking(1).foregroundStyle(akzent)
+                    }
+                case .frage:
+                    HStack(spacing: 6) { Circle().fill(WidgetFarbe.bernstein).frame(width: 7, height: 7); Text("BRAUCHT DICH · \(l.fragen.count)").font(mono(11)).tracking(1).foregroundStyle(WidgetFarbe.bernstein) }
+                case .alt:
+                    HStack(spacing: 6) { Circle().strokeBorder(WidgetFarbe.leise, lineWidth: 1.5).frame(width: 7, height: 7); Text("STAND \(WidgetLogik.uhr(l.stand))").font(mono(11)).foregroundStyle(WidgetFarbe.leise) }
+                }
+                Spacer()
+                if z != .alt { Text(WidgetLogik.uhr(jetzt)).font(g(12)).foregroundStyle(WidgetFarbe.leise) }
+            }
+            switch z {
+            case .ruhig:
+                Text(l.satz ?? WidgetLogik.zeile(l, jetzt)).font(g(18, true)).foregroundStyle(.white).lineSpacing(4).lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
+                VStack(alignment: .leading, spacing: 6) {
+                    if l.fragen.count + l.wartend > 0 { macPunkt(WidgetFarbe.bernstein, l.fragen.first.map { WidgetLogik.fragen(l.fragen.count) + " · " + $0.kurz } ?? (l.wartend == 1 ? "1 Frage wartet" : "\(l.wartend) Fragen warten")) }
+                    if let t = l.teamZeile { macPunkt(WidgetFarbe.gruen, t) }
+                }
+                .padding(.top, 12)
+            case .fokus:
+                (Text("Fokus bis \(WidgetLogik.stundeWort(l.fokusBis ?? jetzt)). ").font(.custom("InstrumentSerif-Regular", size: 24)).foregroundColor(.white)
+                    + Text("Seneca hält alles zurück.").font(.custom("InstrumentSerif-Italic", size: 24)).foregroundColor(akzent))
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
+                VStack(alignment: .leading, spacing: 6) {
+                    if l.fragen.count + l.wartend > 0 { macPunkt(WidgetFarbe.bernstein, "\(WidgetLogik.fragen(l.fragen.count + l.wartend)) warten bis \(WidgetLogik.uhr(l.fokusBis ?? jetzt))") }
+                    if let t = l.teamSatz { macPunkt(WidgetFarbe.gruen, t) }
+                }
+                .padding(.top, 10)
+            case .frage:
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(l.fragen.prefix(3).enumerated()), id: \.offset) { i, f in
+                        Text(f.text ?? f.kurz).font(g(14, i == 0)).foregroundStyle(i == 0 ? .white : WidgetFarbe.zweit).lineLimit(1)
+                    }
+                }
+                .padding(.top, 10)
+                Text("Entscheiden ›").font(g(12)).foregroundStyle(WidgetFarbe.himmel).padding(.top, 8)
+            case .alt:
+                Text("Seneca läuft gerade nicht.").font(g(16, true)).foregroundStyle(WidgetFarbe.zweit).padding(.top, 10)
+                Text("Ich starte ihn neu. Das Widget zeigt bis dahin nichts, was sich geändert haben könnte.").font(g(13)).foregroundStyle(WidgetFarbe.leise).lineSpacing(3).padding(.top, 6)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .opacity(z == .alt ? 0.78 : 1)
+    }
+
+    private func macPunkt(_ farbe: Color, _ text: String) -> some View {
+        HStack(spacing: 8) { Circle().fill(farbe).frame(width: 6, height: 6); Text(text).font(g(13)).foregroundStyle(WidgetFarbe.zweit).lineLimit(1) }
     }
 
     private func g(_ s: CGFloat, _ m: Bool = false) -> Font { .custom(m ? "SpaceGrotesk-Medium" : "SpaceGrotesk-Regular", size: s) }

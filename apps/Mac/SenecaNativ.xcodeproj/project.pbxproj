@@ -7,15 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B20000000000000000000021 /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021; };
-		B20000000000000000000022 /* WidgetStand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022; };
+		B20000000000000000000021 /* WidgetFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021; };
+		B20000000000000000000022 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022; };
 		B20000000000000000000020 /* SenecaWidget.appex in Embed */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B20000000000000000000030 /* InstrumentSerif-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030; };
 		B20000000000000000000031 /* InstrumentSerif-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031; };
 		B20000000000000000000032 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032; };
 		B20000000000000000000033 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033; };
 		B20000000000000000000034 /* SpaceGrotesk-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000034; };
-		B20000000000000000000025 /* WidgetAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025; };
+		B20000000000000000000025 /* SenecaWidgetKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025; };
+		B20000000000000000000035 /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035; };
 		B20000000000000000000060 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000060 /* FluidAudio */; };
 /* End PBXBuildFile section */
 
@@ -23,8 +24,8 @@
 		A20000000000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000002 /* Seneca Nativ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seneca Nativ.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000020 /* SenecaWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SenecaWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A20000000000000000000021 /* Design.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Design.swift; path = SenecaNativ/Design.swift; sourceTree = "<group>"; };
-		A20000000000000000000022 /* WidgetStand.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetStand.swift; path = MacKern/Mac/WidgetStand.swift; sourceTree = "<group>"; };
+		A20000000000000000000021 /* WidgetFace.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetFace.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetFace.swift; sourceTree = "<group>"; };
+		A20000000000000000000022 /* WidgetSnapshot.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetSnapshot.swift; sourceTree = "<group>"; };
 		A20000000000000000000023 /* SenecaNativ.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = SenecaNativ.entitlements; path = SenecaNativ/SenecaNativ.entitlements; sourceTree = "<group>"; };
 		A20000000000000000000024 /* SenecaWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = SenecaWidget.entitlements; path = SenecaWidget/SenecaWidget.entitlements; sourceTree = "<group>"; };
 		A20000000000000000000030 /* InstrumentSerif-Italic.ttf (Widget) */ = {isa = PBXFileReference; lastKnownFileType = file; name = InstrumentSerif-Italic.ttf; path = SenecaNativ/Fonts/InstrumentSerif-Italic.ttf; sourceTree = "<group>"; };
@@ -32,7 +33,8 @@
 		A20000000000000000000032 /* SpaceGrotesk-Light.ttf (Widget) */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Light.ttf; path = SenecaNativ/Fonts/SpaceGrotesk-Light.ttf; sourceTree = "<group>"; };
 		A20000000000000000000033 /* SpaceGrotesk-Medium.ttf (Widget) */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Medium.ttf; path = SenecaNativ/Fonts/SpaceGrotesk-Medium.ttf; sourceTree = "<group>"; };
 		A20000000000000000000034 /* SpaceGrotesk-Regular.ttf (Widget) */ = {isa = PBXFileReference; lastKnownFileType = file; name = SpaceGrotesk-Regular.ttf; path = SenecaNativ/Fonts/SpaceGrotesk-Regular.ttf; sourceTree = "<group>"; };
-		A20000000000000000000025 /* WidgetAnsichten.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetAnsichten.swift; path = SenecaNativ/WidgetAnsichten.swift; sourceTree = "<group>"; };
+		A20000000000000000000025 /* SenecaWidgetKit.swift (Widget) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaWidgetKit.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/SenecaWidgetKit.swift; sourceTree = "<group>"; };
+		A20000000000000000000035 /* IBMPlexMono-Medium.ttf (Widget) */ = {isa = PBXFileReference; lastKnownFileType = file; name = IBMPlexMono-Medium.ttf; path = SenecaNativ/Fonts/IBMPlexMono-Medium.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -156,15 +158,16 @@
 		D20000000000000000000050 /* Gemeinsam (Widget) */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000021 /* Design.swift (Widget) */,
-				A20000000000000000000022 /* WidgetStand.swift (Widget) */,
-				A20000000000000000000025 /* WidgetAnsichten.swift (Widget) */,
+				A20000000000000000000021 /* WidgetFace.swift (Widget) */,
+				A20000000000000000000022 /* WidgetSnapshot.swift (Widget) */,
+				A20000000000000000000025 /* SenecaWidgetKit.swift (Widget) */,
 				A20000000000000000000023 /* SenecaNativ.entitlements */,
 				A20000000000000000000024 /* SenecaWidget.entitlements */,
 				A20000000000000000000030 /* InstrumentSerif-Italic.ttf (Widget) */,
 				A20000000000000000000031 /* InstrumentSerif-Regular.ttf (Widget) */,
 				A20000000000000000000032 /* SpaceGrotesk-Light.ttf (Widget) */,
 				A20000000000000000000033 /* SpaceGrotesk-Medium.ttf (Widget) */,
+				A20000000000000000000035 /* IBMPlexMono-Medium.ttf (Widget) */,
 				A20000000000000000000034 /* SpaceGrotesk-Regular.ttf (Widget) */,
 			);
 			name = "Gemeinsam (Widget)";
@@ -286,6 +289,7 @@
 				B20000000000000000000031 /* InstrumentSerif-Regular.ttf in Resources */,
 				B20000000000000000000032 /* SpaceGrotesk-Light.ttf in Resources */,
 				B20000000000000000000033 /* SpaceGrotesk-Medium.ttf in Resources */,
+				B20000000000000000000035 /* IBMPlexMono-Medium.ttf in Resources */,
 				B20000000000000000000034 /* SpaceGrotesk-Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -304,9 +308,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B20000000000000000000021 /* Design.swift in Sources */,
-				B20000000000000000000022 /* WidgetStand.swift in Sources */,
-				B20000000000000000000025 /* WidgetAnsichten.swift in Sources */,
+				B20000000000000000000021 /* WidgetFace.swift in Sources */,
+				B20000000000000000000022 /* WidgetSnapshot.swift in Sources */,
+				B20000000000000000000025 /* SenecaWidgetKit.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

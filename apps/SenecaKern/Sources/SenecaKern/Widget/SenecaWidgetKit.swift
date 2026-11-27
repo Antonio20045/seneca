@@ -22,6 +22,9 @@ struct DayWidgetView: View {
     let entry: DayEntry
 
     private var art: WidgetFace.Art {
+        #if os(macOS)
+        return .mac
+        #else
         switch family {
         case .accessoryInline: return .zeile
         case .accessoryCircular: return .kreis
@@ -29,12 +32,13 @@ struct DayWidgetView: View {
         case .systemMedium: return .mittel
         default: return .klein
         }
+        #endif
     }
 
     var body: some View {
         WidgetFace(lage: entry.lage, jetzt: entry.date, art: art)
             .containerBackground(for: .widget) {
-                if art == .klein || art == .mittel { WidgetFarbe.grund } else { Color.clear }
+                if art == .mac { WidgetFarbe.hex(0x1E2430, 0.86) } else if art == .klein || art == .mittel { WidgetFarbe.grund } else { Color.clear }
             }
     }
 }
@@ -46,6 +50,10 @@ struct SenecaDayWidget: Widget {
         }
         .configurationDisplayName("Seneca")
         .description("Die nächste Sache, dazu, was wartet.")
+        #if os(macOS)
+        .supportedFamilies([.systemMedium])
+        #else
         .supportedFamilies([.accessoryRectangular, .accessoryInline, .accessoryCircular, .systemSmall, .systemMedium])
+        #endif
     }
 }
