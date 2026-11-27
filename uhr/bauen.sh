@@ -13,3 +13,9 @@ for projekt in .:seneca zifferblatt:zifferblatt trail:trail; do
     "$SDK/bin/monkeyc" -d "$geraet" -f "${projekt%%:*}/monkey.jungle" -o "bin/${projekt#*:}-$geraet.prg" -y "$SCHLUESSEL" -r -w
   done
 done
+if [ "${1:-}" = "--iq" ]; then
+  mkdir -p "$HOME/Desktop/seneca-garmin"
+  for projekt in .:seneca zifferblatt:seneca-zifferblatt; do
+    "$SDK/bin/monkeyc" -e -f "${projekt%%:*}/monkey.jungle" -o "$HOME/Desktop/seneca-garmin/${projekt#*:}.iq" -y "$SCHLUESSEL" -r -w
+  done
+fi
