@@ -415,7 +415,7 @@ def aktivitaet(api, a):
                     "kadenz": a.get("averageRunningCadenceInStepsPerMinute"), "quelle": "Garmin"})
     if "running" in typ:
         sp = versuche("spur", lambda: spur(api, a["activityId"], tag_von(zeit).isoformat()))
-        return [(k, "lauf", zeit, w | ohne_leere({"km_s": kmzeiten(api, a["activityId"])}))] + ([(f"{k}:spur", "spur", zeit, sp)] if "fehler" not in sp else [])
+        return [(k, "lauf", zeit, w | ohne_leere({"km_s": kmzeiten(api, a["activityId"])}))] + ([(f"{k}:spur", "laufspur", zeit, sp)] if "fehler" not in sp else [])
     if typ != "strength_training":
         return [(k, "aktivitaet", zeit, w)]
     saetze = uebungssaetze(api, a["activityId"])
@@ -530,7 +530,7 @@ def kennzahlen(e, anzeigen, prognose, jetzt):
     for x in saetze:
         if x["zeit"] >= jetzt - 28 * TAG_MS:
             volumen[muskel(x["w"]["u"])] = round(volumen.get(muskel(x["w"]["u"]), 0) + (x["w"].get("kg") or 0) * (x["w"].get("w") or 0))
-    spuren = sorted(art("spur"), key=lambda x: x["quelle"] == "garmin")
+    spuren = sorted(art("laufspur"), key=lambda x: x["quelle"] == "garmin")
     spur_zu = lambda x: next((sp["w"] for sp in reversed(spuren) if abs(sp["zeit"] - x["zeit"]) < 120_000), {})
     liste = [ohne_leere({"id": x["id"] or x["kennung"], "zeit": x["zeit"], "km": x["w"]["km"], "s": x["w"].get("dauer_s"), "puls": x["w"].get("puls"), "hm": x["w"].get("hm"), "titel": x["w"].get("titel"),
                          "form": form(spur_zu(x)["p"]) if len(spur_zu(x).get("p", [])) > 2 else None}) for x in reversed(laeufe) if x["zeit"] >= jetzt - 400 * TAG_MS]

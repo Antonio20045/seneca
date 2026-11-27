@@ -76,7 +76,7 @@ function kalenderwoche(t: number): number {
 export function lauf(db: Register, id?: string) {
   const alle = eintraegeSeit(db, 0).map(lesen).filter((x) => x.art === "lauf");
   const l = id ? alle.find((x) => x.id === id) : alle.at(-1); if (!l) return null;
-  const sp = id ? eintraegeSeit(db, l.zeit - 120_000).filter((e) => e.art === "spur" && Math.abs(Number(e.zeit) - l.zeit) < 120_000).sort((a, b) => Number(a.quelle === "garmin") - Number(b.quelle === "garmin")).at(-1) : undefined, spur = sp ? JSON.parse(String(sp.werte)) : null;
+  const sp = id ? eintraegeSeit(db, l.zeit - 120_000).filter((e) => e.art === "laufspur" && Math.abs(Number(e.zeit) - l.zeit) < 120_000).sort((a, b) => Number(a.quelle === "garmin") - Number(b.quelle === "garmin")).at(-1) : undefined, spur = sp ? JSON.parse(String(sp.werte)) : null;
   const w = l.w, s = (w.km_s as number[] | undefined) ?? [], name = String(w.name ?? "Lauf");
   const lo = Math.min(...s), hi = Math.max(...s), best = s.indexOf(lo);
   const frueher = alle.filter((x) => x.zeit < l.zeit && x.w.name === w.name && ((x.w.km_s as number[] | undefined) ?? []).length);
