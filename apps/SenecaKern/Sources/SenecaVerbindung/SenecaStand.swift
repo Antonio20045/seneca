@@ -74,7 +74,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var morgens: Double?; public var titel: String?; public var hinweis: String?; public var schlaf: Schlaf?
     }
     public struct Erledigt: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String }
-    public struct Notiz: Codable, Equatable, Sendable { public var satz: String; public var um: Double? }
+    public struct Notiz: Codable, Equatable, Sendable { public var satz: String; public var um: Double }
     public struct Termin: Codable, Equatable, Sendable, Identifiable {
         public var uid: String
         public var start: Double
@@ -94,7 +94,6 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var datum: String; public var ort: String?; public var mit: String?; public var kalender: String?; public var notiz: String?
         public var da: Double?; public var da_satz: String?; public var weg: String?; public var km: String?; public var los: String?; public var seneca: Notiz?
     }
-    public struct Notiz: Codable, Equatable, Sendable { public var zeit: Double; public var satz: String }
     public struct KalBlock: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String
         public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?; public var andere: [Double]?

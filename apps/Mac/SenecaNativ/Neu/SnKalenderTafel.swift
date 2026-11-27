@@ -404,7 +404,7 @@ struct SnKalenderTafel: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         SnKugel(groesse: 10, atmet: false)
-                        Text("SENECA · \(L.uhr(s.zeit))").font(Schrift.mono(11)).kerning(0.8).foregroundStyle(TafelFarbe.leise)
+                        Text("SENECA · \(L.uhr(s.um))").font(Schrift.mono(11)).kerning(0.8).foregroundStyle(TafelFarbe.leise)
                     }
                     .padding(.bottom, 6)
                     Text(s.satz).font(Schrift.grotesk(13)).hoehe(19).foregroundStyle(TafelFarbe.text).fixedSize(horizontal: false, vertical: true)

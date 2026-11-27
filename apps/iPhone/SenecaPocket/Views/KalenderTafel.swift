@@ -186,7 +186,7 @@ struct TerminDetail: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         SenecaPunkt()
-                        Text((["SENECA"] + [n.um.map { HeuteTafelLogik.uhr($0) }].compactMap { $0 }).joined(separator: " · ")).mono(11).foregroundStyle(TafelFarbe.leise)
+                        Text("SENECA · \(HeuteTafelLogik.uhr(n.um))").mono(11).foregroundStyle(TafelFarbe.leise)
                     }
                     .padding(.bottom, 6)
                     Text(n.satz).font(Sundartha.grotesk(14)).zeilenHoehe(20, schrift: 14).foregroundStyle(TafelFarbe.text).fixedSize(horizontal: false, vertical: true)
