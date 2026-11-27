@@ -30,7 +30,7 @@ import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragAendern, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
-import { letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
+import { lebensbereich, letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
 type Ausfuehren = (db: Register, k: Kontext, p: Record<string, unknown>) => unknown;
@@ -85,7 +85,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
   ["seneca_statistik", "Anlass für eine Statistik. art frage: Antonio fragt nach einem Stand („wie läuft X“, „wie weit ist Y“); thema: das Ding in ein, zwei kleinen Wörtern (kniebeuge, wochen-km), satz: seine Frage, an: wer zuständig ist. Beim zweiten Mal in 14 Tagen entsteht ein Auftrag an den Zuständigen. art ziel: Ziel neu oder geändert („100 km bis Juni“), satz: das Ziel. art luecke: Auftrag aus dem Rundgang, satz: was fehlt. art sicht: Ziele, Statistiken mit Besitzer, Grund und zuletzt angesehen, Standfragen.",
     Type.Object({ art: S, thema: O(S), satz: O(S), an: O(S) }), (db, k, p) => statistikAnlass(db, k.agent, p as Anlass)],
-  ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; vorschlagen (felder.titel, felder.bereich): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
+  ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; felder.bereich ist soziales, wachstum oder unternehmertum (fehlt er, ordnet Seneca nach dem Titel zu); vorschlagen (felder.titel): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
       nurSeneca(k);
       if (p.aktion === "vorschlagen") return { ok: wertSetzen(db, "todo_vorschlag", JSON.stringify({ ...(p.felder as object), um: uhr.jetzt() }), "seneca", uhr.jetzt() + regelMs("todo_vorschlag_min")) > 0 };
@@ -129,8 +129,8 @@ const zifferblattSicht = (db: Register, t: number) => {
   type Termin = ReturnType<typeof termineAm>[number];
   const alle = termineAm(db, t), heute = alle.filter((x) => !x.ganztag), erledigt = heute.find((x) => /^Training: .* ✓$/.test(x.titel));
   const los = (x: Termin) => weg(db, x).los_ms, art = (x: Termin) => (/^Training: /.test(x.titel) ? (x.titel.endsWith(" ✓") ? "te" : "tr") : "t");
-  const name = (x: Termin) => x.titel.replace(/^Training: /, "").replace(/ ✓$/, ""), passt = (x: Termin, r: string) => new RegExp(r, "i").test(`${x.titel} ${x.kalender ?? ""}`);
-  const bereich = (x: Termin) => (art(x) !== "t" || passt(x, regelText("uhr_bereich_training")) ? "t" : passt(x, regelText("uhr_bereich_sozial")) ? "s" : "a");
+  const name = (x: Termin) => x.titel.replace(/^Training: /, "").replace(/ ✓$/, "");
+  const bereich = (x: Termin) => (art(x) !== "t" ? "t" : ({ wachstum: "t", soziales: "s" } as Record<string, string>)[lebensbereich(`${x.titel} ${x.kalender ?? ""}`)] ?? "a");
   const kurz = (s: string) => (s.match(/\bmit\s+(\S+)/i)?.[1] ?? s.split(/\s+/)[0]).replace(/[^\p{L}\p{N}-]/gu, "").slice(0, regelZahl("uhr_kurz_zeichen"));
   const eintrag = (x: Termin) => [sekundenAusMs(x.start), sekundenAusMs(x.ende), name(x), art(x), los(x) === null ? null : sekundenAusMs(Number(los(x))), bereich(x), kurz(name(x))];
   const fertig = new Set(todos(db, "erledigt").map((x) => x.id)), seit = letzteUhrzeit(regelText("tag_grenze"), t);

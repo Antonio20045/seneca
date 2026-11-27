@@ -9,7 +9,7 @@ import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
 import { buendelFortschritt, entscheiden, fensterStart, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
-import { appRegeln, letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
+import { appRegeln, lebensbereich, letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { anzeigeName, mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
@@ -212,7 +212,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     berichte: berichte(db, tagBeginn, jetzt),
     rueckblick: rueckblick(db, tagBeginn),
     kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
-    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
+    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: lebensbereich(String(t.titel), t.bereich),
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision,
       grund: ((w) => (w && (w.gueltig_bis ?? 0) > jetzt ? JSON.parse(w.wert) : null))(wert(db, `todo_grund:${t.id}`)) })),
@@ -295,7 +295,7 @@ function tagSicht(db: Register, jetzt: number): string {
     revision: s.revision, jetzt, satz: s.heute.satz, aufgaben: s.aufgaben.satz, braucht_dich: s.zaehler.braucht, wartet: s.wartet, ruhe: s.ruhe, entscheiden: s.entscheiden.satz, buendel: s.buendel.satz,
     todos: s.todos.filter((t) => !t.wiederkehrend).map((t) => ({ titel: t.titel, bereich: t.bereich, tag: t.tag, ueberfaellig: !!t.tag && String(t.tag) < new Date(s.tag_beginn).toLocaleDateString("sv-SE"), dauer_min: t.dauer_min, geplant: t.geplant_von, wichtig: t.wichtig })),
     jeden_tag: s.aufgaben.jeden_tag?.map((t) => `${t.titel}${t.erledigt ? " (erledigt)" : ""}`), erledigt: [...s.aufgaben.erledigt.map((t) => t.titel), ...s.heute_erledigt.map((a) => `${a.titel} (${a.wer})`)],
-    termine: s.termine.map((t) => ({ titel: t.titel, start: t.start, ende: t.ende, ganztag: t.ganztag, ort: t.ort ?? null, mit: t.mit, weg: t.weg })),
+    termine: s.termine.map((t) => ({ titel: t.titel, bereich: t.bereich, start: t.start, ende: t.ende, ganztag: t.ganztag, ort: t.ort ?? null, mit: t.mit, weg: t.weg })),
     morgen: termineAm(db, s.tag_beginn + regelMs("ein_tag_tage")).map((t) => ({ titel: t.titel, start: t.start, ganztag: t.ganztag })),
     koerper: s.koerper, zahlen_heute: tagesZahlen(db, s.tag_beginn), gelernt: s.gelernt.map((g) => g.zeile), wiederholungen_heute: wiederholungenSeit(db, s.tag_beginn), team: s.team.map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`),
     auftraege_seit_gestern: auftraege(db, ["bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt"]).filter((a) => a.quelle !== "dauerauftrag" && Number(a.geaendert) >= gestern)

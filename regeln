@@ -110,8 +110,8 @@ uhr_frage_zeichen 90
 uhr_todos 3
 uhr_termine 4
 uhr_kurz_zeichen 9
-uhr_bereich_training training|lauf|gym|kraft|rad|schwimm|yoga|sport|spanisch|kurs|lesen
-uhr_bereich_sozial geburtstag|abendessen|mittagessen|eltern|mama|papa|familie|freund|party|kino|kaffee|besuch|privat
+bereich_wachstum training|\blauf|gym|kraft|\brad\b|schwimm|yoga|\bsport|spanisch|kurs|lesen|meditat|mental|gewicht|körper|physio|arzt|schlaf
+bereich_soziales geburtstag|abendessen|mittagessen|eltern|mama|papa|familie|freund|party|kino|kaffee|besuch|privat
 uhr_verlauf 3
 uhr_uebungen 12
 uhr_starten_min 10
@@ -189,7 +189,7 @@ los_erinnern_min 6 app
 eine_minute_min 1
 eine_stunde_min 60
 verstehen_wort_min 6
-bereich_standard Privat
+bereich_standard unternehmertum
 kalender_quelle Apple-Kalender
 rechenknoten_name rechenknoten zu_messen
 rechenknoten_region eu-north-1 zu_messen

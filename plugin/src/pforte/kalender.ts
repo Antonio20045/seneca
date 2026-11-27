@@ -1,6 +1,6 @@
 import { ereignisse, termineAm, todos, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
+import { lebensbereich, naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
 import { stundeAlsWort, uhrzeit } from "./heute.ts";
 import { istFokus } from "./planen.ts";
 
@@ -63,7 +63,7 @@ export function terminSicht(db: Register, t: Termin) {
   const n = ereignisse(db, { art: "wert.gesetzt", schluessel: `termin_notiz:${t.uid}`, grenze: 1 })[0];
   const mit = t.teilnehmer.length ? t.teilnehmer : t.titel.split(" mit ").slice(1);
   return { ...t, art: art(t), mit, ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null,
-    entfernung_m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, kalender_quelle: t.kalender ? regelText("kalender_quelle") : null,
+    entfernung_m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, kalender_quelle: t.kalender ? regelText("kalender_quelle") : null, bereich: lebensbereich(`${t.titel} ${t.kalender ?? ""}`),
     notiz: n ? { satz: JSON.parse(String(n.daten)).wert, um: n.zeit } : null,
     bescheid: n && mit.length ? `${mit.join(", ")} ${mit.length === 1 ? "weiß" : "wissen"} Bescheid, seit ${uhrzeit(Number(n.zeit))}` : null };
 }

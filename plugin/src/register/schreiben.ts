@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
-import { letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { lebensbereich, letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { hole, kinder, offeneFrage, revision, uhr, zurueckgenommen, type Tabelle, type Zeile } from "./lesen.ts";
 import type { Register } from "./schema.ts";
 import { NEBENWIRKUNGEN, NEU, PFLICHT_BEI, UEBERGAENGE } from "./uebergaenge.ts";
@@ -306,7 +306,7 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (a.aktion === "anlegen") {
       regel("todo", NEU, "offen");
       const id = neueId();
-      einfuegen(db, "todo", { herkunft: a.geraet, ...a.felder, id, zustand: "offen", revision: revision(db) + 1 });
+      einfuegen(db, "todo", { herkunft: a.geraet, ...a.felder, bereich: lebensbereich(String(a.felder?.titel ?? ""), a.felder?.bereich), id, zustand: "offen", revision: revision(db) + 1 });
       ereignis(db, { art: "todo.geaendert", geraet: a.geraet, schluessel: id, daten: { aktion: a.aktion } });
       return { id, ergebnis: "angenommen" };
     }
@@ -322,7 +322,7 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (alt.zustand === "erledigt") return { id, ergebnis: "ueberholt", hinweis: "Schon erledigt. Abhaken gewinnt." };
     const verdraengt = Number(alt.revision) > (a.gesehen_revision ?? Infinity);
     if (verdraengt) ereignis(db, { art: "bearbeitung.verdraengt", geraet: a.geraet, schluessel: id, daten: { fassung: alt, geraet: a.geraet } });
-    const mehr: Felder = a.aktion === "verschieben" ? { verschoben_anzahl: Number(alt.verschoben_anzahl) + 1 } : {};
+    const mehr: Felder = { bereich: lebensbereich(String(a.felder?.titel ?? alt.titel), a.felder?.bereich ?? alt.bereich), ...(a.aktion === "verschieben" ? { verschoben_anzahl: Number(alt.verschoben_anzahl) + 1 } : {}) };
     setzen(db, "todo", id, { ...a.felder, ...mehr, revision: revision(db) + 1 });
     ereignis(db, { art: "todo.geaendert", geraet: a.geraet, schluessel: id, daten: { aktion: a.aktion } });
     return { id, ergebnis: "angenommen", hinweis: verdraengt ? "Woanders geändert, die andere Fassung steht im Verlauf." : undefined };

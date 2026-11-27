@@ -1,0 +1,16 @@
+<resources>
+    <bitmaps>
+        <bitmap id="Verlauf0" filename="verlauf0.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf1" filename="verlauf1.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf2" filename="verlauf2.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf3" filename="verlauf3.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf4" filename="verlauf4.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf5" filename="verlauf5.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf6" filename="verlauf6.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf7" filename="verlauf7.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf8" filename="verlauf8.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf9" filename="verlauf9.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf10" filename="verlauf10.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+        <bitmap id="Verlauf11" filename="verlauf11.png" dithering="none"><palette disableTransparency="true"><color>000055</color><color>5555AA</color><color>AAAAFF</color><color>FFFFFF</color></palette></bitmap>
+    </bitmaps>
+</resources>
