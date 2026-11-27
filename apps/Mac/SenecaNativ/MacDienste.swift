@@ -13,7 +13,9 @@ final class GlobalesKuerzel {
     private(set) var aktuell: Kuerzel?
     private(set) var status: OSStatus = noErr
     private(set) var ausgeloest = 0
-    private static let kennung = EventHotKeyID(signature: 0x534E4B41, id: 1)
+    private let kennung: EventHotKeyID
+
+    init(id: UInt32 = 1) { kennung = EventHotKeyID(signature: 0x534E4B41, id: id) }
 
     func setze(_ k: Kuerzel?) {
         if k == aktuell, k == nil || ref != nil { return }
@@ -22,16 +24,19 @@ final class GlobalesKuerzel {
         status = noErr
         guard let k else { return }
         installiereHandler()
-        status = RegisterEventHotKey(k.taste, k.modifier, Self.kennung, GetApplicationEventTarget(), 0, &ref)
+        status = RegisterEventHotKey(k.taste, k.modifier, kennung, GetApplicationEventTarget(), 0, &ref)
         if status != noErr { ref = nil }
     }
 
     private func installiereHandler() {
         guard handler == nil else { return }
         var typ = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, daten in
+        InstallEventHandler(GetApplicationEventTarget(), { _, ereignis, daten in
             guard let daten else { return OSStatus(eventNotHandledErr) }
             let selbst = Unmanaged<GlobalesKuerzel>.fromOpaque(daten).takeUnretainedValue()
+            var id = EventHotKeyID()
+            GetEventParameter(ereignis, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+            guard id.id == selbst.kennung.id else { return OSStatus(eventNotHandledErr) }
             let druck = CFAbsoluteTimeGetCurrent()
             DispatchQueue.main.async { MainActor.assumeIsolated { selbst.ausloesen(seit: druck) } }
             return noErr
@@ -44,7 +49,7 @@ final class GlobalesKuerzel {
     #if DEBUG
     func sendeInProzess() -> OSStatus {
         var e: EventRef?
-        var id = Self.kennung
+        var id = kennung
         guard CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), 0, 0, &e) == noErr, let e else { return -1 }
         SetEventParameter(e, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &id)
         let r = SendEventToEventTarget(e, GetApplicationEventTarget())
@@ -121,17 +126,21 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
         do { try await zentrale.add(UNNotificationRequest(identifier: "meldung." + m.id, content: c, trigger: nil)); return true } catch { return false }
     }
 
-    func zeigeMeetingNotiz(titel: String, text: String, datei: URL) async -> Bool {
+    var meetingWahl: ((String, Int) -> Void)?
+
+    func zeigeMeeting(_ kennung: String, _ titel: String, _ text: String, _ knoepfe: [String]) async {
         var stand = await status()
         if stand == .notDetermined { _ = await frageErlaubnis(); stand = await status() }
-        guard stand == .authorized || stand == .provisional else { return false }
+        guard stand == .authorized || stand == .provisional else { return }
+        let g = "seneca.meeting." + kennung + "." + knoepfe.joined(separator: "|")
+        var alle = await zentrale.notificationCategories()
+        if !alle.contains(where: { $0.identifier == g }) {
+            alle.insert(UNNotificationCategory(identifier: g, actions: knoepfe.enumerated().map { UNNotificationAction(identifier: "m\($0.offset)", title: $0.element, options: $0.offset == 0 ? [.foreground] : []) }, intentIdentifiers: [], options: []))
+            zentrale.setNotificationCategories(alle)
+        }
         let c = UNMutableNotificationContent()
-        c.title = titel
-        c.body = text
-        c.userInfo = ["datei": datei.path]
-        c.threadIdentifier = "seneca.meeting"
-        c.sound = nil
-        do { try await zentrale.add(UNNotificationRequest(identifier: "meeting." + datei.lastPathComponent, content: c, trigger: nil)); return true } catch { return false }
+        c.title = titel; c.body = text; c.categoryIdentifier = g; c.threadIdentifier = "seneca.meeting"; c.sound = nil; c.userInfo = ["meeting": kennung]
+        try? await zentrale.add(UNNotificationRequest(identifier: "meeting." + kennung, content: c, trigger: nil))
     }
 
     func zugestellt() async -> [String] { await zentrale.deliveredNotifications().map(\.request.identifier) }
@@ -151,8 +160,9 @@ final class SystemMitteilungen: NSObject, Mitteilungszentrale, UNUserNotificatio
             await MainActor.run { self.oeffneAufgabe?(a) }
             return
         }
-        if let datei = info["datei"] as? String, !datei.isEmpty {
-            _ = await MainActor.run { NSWorkspace.shared.open(URL(fileURLWithPath: datei)) }
+        if let k = info["meeting"] as? String {
+            let i = Int(response.actionIdentifier.dropFirst()) ?? -1
+            await MainActor.run { self.meetingWahl?(k, i) }
             return
         }
         guard let pfad = info["pfad"] as? String else { return }
@@ -346,6 +356,8 @@ final class MacDienste: ObservableObject {
     let mitteilungen = SystemMitteilungen()
     let schnellfrage = SchnellfrageModell()
     let kuerzel = GlobalesKuerzel()
+    let merkKuerzel = GlobalesKuerzel(id: 2)
+    let meetingKuerzel = GlobalesKuerzel(id: 3)
     let zeichen = MenueZeichenModell()
     var meetingWertetAus = false
     var meetingGemeldet: Set<String> = []
@@ -381,6 +393,16 @@ final class MacDienste: ObservableObject {
         }.store(in: &abos)
         if !MacPfade.nebenher { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.panel.bereite() } }
         mitteilungen.oeffne = { [weak modell] pfad in modell?.zeigeFenster(Route.lies(pfad)) }
+        mitteilungen.meetingWahl = { [weak modell] k, i in
+            let m = MeetingDienst.gemeinsam
+            switch (k, i) {
+            case ("erkannt", ...0): Task { await m.starte() }
+            case ("erkannt", 2): m.nieBei()
+            case ("erkannt", _): m.vorschlagVerwerfen()
+            case ("fertig", 1): m.uebernimmVorschlaege()
+            default: modell?.meetingOffen = true; modell?.zeigeFenster(Route(.heute))
+            }
+        }
         mitteilungen.oeffneAufgabe = { [weak modell] id in
             guard let modell else { return }
             modell.zeigeFenster(nil)

@@ -196,25 +196,6 @@ enum MeetingAufgaben {
                               offeneFragen: bereinige(teile.flatMap(\.offeneFragen)))
     }
 
-    static func kartenParameter(aufgabe: String, meetingDatei: String, schluessel: String) -> [String: Any] {
-        ["title": aufgabe, "boardId": "privat", "status": "todo", "idempotencyKey": schluessel,
-         "labels": ["meeting:" + meetingDatei.replacingOccurrences(of: ".md", with: "")]]
-    }
-
-    static func schluessel(meetingDatei: String, aufgabe: String) -> String {
-        var h: UInt64 = 1469598103934665603
-        for b in (meetingDatei + "|" + aufgabe.lowercased()).utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
-        return "meeting-" + String(h, radix: 16)
-    }
-
-    static func trockenlauf(aufgaben: [String], meetingDatei: String) -> String {
-        aufgaben.map { a in
-            let p = kartenParameter(aufgabe: a, meetingDatei: meetingDatei, schluessel: schluessel(meetingDatei: meetingDatei, aufgabe: a))
-            let d = (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) } ?? "?"
-            return "karte.anlegen \(d)"
-        }.joined(separator: "\n")
-    }
-
     static let systemNachfrage = """
     Du hilfst Antonio während eines laufenden Meetings. Beantworte die Frage kurz und auf Deutsch ausschließlich aus dem \
     Transkript-Ausschnitt. Steht die Antwort nicht darin, sage das. Antonio ist „Sprecher 1“ (das Mikrofon).

@@ -212,6 +212,11 @@ extension MacDienste {
     }
 
     func meetingStand(_ z: MeetingDienst.Zustand) {
+        let auf = z == .nimmtAuf
+        merkKuerzel.aktion = { MeetingDienst.gemeinsam.merke() }
+        meetingKuerzel.aktion = { if Self.meetingFensterVorn() { MeetingDienst.gemeinsam.umschalten() } else { NSApp.activate(); MeetingDienst.gemeinsam.oeffneFenster?() } }
+        merkKuerzel.setze(auf ? Kuerzel(taste: 46, modifier: Kuerzel.cmd | Kuerzel.shift, zeichen: "⌘⇧M") : nil)
+        meetingKuerzel.setze(auf ? Kuerzel(taste: 15, modifier: Kuerzel.cmd | Kuerzel.shift, zeichen: "⌘⇧R") : nil)
         var wertet = false
         if case .wertAus = z { wertet = true }
         let vorher = meetingWertetAus
@@ -221,11 +226,11 @@ extension MacDienste {
               let ablage else { return }
         var fehlt = false
         if case .ohneZusammenfassung = ablage.ergebnis.stand { fehlt = true }
-        let m = MeetingMeldung.text(titel: ablage.ergebnis.titel, hatBeitraege: !ablage.ergebnis.segmente.isEmpty, zusammenfassungFehlt: fehlt)
+        let m = MeetingMeldung.text(ablage.ergebnis, vorschlaege: MeetingDienst.gemeinsam.vorschlaege.count)
         guard MacPfade.profil == .echt, !Hintergrund.aktiv else { return }
         guard einstellungen.mitteilungenAn else { return }
         guard meetingGemeldet.insert(MeetingMeldung.kennung(datei: ablage.datei.path, zusammenfassungFehlt: fehlt)).inserted else { return }
-        Task { _ = await mitteilungen.zeigeMeetingNotiz(titel: m.titel, text: m.text, datei: ablage.datei) }
+        Task { await mitteilungen.zeigeMeeting("fertig", m.titel, m.text, m.knoepfe) }
     }
 
     static func meetingFensterVorn() -> Bool {

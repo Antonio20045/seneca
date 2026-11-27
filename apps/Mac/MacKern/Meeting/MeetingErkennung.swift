@@ -12,9 +12,5 @@ enum MeetingErkennung {
         "Cisco-Systems.Spark": "Webex",
     ]
 
-    static func vorschlag(mikrofonSeit seit: Date?, laufendeApps: [String], nimmtAuf: Bool, schonGefragt: Bool, jetzt: Date, schwelle: TimeInterval = 45) -> String? {
-        guard !nimmtAuf, !schonGefragt, let seit, jetzt.timeIntervalSince(seit) >= schwelle else { return nil }
-        for k in laufendeApps { if let n = konferenzApps[k] { return n } }
-        return nil
-    }
+    static func app(_ mikrofon: Set<String>, nie: Set<String>) -> String? { mikrofon.sorted().first { konferenzApps[$0] != nil && !nie.contains($0) } }
 }

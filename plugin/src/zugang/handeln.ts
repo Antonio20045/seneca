@@ -165,6 +165,13 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   },
   "eingang.datei": (db, h) => eingang(db, h, "teilen"),
   "eingang.meeting": (db, h) => eingang(db, h, "meeting"),
+  "auftrag.anlegen": (db, h) => {
+    const w = (h.wert ?? {}) as Wert, text = String(w.text ?? "");
+    auftragAnlegen(db, { art: "auftrag", wortlaut: text, wortlaut_quelle: h.kennung, titel: text.slice(0, 60), ziel: "Ergebnis mit Beleg", abnahme: "Beleg liegt vor",
+      abnahme_durch: "antonio", pruefer_noetig: false, verantwortlich: String(w.wer), auftraggeber: "antonio", quelle: "meeting", bereich: String(w.bereich || "Seneca"),
+      arbeitsart: w.wer === "pruefer" ? "pruefen" : "bauen", nachricht: { kennung: h.kennung, text } });
+    return "angenommen";
+  },
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),
   "lernen.zuruecknehmen": (db, h) => korrekturZuruecknehmen(db, Number(h.ziel)),
   "anzeige.weg": (db, h) => {

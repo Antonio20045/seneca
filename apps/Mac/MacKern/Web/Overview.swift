@@ -483,12 +483,6 @@ final class OverviewStore: ObservableObject {
 
     @discardableResult
 
-    func legeMeetingAufgabeAn(_ aufgabe: String, meetingDatei: String) async throws {
-        let p = MeetingAufgaben.kartenParameter(aufgabe: aufgabe, meetingDatei: meetingDatei, schluessel: MeetingAufgaben.schluessel(meetingDatei: meetingDatei, aufgabe: aufgabe))
-        _ = try await rufe("workboard.cards.create", p, 20)
-        await aktualisiereKarten()
-    }
-
     func kommentiere(_ id: String, text: String) async -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return false }
