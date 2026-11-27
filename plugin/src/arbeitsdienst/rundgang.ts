@@ -69,7 +69,7 @@ export function rundgangSicht(db: Register, a: Zeile, jetzt: number): string {
   }
   const skill = [...aehnlich].filter(([, n]) => n >= regelZahl("rundgang_muster_anzahl")).map(([art]) => art);
   if (skill.length) zeilen.push(`Ab dem dritten ähnlichen Auftrag: prüfe, ob ein Skill fehlt (höchstens eine Seite): ${skill.join(", ")}.`);
-  zeilen.push("So handelst du: Folgezug mit seneca_auftrag art nachfassen (auftrag_id, satz). Braucht es Antonio: seneca_frage am Auftrag, mit Kontext und Empfehlung. "
+  zeilen.push("So handelst du: Folgezug mit seneca_auftrag art nachfassen (auftrag_id, satz). Braucht es Antonio: seneca_frage mit Kontext und Empfehlung; ohne auftrag_id wird daraus ein eigener Auftrag, der auf seine Antwort wartet. "
     + "Eigener Auftrag mit prüfbarem Nutzen: seneca_auftrag art eigener (zählt gegen dein Wochenbudget). Was in Antonios Namen etwas anlegt: art vorschlag mit herkunft.");
   return zeilen.slice(0, regelZahl("rundgang_zeilen")).join("\n");
 }

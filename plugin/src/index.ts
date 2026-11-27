@@ -7,7 +7,7 @@ import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, gespraecheJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob, type Befehl } from "./arbeitsdienst/jobs.ts";
-import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
+import { agentEnde, fragenZurueckziehen, werkzeugProtokoll, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, werkzeugFrage, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, ruhe, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
@@ -27,7 +27,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
-import { anzeigeSetzen, eintragSetzen, ereignis, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
+import { anzeigeSetzen, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { regelMs, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
@@ -43,8 +43,8 @@ function nurSeneca(k: Kontext): void {
 }
 
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
-  ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), status (ehrliche Lage auf „Status“: alle offenen Fragen an Antonio, geparkte Aufträge mit Zahl, was läuft, nächste Läufe, Team), auftrag mit id, team, fragen (alle offenen), profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
-    (db, _k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined)],
+  ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), status (ehrliche Lage auf „Status“: alle offenen Fragen an Antonio, geparkte Aufträge mit Zahl, was läuft, nächste Läufe, Team), auftrag mit id, auftraege (deine offenen Aufträge mit Wortlaut und Stand, mit id = Projekt nur dieses), team, fragen (alle offenen), profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
+    (db, k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined, k.agent)],
   ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
       an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
@@ -62,7 +62,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
       grund: O(S), lage: O(S), zusatz: O(S), rueckfragen: O(Type.Array(S)), haengt: O(Type.Array(Type.Object({ um: Z, text: S }))) }),
     (db, k, { grund, lage, zusatz, rueckfragen, haengt, ...p }) => p.art === "antwort" ? werkzeugAntwort(db, k.sitzung, String(p.frage_id), String(p.antwort), String(p.nachricht_kennung))
       : p.art === "zurueckziehen" ? fragenZurueckziehen(db, String(p.frage_id), k.agent, String(p.text))
-      : { frage_id: frageStellen(db, { ...(p as unknown as NeueFrage), art: String(p.fragenart), von: k.agent, mehr: { grund, lage, zusatz, rueckfragen, haengt } }) }],
+      : { frage_id: werkzeugFrage(db, k.sitzung, { ...(p as unknown as NeueFrage), art: String(p.fragenart ?? "auswahl"), von: k.agent, mehr: { grund, lage, zusatz, rueckfragen, haengt } }) }],
   ["seneca_projekt", "Projekt fortschreiben: Untertitel, worum es geht (ein Satz für Antonio), Stand in einem Satz, Phasen (fertig, jetzt, offen), Start (ms), nach (wartet auf Projekt), ruht (Grund).",
     Type.Object({ name: S, untertitel: O(S), worum: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),
     (db, k, p) => {

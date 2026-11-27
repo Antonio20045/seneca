@@ -1,7 +1,7 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
+  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage,
 } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { bauregeln, mandat, rolle } from "../team.ts";
@@ -220,6 +220,19 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   });
   const satz = p.schaetzung_min ? `Notiert. ${verantwortlich} kümmert sich, etwa ${euro(kostenrahmen_cent)}.` : `Notiert. ${verantwortlich} kümmert sich, Rahmen ${euro(kostenrahmen_cent)}.`;
   return { auftrag_id: id, satz };
+}
+
+export function werkzeugFrage(db: Register, sitzung: string, f: NeueFrage): string {
+  const l = f.auftrag_id ? undefined : laufender(db, sitzung);
+  const a = l && hole(db, "auftrag", String(l.auftrag_id));
+  if (!l || !a || a.quelle !== "dauerauftrag") return frageStellen(db, { ...f, auftrag_id: f.auftrag_id ?? String(a?.id) });
+  return schritt(db, () => {
+    const { id } = auftragAnlegen(db, { art: "eigener", quelle: "eigene_idee", wortlaut: f.text, wortlaut_quelle: `lauf:${l.id}`, titel: f.kurz ?? f.text.slice(0, regelZahl("titel_zeichen")), ziel: f.empfehlung,
+      abnahme: "Antonio hat geantwortet, der nächste Schritt ist getan.", abnahme_durch: "beleg", pruefer_noetig: false, verantwortlich: f.von, auftraggeber: f.von, bereich: mandat(f.von).bereich[0], arbeitsart: "standard" });
+    const frage = frageStellen(db, { ...f, auftrag_id: id });
+    uebergang(db, "auftrag", id, "wartet", "frage", { wartet_auf: `frage:${frage}`, folge: f.wenn_nichts, naechster_anlass: uhr.jetzt() + regelMs("lange_wartend_h") });
+    return frage;
+  });
 }
 
 export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, antwort: string, kennung: string) {

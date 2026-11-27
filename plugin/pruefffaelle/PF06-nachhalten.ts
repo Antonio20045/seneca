@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { faelligeAuftraegeJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
+import { lesenWerkzeug } from "../src/pforte/stand.ts";
 import { auftraege, fragen, hole, laeufe } from "../src/register/lesen.ts";
 import { anzeigeSetzen, auftragSetzen, ereignis, frageBeantworten, frageVertagen, laufAnlegen, laufEnde, laufSchritt, uebergang, wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, frischesRegister, jaNeinFrage, ladePlugin, nurWach, um } from "./aufbau.ts";
@@ -64,6 +65,10 @@ test("PF06 Rundgang findet Feststeckendes, fasst nach, schlägt Regeln vor und l
   const eigen = await p.werkzeug("seneca_auftrag", sitzung, "seneca", { art: "eigener", wortlaut: "Statusfragen zählen", ziel: "Anzeige zeigt Statusfragen je Woche", abnahme: "Anzeige gesetzt" });
   assert.equal(hole(p.db, "auftrag", eigen.auftrag_id).quelle, "eigene_idee");
   assert.equal(hole(p.db, "auftrag", eigen.auftrag_id).zustand, "bereit");
+  const frage = await p.werkzeug("seneca_frage", sitzung, "seneca", { art: "stellen", text: "Prüfläufe rot, Zahlung prüfen?", was_passiert_ist: "30 von 30 rot", wenn_nichts: "Nichts wird gemergt", empfehlung: "Abrechnung prüfen", optionen: [{ wert: "ja", text: "Ich prüfe", folge: "Ich starte neu" }] });
+  const befundAuftrag = hole(p.db, "auftrag", String(hole(p.db, "frage", String(frage.frage_id)).auftrag_id));
+  assert.deepEqual([befundAuftrag.quelle, befundAuftrag.zustand, befundAuftrag.wartet_auf], ["eigene_idee", "wartet", `frage:${frage.frage_id}`]);
+  assert.match(lesenWerkzeug(p.db, "auftraege", undefined, "seneca"), /Statusfragen zählen.*Wortlaut: Statusfragen zählen[\s\S]*Prüfläufe rot/);
   await faelligeAuftraegeJob(p.db, p.starte);
   assert.equal(fragen(p.db, "offen").filter((x) => x.art === "vorschlag").length, 3);
 });

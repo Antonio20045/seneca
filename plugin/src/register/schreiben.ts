@@ -17,7 +17,7 @@ function neueId(): string {
   return uhr.jetzt().toString(36).padStart(9, "0") + randomBytes(4).toString("hex");
 }
 
-function schritt<T>(db: Register, f: () => T): T {
+export function schritt<T>(db: Register, f: () => T): T {
   if (db.isTransaction) return f();
   db.exec("BEGIN IMMEDIATE");
   let fertig = false;

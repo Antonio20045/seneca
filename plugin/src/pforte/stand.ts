@@ -271,12 +271,10 @@ export function uhrStand(db: Register, jetzt: number) {
   };
 }
 
-export function lesenWerkzeug(db: Register, was: string, id?: string): string {
-  const jetzt = uhr.jetzt();
-  if (was === "auftrag" && id) {
-    const a = hole(db, "auftrag", id);
-    return `„${a.titel}“ ist ${a.zustand}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
-  }
+export function lesenWerkzeug(db: Register, was: string, id?: string, wer?: string): string {
+  const jetzt = uhr.jetzt(), zeile = (a: Zeile) => `${a.id} „${a.titel}“ (${a.projekt ?? "ohne Projekt"}) ist ${a.zustand}. Wortlaut: ${a.wortlaut}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
+  if (was === "auftrag" && id) return zeile(hole(db, "auftrag", id));
+  if (was === "auftraege") return auftraege(db, ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"]).filter((a) => a.quelle !== "dauerauftrag" && (a.verantwortlich === wer || a.auftraggeber === wer) && (!id || a.projekt === id)).map(zeile).join("\n") || "Du hast keine offenen Aufträge.";
   if (was === "tag") return tagSicht(db, jetzt);
   if (was === "team") return team(db, jetzt).map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`).join("\n");
   if (was === "status" || was === "fragen" || was === "auftrag") return statusSicht(db, jetzt);
