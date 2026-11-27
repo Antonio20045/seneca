@@ -53,6 +53,7 @@ struct BerichteTafel: View {
                 }
                 .padding(.horizontal, 24).padding(.bottom, 120)
             }
+            .listeOben()
         }
         .overlay(alignment: .bottom) {
             HStack(alignment: .top, spacing: 10) {

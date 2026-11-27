@@ -66,6 +66,17 @@ struct TagesLeiste: View {
     }
 }
 
+private struct GespraecheHinweis: View {
+    @ObservedObject var chat: ChatService
+    var frage: Bool
+    var body: some View {
+        HStack(spacing: 6) {
+            if frage || !chat.neu.isEmpty { Circle().fill(frage ? TafelFarbe.bernstein : TafelFarbe.himmel).frame(width: 6, height: 6) }
+            Text("↑ Gespräche").mono(11).foregroundStyle(TafelFarbe.leise)
+        }
+    }
+}
+
 struct HeuteTafel: View {
     var stand: SenecaStand
     var wartend: Set<String>
@@ -77,6 +88,7 @@ struct HeuteTafel: View {
     enum Ziel { case gespraeche, aufgaben, laeuft, frage, einstellungen }
 
     @State private var atmet = false
+    @EnvironmentObject private var store: SenecaStore
 
     var body: some View {
         let frage = HeuteTafelLogik.frage(stand)
@@ -86,7 +98,7 @@ struct HeuteTafel: View {
                     .onLongPressGesture(minimumDuration: 0.6) { oeffne(.einstellungen) }
                     .accessibilityIdentifier("day.date")
                 Spacer()
-                Button { if allowTap() { oeffne(.gespraeche) } } label: { Text("↑ Gespräche").mono(11).foregroundStyle(TafelFarbe.leise) }
+                Button { if allowTap() { oeffne(.gespraeche) } } label: { GespraecheHinweis(chat: store.chat, frage: stand.wartet != nil) }
                     .buttonStyle(.plain)
             }
             if let satz = HeuteTafelLogik.satz(stand, folge: true) {

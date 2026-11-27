@@ -5,7 +5,7 @@ struct AufgabenLayer: View {
     var now: Date
     var back: () -> Void
     var allowTap: () -> Bool = { true }
-    var griff = false
+    var gesturesChanged: (PageGestures) -> Void = { _ in }
 
     @EnvironmentObject private var store: SenecaStore
     @EnvironmentObject private var berichte: BerichteModel
@@ -24,7 +24,7 @@ struct AufgabenLayer: View {
         .padding(.top, 62)
         .foregroundStyle(TafelFarbe.text)
         .background(TafelGrund())
-        .scrollDisabled(griff)
+        .environment(\.listeOben) { gesturesChanged(PageGestures(holdsBack: !$0)) }
         .frame(width: m.size.width, height: m.size.height, alignment: .topLeading)
         .onAppear(perform: demoStart)
         .onDisappear { berichte.tab = .aufgaben }
