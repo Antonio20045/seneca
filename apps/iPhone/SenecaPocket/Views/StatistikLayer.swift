@@ -3,16 +3,41 @@ import SwiftUI
 @MainActor
 final class StatistikModel: ObservableObject {
     @Published private(set) var daten: SenecaStatistik?
+    @Published private(set) var laufDaten: LaufDaten?
+    @Published private(set) var einzel: (lauf: SenecaStatistik.Lauf, spur: LaufDaten.Spur?)?
 
     func laden(store: SenecaStore) async {
         if store.demo {
-            guard let url = Bundle.main.url(forResource: "Beispiel-Statistik", withExtension: "json"), let roh = try? Data(contentsOf: url) else { return }
-            daten = try? JSONDecoder().decode(SenecaStatistik.self, from: roh)
+            daten = Self.beispiel("Beispiel-Statistik")
+            laufDaten = Self.beispiel("Beispiel-Laufen")
             return
         }
-        guard let j = try? await store.rufe("seneca.stand", params: ["geraet": "iphone", "sicht": "statistik"]),
-              let roh = try? JSONSerialization.data(withJSONObject: j) else { return }
+        guard let roh = await Self.stand(store, [:]) else { return }
         daten = try? JSONDecoder().decode(SenecaStatistik.self, from: roh)
+        laufDaten = try? JSONDecoder().decode(LaufDaten.self, from: roh)
+    }
+
+    func lauf(id: String, store: SenecaStore) async {
+        if store.demo {
+            struct Beispiel: Decodable { var lauf: SenecaStatistik.Lauf }
+            guard let b: Beispiel = Self.beispiel("Beispiel-Laufen"), let d: LaufDaten = Self.beispiel("Beispiel-Laufen") else { return }
+            var l = b.lauf
+            l.id = id
+            einzel = (l, d.lauf?.spur)
+            return
+        }
+        guard let roh = await Self.stand(store, ["lauf": id]), let s = try? JSONDecoder().decode(SenecaStatistik.self, from: roh), let l = s.lauf else { return }
+        einzel = (l, (try? JSONDecoder().decode(LaufDaten.self, from: roh))?.lauf?.spur)
+    }
+
+    private static func stand(_ store: SenecaStore, _ mehr: [String: String]) async -> Data? {
+        guard let j = try? await store.rufe("seneca.stand", params: ["geraet": "iphone", "sicht": "statistik"].merging(mehr) { a, _ in a }) else { return nil }
+        return try? JSONSerialization.data(withJSONObject: j)
+    }
+
+    private static func beispiel<T: Decodable>(_ name: String) -> T? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "json"), let roh = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: roh)
     }
 }
 
@@ -39,7 +64,7 @@ struct StatistikLayer: View {
             if let w = model.daten?.woche { woche(w) } else { HeuteSkelett() }
             Group {
                 switch seite {
-                case .lauf: model.daten?.lauf.map { LaufTafel(lauf: $0, zurueck: zurueck) }
+                case .lauf: LaufenBereich(model: model, zurueck: zurueck) { id in Task { await model.lauf(id: id, store: store) } }
                 case .kraft: model.daten?.uebung.map { KraftTafel(u: $0, zurueck: zurueck) }
                 case .lesen: model.daten?.buch.map { b in LesenTafel(b: b, zurueck: zurueck, uhr: { aktivitaet("lesen") }) { t, s in
                     eintragen("notiz", ["b": .text(String(b.titel.dropLast())), "t": .text(t)].merging(Int(s).map { ["s": .zahl(Double($0))] } ?? [:]) { a, _ in a })
@@ -58,6 +83,7 @@ struct StatistikLayer: View {
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { back() }
         .onAppear { gesturesChanged(PageGestures(holdsBack: false)) }
+        .onChange(of: seite) { _, neu in gesturesChanged(PageGestures(holdsBack: neu != nil)) }
         .task {
             await model.laden(store: store)
             if !store.demo { await StatHealthSync.shared.abgleichen(grund: .statistikOffen, fragen: true) }
@@ -165,7 +191,7 @@ struct StatistikLayer: View {
         .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.09)).frame(height: 1) }
         .contentShape(Rectangle())
         .onTapGesture {
-            let ziel: Seite? = k.art == "laufen" && model.daten?.lauf != nil ? .lauf : k.art == "kraft" && model.daten?.uebung != nil ? .kraft : k.art == "lesen" && model.daten?.buch != nil ? .lesen : nil
+            let ziel: Seite? = k.art == "laufen" ? .lauf : k.art == "kraft" && model.daten?.uebung != nil ? .kraft : k.art == "lesen" && model.daten?.buch != nil ? .lesen : nil
             if let ziel, allowTap() { Bewegung.mit(.wechsel) { seite = ziel } }
         }
     }
@@ -191,58 +217,6 @@ struct StatistikLayer: View {
         guard allowTap() else { return }
         if k.art == "kraft" { aktivitaet("training"); return }
         Bewegung.mit(.wechsel) { blatt = Blatt(rawValue: k.art) }
-    }
-}
-
-struct LaufTafel: View {
-    var lauf: SenecaStatistik.Lauf
-    var zurueck: () -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Button(action: zurueck) { Text("‹ Statistik").font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(height: 32) }.buttonStyle(.plain)
-                Text(lauf.kopf).mono(11, abstand: 1.1).foregroundStyle(TafelFarbe.leise).padding(.top, 10)
-                TafelSatz(vor: lauf.satz.first ?? "", akzent: lauf.satz.dropFirst().joined(separator: " ")).padding(.top, 8).padding(.bottom, 18)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .leading), count: 3), alignment: .leading, spacing: 16) {
-                    ForEach(Array(lauf.werte.enumerated()), id: \.offset) { _, w in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(w.first ?? "").font(Sundartha.grotesk(24, .medium)).monospacedDigit().foregroundStyle(.white)
-                            Text(w.last ?? "").font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
-                        }
-                    }
-                }
-                .padding(.vertical, 14)
-                .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.09)).frame(height: 1) }
-                .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.09)).frame(height: 1) }
-                VStack(spacing: 3) {
-                    ForEach(lauf.km, id: \.nr) { k in
-                        HStack(spacing: 10) {
-                            Text("\(k.nr)").mono(11).foregroundStyle(TafelFarbe.aus).frame(width: 22, alignment: .leading)
-                            GeometryReader { g in
-                                RoundedRectangle(cornerRadius: 2).fill(k.schnellste ? Color.white : TafelFarbe.himmel.opacity(0.55))
-                                    .frame(width: g.size.width * k.anteil, height: 4).frame(maxHeight: .infinity)
-                            }
-                            Text(k.zeit).mono(11).foregroundStyle(k.schnellste ? .white : TafelFarbe.leise).frame(width: 40, alignment: .trailing)
-                        }
-                        .frame(height: 17)
-                    }
-                }
-                .padding(.top, 14)
-                if let b = lauf.bestwert {
-                    HStack(spacing: 8) {
-                        Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7)
-                        Text(b).font(Sundartha.grotesk(14)).foregroundStyle(.white)
-                    }
-                    .padding(.top, 14)
-                }
-                if let w = lauf.woche {
-                    Text(w).font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(19, schrift: 13).padding(.top, 6).padding(.leading, 15)
-                }
-            }
-            .padding(.horizontal, 24).padding(.top, 62).padding(.bottom, 40)
-        }
-        .accessibilityAction(.escape, zurueck)
     }
 }
 

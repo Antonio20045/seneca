@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import HealthKit
 
 enum HealthStatistik {
@@ -7,7 +8,7 @@ enum HealthStatistik {
 
     private static var typen: Set<HKObjectType> {
         [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.bodyMass),
-         HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis)]
+         HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis), HKSeriesType.workoutRoute()]
     }
 
     static func mussFragen() async -> Bool {
@@ -130,5 +131,72 @@ enum HealthStatistik {
         }
         guard let puls else { return nil }
         return StatLaufDetails(kmZeiten: StatLaufRechnen.kmZeiten(kmSamples), pulsMittel: puls.mittel?.rounded(), pulsMax: puls.max?.rounded())
+    }
+    static func spur(id: String) async -> [String: JSONWert]? {
+        guard let uuid = UUID(uuidString: id) else { return [:] }
+        let w: HKWorkout? = await withCheckedContinuation { c in
+            store.execute(HKSampleQuery(sampleType: .workoutType(), predicate: HKQuery.predicateForObject(with: uuid), limit: 1, sortDescriptors: nil) { _, s, _ in c.resume(returning: s?.first as? HKWorkout) })
+        }
+        guard let w else { return [:] }
+        let dieserLauf = HKQuery.predicateForObjects(from: w)
+        async let orte = route(dieserLauf)
+        async let puls = proben(.heartRate, dieserLauf)
+        async let strecke = proben(.distanceWalkingRunning, dieserLauf)
+        guard let orte = await orte, let puls = await puls, let strecke = await strecke else { return nil }
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        let pulsBei = { (t: Date) in puls.min { abs($0.startDate.timeIntervalSince(t)) < abs($1.startDate.timeIntervalSince(t)) }
+            .flatMap { abs($0.startDate.timeIntervalSince(t)) < 30 ? JSONWert.zahl($0.quantity.doubleValue(for: bpm).rounded()) : nil } ?? .leer }
+        var punkte: [(t: Date, m: Double, hoehe: Double?, ort: CLLocation?)] = []
+        if orte.count > 2 {
+            var m = 0.0
+            for (i, o) in orte.enumerated() { m += i > 0 ? o.distance(from: orte[i - 1]) : 0; punkte.append((o.timestamp, m, o.verticalAccuracy >= 0 ? o.altitude : nil, o)) }
+        } else {
+            var m = 0.0
+            for s in strecke { m += s.quantity.doubleValue(for: .meter()); punkte.append((s.endDate, m, nil, nil)) }
+        }
+        guard let gesamt = punkte.last?.m, gesamt > 100 else { return [:] }
+        let schritt = max(50, gesamt / 300), linie = max(15, gesamt / 350)
+        var r: [JSONWert] = [], p: [JSONWert] = [], zuletztR = -1e9, zuletztP = -1e9
+        for x in punkte {
+            if x.m - zuletztR >= schritt {
+                zuletztR = x.m
+                r.append(.liste([.zahl(x.t.timeIntervalSince(w.startDate).rounded()), .zahl(x.m.rounded()), pulsBei(x.t), x.hoehe.map { .zahl(($0 * 10).rounded() / 10) } ?? .leer]))
+            }
+            if let o = x.ort, x.m - zuletztP >= linie {
+                zuletztP = x.m
+                p.append(.liste([.zahl((o.coordinate.latitude * 1e5).rounded() / 1e5), .zahl((o.coordinate.longitude * 1e5).rounded() / 1e5)]))
+            }
+        }
+        return ["p": .liste(p), "r": .liste(r), "quelle": .text("Health")]
+    }
+
+    private static func proben(_ art: HKQuantityTypeIdentifier, _ pred: NSPredicate) async -> [HKQuantitySample]? {
+        await withCheckedContinuation { c in
+            store.execute(HKSampleQuery(sampleType: HKQuantityType(art), predicate: pred, limit: HKObjectQueryNoLimit,
+                                        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, s, fehler in
+                c.resume(returning: fehler == nil ? ((s as? [HKQuantitySample]) ?? []) : nil)
+            })
+        }
+    }
+
+    private static func route(_ pred: NSPredicate) async -> [CLLocation]? {
+        let routen: [HKWorkoutRoute]? = await withCheckedContinuation { c in
+            store.execute(HKSampleQuery(sampleType: HKSeriesType.workoutRoute(), predicate: pred, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, s, fehler in
+                c.resume(returning: fehler == nil ? ((s as? [HKWorkoutRoute]) ?? []) : nil)
+            })
+        }
+        guard let routen else { return nil }
+        var alle: [CLLocation] = []
+        for r in routen {
+            let teil: [CLLocation] = await withCheckedContinuation { c in
+                var gesammelt: [CLLocation] = []
+                store.execute(HKWorkoutRouteQuery(route: r) { _, orte, fertig, fehler in
+                    gesammelt += orte ?? []
+                    if fertig || fehler != nil { c.resume(returning: gesammelt) }
+                })
+            }
+            alle += teil
+        }
+        return alle.sorted { $0.timestamp < $1.timestamp }
     }
 }

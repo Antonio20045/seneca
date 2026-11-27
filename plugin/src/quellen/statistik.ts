@@ -75,8 +75,8 @@ function kalenderwoche(t: number): number {
 
 export function lauf(db: Register, id?: string) {
   const alle = eintraegeSeit(db, 0).map(lesen).filter((x) => x.art === "lauf");
-  const l = id ? alle.find((x) => x.id === id) : alle.at(-1);
-  if (!l) return null;
+  const l = id ? alle.find((x) => x.id === id) : alle.at(-1); if (!l) return null;
+  const sp = id ? eintraegeSeit(db, l.zeit - 120_000).filter((e) => e.art === "laufspur" && Math.abs(Number(e.zeit) - l.zeit) < 120_000).sort((a, b) => Number(a.quelle === "garmin") - Number(b.quelle === "garmin")).at(-1) : undefined, spur = sp ? JSON.parse(String(sp.werte)) : null;
   const w = l.w, s = (w.km_s as number[] | undefined) ?? [], name = String(w.name ?? "Lauf");
   const lo = Math.min(...s), hi = Math.max(...s), best = s.indexOf(lo);
   const frueher = alle.filter((x) => x.zeit < l.zeit && x.w.name === w.name && ((x.w.km_s as number[] | undefined) ?? []).length);
@@ -84,7 +84,7 @@ export function lauf(db: Register, id?: string) {
   const seit = schneller === -1 ? null : frueher[schneller].zeit;
   const wo = km(eintraegeSeit(db, wochenBeginn(l.zeit)).map(lesen).filter((x) => x.zeit <= l.zeit + 1)), z = ziel(db, "laufen_km", wochenBeginn(l.zeit) + 7 * regelMs("ein_tag_tage"));
   return {
-    id: l.id, kopf: `LAUFEN · ${datum(l.zeit, { weekday: "long" }).toUpperCase()}, ${new Date(l.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+    id: l.id, spur, kopf: `LAUFEN · ${datum(l.zeit, { weekday: "long" }).toUpperCase()}, ${new Date(l.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
     satz: [`${w.titel ?? name}.`, s.length > 2 && best === s.length - 1 ? "Der letzte Kilometer war dein schnellster." : s.length > 2 && best === 0 ? "Der erste Kilometer war dein schnellster." : ""].filter(Boolean),
     werte: [[`${zahl(Number(w.km), 1)} km`, "Strecke"], [dauer(Number(w.dauer_s)), "Zeit"], [dauer(Number(w.dauer_s) / Number(w.km)), "pro km"],
       w.hm ? [`${zahl(Number(w.hm))} m`, "bergauf"] : null, w.puls ? [zahl(Number(w.puls)), "Puls Ø"] : null, w.zone ? [String(w.zone), "meist"] : null].filter(Boolean),

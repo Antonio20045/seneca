@@ -76,7 +76,7 @@ kontext_befunde 5
 befund_antwort_zeichen 2000
 titel_zeichen 60
 anzeigen_max_je_projekt 4
-ereignis_daten_max_bytes 4096
+ereignis_daten_max_bytes 65536
 spaeter_vor_frist_min 30 vorschlag
 antwort_max_alter_min 60 zu_messen
 praesenz_gilt_min 2

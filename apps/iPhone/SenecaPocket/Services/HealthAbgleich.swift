@@ -49,6 +49,12 @@ final class StatHealthSync {
             s.gemeldet.insert(e.id)
         }
         setzen(s)
+        for id in s.offeneSpuren.prefix(30) {
+            guard let w = await HealthStatistik.spur(id: id), let start = s.laeufe[id]?.start else { break }
+            guard w.isEmpty || melde?("laufspur", w, start) == true else { break }
+            s.spurGemeldet = (s.spurGemeldet ?? []).union([id])
+            setzen(s)
+        }
     }
 
     private func setzen(_ neu: StatHealthStand) {
