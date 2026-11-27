@@ -145,7 +145,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wichtig: Bool?
         public var revision: Int?
         public var geschaetzt: String?; public var geplant_bis: Double?; public var oeffnet: String?; public var notiz: String?
-        public var anhang: String?; public var verschoben: Int?
+        public var anhang: String?; public var verschoben: Int?; public var grund: Grund?
+        public struct Grund: Codable, Equatable, Sendable { public var vorher: Double; public var satz: String }
     }
     public struct Aufgaben: Codable, Equatable, Sendable {
         public struct Gruppe: Codable, Equatable, Sendable { public var titel: String; public var zeit: String; public var ids: [String] }

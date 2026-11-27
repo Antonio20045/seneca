@@ -210,7 +210,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
-      wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision })),
+      wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision,
+      grund: ((w) => (w && (w.gueltig_bis ?? 0) > jetzt ? JSON.parse(w.wert) : null))(wert(db, `todo_grund:${t.id}`)) })),
     hinweise: [...werte(db, "hinweis:").keys()].map((k) => wert(db, k)).filter((w) => w?.wert && (w.gueltig_bis ?? Infinity) > jetzt).map((w) => w?.wert),
     kopplung: [...werte(db, "kopplung:")].filter(([k]) => k !== "kopplung:fenster").map(([k, v]) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(v) }))
       .filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl })),
