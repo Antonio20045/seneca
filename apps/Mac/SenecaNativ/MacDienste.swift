@@ -398,7 +398,7 @@ final class MacDienste: ObservableObject {
         AufgabenModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         TageslaufModell.gemeinsam.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.aktualisiere() } }.store(in: &abos)
         aktualisiere()
-        zeichen.starte(dienste: self)
+        zeichen.starte(dienste: self, store: modell.store)
         VorneMerker.gemeinsam.starte()
         MeetingDienst.gemeinsam.$zustand.receive(on: DispatchQueue.main)
             .sink { [weak self] z in MainActor.assumeIsolated { self?.meetingStand(z) } }.store(in: &abos)

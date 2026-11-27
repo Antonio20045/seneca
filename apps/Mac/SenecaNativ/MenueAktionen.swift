@@ -11,16 +11,16 @@ final class MenueZeichenModell: ObservableObject {
     @Published private(set) var zeichen = MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: false, meetingDauer: 0, meetingArbeitet: false, braucht: 0)
     private var abos: Set<AnyCancellable> = []
 
-    func starte(dienste: MacDienste) {
+    func starte(dienste: MacDienste, store: SenecaStore) {
         guard abos.isEmpty else { return }
-        Publishers.CombineLatest4(DiktatDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, dienste.$stand)
+        Publishers.CombineLatest4(DiktatDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$zustand, MeetingDienst.gemeinsam.$dauer, store.$stand)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] d, m, dauer, stand in
                 MainActor.assumeIsolated {
                     var arbeitet = false
                     if case .wertAus = m { arbeitet = true }
                     let neu = MenueZeichen.entscheide(diktat: DiktatDienst.phase(d), meetingNimmtAuf: m == .nimmtAuf, meetingDauer: dauer,
-                                                      meetingArbeitet: arbeitet, braucht: stand.braucht)
+                                                      meetingArbeitet: arbeitet, braucht: stand?.zaehler?.braucht ?? 0, fokus: stand?.ruhe?.grund == "fokus")
                     if neu.text != nil { MenueZeichenModell.festeZiffern() }
                     if let self, neu != self.zeichen { self.zeichen = neu }
                 }
@@ -37,15 +37,15 @@ final class MenueZeichenModell: ObservableObject {
     func probeSetze(_ z: MenueZeichen) { zeichen = z }
     #endif
 
-    static let roterPunkt: NSImage = {
+    static func punkt(_ farbe: String) -> NSImage {
         let b = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { r in
-            NSColor.systemRed.setFill()
-            NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1)).fill()
+            (farbe == "rot" ? NSColor.systemRed : NSColor(red: 0.91, green: 0.72, blue: 0.29, alpha: 1)).setFill()
+            NSBezierPath(ovalIn: r.insetBy(dx: 2, dy: 2)).fill()
             return true
         }
         b.isTemplate = false
         return b
-    }()
+    }
 }
 
 @MainActor
@@ -187,31 +187,6 @@ struct MenueFensterLeser: NSViewRepresentable {
     func updateNSView(_ nsView: Sicht, context: Context) { nsView.geoeffnet = geoeffnet }
 }
 
-@MainActor
-final class AblageZuletztModell: ObservableObject {
-    static let gemeinsam = AblageZuletztModell()
-    @Published private(set) var eintraege: [AblageEintrag] = []
-    @Published private(set) var titel = ""
-
-    static var registerDatei: URL? {
-        if let p = ProcessInfo.processInfo.environment["SENECA_ABLAGE_REGISTER"], !p.isEmpty { return URL(fileURLWithPath: (p as NSString).expandingTildeInPath) }
-        guard MacPfade.profil.echteDaten else { return nil }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Bereiche/ablage-register.jsonl")
-    }
-
-    func lade() {
-        let register = Self.registerDatei, meetings = MeetingDienst.ordner
-        Task.detached(priority: .userInitiated) { [weak self] in
-            let z = AblageRegister.zuletzt(register: register, meetings: meetings)
-            await MainActor.run {
-                guard let self else { return }
-                if self.eintraege != z.eintraege { self.eintraege = z.eintraege }
-                if self.titel != z.titel { self.titel = z.titel }
-            }
-        }
-    }
-}
-
 extension MacDienste {
     func sprechen() {
         let ziel = VorneMerker.gemeinsam.ziel()
@@ -299,7 +274,7 @@ enum MenueProbe {
         }
         var w: [String: Any] = [:]
         let z = dienste.zeichen.zeichen
-        w["zeichen"] = ["symbol": z.symbol, "text": z.text ?? "", "rot": z.rot, "ansage": z.ansage] as [String: Any]
+        w["zeichen"] = ["symbol": z.symbol, "text": z.text ?? "", "punkt": z.punkt ?? "", "ansage": z.ansage] as [String: Any]
         let d = DiktatDienst.gemeinsam
         w["diktat"] = ["zustand": "\(DiktatDienst.phase(d.zustand))", "anzeige": "\(DiktatDienst.phase(d.anzeigeZustand))"]
         w["blase"] = NSApp.windows.filter { $0.className.contains("DiktatPanel") }.map { p in
@@ -311,9 +286,6 @@ enum MenueProbe {
         if let h = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) {
             w["fensterBild"] = await lies(fenster: h, sichern: ordner.appendingPathComponent("fenster-probe.png"))
         }
-        AblageZuletztModell.gemeinsam.lade()
-        try? await Task.sleep(for: .seconds(1))
-        w["zuletzt"] = ["titel": AblageZuletztModell.gemeinsam.titel, "anzahl": AblageZuletztModell.gemeinsam.eintraege.count] as [String: Any]
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] == "foto" {
             switch await BildschirmFoto.nimm(display: BildschirmFoto.unterMaus()) {
             case .foto(let u):

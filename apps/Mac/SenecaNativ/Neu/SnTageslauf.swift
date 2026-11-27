@@ -83,6 +83,8 @@ enum HeuteBild {
                     case "team":
                         SnTeamTafel(stand: s, handle: { _, _, _ in }, schreiben: { _ in })
                         SnGeruestBild(stand: s, dock: false)
+                    case "menue-fokus", "menue-frage", "menue-meeting":
+                        SnMenueBild(stand: s, art: env["SENECA_SEITE"] ?? "")
                     case "f-auftrag":
                         SnAuftragLebenslaufBild(stand: s)
                     case "f-lebenslauf":

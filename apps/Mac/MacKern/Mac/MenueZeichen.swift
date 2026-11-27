@@ -1,13 +1,13 @@
 import Foundation
 
 struct MenueZeichen: Equatable {
-    enum Bild: Equatable { case blase, blaseVoll, mikrofon, erkennt, aufnahme, arbeitet }
+    enum Bild: Equatable { case blase, blaseVoll, mikrofon, erkennt, aufnahme, arbeitet, fokus }
 
     var bild: Bild
     var text: String?
     var ansage: String
 
-    var rot: Bool { bild == .aufnahme }
+    var punkt: String? { bild == .aufnahme ? "rot" : bild == .blaseVoll ? "bernstein" : nil }
 
     var symbol: String {
         switch bild {
@@ -17,11 +17,12 @@ struct MenueZeichen: Equatable {
         case .erkennt: return "waveform"
         case .aufnahme: return "record.circle.fill"
         case .arbeitet: return "ellipsis.bubble"
+        case .fokus: return "circle.lefthalf.filled"
         }
     }
 
     static func entscheide(diktat: DiktatWache.Phase, meetingNimmtAuf: Bool, meetingDauer: TimeInterval,
-                           meetingArbeitet: Bool, braucht: Int) -> MenueZeichen {
+                           meetingArbeitet: Bool, braucht: Int, fokus: Bool = false) -> MenueZeichen {
         let zeit = meetingNimmtAuf ? MeetingTranskript.zeit(meetingDauer) : nil
         var teile = ["Seneca"]
         let bild: Bild
@@ -33,11 +34,12 @@ struct MenueZeichen: Equatable {
             bild = .erkennt
             teile.append("Diktat wird erkannt")
         default:
-            bild = meetingNimmtAuf ? .aufnahme : meetingArbeitet ? .arbeitet : braucht > 0 ? .blaseVoll : .blase
+            bild = meetingNimmtAuf ? .aufnahme : meetingArbeitet ? .arbeitet : fokus ? .fokus : braucht > 0 ? .blaseVoll : .blase
         }
         if let zeit { teile.append("Meeting wird aufgenommen, \(zeit)") } else if meetingArbeitet { teile.append("Meeting wird ausgewertet") }
         if braucht > 0 { teile.append("\(braucht) braucht dich") }
-        return MenueZeichen(bild: bild, text: zeit ?? (braucht > 0 ? "\(braucht)" : nil), ansage: teile.joined(separator: ", "))
+        if fokus { teile.append("Fokus") }
+        return MenueZeichen(bild: bild, text: zeit ?? (braucht > 0 && !fokus ? "\(braucht)" : nil), ansage: teile.joined(separator: ", "))
     }
 }
 
