@@ -7,7 +7,7 @@ import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
-import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
+import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, werkzeugGelaufen, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
@@ -150,7 +150,10 @@ export default {
 
     api.on("before_tool_call", (event, ctx) => pruefeAufruf(db, { werkzeug: event.toolName, params: event.params, sitzung: ctx.sessionKey ?? "", agent: ctx.agentId ?? "", aufrufId: event.toolCallId }, nachrichtVon(ctx.sessionKey ?? "")));
     api.on("before_tool_call", (event, ctx) => dateiRecht({ werkzeug: event.toolName, params: event.params, agent: ctx.agentId ?? "" }));
-    api.on("after_tool_call", (event) => nachWerkzeug(db, event.toolCallId, event.error));
+    api.on("after_tool_call", (event, ctx) => {
+      nachWerkzeug(db, event.toolCallId, event.error);
+      werkzeugGelaufen(db, ctx.sessionKey ?? "", event);
+    });
     api.on("message_received", (event, ctx) => mitlesen(db, ctx.channelId, event));
     const route = (path: string, verarbeite: (roh: Buffer, kopf: IncomingHttpHeaders) => { status: number; inhalt?: object; kopf?: Record<string, string> }) =>
       api.registerHttpRoute({ path, auth: "plugin", match: "exact", handler: async (req, res) => {

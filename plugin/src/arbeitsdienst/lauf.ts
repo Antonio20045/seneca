@@ -1,7 +1,7 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  auftragAnlegen, auftragSetzen, befund, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
+  auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, laufAnlegen, laufEnde, laufSchritt, uebergang, vorschlagAnlegen, wertSetzen,
 } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, rolle } from "../team.ts";
@@ -197,6 +197,14 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   });
   const satz = p.schaetzung_min ? `Notiert. ${verantwortlich} kümmert sich, etwa ${euro(kostenrahmen_cent)}.` : `Notiert. ${verantwortlich} kümmert sich, Rahmen ${euro(kostenrahmen_cent)}.`;
   return { auftrag_id: id, satz };
+}
+
+export function werkzeugGelaufen(db: Register, sitzung: string, e: { toolName: string; params: Record<string, unknown>; durationMs?: number; error?: string }): void {
+  const l = laufZurSitzung(db, sitzung);
+  if (!l || !["laeuft", "haengt", "startet"].includes(String(l.zustand))) return;
+  const wert = Object.values(e.params).find((v) => typeof v === "string") as string | undefined;
+  ereignis(db, { art: "werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: [e.toolName, wert?.split("\n")[0].slice(0, regelZahl("titel_zeichen"))].filter(Boolean).join(" · "),
+    daten: { ms: e.durationMs ?? null, fehler: e.error ?? null } });
 }
 
 export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, antwort: string, kennung: string) {

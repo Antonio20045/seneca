@@ -83,10 +83,13 @@ function team(db: Register, jetzt: number) {
     const l = laeufe.find((x) => x.mitarbeiter === name);
     const r = wert(db, `ruht:${name}`);
     const ruht = r?.wert === "ja" && (r.gueltig_bis ?? Infinity) > jetzt;
-    const zuletzt = l ? undefined : beendeteLaeufe(db, name, tagBeginn)[0];
+    const zuletzt = l ? undefined : beendeteLaeufe(db, name, tagBeginn)[0], a = l ? hole(db, "auftrag", String(l.auftrag_id)) : undefined;
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
+      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: a?.titel ?? null,
+      danach: a?.naechster_schritt || null, wartet_auf: a?.wartet_auf ?? null, anteil: a?.schritt_gesamt ? Number(a.schritt_nr) / Number(a.schritt_gesamt) : null, kosten_cent: l?.kosten_cent ?? null,
+      heute: l ? beendeteLaeufe(db, name, tagBeginn).reverse().map((x) => String(x.letzter_schritt ?? x.titel)) : [],
+      protokoll: l ? ereignisse(db, { art: "werkzeug", lauf_id: String(l.id) }).reverse().map((e) => ({ um: e.zeit, satz: e.satz, ms: JSON.parse(String(e.daten)).ms })) : [],
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
       ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null };
   });

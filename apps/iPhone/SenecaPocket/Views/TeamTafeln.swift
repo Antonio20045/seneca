@@ -79,6 +79,8 @@ struct TeamBlatt: View {
     var fertig: () -> Void
 
     @State private var offen: String?
+    @State private var detail: String?
+    @EnvironmentObject private var store: SenecaStore
 
     var body: some View {
         let team = stand.team ?? []
@@ -120,6 +122,15 @@ struct TeamBlatt: View {
                 .font(Sundartha.grotesk(14)).frame(minHeight: 44).padding(.bottom, 0)
             }
         }
+        .tafelBlatt(isPresented: Binding(get: { detail != nil }, set: { if !$0 { detail = nil } }), hoehe: 724) {
+            if let m = team.first(where: { $0.name == detail }) {
+                TeamDetail(m: m, jetzt: stand.jetzt, anhalten: { m.auftrag_id.map { store.daten?.handeln("auftrag.anhalten", ziel: $0) }; detail = nil },
+                           schreiben: { detail = nil; verlauf(m.name) })
+            }
+        }
+        #if DEBUG
+        .onAppear { if ProcessInfo.processInfo.environment["SENECA_DEMO_TEAM_DETAIL"] == "1" { detail = team.first?.name } }
+        #endif
     }
 
     private func schritte(_ m: SenecaStand.Mitglied) -> some View {
@@ -131,13 +142,101 @@ struct TeamBlatt: View {
                     Text(x.satz ?? "").font(Sundartha.grotesk(13)).zeilenHoehe(19, schrift: 13).foregroundStyle(i == s.count - 1 ? .white : TafelFarbe.zweit)
                 }
             }
-            Button { verlauf(m.name) } label: { Text("Ganzer Verlauf ›").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.himmel).frame(height: 32) }
+            Button { detail = m.name } label: { Text("Ganzer Verlauf ›").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.himmel).frame(height: 32) }
                 .buttonStyle(.plain)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.18)))
         .padding(.leading, 24).padding(.top, 8).padding(.bottom, 2)
+    }
+}
+
+struct TeamDetail: View {
+    var m: SenecaStand.Mitglied
+    var jetzt: Double
+    var anhalten: () -> Void
+    var schreiben: () -> Void
+    @State private var alle = false
+    static let wort = ["null", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"]
+
+    var body: some View {
+        let p = m.protokoll ?? [], letzter = m.schritte?.last
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).background(Circle().fill(TafelFarbe.gruen.opacity(0.18)).frame(width: 15, height: 15))
+                Text([m.name, m.projekt, HeuteTafelLogik.uhr(jetzt)].compactMap { $0?.uppercased() }.joined(separator: " · ")).mono(11, .medium, abstand: 1).foregroundStyle(TafelFarbe.leise)
+            }
+            .padding(.top, 18).padding(.bottom, 8)
+            TafelSatz(vor: TeamLogik.gross(m.satz ?? m.titel ?? "Arbeitet") + ".", akzent: m.rest_min.map { Int($0) }.map { $0 == 1 ? "Noch etwa eine Minute." : "Noch etwa \($0 <= 12 ? TeamDetail.wort[$0] : String($0)) Minuten." } ?? "", groesse: 28)
+                .padding(.bottom, 12)
+            Capsule().fill(Color.white.opacity(0.1)).frame(height: 4)
+                .overlay(alignment: .leading) { GeometryReader { g in Capsule().fill(TafelFarbe.gruen).frame(width: g.size.width * anteil) } }
+                .padding(.bottom, 10)
+            zeile("JETZT", letzter?.satz ?? m.satz ?? "", letzter?.um.map { "seit \(HeuteTafelLogik.uhr($0))" })
+            if let d = m.danach { zeile("DANACH", d, nil) }
+            zeile("WARTET AUF", m.wartet_auf ?? "Nichts", nil)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("HEUTE").mono(11, .medium, abstand: 0.8).foregroundStyle(TafelFarbe.leise)
+                (Text((m.heute ?? []).map { $0 + " · " }.joined()).foregroundColor(TafelFarbe.zweit)
+                    + Text("\(m.satz ?? "arbeitet") seit \(m.seit.map { HeuteTafelLogik.uhr($0) } ?? "")").foregroundColor(.white))
+                    .font(Sundartha.grotesk(14)).zeilenHoehe(21, schrift: 14).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 10).padding(.bottom, 4).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { linie }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("ROHPROTOKOLL ▾")
+                    Spacer()
+                    Text(["\(Int(max(0, jetzt - (m.seit ?? jetzt)) / 60_000)) MIN", (m.kosten_cent ?? 0) > 0 ? ((m.kosten_cent ?? 0) / 100).formatted(.currency(code: "EUR").locale(Locale(identifier: "de_DE"))) : nil].compactMap { $0 }.joined(separator: " · "))
+                }
+                .mono(11, .medium, abstand: 0.8).foregroundStyle(TafelFarbe.leise).padding(.bottom, 4)
+                ForEach(Array((alle ? p : Array(p.suffix(5))).enumerated()), id: \.offset) { _, s in
+                    HStack(spacing: 8) {
+                        Text(s.um.map { HeuteTafelLogik.uhr($0) } ?? "").foregroundStyle(TafelFarbe.aus).frame(width: 58, alignment: .leading)
+                        Text((s.satz ?? "") + (s.ms == nil ? " · läuft" : "")).foregroundStyle(s.ms == nil ? TafelFarbe.gruen : TafelFarbe.zweit).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(s.ms.map { ($0 / 1000).formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "de_DE"))) + " s" } ?? "…").foregroundStyle(TafelFarbe.leise)
+                    }
+                    .mono(11).frame(height: 24)
+                }
+                if p.count > 5, !alle {
+                    Button { Bewegung.mit(.wechsel) { alle = true } } label: {
+                        Text("Alle \(p.count <= 12 ? TeamDetail.wort[p.count] : String(p.count)) Schritte ›").font(Sundartha.grotesk(13)).foregroundStyle(TafelFarbe.himmel).frame(height: 30)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 10).overlay(alignment: .top) { linie }.padding(.top, 8)
+            Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                Button(action: anhalten) {
+                    Text("Anhalten").foregroundStyle(TafelFarbe.akzent).frame(maxWidth: .infinity).frame(height: 48)
+                        .overlay(Capsule().strokeBorder(TafelFarbe.himmel.opacity(0.5), lineWidth: 1))
+                }
+                Button(action: schreiben) {
+                    Text("Schreiben").foregroundStyle(TafelFarbe.aufHimmel).frame(maxWidth: .infinity).frame(height: 48).background(Capsule().fill(TafelFarbe.himmel))
+                }
+            }
+            .font(Sundartha.grotesk(15, .medium)).buttonStyle(.plain).padding(.bottom, 30)
+        }
+    }
+
+    private var anteil: Double {
+        if let a = m.anteil { return min(1, a) }
+        let weg = max(0, jetzt - (m.seit ?? jetzt)), rest = (m.rest_min ?? 0) * 60_000
+        return weg + rest > 0 ? weg / (weg + rest) : 0
+    }
+
+    private var linie: some View { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
+
+    private func zeile(_ titel: String, _ text: String, _ unter: String?) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(titel).mono(11, .medium, abstand: 0.8).foregroundStyle(TafelFarbe.leise).frame(width: 96, height: 20, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(text).font(Sundartha.grotesk(15)).foregroundStyle(.white).zeilenHoehe(20, schrift: 15)
+                if let unter { Text(unter).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise).zeilenHoehe(17, schrift: 12) }
+            }
+        }
+        .padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { linie }
     }
 }
 

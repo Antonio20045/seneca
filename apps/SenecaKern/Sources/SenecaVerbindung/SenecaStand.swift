@@ -57,11 +57,12 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
         public var heute: [Entschieden]?; public var danach: String?
     }
-    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double? }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var ms: Double? }
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
         public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?; public var titel: String?
+        public var danach: String?; public var wartet_auf: String?; public var anteil: Double?; public var kosten_cent: Double?; public var heute: [String]?; public var protokoll: [Zuletzt]?
     }
     public struct AuftragNeu: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var ziel: String?; public var wer: String; public var pruefer: Bool?
