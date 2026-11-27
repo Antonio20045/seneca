@@ -296,5 +296,23 @@ public struct SenecaStatistik: Codable, Equatable, Sendable {
         public var titel: String; public var kopf: String; public var anteil: Double?; public var seite: String?; public var prozent: String?; public var satz: String; public var prognose: String?
         public var zahlen: [[String]]; public var zuletzt: [Zeile]; public var notiz: Notiz?
     }
+    public struct Kennzahlen: Codable, Equatable, Sendable {
+        public struct Lauf: Codable, Equatable, Sendable {
+            public var km: [Double]; public var lang: [Double]; public var tage: [Int]; public var trendKm: Double?; public var serie: [String: Int]?
+            public var laengster: [JSONWert]?; public var schnellsterKm: [JSONWert]?; public var aufbau: [[JSONWert]]
+            enum CodingKeys: String, CodingKey { case km, lang, tage, serie, laengster, aufbau, trendKm = "trend_km", schnellsterKm = "schnellster_km" }
+        }
+        public struct Kraft: Codable, Equatable, Sendable {
+            public var tage: [Int]; public var volumen: [String: Double]; public var bestwerte: [String: [JSONWert]]
+            enum CodingKeys: String, CodingKey { case tage, bestwerte, volumen = "volumen_4w" }
+        }
+        public struct Koerper: Codable, Equatable, Sendable { public var nacht: [[JSONWert]]; public var tag: [[JSONWert]]; public var gewicht: [[JSONWert]] }
+        public struct Eigene: Codable, Equatable, Sendable, Identifiable {
+            public var id: String; public var titel: String; public var von: String?; public var grund: String?; public var diagramm: String?; public var einheit: String?
+            public var ziel: Double?; public var punkte: [[JSONWert]]?; public var wert: Double?; public var fehler: String?
+        }
+        public var wochen: [String]; public var lauf: Lauf; public var kraft: Kraft; public var koerper: Koerper; public var statistiken: [Eigene]
+    }
     public var woche: Woche; public var lauf: Lauf?; public var tag: TagSicht?; public var monat: Raster?; public var jahr: Raster?; public var uebung: Uebung?; public var buch: Buch?
+    public var kennzahlen: Kennzahlen?
 }

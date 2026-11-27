@@ -21,147 +21,217 @@ struct SnStatistikEcht: View {
 struct SnStatistikTafel: View {
     var daten: SenecaStatistik
     var stand: Double
-
-    private func farbe(_ art: String) -> Color { art == "lesen" ? TafelFarbe.akzent : art == "gewicht" ? TafelFarbe.zweit : TafelFarbe.gruen }
+    @State var bereich: StatBereich?
+    @State var zeitraum: StatZeitraum = .woche
 
     var body: some View {
-        let w = daten.woche
+        ZStack {
+            if let b = bereich {
+                SnStatDetail(bereich: b, daten: daten, stand: stand) { wechsle(nil) }.transition(.opacity.combined(with: .offset(x: 24)))
+            } else {
+                uebersicht.transition(.opacity.combined(with: .offset(x: -24)))
+            }
+        }
+        .onChange(of: "\(bereich?.rawValue ?? "Übersicht") \(zeitraum.rawValue)", initial: true) { _, z in SnStatistikProbe.gesehen = z }
+    }
+
+    private func wechsle(_ b: StatBereich?) { withAnimation(.easeOut(duration: 0.22)) { bereich = b } }
+
+    private var k: SenecaStatistik.Kennzahlen? { daten.kennzahlen }
+
+    private var uebersicht: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .lastTextBaseline, spacing: 14) {
-                    Text("Diese Woche").font(Schrift.serif(40)).foregroundStyle(Color.white)
-                    Text(StatistikLogik.zeitraum(w.kopf, stand: stand)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
+                    Text(["Diese Woche", "Dieser Monat", "Dieses Jahr"][StatZeitraum.allCases.firstIndex(of: zeitraum) ?? 0]).font(Schrift.serif(40)).foregroundStyle(Color.white)
+                    Text(zeitraum == .woche ? StatistikLogik.zeitraum(daten.woche.kopf, stand: stand) : (zeitraum == .monat ? daten.monat : daten.jahr)?.kopf ?? "")
+                        .font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
                     Spacer()
-                    HStack(spacing: 2) {
-                        ForEach(["Woche", "Monat", "Jahr"], id: \.self) { r in
-                            Text(r).font(Schrift.grotesk(13, .medium)).foregroundStyle(r == "Woche" ? Color.white : TafelFarbe.zweit)
-                                .padding(.horizontal, 12).padding(.vertical, 5).background(Capsule().fill(Color.white.opacity(r == "Woche" ? 0.14 : 0)))
-                        }
-                    }
-                    .padding(3).background(Capsule().fill(Color.white.opacity(0.06)))
+                    umschalter
                 }
-                (Text(w.satz.first ?? "") + Text(w.satz.dropFirst().map { " " + $0 }.joined()).italic().foregroundColor(TafelFarbe.akzent))
-                    .font(Schrift.serif(28)).foregroundStyle(Color.white).padding(.top, 22)
-                HStack(alignment: .top, spacing: 16) { ForEach(w.karten) { karte($0) } }.padding(.top, 26)
-                GeometryReader { g in
-                    HStack(alignment: .top, spacing: 16) {
-                        if let u = daten.uebung { uebung(u).frame(width: (g.size.width - 16) * 1.15 / 2.15) }
-                        if let j = daten.jahr { bewegung(j).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
-                    }
-                }
-                .frame(height: 290).padding(.top, 56)
-                if let h = w.hinweis {
-                    HStack(spacing: 14) { SnKugel(groesse: 10, atmet: false); Text(h).font(Schrift.grotesk(15)).foregroundStyle(TafelFarbe.zweit) }.padding(.top, 52)
-                }
+                SnStatSatz(teile: StatistikLogik.satz(daten, zeitraum), groesse: 28).padding(.top, 22)
+                laufen.padding(.top, 34)
+                HStack(alignment: .top, spacing: 16) { kraft; lesen; koerper }.fixedSize(horizontal: false, vertical: true).padding(.top, 16)
+                if zeitraum == .jahr, let j = daten.jahr { jahr(j).padding(.top, 16) }
+                mitarbeiter.padding(.top, 56)
             }
             .padding(.horizontal, 96).padding(.top, 90).padding(.bottom, 140)
         }
         .scrollIndicators(.never)
     }
 
-    private func flaeche<V: View>(@ViewBuilder _ inhalt: () -> V) -> some View {
-        inhalt().padding(.horizontal, 20).padding(.vertical, 18).frame(maxWidth: .infinity, alignment: .topLeading).snFlaeche(18, deckkraft: 0.05)
+    private var umschalter: some View {
+        HStack(spacing: 2) {
+            ForEach(StatZeitraum.allCases, id: \.self) { z in
+                Button { withAnimation(.easeOut(duration: 0.2)) { zeitraum = z } } label: {
+                    Text(z.rawValue).font(Schrift.grotesk(13, .medium)).foregroundStyle(z == zeitraum ? Color.white : TafelFarbe.zweit)
+                        .padding(.horizontal, 12).padding(.vertical, 5).background(Capsule().fill(Color.white.opacity(z == zeitraum ? 0.14 : 0))).contentShape(Capsule())
+                }
+                .buttonStyle(.plain).accessibilityLabel(z.rawValue)
+            }
+        }
+        .padding(3).background(Capsule().fill(Color.white.opacity(0.06)))
     }
 
-    private func karte(_ k: SenecaStatistik.Karte) -> some View {
-        flaeche {
+    private var laufen: some View {
+        let km = k?.lauf.km.last ?? 0, ziel = k.flatMap(StatistikLogik.wochenZiel), summe = StatistikLogik.summe(daten, zeitraum, "Laufen")
+        let leer = zeitraum == .woche ? km == 0 : summe?.first == "0"
+        let seit = k.flatMap { StatistikLogik.letzterLauf($0, daten.lauf) }
+        return SnStatKachel(bereich: .laufen, oeffne: wechsle) {
+            HStack(alignment: .top, spacing: 48) {
+                VStack(alignment: .leading, spacing: 0) {
+                    SnStatTitel(titel: "Laufen")
+                    SnStatZahl(wert: summe?[0] ?? StatistikLogik.zahl(km), einheit: summe?[1] ?? "KM").padding(.top, 8)
+                    if zeitraum == .woche, let ziel {
+                        SnStatFortschritt(anteil: km / max(1, ziel.km), rechts: "VON \(StatistikLogik.zahl(ziel.km)) KM").padding(.top, 12)
+                    }
+                    Text(leer ? seit.map { "Seit \(StatistikLogik.datum($0, lang: true)) kein Lauf." } ?? "Noch kein Lauf." : summe.map { String($0[2].dropFirst("Laufen, ".count)) } ?? "Längster Lauf \(StatistikLogik.zahl(k?.lauf.lang.last ?? 0)) km.")
+                        .font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text).padding(.top, 16)
+                    if let t = k?.lauf.trendKm {
+                        Text("TREND \(t >= 0 ? "+" : "−")\(StatistikLogik.zahl(abs(t))) KM JE WOCHE").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 6)
+                    }
+                }
+                .frame(width: 300, alignment: .leading)
+                if let k {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Der Weg zu 100 km").font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)
+                            Spacer()
+                            Text("LÄNGSTER LAUF JE WOCHE").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus)
+                        }
+                        SnWegLinie(weg: StatistikLogik.weg(k)).frame(height: 104)
+                    }
+                }
+            }
+        }
+    }
+
+    private var kraft: some View {
+        let karte = StatistikLogik.karte(daten, "kraft"), summe = StatistikLogik.summe(daten, zeitraum, "Kraft"), best = k.flatMap { StatistikLogik.bestwerte($0).first }
+        let reihe = zeitraum == .woche ? (karte?.tage ?? []).map { $0.zustand == "da" ? 1 : 0 } : (k?.kraft.tage ?? []).suffix(zeitraum == .monat ? 5 : 52).map(Double.init)
+        return SnStatKachel(bereich: .kraft, oeffne: wechsle) {
             VStack(alignment: .leading, spacing: 0) {
-                (Text(k.titel) + Text(k.buch == nil ? "" : " · ") + Text(k.buch ?? "").font(Schrift.serif(16, kursiv: true))).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit)
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(k.wert).font(Schrift.grotesk(40, .medium)).kerning(-0.8).foregroundStyle(Color.white)
-                    Text(k.einheit).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
-                }
-                .padding(.top, 8)
-                HStack(spacing: 10) {
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.1))
-                            Capsule().fill(k.art == "gewicht" ? TafelFarbe.zweit : farbe(k.art)).frame(width: g.size.width * min(1, k.anteil ?? (k.art == "gewicht" ? 0.6 : 0)))
-                        }
-                    }
-                    .frame(height: 3)
-                    Text(k.rechts).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).fixedSize()
-                }
-                .padding(.top, 12).padding(.bottom, 14)
-                HStack(alignment: .bottom, spacing: 6) {
-                    ForEach(Array(k.tage.enumerated()), id: \.offset) { i, t in
-                        VStack(spacing: 6) {
-                            Spacer(minLength: 0)
-                            if k.art == "gewicht" {
-                                Text(t.wert.map { String(format: "%.1f", $0).replacingOccurrences(of: ".", with: ",") } ?? (t.zustand == "leer" ? "–" : " "))
-                                    .font(Schrift.grotesk(11)).foregroundStyle(TafelFarbe.zweit).fixedSize()
-                                Circle().fill(t.zustand == "da" ? Color.white.opacity(0.85) : Color.clear).overlay(Circle().strokeBorder(Color.white.opacity(t.zustand == "kommt" ? 0.12 : 0.6), lineWidth: 1.5)).frame(width: 9, height: 9)
-                            } else if t.zustand == "da" {
-                                RoundedRectangle(cornerRadius: 3).fill(farbe(k.art)).frame(height: max(6, 54 * (t.hoehe ?? 0.6)))
-                            } else {
-                                RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(t.zustand == "kommt" ? 0.05 : 0.14)).frame(height: 3)
-                            }
-                            Text(["MO", "DI", "MI", "DO", "FR", "SA", "SO"][i]).font(Schrift.mono(10)).foregroundStyle(t.heute ? Color.white : TafelFarbe.aus)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: 80)
-                    }
-                }
-                .frame(height: 80)
+                SnStatTitel(titel: "Krafttraining")
+                SnStatZahl(wert: summe?[0] ?? karte?.wert ?? "0", einheit: summe?[1] ?? karte?.einheit ?? "MAL").padding(.top, 8)
+                Text("LETZTER BESTWERT").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).padding(.top, 16)
+                Text(best.map { "\($0.name) \(StatistikLogik.zahl($0.kg)) kg × \($0.wdh) · \(StatistikLogik.datum($0.iso))" } ?? "Noch keiner.")
+                    .font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text).lineLimit(1).padding(.top, 4)
+                Spacer(minLength: 18)
+                SnStatBalken(werte: reihe, farbe: TafelFarbe.gruen, beschriftung: zeitraum == .woche ? ["MO", "DI", "MI", "DO", "FR", "SA", "SO"] : nil).frame(height: 46)
             }
         }
     }
 
-    private func uebung(_ u: SenecaStatistik.Uebung) -> some View {
-        let p = StatistikLogik.achtWochen(u)
-        let kg = p.compactMap(\.kg), lo = (kg.min() ?? 0) - 2.5, hi = (kg.max() ?? 1) + 2.5
-        return flaeche {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    (Text(u.titel.trimmingCharacters(in: CharacterSet(charactersIn: "."))).foregroundColor(.white) + Text(" · bester Satz je Woche").foregroundColor(TafelFarbe.leise)).font(Schrift.grotesk(15))
-                    Spacer()
-                    Text("\(p.count) WOCHEN").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise)
+    private var lesen: some View {
+        let karte = StatistikLogik.karte(daten, "lesen"), summe = StatistikLogik.summe(daten, zeitraum, "Lesen"), b = daten.buch
+        return SnStatKachel(bereich: .lesen, oeffne: wechsle) {
+            VStack(alignment: .leading, spacing: 0) {
+                SnStatTitel(titel: "Lesen", buch: b?.titel.trimmingCharacters(in: CharacterSet(charactersIn: ".")))
+                SnStatZahl(wert: summe?[0] ?? karte?.wert ?? "0:00", einheit: summe?[1] ?? karte?.einheit ?? "STD").padding(.top, 8)
+                if let a = b?.anteil {
+                    SnStatFortschritt(anteil: a, rechts: b?.prozent ?? "", farbe: TafelFarbe.akzent).padding(.top, 12)
                 }
-                GeometryReader { g in
-                    let x = { (i: Int) in CGFloat(i) / CGFloat(max(1, p.count - 1)) * (g.size.width - 16) + 8 }
-                    let y = { (v: Double) in (1 - CGFloat((v - lo) / max(0.1, hi - lo))) * (g.size.height - 30) + 18 }
-                    let pts = p.enumerated().compactMap { i, q in q.kg.map { CGPoint(x: x(i), y: y($0)) } }
-                    ZStack(alignment: .topLeading) {
-                        ForEach(Array(stride(from: (lo / 5).rounded(.up) * 5, through: hi, by: 5)), id: \.self) { v in
-                            Rectangle().fill(Color.white.opacity(0.07)).frame(width: g.size.width, height: 1).offset(y: y(v))
-                            Text("\(Int(v)) kg").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).offset(y: y(v) - 14)
-                        }
-                        Path { a in guard let f = pts.first, let l = pts.last else { return }; a.move(to: CGPoint(x: f.x, y: g.size.height - 12)); pts.forEach { a.addLine(to: $0) }; a.addLine(to: CGPoint(x: l.x, y: g.size.height - 12)) }
-                            .fill(LinearGradient(colors: [TafelFarbe.gruen.opacity(0.22), .clear], startPoint: .top, endPoint: .bottom))
-                        Path { a in guard let f = pts.first else { return }; a.move(to: f); pts.dropFirst().forEach { a.addLine(to: $0) } }.stroke(TafelFarbe.gruen, lineWidth: 2)
-                        ForEach(Array(p.enumerated()), id: \.offset) { i, q in
-                            if let v = q.kg {
-                                let last = i == p.count - 1
-                                Circle().fill(last ? TafelFarbe.gruen : TafelFarbe.aufHimmel).overlay(Circle().strokeBorder(TafelFarbe.gruen, lineWidth: 1.5)).frame(width: last ? 10 : 7, height: last ? 10 : 7).position(x: x(i), y: y(v))
-                                Text("×\(q.wdh ?? 0)").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.text).position(x: x(i), y: y(v) - 14)
-                            }
-                            Text(q.w).font(Schrift.mono(10)).foregroundStyle(i == p.count - 1 ? Color.white : TafelFarbe.aus).position(x: x(i), y: g.size.height)
-                        }
-                    }
+                Text("ZULETZT").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).padding(.top, 16)
+                Text(b?.zuletzt.first.map { "\($0.links.capitalized) · \($0.wert)" } ?? "Noch nichts gelesen.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text).padding(.top, 4)
+                Spacer(minLength: 18)
+                if zeitraum == .woche {
+                    SnStatBalken(werte: (karte?.tage ?? []).map { $0.zustand == "da" ? $0.hoehe ?? 0.6 : 0 }, farbe: TafelFarbe.akzent, beschriftung: ["MO", "DI", "MI", "DO", "FR", "SA", "SO"]).frame(height: 46)
                 }
-                .frame(height: 190)
-                if let s = StatistikLogik.heuteSatz(u.zeilen.first) ?? (u.satz.isEmpty ? nil : u.satz) { Text(s).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text) }
             }
         }
     }
 
-    private func bewegung(_ j: SenecaStatistik.Raster) -> some View {
-        flaeche {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    (Text("Bewegung").foregroundColor(.white) + Text(" · Laufen und Kraft").foregroundColor(TafelFarbe.leise)).font(Schrift.grotesk(15))
-                    Spacer()
-                    Text(String(Calendar.current.component(.year, from: Date(timeIntervalSince1970: stand / 1000)))).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise)
+    private var koerper: some View {
+        let heute = StatistikLogik.letzteTage(stand, 1).first ?? "", n = k?.koerper.nacht.last, g = k?.koerper.gewicht.last, summe = StatistikLogik.summe(daten, zeitraum, "Gewicht")
+        return SnStatKachel(bereich: .koerper, oeffne: wechsle) {
+            VStack(alignment: .leading, spacing: 0) {
+                SnStatTitel(titel: "Körper")
+                VStack(alignment: .leading, spacing: 12) {
+                    SnStatWertZeile(name: n?.first?.alsText == heute ? "Schlaf heute Nacht" : "Schlaf", wert: n?[1].alsZahl.map(StatistikLogik.stunden), einheit: "STD")
+                    SnStatWertZeile(name: "HRV", wert: n?[7].alsZahl.map { StatistikLogik.zahl($0, 0) }, einheit: "MS")
+                    SnStatWertZeile(name: g?.first?.alsText.map { "Gewicht · \(StatistikLogik.datum($0))" } ?? "Gewicht", wert: g?[1].alsZahl.map { StatistikLogik.zahl($0) }, einheit: "KG")
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(Array(j.raster.enumerated()), id: \.offset) { m, tage in
-                        HStack(spacing: 3) {
-                            Text(["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][m]).font(Schrift.mono(10)).foregroundStyle(TafelFarbe.aus).frame(width: 16, alignment: .leading)
-                            ForEach(Array(tage.enumerated()), id: \.offset) { _, t in
-                                RoundedRectangle(cornerRadius: 2).fill(t.hasSuffix("2") ? TafelFarbe.gruen : t.hasSuffix("1") ? TafelFarbe.gruen.opacity(0.45) : Color.white.opacity(t == " " ? 0.04 : 0.07))
-                                    .overlay { if t.hasPrefix("h") { RoundedRectangle(cornerRadius: 2).strokeBorder(Color.white, lineWidth: 1.5) } }
-                                    .frame(width: 11, height: 11)
-                            }
-                        }
+                .padding(.top, 14)
+                if let summe {
+                    Text("\(summe[0]) KG · \(summe[2].dropFirst("Gewicht ".count))".uppercased()).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 14)
+                }
+            }
+        }
+    }
+
+    private func jahr(_ j: SenecaStatistik.Raster) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            SnStatFlaeche {
+                VStack(alignment: .leading, spacing: 14) {
+                    SnStatKopf(titel: "Bewegung", zusatz: "Laufen und Kraft", rechts: j.kopf.uppercased())
+                    SnBewegungRaster(raster: j.raster)
+                }
+            }
+            SnStatFlaeche {
+                VStack(alignment: .leading, spacing: 0) {
+                    SnStatKopf(titel: "Bestwerte", zusatz: "dieses Jahr", rechts: "")
+                    ForEach(Array(StatistikLogik.bestwerteJahr(j).enumerated()), id: \.offset) { _, b in
+                        SnStatListenZeile(links: b[0], mitte: b[1], rechts: b[2])
+                    }
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var mitarbeiter: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SnStatKopf(titel: "Von deinen Mitarbeitern", zusatz: "im Gespräch angelegt", rechts: "")
+            if let eigene = k?.statistiken, !eigene.isEmpty {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], alignment: .leading, spacing: 16) {
+                    ForEach(eigene) { SnStatEigene(s: $0) }
+                }
+            } else {
+                Text("Noch keine. Sag dem Trainer „Zeig mir … als Grafik“, dann steht sie hier.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.leise)
+            }
+        }
+    }
+}
+
+struct SnStatKachel<Inhalt: View>: View {
+    var bereich: StatBereich
+    var oeffne: (StatBereich) -> Void
+    @ViewBuilder var inhalt: Inhalt
+    @State private var ueber = false
+
+    var body: some View {
+        Button { oeffne(bereich) } label: {
+            inhalt.padding(.horizontal, 22).padding(.vertical, 20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .snFlaeche(18, deckkraft: ueber ? 0.085 : 0.05)
+                .overlay(alignment: .topTrailing) {
+                    Text("DETAILS ›").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.zweit).padding(.top, 20).padding(.trailing, 22).opacity(ueber ? 1 : 0)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { ueber = h } }
+        .accessibilityElement(children: .ignore).accessibilityLabel(bereich.rawValue).accessibilityAddTraits(.isButton)
+    }
+}
+
+struct SnStatEigene: View {
+    var s: SenecaStatistik.Kennzahlen.Eigene
+
+    var body: some View {
+        SnStatFlaeche {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(s.titel).font(Schrift.grotesk(15)).foregroundStyle(Color.white)
+                    Spacer()
+                    Text((s.von ?? "").uppercased()).font(Schrift.mono(10)).foregroundStyle(TafelFarbe.leise)
+                }
+                if let g = s.grund { Text(g).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).padding(.top, 4) }
+                if s.fehler != nil {
+                    Text("Diese Statistik ließ sich nicht rechnen. Der Mitarbeiter sieht den Fehler und baut sie neu.").font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit).padding(.top, 14)
+                } else {
+                    SnStatZahl(wert: s.wert.map { StatistikLogik.zahl($0) } ?? "–", einheit: (s.einheit ?? "").uppercased(), groesse: 32).padding(.top, 12)
+                    if s.diagramm != "zahl", let p = s.punkte, p.count > 1 {
+                        SnStatBalken(werte: p.compactMap { $0.last?.alsZahl }, farbe: TafelFarbe.gruen, ziel: s.ziel).frame(height: 60).padding(.top, 14)
                     }
                 }
             }

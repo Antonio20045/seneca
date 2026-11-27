@@ -44,7 +44,10 @@ enum HeuteBild {
                     case "chat-echt":
                         SnChatBild(stand: s, agent: env["SENECA_AGENT"] ?? Hauptagent.id, frageId: env["SENECA_FRAGE"], strom: env["SENECA_STROM"])
                     case "statistik":
-                        if let d = HeuteTafelLogik.beispielStatistik() { SnStatistikTafel(daten: d, stand: s.jetzt) }
+                        if let d = HeuteTafelLogik.beispielStatistik(env["SENECA_STATISTIK"]) {
+                            SnStatistikTafel(daten: d, stand: Date().timeIntervalSince1970 * 1000, bereich: StatBereich.allCases.first { "\($0)" == env["SENECA_STAT_BEREICH"] },
+                                             zeitraum: StatZeitraum(rawValue: env["SENECA_STAT_ZEITRAUM"] ?? "") ?? .woche)
+                        }
                         SnGeruestBild(stand: s, aktiv: .statistik, dock: false)
                     case "buendel":
                         SnBuendelTafel(stand: s, handle: { _, _, _ in }, pause: {})
@@ -97,6 +100,7 @@ enum HeuteBild {
             let host = NSHostingView(rootView: seite)
             fenster.contentView = host
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
+            if let ablauf = env["SENECA_STAT_ABLAUF"] { await SnStatistikProbe.ablauf(host, ablauf) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()
                 var nr = 0, zeiten: [String] = []
