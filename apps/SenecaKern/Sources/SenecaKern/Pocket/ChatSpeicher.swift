@@ -398,6 +398,7 @@ final class ChatSpeicher: ObservableObject {
     @Published private(set) var sitzung = ""
     @Published private(set) var hatMehr = false
     @Published private(set) var aelterLaedt = false
+    var angehalten: [String: Double] = [:]
     @Published private(set) var fehler: String?
     @Published private(set) var zustaende: [String: ZustellZustand] = [:]
 
@@ -591,6 +592,11 @@ final class ChatSpeicher: ObservableObject {
         zeilen[key] = ChatSpeicherLogik.legeFrageAn(stand(key), text: text, schluessel: k, jetzt: uhr().timeIntervalSince1970 * 1000)
         geaendert(key, sofort: true)
         return k
+    }
+
+    func entferne(sitzung key: String, schluessel: String) {
+        zeilen[key] = stand(key).filter { (SpeicherFeld.von($0)[SpeicherFeld.schluessel] as? String)?.lowercased() != schluessel.lowercased() }
+        geaendert(key, sofort: true)
     }
 
     func setzeZustand(sitzung key: String, schluessel: String, _ zustand: ZustellZustand) {

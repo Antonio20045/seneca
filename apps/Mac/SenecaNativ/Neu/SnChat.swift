@@ -233,7 +233,8 @@ struct SnChatSeite: View {
                     VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
                                 stand: stand, agent: agent, neuLaden: neuLaden,
-                                zuruecklegen: { z in modell.store.handle("termin.zuruecklegen", ziel: z.uid, wert: ["start": .zahl(z.start), "ende": .zahl(z.ende)]) })
+                                zuruecklegen: { z in modell.store.handle("termin.zuruecklegen", ziel: z.uid, wert: ["start": .zahl(z.start), "ende": .zahl(z.ende)]) },
+                                bearbeiten: { steuerung.eingabe = $0; steuerung.fokussiere() })
                         .equatable()
                         .verlaufRein()
                     if let s = stand, !istSeneca {

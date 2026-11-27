@@ -826,8 +826,19 @@ final class SenecaStore: ObservableObject {
         }
     }
 
-    func abortAsk(sessionKey key: String) async {
-        let open = asks.filter { $0.value.sessionKey == key }
+    func zuruecknehmen(_ id: String) async {
+        guard let t = asks[id] else { return }
+        for run in t.abortableRunIds { _ = try? await rufe("chat.abort", params: ["sessionKey": t.sessionKey, "agentId": AreasLogic.agentID(of: t.sessionKey), "runId": run, "discardPendingInput": true]) }
+        finishAsk(id, .failure(SenecaError.stopped))
+        chat.speicher.entferne(sitzung: t.sessionKey, schluessel: id)
+    }
+
+    func vorziehen(_ id: String) async {
+        if let t = asks[id] { await abortAsk(sessionKey: t.sessionKey, ausser: id) }
+    }
+
+    func abortAsk(sessionKey key: String, ausser: String? = nil) async {
+        let open = asks.filter { $0.value.sessionKey == key && $0.key != ausser }
         guard isConnected else { return }
         let agent = AreasLogic.agentID(of: key)
         if open.isEmpty {
@@ -845,7 +856,9 @@ final class SenecaStore: ObservableObject {
             tempo("gestoppt id=\(id.prefix(8)) aborted=\(stopped)")
             guard let current = asks[id] else { continue }
             let partial = current.live.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !partial.isEmpty, let run = current.abortableRunIds.last { chat.speicher.nimmStromEnde(sitzung: key, lauf: run, text: partial, frage: id) }
+            if !partial.isEmpty, let run = current.abortableRunIds.last {
+                chat.speicher.angehalten["strom-" + run.lowercased()] = Date().timeIntervalSince(current.live.startedAt)
+                chat.speicher.nimmStromEnde(sitzung: key, lauf: run, text: partial, frage: id) }
             finishAsk(id, partial.isEmpty ? .failure(SenecaError.stopped) : .success(partial))
         }
     }

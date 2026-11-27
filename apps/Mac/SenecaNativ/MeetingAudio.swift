@@ -51,6 +51,13 @@ final class MeetingSchreiber: @unchecked Sendable {
         if let k = puffer.floatChannelData?[0] { offen.append(contentsOf: UnsafeBufferPointer(start: k, count: Int(puffer.frameLength))) }
     }
 
+    func stille(_ sekunden: Double) {
+        guard let p = AVAudioPCMBuffer(pcmFormat: MeetingWandler.ziel, frameCapacity: AVAudioFrameCount(sekunden * MeetingWandler.ziel.sampleRate)) else { return }
+        p.frameLength = p.frameCapacity
+        if let k = p.floatChannelData?[0] { k.update(repeating: 0, count: Int(p.frameLength)) }
+        schreibe(p)
+    }
+
     func schliesse() { schloss.lock(); datei = nil; schloss.unlock() }
 
     func entnimm(mindestens: Int) -> (proben: [Float], ab: Double)? {
@@ -71,6 +78,8 @@ final class MeetingMikrofon: @unchecked Sendable {
     var pegel: (@Sendable (Float) -> Void)?
     private(set) var geraeteName: String = "Mikrofon"
     var fehlgeschlagen: (@Sendable (String) -> Void)?
+    var gewechselt: (@Sendable (Double) -> Void)?
+    private var letzterPuffer = Date()
 
     func starte(in s: MeetingSchreiber) throws {
         schreiber = s
@@ -89,6 +98,7 @@ final class MeetingMikrofon: @unchecked Sendable {
         guard format.sampleRate > 0, format.channelCount > 0 else { throw DiktatAufnahme.Fehler.keinMikrofon }
         motor.inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] puffer, _ in
             guard let self else { return }
+            self.letzterPuffer = Date()
             if let k = puffer.floatChannelData?[0], puffer.frameLength > 0, let r = self.pegel {
                 var summe: Float = 0
                 for i in 0..<Int(puffer.frameLength) { summe += k[i] * k[i] }
@@ -102,9 +112,19 @@ final class MeetingMikrofon: @unchecked Sendable {
     }
 
     private func konfigurationGeaendert() {
+        let ab = letzterPuffer
         motor.inputNode.removeTap(onBus: 0)
-        do { try installiereUndStarte() }
-        catch {
+        do {
+            do { try installiereUndStarte() } catch {
+                motor.stop()
+                guard let s = MikrofonGeraete.standard() else { throw error }
+                MikrofonGeraete.setze(motor, aufUID: s.uid)
+                geraeteName = s.name
+                try installiereUndStarte()
+            }
+            let luecke = Date().timeIntervalSince(ab)
+            if luecke >= 1 { schreiber?.stille(luecke); gewechselt?(luecke) }
+        } catch {
             beende()
             fehlgeschlagen?("Das Mikrofon („\(geraeteName)“) wurde während der Aufnahme getrennt oder hat das Format gewechselt. Das Meeting wurde beendet.")
         }

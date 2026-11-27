@@ -16,6 +16,7 @@ struct HierZusammenhang: Equatable, Sendable {
 
     var istLeer: Bool { programm.isEmpty && titel.isEmpty && markiert.isEmpty && text.isEmpty && dateien.isEmpty }
 
+    static let stelleBitte = "Zeigt deine Antwort auf eine Stelle im Bild, schreib als letzte Zeile: Stelle: x y Breite Höhe (Prozent vom Bild, ganze Zahlen)."
     static let grenze = 6000
     static let grenzeMarkiert = 3000
 
@@ -65,6 +66,7 @@ struct HierZusammenhang: Equatable, Sendable {
         if hatBildschirmfoto {
             var z = ["[Mitgegeben über „Bildschirm zeigen“ am Mac: Ein Foto meines ganzen Bildschirms liegt als Anhang bei.]"]
             if !programm.isEmpty { z.append("Vorn war: \(programm)" + (titel.isEmpty ? "" : " – \(titel)")) }
+            z.append(Self.stelleBitte)
             return z.joined(separator: "\n")
         }
         var z: [String] = ["[Mitgegeben von „Seneca hier“ am Mac: das hatte ich beim Fragen vor mir.]", "Programm: \(programm)"]
@@ -79,7 +81,7 @@ struct HierZusammenhang: Equatable, Sendable {
             if !dateien.isEmpty { z.append("Markierte Dateien (als Anhang dabei): " + dateien.map(\.lastPathComponent).joined(separator: ", ")) }
         case .fenster:
             if !titel.isEmpty { z.append("Fenster: \(titel)") }
-            if hatFensterfoto { z.append("Ein Foto des Fensters liegt als Anhang bei.") }
+            if hatFensterfoto { z.append("Ein Foto des Fensters liegt als Anhang bei. " + Self.stelleBitte) }
         }
         let m = Self.kuerze(markiert, grenze: Self.grenzeMarkiert)
         if !m.isEmpty { z.append("Markierte Stelle:\n«\(m)»") }
@@ -100,4 +102,15 @@ struct HierZusammenhang: Equatable, Sendable {
     }
 
     var zeichen: Int { anhangText.count }
+}
+
+enum HierStelle {
+    static func teile(_ t: String) -> (text: String, stelle: CGRect?) {
+        guard let r = t.range(of: #"\n*Stelle:\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$"#, options: .regularExpression) else {
+            return (t.replacingOccurrences(of: #"\n*Stelle:[\d\s]*$"#, with: "", options: .regularExpression), nil)
+        }
+        let z = t[r].split(whereSeparator: { !$0.isNumber }).compactMap { Double($0) }
+        guard z.count == 4 else { return (String(t[..<r.lowerBound]), nil) }
+        return (String(t[..<r.lowerBound]), CGRect(x: z[0] / 100, y: z[1] / 100, width: z[2] / 100, height: z[3] / 100))
+    }
 }

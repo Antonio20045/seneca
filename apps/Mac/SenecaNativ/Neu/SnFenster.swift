@@ -559,7 +559,7 @@ struct SnStartZeilen: View {
                 HStack(spacing: 10) {
                     Circle().strokeBorder(TafelFarbe.text, lineWidth: 1.5).frame(width: 9, height: 9)
                     (Text("Seneca antwortet seit \(HeuteTafelLogik.uhr(seit.timeIntervalSince1970 * 1000)) nicht. ").foregroundColor(.white).font(Schrift.grotesk(14, .medium))
-                     + Text(warum ? fehler : "Ich verbinde neu. Du siehst den Stand von \(stand).").foregroundColor(TafelFarbe.zweit))
+                     + Text(warum ? fehler : "Ich starte die Verbindung neu. Du siehst den Stand von \(stand).").foregroundColor(TafelFarbe.zweit))
                         .font(Schrift.grotesk(14)).lineLimit(1)
                     Spacer()
                     Button("Was ist passiert?") { warum.toggle() }.buttonStyle(.plain).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit)

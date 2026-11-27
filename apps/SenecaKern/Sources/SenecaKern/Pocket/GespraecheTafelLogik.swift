@@ -114,7 +114,7 @@ enum GespraecheTafelLogik {
         return "\(k.day ?? 1). \(k.month ?? 1)."
     }
 
-    struct Station: Equatable { var art: String; var titel: String; var unter: [String] }
+    struct Station: Equatable { var art: String; var titel: String; var unter: [String]; var teil: SenecaStand.Mitglied.Teil? = nil }
 
     static func station(_ s: SenecaStand, _ m: SenecaStand.Mitglied) -> Station? {
         let zahl = { (n: Int) in n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n].replacingOccurrences(of: "eine", with: "einer") : "\(n)" }
@@ -127,9 +127,11 @@ enum GespraecheTafelLogik {
                 return Station(art: "angenommen", titel: "\(m.name) · angenommen",
                                unter: [[n.dauer_min.map { "schätzt etwa \(Int($0)) Minuten" }, n.bis.map { "fertig gegen \(HeuteTafelLogik.uhr($0))" }].compactMap { $0 }.joined(separator: " · ")])
             }
-            let seit = m.seit.map { " · seit \(HeuteTafelLogik.uhr($0))" } ?? ""
+            let seit = m.seit.map { " · seit \(HeuteTafelLogik.uhr($0))" } ?? "", zuletzt = m.schritte?.last?.um ?? 0
+            if let r = m.ruecklauf, let t = r.satz, (r.um ?? 0) >= zuletzt { return Station(art: "ruecklauf", titel: t, unter: ["zurück an \(m.name) · kein Hinweis an dich"]) }
+            if let t = m.teil, t.um >= zuletzt { return Station(art: "teil", titel: t.satz, unter: ["meldet sich nicht · nur wer will, hört rein"], teil: t) }
             if m.id == "pruefer" { return Station(art: "arbeit", titel: "\(m.name) \(m.satz ?? "prüft")", unter: ["derselbe Auftrag" + seit]) }
-            return Station(art: "arbeit", titel: (m.satz ?? "arbeitet") + seit, unter: (m.schritte ?? []).compactMap(\.satz))
+            return Station(art: "arbeit", titel: (m.satz ?? "arbeitet") + seit, unter: (m.schritte ?? []).compactMap(\.satz), teil: m.teil)
         }
         guard let e = s.heute_erledigt?.last(where: { $0.wer == m.name }) else { return nil }
         let euro = (e.kosten_cent ?? 0) / 100

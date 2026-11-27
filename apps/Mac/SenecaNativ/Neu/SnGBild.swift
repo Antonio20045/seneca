@@ -56,10 +56,11 @@ struct SnGBild: View {
         buehne.offen = "0"
     }
 
-    private func nachricht(_ z: (zeichen: String, text: String)?) -> AnyView {
+    private func nachricht(_ z: (zeichen: String, text: String)?, offline: Bool = false) -> AnyView {
         AnyView(VStack(alignment: .trailing, spacing: 6) {
-            ZugView(zug: Zug(id: "u", start: .user(id: "u", text: "Warum geht das nicht?", ts: ms(11, 16), pending: false)), neu: false, name: "Seneca", erneut: {})
+            ZugView(zug: Zug(id: "u", start: .user(id: "u", text: "Warum geht das nicht?", ts: ms(11, 16), pending: offline)), neu: false, name: "Seneca", erneut: {}, offline: offline)
             if let z { SnZustandZeile(zeichen: z.zeichen, text: z.text) }
+            if offline { SnWartetKnoepfe(bearbeiten: {}, zuruecknehmen: {}) }
         }.frame(maxWidth: .infinity, alignment: .trailing))
     }
 
@@ -80,7 +81,8 @@ struct SnGBild: View {
                 AntwortKarteView(text: "Du bist mit dem Sundartha-Konto angemeldet. Power", ts: nil, frisch: false, live: true, gross: true)
             }),
             AnyView(ZugView(zug: zug, neu: false, name: "Seneca", gross: true, erneut: {})),
-            nachricht(VerlaufLogik.zustand(.wirdGesendet, phase: nil, verbunden: false, ts: t, jetzt: t)),
+            AnyView(ZugView(zug: Zug(id: "h", antwort: ZugAntwort(id: "b", text: "Du bist mit dem Sundartha-Konto angemeldet. Power BI", ts: t), von: t), neu: false, name: "Seneca", erneut: {}, angehalten: 21)),
+            nachricht(VerlaufLogik.zustand(.wirdGesendet, phase: nil, verbunden: false, ts: t, jetzt: t), offline: true),
             AnyView(VStack(alignment: .leading, spacing: 10) {
                 SnLaufPille(z: Laufzeile.teile(name: "Seneca", phase: .working, taetigkeit: nil, schritte: 2, seit: 200, ruhig: 120, letzterSchritt: ms(11, 18)), schritte: [])
                 HStack(spacing: 8) {

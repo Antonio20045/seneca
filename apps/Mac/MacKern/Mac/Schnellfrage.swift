@@ -20,6 +20,8 @@ final class SchnellfrageModell: ObservableObject {
     @Published var laufZeile = ""
     @Published var ausschnitt = ""
     @Published private(set) var dauer: Double?
+    @Published private(set) var schritte = 0
+    private var taetigkeit: String?
     var sendeHier: ((String, [URL]) async throws -> String)?
     var leerFrage: String?
     var erstesZeichen: ((Double) -> Void)?
@@ -29,6 +31,11 @@ final class SchnellfrageModell: ObservableObject {
         guard beschaeftigt, !t.isEmpty, t != strom else { return }
         if strom.isEmpty, !t.isEmpty, let g = gesendetAm { erstesZeichen?(Date().timeIntervalSince(g) * 1000); gesendetAm = nil }
         strom = t
+    }
+
+    func zaehle(_ t: String?) {
+        guard beschaeftigt, let t, t != taetigkeit else { return }
+        taetigkeit = t; schritte += 1
     }
 
     init(sende: @escaping (String) async throws -> String = { _ in throw SenecaError.offline }) { self.sende = sende }
@@ -41,6 +48,7 @@ final class SchnellfrageModell: ObservableObject {
         guard !frage.isEmpty, !beschaeftigt else { return }
         text = ""
         laufZeile = ""
+        schritte = 0; taetigkeit = nil
         phase = .wartet(frage: frage)
         let start = Date()
         do {
