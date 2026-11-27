@@ -1,4 +1,4 @@
-import { eintraegeSeit, termineAm, wert, type Zeile } from "../register/lesen.ts";
+import { eintraegeSeit, ereignisse, termineAm, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
@@ -16,7 +16,7 @@ const zwei = (n: number) => String(Math.floor(n)).padStart(2, "0");
 const dauer = (s: number) => s >= 3600 ? `${Math.floor(s / 3600)}:${zwei((s % 3600) / 60)}:${zwei(Math.round(s % 60))}` : `${Math.floor(s / 60)}:${zwei(Math.round(s % 60))}`;
 const datum = (t: number, f: Intl.DateTimeFormatOptions) => new Date(t).toLocaleDateString("de-DE", f);
 const lesen = (e: Zeile): Eintrag => ({ id: String(e.id), art: String(e.art), zeit: Number(e.zeit), w: JSON.parse(String(e.werte)) });
-const ziel = (db: Register, art: string) => Number(wert(db, `ziel:${art}`)?.wert ?? 0);
+const ziel = (db: Register, art: string, bis = Infinity) => Number(JSON.parse(String(ereignisse(db, { art: "wert.gesetzt", schluessel: `ziel:${art}` }).find((e) => Number(e.zeit) < bis)?.daten ?? "{}")).wert ?? 0);
 const tagVon = (t: number) => letzteUhrzeit(regelText("tag_grenze"), t);
 const kgText = (n: number) => zahl(n, n % 1 ? 1 : 0), kurz = (t: number) => `${KURZ[(new Date(t).getDay() + 6) % 7]} ${new Date(t).getDate()}. ${MON[new Date(t).getMonth()]}`;
 const stunden = (m: number) => `${Math.floor(m / 60)}:${zwei(m % 60)}`;
@@ -82,7 +82,7 @@ export function lauf(db: Register, id?: string) {
   const frueher = alle.filter((x) => x.zeit < l.zeit && x.w.name === w.name && ((x.w.km_s as number[] | undefined) ?? []).length);
   const schneller = frueher.reverse().findIndex((x) => Math.min(...(x.w.km_s as number[])) <= lo);
   const seit = schneller === -1 ? null : frueher[schneller].zeit;
-  const wo = km(eintraegeSeit(db, wochenBeginn(l.zeit)).map(lesen).filter((x) => x.zeit <= l.zeit + 1)), z = ziel(db, "laufen_km");
+  const wo = km(eintraegeSeit(db, wochenBeginn(l.zeit)).map(lesen).filter((x) => x.zeit <= l.zeit + 1)), z = ziel(db, "laufen_km", wochenBeginn(l.zeit) + 7 * regelMs("ein_tag_tage"));
   return {
     id: l.id, kopf: `LAUFEN · ${datum(l.zeit, { weekday: "long" }).toUpperCase()}, ${new Date(l.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
     satz: [`${w.titel ?? name}.`, s.length > 2 && best === s.length - 1 ? "Der letzte Kilometer war dein schnellster." : s.length > 2 && best === 0 ? "Der erste Kilometer war dein schnellster." : ""].filter(Boolean),
@@ -146,10 +146,10 @@ export function monat(db: Register, jetzt: number) {
 export function tag(db: Register, jetzt: number) {
   const e = eintraegeSeit(db, tagVon(jetzt)).map(lesen), zeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
     uebungen = [...new Set(e.filter((x) => x.art === "satz").map((x) => String(x.w.u ?? "Satz")))];
-  const zeilen = [...e.filter((x) => x.art !== "satz" && x.art !== "notiz").map((x) => ({ zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
+  const zeilen = [...e.filter((x) => x.art !== "satz" && x.art !== "notiz").map((x) => ({ id: x.id, zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
       wert: x.art === "lauf" ? `${zahl(Number(x.w.km), 1)} km` : x.art === "lesen" ? `${x.w.m} Min` : x.art === "gewicht" ? `${zahl(Number(x.w.kg), 1)} kg` : `${x.w.s ?? ""} Sätze` })),
     ...uebungen.map((u) => { const s = e.filter((x) => x.art === "satz" && String(x.w.u ?? "Satz") === u); return { zeit: s[0].zeit, titel: u, wert: `${s.length} ${s.length === 1 ? "Satz" : "Sätze"}` }; })]
-    .sort((a, b) => a.zeit - b.zeit).map((z) => [zeit(z.zeit), z.titel, z.wert]);
+    .sort((a, b) => a.zeit - b.zeit).map((z) => [zeit(z.zeit), z.titel, z.wert, "id" in z ? z.id : ""]);
   return { kopf: datum(jetzt, { weekday: "long", day: "numeric", month: "long" }), satz: [zeilen.length ? `Heute ${WORT[zeilen.length] ?? zeilen.length} ${zeilen.length === 1 ? "Eintrag" : "Einträge"}.` : "Heute noch nichts eingetragen."], zeilen };
 }
 

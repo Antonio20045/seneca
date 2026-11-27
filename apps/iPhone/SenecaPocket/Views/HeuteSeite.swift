@@ -28,7 +28,7 @@ private struct OutEffect: ViewModifier, Animatable {
         let lp = seg(p, range.0, range.1)
         content
             .opacity(1 - lp)
-            .offset(y: reduceMotion ? 0 : -lift * lp)
+            .offset(y: reduceMotion ? 0 : lift * lp)
     }
 }
 

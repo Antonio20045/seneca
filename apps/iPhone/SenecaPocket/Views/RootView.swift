@@ -24,7 +24,6 @@ struct RootView: View {
     @State private var tag = TagStand()
     @State private var dragStart: Double?
     @State private var dragIgnored = false
-    @State private var griffWisch = false
     @StateObject private var berichte = BerichteModel()
     @State private var dragLayer: Page?
     @State private var dragSeitlich = false
@@ -224,8 +223,7 @@ struct RootView: View {
         if einstellungen { einstellungenSchliessen(); return }
         if t.p > 0 { go(0, quick: false); return }
         switch page {
-        case .statistik: show(.kalender)
-        case .kalender, .bereiche: show(.today)
+        case .statistik, .kalender, .bereiche: show(.today)
         case .today, .seneca: break
         }
     }
@@ -288,24 +286,10 @@ struct RootView: View {
             kalenderTag = nil
             brueckeEnde()
             setSide(SideState())
-        case .statistik:
+        case .kalender, .bereiche, .statistik:
             if t.p > 0 { go(0, quick: false) }
-            let kalenderSteht = side.kalender == 1 && alive(.kalender)
-            if !kalenderSteht { show(.kalender) }
-            Task { @MainActor in
-                if !kalenderSteht { try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 700)) }
-                federOhneFinger(.statistik, to: 1)
-                pagesAlive.insert(.statistik)
-                side = SideState.only(.statistik, 0)
-                try? await Task.sleep(for: .milliseconds(30))
-                if side.statistik == 0 { side = SideState.only(.statistik, 1) }
-            }
-        case .kalender, .bereiche:
-            if t.p > 0 { go(0, quick: false) }
-            if target == .kalender, side.statistik > 0 {
-                federOhneFinger(.statistik, to: 0)
-                setSide(SideState.only(.kalender, 1))
-                return
+            if let offen = [Page.statistik, .kalender, .bereiche].first(where: { $0 != target && side.progress($0) > 0 }) {
+                federOhneFinger(offen, to: 0)
             }
             federOhneFinger(target, to: 1)
             guard !alive(target) else { setSide(SideState.only(target, 1)); return }
@@ -397,17 +381,16 @@ struct RootView: View {
                     .environment(\.kalenderFokus, kalenderFokus)
                     .environment(\.kalenderFokusVerdeckt, bruecke != nil)
                     .environment(\.kalenderTag, kalenderTag)
-                    .modifier(KalenderWeichtLive(zug: wisch.seiten, m: m, reduceMotion: reduceMotion))
-                    .modifier(PageMotionLive(zug: wisch.seiten, page: .kalender, away: CGSize(width: m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
+                    .modifier(PageMotionLive(zug: wisch.seiten, page: .kalender, away: CGSize(width: -m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
                     .modifier(SenecaCoverLive(zug: wisch.seneca, reduceMotion: reduceMotion))
                     .allowsHitTesting(page == .kalender)
                     .modifier(AXHidden(hidden: page != .kalender))
                     .scrollClaims(visible: page == .kalender)
             }
             if alive(.bereiche) {
-                AufgabenLayer(m: m, now: now, back: { zurueck() }, allowTap: { tapAllowed() }, griff: griffWisch)
+                AufgabenLayer(m: m, now: now, back: { zurueck() }, allowTap: { tapAllowed() }, gesturesChanged: { pageGestures[.bereiche] = $0 })
                     .environmentObject(berichte)
-                    .modifier(PageMotionLive(zug: wisch.seiten, page: .bereiche, away: CGSize(width: 0, height: -m.y(120)),
+                    .modifier(PageMotionLive(zug: wisch.seiten, page: .bereiche, away: CGSize(width: 0, height: m.y(120)),
                                              awaySeitlich: CGSize(width: m.size.width * 0.32, height: 0), reduceMotion: reduceMotion))
                     .statusBarEdgeFade(m)
                     .modifier(SenecaCoverLive(zug: wisch.seneca, reduceMotion: reduceMotion))
@@ -616,7 +599,7 @@ struct RootView: View {
                             if !scrollClaims.contains(where: { $0.contains(value.startLocation) }) { conversation.dismissKeyboard() }
                             dragIgnored = true; return
                         }
-                        guard axis == .vertical, dy > 0,
+                        guard axis == .vertical, dy < 0,
                               conversation.kopfFrame?.contains(value.startLocation) == true else { dragIgnored = true; return }
                     } else if keyboard > 0 || (from == .today && todayGestures.typing) {
                         dragIgnored = true
@@ -630,13 +613,9 @@ struct RootView: View {
                         if axis == .horizontal && todayGestures.rowOpen { dragIgnored = true; return }
                         if axis == .horizontal && dx < 0 && todayGestures.ownsLeftSwipe(value.startLocation) { dragIgnored = true; return }
                     }
-                    let griff = from == .bereiche && axis == .vertical && dy < 0
-                        && PageGesture.startsInHomeZone(y: value.startLocation.y, height: m.size.height)
-                    if griff { griffWisch = true }
-                    if axis == .vertical, !griff, scrollClaims.contains(where: { $0.contains(value.startLocation) }) { dragIgnored = true; return }
+                    if axis == .vertical, !(from == .bereiche && dy > 0), scrollClaims.contains(where: { $0.contains(value.startLocation) }) { dragIgnored = true; return }
                     guard let layer = PageGesture.layer(from: from, axis: axis, dx: dx, dy: dy) else { dragIgnored = true; return }
-                    if layer == from, from != .kalender, pageGestures[from]?.holdsBack == true { dragIgnored = true; return }
-                    if from == .kalender, layer == .statistik, pageGestures[.kalender]?.holdsBack == true { dragIgnored = true; return }
+                    if layer == from, pageGestures[from]?.holdsBack == true { dragIgnored = true; return }
                     if layer != .seneca { mountDay() }
                     dragLayer = layer
                     dragSeitlich = layer == .bereiche && axis == .horizontal
@@ -656,7 +635,7 @@ struct RootView: View {
             }
             .onEnded { value in
                 defer {
-                    dragStart = nil; dragLayer = nil; dragIgnored = false; griffWisch = false; dragNull = .zero; dragSeitlich = false
+                    dragStart = nil; dragLayer = nil; dragIgnored = false; dragNull = .zero; dragSeitlich = false
                     if dragReach >= tapSlop { lastDragEnd = Date() }
                     dragReach = 0
                 }
@@ -865,6 +844,9 @@ struct RootView: View {
                 }
                 else if action.hasPrefix("wisch:"), let ebene = Page(rawValue: String(action.dropFirst(6))) { await kunstWisch(ebene) }
                 else if action.hasPrefix("seitlich=") { t = TransitionState(p: Double(action.dropFirst(9)) ?? 0.5, dragging: true, seitlich: true) }
+                else if action.hasPrefix("halb:"), let ebene = Page(rawValue: String(action.dropFirst(5))) {
+                    pagesAlive.insert(ebene); mountDay(); side = SideState.only(ebene, 0.45, dragging: true)
+                }
                 else if action.hasPrefix("aufgabenSeitlich=") {
                     var s = SideState.only(.bereiche, Double(action.dropFirst(17)) ?? 0.5, dragging: true)
                     s.seitlich = true

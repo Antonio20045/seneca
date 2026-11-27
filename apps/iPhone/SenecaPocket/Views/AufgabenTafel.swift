@@ -115,6 +115,7 @@ struct AufgabenTafel: View {
         .animation(.timingCurve(0.22, 0.8, 0.24, 1, duration: 0.42), value: offen.map(\.id))
         }
         .scrollIndicators(.hidden)
+        .listeOben()
         .overlay(alignment: .bottom) { unten.ignoresSafeArea(edges: .bottom) }
         .tafelBlatt(item: $bearbeite, hoehe: 790) { t in
             AufgabeBearbeiten(todo: t, stand: stand, loeschen: {

@@ -19,25 +19,24 @@ enum PageGesture {
 
     static func layer(from page: Page, axis: Axis, dx: Double, dy: Double) -> Page? {
         switch (page, axis) {
-        case (.today, .vertical): return dy < 0 ? .seneca : .bereiche
-        case (.today, .horizontal): return dx < 0 ? .kalender : nil
-        case (.seneca, .vertical): return .seneca
-        case (.kalender, .horizontal): return dx < 0 ? .statistik : .kalender
+        case (.today, .vertical): return dy > 0 ? .seneca : .bereiche
+        case (.today, .horizontal): return dx > 0 ? .kalender : .statistik
+        case (.seneca, .vertical): return dy < 0 ? .seneca : nil
+        case (.kalender, .horizontal): return dx < 0 ? .kalender : nil
         case (.statistik, .horizontal): return dx > 0 ? .statistik : nil
-        case (.bereiche, .vertical): return dy < 0 ? .bereiche : nil
+        case (.bereiche, .vertical): return dy > 0 ? .bereiche : nil
         case (.bereiche, .horizontal): return dx > 0 ? .bereiche : nil
         default: return nil
         }
     }
 
-    static func startsInHomeZone(y: Double, height: Double) -> Bool { height > 0 && y >= 0.75 * height }
-
     static func progress(_ layer: Page, start: Double, dx: Double, dy: Double, travel: Double = 380, width: Double = 390) -> Double {
         let p: Double
         switch layer {
-        case .seneca: p = start - dy / travel
-        case .bereiche: p = start + dy / travel
-        case .kalender, .statistik: p = start - dx / (0.8 * width)
+        case .seneca: p = start + dy / travel
+        case .bereiche: p = start - dy / travel
+        case .kalender: p = start + dx / (0.8 * width)
+        case .statistik: p = start - dx / (0.8 * width)
         case .today: p = 0
         }
         return min(1, max(0, p))
@@ -55,9 +54,10 @@ enum PageGesture {
 
     static func speed(_ layer: Page, vx: Double, vy: Double) -> Double {
         switch layer {
-        case .seneca: return -vy
-        case .bereiche: return vy
-        case .kalender, .statistik: return -vx
+        case .seneca: return vy
+        case .bereiche: return -vy
+        case .kalender: return vx
+        case .statistik: return -vx
         case .today: return 0
         }
     }

@@ -1,7 +1,7 @@
 import { hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, ereignis, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeEntfernen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
@@ -43,6 +43,13 @@ function todo(aktion: "anlegen" | "aendern" | "erledigt" | "verschieben" | "loes
   return (db: Register, h: Handlung) => {
     const r = todoSetzen(db, { aktion, id: h.ziel, felder: (h.wert ?? {}) as Record<string, string | number | null>, gesehen_revision: h.gesehen_revision, geraet: h.geraet });
     return r.ergebnis === "ueberholt" ? "ueberholt" : "angenommen";
+  };
+}
+
+function eintrag(a: (h: Handlung) => { werte?: object; zustand?: string }) {
+  return (db: Register, h: Handlung) => {
+    eintragAendern(db, String(h.ziel), a(h), h.geraet);
+    return "angenommen";
   };
 }
 
@@ -109,6 +116,10 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     const zurueck = (w.werte as Wert | undefined)?.tag === "gestern" ? regelMs("ein_tag_tage") : 0;
     return eintragSetzen(db, { art: String(w.art), werte: w.werte as object, zeit: (typeof w.zeit === "number" ? w.zeit : h.zeit_geraet ?? uhr.jetzt()) - zurueck, quelle: h.geraet, handlung_kennung: h.kennung }) === "doppelt" ? "doppelt" : "angenommen";
   },
+  "eintrag.aendern": eintrag((h) => ({ werte: h.wert as object })),
+  "eintrag.loeschen": eintrag(() => ({ zustand: "geloescht" })),
+  "eintrag.wiederherstellen": eintrag(() => ({ zustand: "gueltig" })),
+  "ziel.setzen": setze((h) => `ziel:${h.ziel}`),
   "termin.anlegen": (db, h) => {
     const w = h.wert as Wert;
     if (!w?.titel || !Number.isFinite(Number(w.start)) || !(Number(w.ende) > Number(w.start))) return "abgelehnt:termin_unvollstaendig";

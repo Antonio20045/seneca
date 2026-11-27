@@ -5,6 +5,17 @@ struct PageGestures: Equatable {
     var holdsBack = false
 }
 
+extension EnvironmentValues {
+    @Entry var listeOben: (Bool) -> Void = { _ in }
+}
+
+private struct ListeOben: ViewModifier {
+    @Environment(\.listeOben) private var melde
+    func body(content: Content) -> some View {
+        content.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top <= 1 } action: { _, oben in melde(oben) }
+    }
+}
+
 struct ScrollClaimsKey: PreferenceKey {
     static let defaultValue: [CGRect] = []
     static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
@@ -18,6 +29,8 @@ extension View {
             }
         }
     }
+
+    func listeOben() -> some View { modifier(ListeOben()) }
 
     func scrollClaims(visible: Bool) -> some View {
         transformPreference(ScrollClaimsKey.self) { if !visible { $0 = [] } }
