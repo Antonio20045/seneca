@@ -161,7 +161,7 @@ struct TeamDetail: View {
     static let wort = ["null", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"]
 
     var body: some View {
-        let p = m.protokoll ?? [], letzter = m.schritte?.last
+        let w = m.arbeit, p = w?.protokoll ?? [], letzter = m.schritte?.last
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).background(Circle().fill(TafelFarbe.gruen.opacity(0.18)).frame(width: 15, height: 15))
@@ -174,11 +174,11 @@ struct TeamDetail: View {
                 .overlay(alignment: .leading) { GeometryReader { g in Capsule().fill(TafelFarbe.gruen).frame(width: g.size.width * anteil) } }
                 .padding(.bottom, 10)
             zeile("JETZT", letzter?.satz ?? m.satz ?? "", letzter?.um.map { "seit \(HeuteTafelLogik.uhr($0))" })
-            if let d = m.danach { zeile("DANACH", d, nil) }
-            zeile("WARTET AUF", m.wartet_auf ?? "Nichts", nil)
+            if let d = w?.naechstes?.first ?? nil { zeile("DANACH", d, nil) }
+            zeile("WARTET AUF", String((w?.wartet?.first ?? "Nichts").split(separator: ".").first ?? "Nichts"), nil)
             VStack(alignment: .leading, spacing: 6) {
                 Text("HEUTE").mono(11, .medium, abstand: 0.8).foregroundStyle(TafelFarbe.leise)
-                (Text((m.heute ?? []).map { $0 + " · " }.joined()).foregroundColor(TafelFarbe.zweit)
+                (Text((w?.heute ?? []).compactMap(\.satz).map { $0 + " · " }.joined()).foregroundColor(TafelFarbe.zweit)
                     + Text("\(m.satz ?? "arbeitet") seit \(m.seit.map { HeuteTafelLogik.uhr($0) } ?? "")").foregroundColor(.white))
                     .font(Sundartha.grotesk(14)).zeilenHoehe(21, schrift: 14).fixedSize(horizontal: false, vertical: true)
             }
@@ -187,13 +187,13 @@ struct TeamDetail: View {
                 HStack {
                     Text("ROHPROTOKOLL ▾")
                     Spacer()
-                    Text(["\(Int(max(0, jetzt - (m.seit ?? jetzt)) / 60_000)) MIN", (m.kosten_cent ?? 0) > 0 ? ((m.kosten_cent ?? 0) / 100).formatted(.currency(code: "EUR").locale(Locale(identifier: "de_DE"))) : nil].compactMap { $0 }.joined(separator: " · "))
+                    Text([w?.zahlen?.first?.split(separator: " ").first.map { "\($0) MIN" }, w?.zahlen?.last?.components(separatedBy: " von ").first].compactMap { $0 }.joined(separator: " · "))
                 }
                 .mono(11, .medium, abstand: 0.8).foregroundStyle(TafelFarbe.leise).padding(.bottom, 4)
                 ForEach(Array((alle ? p : Array(p.suffix(5))).enumerated()), id: \.offset) { _, s in
                     HStack(spacing: 8) {
-                        Text(s.um.map { HeuteTafelLogik.uhr($0) } ?? "").foregroundStyle(TafelFarbe.aus).frame(width: 58, alignment: .leading)
-                        Text((s.satz ?? "") + (s.ms == nil ? " · läuft" : "")).foregroundStyle(s.ms == nil ? TafelFarbe.gruen : TafelFarbe.zweit).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(HeuteTafelLogik.uhr(s.um)).foregroundStyle(TafelFarbe.aus).frame(width: 58, alignment: .leading)
+                        Text([s.werkzeug, s.satz].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") + (s.ms == nil ? " · läuft" : "")).foregroundStyle(s.ms == nil ? TafelFarbe.gruen : TafelFarbe.zweit).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                         Text(s.ms.map { ($0 / 1000).formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "de_DE"))) + " s" } ?? "…").foregroundStyle(TafelFarbe.leise)
                     }
                     .mono(11).frame(height: 24)
@@ -221,7 +221,7 @@ struct TeamDetail: View {
     }
 
     private var anteil: Double {
-        if let a = m.anteil { return min(1, a) }
+        if let a = m.arbeit?.anteil { return min(1, a) }
         let weg = max(0, jetzt - (m.seit ?? jetzt)), rest = (m.rest_min ?? 0) * 60_000
         return weg + rest > 0 ? weg / (weg + rest) : 0
     }

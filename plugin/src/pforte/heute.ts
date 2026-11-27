@@ -3,7 +3,7 @@ import type { Register } from "../register/schema.ts";
 import { regelListe, regelMs, regelZahl } from "../regeln.ts";
 import { istFokus } from "./planen.ts";
 
-export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
+export const ZAHLWORT = ["", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn", "zwanzig"];
 const STUNDE = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"];
 
 type Termin = ReturnType<typeof termineAm>[number];
@@ -13,6 +13,11 @@ export const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { 
 export function stundeAlsWort(t: number): string {
   const d = new Date(t);
   return d.getMinutes() === 0 ? STUNDE[d.getHours() % 12] : uhrzeit(t);
+}
+
+export function ungefaehr(t: number): string {
+  const d = new Date(t), m = d.getMinutes();
+  return m >= 15 && m < 45 ? `halb ${STUNDE[(d.getHours() + 1) % 12]}` : STUNDE[(d.getHours() + (m >= 45 ? 1 : 0)) % 12];
 }
 
 function dauerAlsWort(min: number): string {

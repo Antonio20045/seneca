@@ -5,7 +5,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Ruhe: Codable, Equatable, Sendable { public var grund: String; public var bis: Double?; public var durchbruch: Bool }
     public struct Option: Codable, Equatable, Sendable {
         public var wert: String?; public var text: String?; public var folge: String?
-        public var titel: String?; public var preis: String?; public var einheit: String?; public var knopf: String?
+        public var titel: String?; public var preis: String?; public var einheit: String?; public var knopf: String?; public var quittung: String?
     }
     public struct Kontext: Codable, Equatable, Sendable { public var worum: String?; public var wenn_nicht: String? }
     public struct Zustellung: Codable, Equatable, Sendable { public var geraet: String?; public var zeit: Double?; public var was: String?; public var bis: Double?; public var grund: String? }
@@ -29,16 +29,23 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var wirkt_ab: Double?
         public var zustellung: [Zustellung]?
         public var antwort: Antwort?
-        public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?; public var rueckfragen: [String]?; public var zurueckgehalten: String?
+        public var kurz: String?; public var zeit: String?; public var mitteilung: Mitteilung?; public var spaeter_bis: Double?; public var rueckfragen: [String]?; public var zurueckgehalten: String?
     }
+    public struct Vorbei: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String; public var zustand: String; public var frist: Double?; public var satz: String? }
     public struct Mitteilung: Codable, Equatable, Sendable { public var titel: String; public var text: String }
     public struct Abnahme: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var projekt: String?
         public var art: String?; public var satz: String?; public var hoerprobe_s: Double?; public var an: String?; public var beleg: String?
+        public var art_name: String?; public var pruefer: String?; public var geprueft: Double?; public var kursiv: String?; public var transkript: String?
+        public var geaendert: String?; public var vorher: String?; public var vorher_s: Double?; public var unterschied: [String]?; public var dateien: Int?
+        public var folge: String?; public var ergebnis: String?
     }
+    public struct BuendelZeile: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var zustand: String; public var unter: String? }
     public struct Fortschritt: Codable, Equatable, Sendable {
         public var titel: String?; public var fertig: Int; public var gesamt: Int; public var rest_min: Double?
         public var passt: [String]?; public var zurueck: [String]?; public var danach: String?
+        public var liste: [BuendelZeile]?; public var anzahl: String?; public var zaehlung: String?; public var start: [String]?; public var arten: String?
+        public var pause: [String]?; public var pause_satz: String?; public var abschluss: [String]?; public var rueckgaengig: String?
     }
     public struct Buendel: Codable, Equatable, Sendable {
         public var fenster: Double?; public var abnahmen: [Abnahme]?; public var fragen: [Frage]?
@@ -55,14 +62,19 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Entschieden: Codable, Equatable, Sendable { public var zeit: Double?; public var titel: String; public var unter: String? }
     public struct Entscheiden: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
-        public var heute: [Entschieden]?; public var danach: String?
+        public var heute: [Entschieden]?; public var danach: String?; public var danach_kurz: String?
     }
-    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var ms: Double? }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double? }
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
         public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?; public var titel: String?
-        public var danach: String?; public var wartet_auf: String?; public var anteil: Double?; public var kosten_cent: Double?; public var heute: [String]?; public var protokoll: [Zuletzt]?
+        public var arbeit: Arbeit?
+    }
+    public struct Werkzeug: Codable, Equatable, Sendable { public var um: Double; public var werkzeug: String?; public var satz: String?; public var ms: Double? }
+    public struct Arbeit: Codable, Equatable, Sendable {
+        public var kopf: [String?]?; public var von: String?; public var erteilt: Double?; public var anteil: Double?; public var minuten: String?; public var schritt: String?
+        public var naechstes: [String?]?; public var wartet: [String]?; public var heute: [Zuletzt]?; public var protokoll: [Werkzeug]?; public var zahlen: [String]?; public var dateien: [String]?
     }
     public struct AuftragNeu: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var ziel: String?; public var wer: String; public var pruefer: Bool?
@@ -153,6 +165,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var um: Double; public var saetze: [String]; public var frage: Frage?; public var zahlen: [Zahl]
     }
 
+    public var vorbei: [Vorbei]?
+    public var team_kopf: [String]?
     public var schema: Int
     public var revision: Int
     public var jetzt: Double

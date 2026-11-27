@@ -66,18 +66,3 @@ struct SchnellfrageFeld: View {
     }
 }
 
-struct SchnellfrageKarte: View {
-    @ObservedObject var modell: SchnellfrageModell
-    var schliesse: () -> Void
-    var imFenster: () -> Void
-
-    var body: some View {
-        SchnellfrageFeld(modell: modell, schliesse: schliesse, imFenster: imFenster)
-            .padding(20)
-            .frame(width: 600)
-            .background(Farbe.kasten, in: RoundedRectangle(cornerRadius: Mass.radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Mass.radius, style: .continuous).stroke(Farbe.linie, lineWidth: 1))
-            .shadow(color: Farbe.kastenSchatten, radius: 24, y: 14)
-            .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 34)
-    }
-}

@@ -199,23 +199,28 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   return { auftrag_id: id, satz };
 }
 
-export function werkzeugGelaufen(db: Register, sitzung: string, e: { toolName: string; params: Record<string, unknown>; durationMs?: number; error?: string }): void {
-  const l = laufZurSitzung(db, sitzung);
-  if (!l || !["laeuft", "haengt", "startet"].includes(String(l.zustand))) return;
-  const wert = Object.values(e.params).find((v) => typeof v === "string") as string | undefined;
-  ereignis(db, { art: "werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: [e.toolName, wert?.split("\n")[0].slice(0, regelZahl("titel_zeichen"))].filter(Boolean).join(" · "),
-    daten: { ms: e.durationMs ?? null, fehler: e.error ?? null } });
-}
-
 export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, antwort: string, kennung: string) {
   const n = nachrichten.get(sitzung);
   if (!n?.vonAntonio || n.kennung !== kennung) throw new Error("Eine Antwort trägt nur Antonios Nachricht ein.");
   return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung, nachricht_kennung: kennung });
 }
 
+export function werkzeugProtokoll(db: Register, sitzung: string, werkzeug: string, params: Record<string, unknown>, ms?: number): void {
+  const l = laufZurSitzung(db, sitzung);
+  if (!l || !AKTIV.includes(String(l.zustand))) return;
+  const kurz = String(Object.values(params ?? {}).find((v) => typeof v === "string") ?? "").split("\n")[0];
+  ereignis(db, { art: "lauf.werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: kurz.slice(0, regelZahl("titel_zeichen")), daten: { werkzeug, ms: ms ?? null } });
+}
+
+export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {
+  if (hole(db, "frage", id).von !== von) throw new Error("Nur wer fragt, zieht die Frage zurück.");
+  uebergang(db, "frage", id, "zurueckgezogen", "von", { grund: satz });
+  return { zustand: "zurueckgezogen" };
+}
+
 export type Fortschreibung = {
   letzter_stand: string; naechster_schritt: string; ergebnis: "weiter" | "wartet" | "fertig"; beleg?: string; wartet_auf?: string; folge?: string;
-  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number;
+  nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number; abnahme?: Record<string, unknown>;
   checkliste?: { text: string; fertig: boolean }[]; bericht?: string;
 };
 
@@ -247,7 +252,7 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   if (a.quelle === "dauerauftrag") return uebergang(db, "auftrag", id, "bereit", "termin", { naechster_anlass: naechsterTermin(a, jetzt), fehlversuche: 0 });
   if (f.ergebnis === "weiter") return uebergang(db, "auftrag", id, "bereit", "weiter", { naechster_anlass: jetzt, fehlversuche: 0 });
   if (f.ergebnis === "wartet") return uebergang(db, "auftrag", id, "wartet", "fortschreibung", { wartet_auf: f.wartet_auf ?? null, folge: f.folge ?? null, naechster_anlass: f.nachfass_um ?? null });
-  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg], art: f.abnahme_art, hoerprobe_s: f.hoerprobe_s });
+  const ergebnis = JSON.stringify({ satz: f.letzter_stand, links: [f.beleg], art: f.abnahme_art, hoerprobe_s: f.hoerprobe_s, ...f.abnahme });
   const geprueft = kinder(db, id).some((k) => k.arbeitsart === "pruefen" && k.zustand === "erledigt");
   if (a.pruefer_noetig && !geprueft) {
     const kind = auftragAnlegen(db, {

@@ -64,23 +64,6 @@ struct SchimmerFlaeche: View {
     }
 }
 
-struct ZaehlerText: View {
-    var text: String
-    @State private var beginn = Date()
-    @State private var fertig = false
-
-    var body: some View {
-        if let z = ZaehlerZahl.aus(text), z.zaehlt, !fertig {
-            TimelineView(.animation) { ctx in
-                Text(z.text(fortschritt: ctx.date.timeIntervalSince(beginn) / 0.9)).monospacedDigit()
-            }
-            .task { try? await Task.sleep(for: .milliseconds(950)); fertig = true }
-        } else {
-            Text(text).monospacedDigit()
-        }
-    }
-}
-
 enum KartenOrt { case chat, pin, panel }
 
 struct KarteAnsicht: View {

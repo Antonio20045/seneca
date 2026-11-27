@@ -28,8 +28,6 @@ struct OvToast: Identifiable, Equatable {
     static func == (a: OvToast, b: OvToast) -> Bool { a.id == b.id && a.text == b.text && a.aktion == b.aktion }
 }
 
-struct RohAntwort: @unchecked Sendable { let wert: [String: Any] }
-
 @MainActor
 final class OverviewStore: ObservableObject {
     nonisolated static let rueckgaengigSekunden: Double = 10
