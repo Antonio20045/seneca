@@ -66,7 +66,7 @@ async function finde(z: Zugang): Promise<Kalender[]> {
   const prinzipal = absolut(basis, href((await dav(z, basis, "PROPFIND", p, { depth: "0" })).text, "current-user-principal") ?? "/");
   const heim = absolut(prinzipal, href((await dav(z, prinzipal, "PROPFIND", p, { depth: "0" })).text, "calendar-home-set") ?? "/");
   const liste = (await dav(z, heim, "PROPFIND", '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/></d:prop></d:propfind>', { depth: "1" })).text;
-  kalender = [...liste.matchAll(/<[^>]*response[^>]*>([\s\S]*?)<\/[^>]*response>/gi)].filter((m) => /<(?:[\w-]+:)?calendar[\s/>]/i.test(m[1]) && (!/<[^>]*comp\s+name=/i.test(m[1]) || /name="VEVENT"/i.test(m[1])))
+  kalender = [...liste.matchAll(/<[^>]*response[^>]*>([\s\S]*?)<\/[^>]*response>/gi)].filter((m) => /<(?:[\w-]+:)?calendar[\s/>]/i.test(m[1]) && (!/<[^>]*comp\s+name=/i.test(m[1]) || /name=["']VEVENT["']/i.test(m[1])))
     .map((m) => ({ url: absolut(heim, /<[^>]*href[^>]*>([^<]+)</i.exec(m[1])?.[1] ?? ""), name: /<[^>]*displayname[^>]*>([^<]*)</i.exec(m[1])?.[1] ?? "Kalender" }));
   return kalender;
 }
