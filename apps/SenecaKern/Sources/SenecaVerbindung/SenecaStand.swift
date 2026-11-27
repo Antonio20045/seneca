@@ -193,7 +193,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var termine: [Termin]?
     public var wochenplan: Wochenplan?
     public var verlauf: Verlauf?
-    public struct Verlauf: Codable, Equatable, Sendable { public var quittungen: [Quittung]? }
+    public struct Verlauf: Codable, Equatable, Sendable { public var quittungen: [Quittung]?; public var zeilen: [Vermerk]? }
+    public struct Vermerk: Codable, Equatable, Sendable, Identifiable { public var zeit: Double; public var satz: String; public var unter: String; public var id: String { "\(zeit)" + satz } }
     public struct Zuruecklegen: Codable, Equatable, Sendable { public var uid: String; public var start: Double; public var ende: Double; public var ab: Double; public var bis: Double }
     public struct Quittung: Codable, Equatable, Sendable {
         public var sitzung: String; public var von: Double; public var bis: Double; public var teile: [String]; public var ergebnis: [String]; public var raus: String?; public var zuruecklegen: Zuruecklegen?

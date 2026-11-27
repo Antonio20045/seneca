@@ -26,6 +26,12 @@ enum VerlaufLogik {
         return s?.verlauf?.quittungen?.first { $0.sitzung == sitzung && $0.von >= von - 2000 && $0.von < (bis ?? .infinity) }
     }
 
+    static func verteile(_ v: [SenecaStand.Vermerk], auf ts: [Double?]) -> [[SenecaStand.Vermerk]] {
+        var aus = Array(repeating: [SenecaStand.Vermerk](), count: ts.count + 1)
+        for z in v { aus[ts.firstIndex { ($0 ?? -.infinity) > z.zeit } ?? ts.count].append(z) }
+        return aus
+    }
+
     static func anteil(_ z: SenecaStand.Zuruecklegen, jetzt: Double) -> Double { max(0, min(1, (z.bis - jetzt) / max(1, z.bis - z.ab))) }
 
     static func ruhtSeit(_ ms: Double, jetzt: Double, _ cal: Calendar = .current) -> String {

@@ -21,6 +21,7 @@ struct SnGBild: View {
         case "g-lebenslauf": return lebenslauf
         case "g-anhaenge": return anhaenge
         case "g-verlauf": return verlauf
+        case "z-konflikt": return [AnyView(VerlaufView.vermerk(.init(zeit: ms(15, 20), satz: "Schon erledigt am iPhone, 15:20.", unter: "Verschieben auf Freitag fällt weg.")))]
         case "g-ziehen": return [AnyView(SnZiehHinweis(satz: ChatAnhang.ziehSatz(["Bildschirmfoto 11.15.png", "Bildschirmfoto 11.16.png"], summe: 4_100_000, klein: 1_200_000)).frame(height: 520))]
         default: return karten
         }

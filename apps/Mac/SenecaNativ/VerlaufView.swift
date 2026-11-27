@@ -73,6 +73,7 @@ struct VerlaufView: View, Equatable {
     private struct Zeile: Identifiable {
         var block: ZugBlock
         var tag: String?
+        var ts: Double?
         var id: String { block.id }
     }
 
@@ -96,9 +97,9 @@ struct VerlaufView: View, Equatable {
             case .reset(_, let t): ts = t
             case .zwischen(let g): ts = g.eintraege.first?.ts
             }
-            guard let t = ts, t != 0 else { return Zeile(block: b, tag: nil) }
+            guard let t = ts, t != 0 else { return Zeile(block: b, tag: nil, ts: nil) }
             defer { vorher = t }
-            return Zeile(block: b, tag: Formate.trenner(t, vorher: vorher))
+            return Zeile(block: b, tag: Formate.trenner(t, vorher: vorher), ts: t)
         }
     }
 
@@ -109,6 +110,14 @@ struct VerlaufView: View, Equatable {
             Text("lädt \(ChatSpeicher.mehrFragen) ältere …").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise).padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    static func vermerk(_ v: SenecaStand.Vermerk) -> some View {
+        VStack(spacing: 4) {
+            Text(v.satz).foregroundStyle(.white)
+            Text(v.unter).foregroundStyle(TafelFarbe.leise)
+        }
+        .font(Schrift.grotesk(14)).frame(maxWidth: .infinity)
     }
 
     static func trenner(_ t: String) -> some View {
@@ -154,6 +163,7 @@ struct VerlaufView: View, Equatable {
         let leisteInfo = Unterhaltung.leiste(alleBloecke, status: status)
         let _ = merker.pruefe(alleBloecke, sitzung: verlauf.sitzung, geladen: !verlauf.laedt, laeuft: lauf != nil)
         let alleZeilen = zeilen(bloecke)
+        let vermerke = VerlaufLogik.verteile(agent == Hauptagent.id ? stand?.verlauf?.zeilen ?? [] : [], auf: alleZeilen.map(\.ts))
         let fragen = bloecke.compactMap { b -> (id: String, ts: Double?)? in if case .zug(let z) = b, case .user(_, _, let ts, _)? = z.start { return (z.id, ts) }; return nil }
         let grosserZug: String? = bloecke.last { if case .zug(let z) = $0 { return z.antwort != nil }; return false }?.id
         let letzterLaeuft: Bool = { if case .zug(let z)? = bloecke.last { return z.laeuft }; return false }()
@@ -172,8 +182,9 @@ struct VerlaufView: View, Equatable {
                             .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 40).padding(.bottom, Self.abstand)
                     }
-                    ForEach(alleZeilen) { zeile in
+                    ForEach(Array(alleZeilen.enumerated()), id: \.element.id) { nr, zeile in
                         VStack(alignment: .leading, spacing: Self.abstand) {
+                            ForEach(vermerke[nr]) { Self.vermerk($0) }
                             if let tag = zeile.tag { Self.trenner(tag) }
                             switch zeile.block {
                             case .reset(_, let ts):
@@ -199,6 +210,7 @@ struct VerlaufView: View, Equatable {
                         .padding(.bottom, Self.abstand)
                         .id(zeile.id)
                     }
+                    ForEach(vermerke[alleZeilen.count]) { Self.vermerk($0).padding(.bottom, Self.abstand) }
                     if let quelle, !letzterLaeuft {
                         LiveZugView(quelle: quelle, zug: nil, name: name).padding(.bottom, Self.abstand).id("live")
                     }

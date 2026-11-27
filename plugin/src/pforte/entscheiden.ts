@@ -6,7 +6,7 @@ import { istFokus } from "./planen.ts";
 import { istSport } from "./kalender.ts";
 import { uhrzeit, ZAHLWORT } from "./heute.ts";
 
-const GERAET: Record<string, string> = { iphone: "am iPhone", mac: "am Mac", uhr: "an der Uhr", gespraech: "im Gespräch" };
+export const GERAET: Record<string, string> = { iphone: "am iPhone", mac: "am Mac", uhr: "an der Uhr", gespraech: "im Gespräch" };
 const PARTIZIP: Record<string, string> = { Freigeben: "freigegeben", Senden: "gesendet", Anrufen: "angerufen" };
 const SENDET: Record<string, [string, string, string]> = { nachricht: ["schickt es", "", "senden"], anruf: ["ruft", " an", "anrufen"], einladung: ["lädt", " ein", "einladen"] };
 const ART: Record<string, [string, string, string]> = { text: ["ein", "Text", "Texte"], test: ["ein", "Test", "Tests"], hoerprobe: ["eine", "Hörprobe", "Hörproben"], bau: ["ein", "Bau", "Bauten"] };

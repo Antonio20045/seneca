@@ -1,7 +1,9 @@
 import { ereignisse, termineAm, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { regelMs } from "../regeln.ts";
+import { GERAET } from "./entscheiden.ts";
 import { uhrzeit } from "./heute.ts";
+import { TAG } from "./kalender.ts";
 
 type Zurueck = { uid: string; start: number; ende: number };
 type Teil = { teil: string; ergebnis?: string; name?: string; raus?: boolean; zurueck?: Zurueck | null };
@@ -12,6 +14,16 @@ function haelt(db: Register, z: Zurueck, ab: number, jetzt: number) {
   const bis = Math.min(z.start, ab + regelMs("zuruecklegen_min"));
   const belegt = termineAm(db, z.start).some((t) => t.uid !== z.uid && t.start < z.ende && t.ende > z.start);
   return bis > jetzt && !belegt && !wert(db, `zurueckgelegt:${z.uid}`) ? { ...z, ab, bis } : null;
+}
+
+function verworfen(db: Register, tagBeginn: number) {
+  return ereignisse(db, { art: "todo.ueberholt", seit: tagBeginn }).reverse().map((e) => {
+    const d = JSON.parse(String(e.daten)) as { aktion: string; tag: string | null };
+    const fertig = ereignisse(db, { art: "todo.erledigt", schluessel: String(e.schluessel), grenze: 1 })[0];
+    const wo = GERAET[String(fertig?.geraet)] ?? `von ${fertig?.geraet ?? "jemand anderem"}`;
+    const was = d.aktion === "verschieben" ? `Verschieben${d.tag ? ` auf ${TAG[new Date(d.tag).getDay()]}` : ""}` : "Die Änderung";
+    return { zeit: Number(e.zeit), satz: `Schon erledigt ${wo}, ${uhrzeit(Number(fertig?.zeit ?? e.zeit))}.`, unter: `${was} fällt weg.` };
+  });
 }
 
 export function verlauf(db: Register, tagBeginn: number, jetzt: number) {
@@ -27,5 +39,5 @@ export function verlauf(db: Register, tagBeginn: number, jetzt: number) {
     if (d.raus) g.raus = `Die ${d.teil} ist schon raus.`;
     if (d.zurueck) g.zurueck = d.zurueck;
   }
-  return { quittungen: gruppen.map(({ zurueck, ...g }) => ({ ...g, zuruecklegen: zurueck ? haelt(db, zurueck, g.bis, jetzt) : null })) };
+  return { zeilen: verworfen(db, tagBeginn), quittungen: gruppen.map(({ zurueck, ...g }) => ({ ...g, zuruecklegen: zurueck ? haelt(db, zurueck, g.bis, jetzt) : null })) };
 }

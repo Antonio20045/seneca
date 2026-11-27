@@ -26,7 +26,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
-import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
+import { anzeigeSetzen, eintragSetzen, ereignis, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { regelMs, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };
@@ -82,7 +82,9 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
   ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
       nurSeneca(k);
-      return todoSetzen(db, { ...(p as unknown as TodoAktion), geraet: "seneca" });
+      const r = todoSetzen(db, { ...(p as unknown as TodoAktion), geraet: "seneca" });
+      if (r.ergebnis === "ueberholt") ereignis(db, { art: "todo.ueberholt", geraet: "seneca", schluessel: r.id, daten: { aktion: p.aktion, tag: (p.felder as { tag?: string } | undefined)?.tag ?? null } });
+      return r;
     }],
   ["seneca_eintrag", "Statistik-Eintrag: Satz, Lesen, Laufen, Gewicht.", Type.Object({ art: S, werte: Frei, zeit: O(Z) }),
     (db, k, p) => {

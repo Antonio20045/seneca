@@ -72,3 +72,15 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
     assert.equal(wert(p.db, "hinweis:los")?.wert, "Essen in Bergstr. 1: an um 17:10 · los um 16:45");
   });
 });
+
+test("PF10 Konflikt: Abhaken am iPhone gewinnt, Senecas Verschieben fällt weg und steht leise im Verlauf", async () => {
+  const p = ladePlugin();
+  um("15:00");
+  const t = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel: "Steuerberater: Kleinunternehmer klären" } });
+  um("15:20");
+  p.methode("seneca.handeln", { kennung: "e1", geraet: "iphone", art: "todo.erledigt", ziel: t.id });
+  const v = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "verschieben", id: t.id, felder: { tag: "2026-12-04" } });
+  assert.equal(v.ergebnis, "ueberholt");
+  const s = p.methode("seneca.stand", { geraet: "mac" }) as { verlauf: { zeilen: { satz: string; unter: string }[] } };
+  assert.deepEqual(s.verlauf.zeilen.map((z) => [z.satz, z.unter]), [["Schon erledigt am iPhone, 15:20.", "Verschieben auf Freitag fällt weg."]]);
+});
