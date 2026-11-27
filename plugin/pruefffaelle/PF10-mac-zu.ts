@@ -33,13 +33,15 @@ test("PF10 „Verschieb den Zahnarzt“ wirkt ohne Mac; Konflikt wird gemeldet, 
   const morgen = (hhmm: string) => new Date(`2026-11-28T${hhmm}:00`).getTime();
   const ics = (uid: string, titel: string, von: string, bis: string) =>
     `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${new Date(morgen(von)).toISOString().replace(/[-:]/g, "").slice(0, 15)}Z\r\nDTEND:${new Date(morgen(bis)).toISOString().replace(/[-:]/g, "").slice(0, 15)}Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
-  const attrappe = await kalenderAttrappe(new Map([["zahn", ics("zahn", "Zahnarzt", "10:00", "11:00")], ["call", ics("call", "Call Nora", "14:30", "15:00")]]));
+  const attrappe = await kalenderAttrappe(new Map([["zahn", ics("zahn", "Zahnarzt", "10:00", "11:00")], ["call", ics("call", "Call Nora", "14:30", "15:00")],
+    ["reise", "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:reise\r\nSUMMARY:Airbnb\\, Milano\r\nDTSTART;VALUE=DATE:20261129\r\nDTEND;VALUE=DATE:20261201\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"]]));
   const zurueck = regelnMit({ caldav_url: attrappe.url });
   const zugang = { benutzer: "antonio", passwort: "app-passwort" };
   const p = ladePlugin(undefined, { kalender: zugang });
   um("20:00");
   await kalenderAbgleich(p.db, zugang);
   assert.deepEqual(termineAm(p.db, morgen("00:00")).map((t) => t.titel), ["Zahnarzt", "Call Nora"]);
+  assert.deepEqual(["2026-11-29", "2026-11-30", "2026-12-01"].map((d) => termineAm(p.db, new Date(`${d}T12:00:00`).getTime()).map((t) => t.titel)), [["Airbnb, Milano"], ["Airbnb, Milano"], []]);
   const konflikt = await p.werkzeug("seneca_kalender", "agent:seneca:main", "seneca", { aktion: "verschieben", uid: "zahn", start: morgen("14:00"), ende: morgen("15:00") });
   assert.deepEqual(konflikt.konflikte, ["Call Nora"]);
   assert.ok(!attrappe.aufrufe.some((a) => a.startsWith("PUT")));

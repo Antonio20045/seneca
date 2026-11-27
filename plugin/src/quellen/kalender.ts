@@ -12,6 +12,8 @@ const orte = new Map<string, Ort>();
 let kalender: Kalender[] = [];
 let zuletzt = 0;
 
+const klartext = (w: string) => w.replace(/\\([\\,;nN])/g, (_, z: string) => (z.toLowerCase() === "n" ? "\n" : z));
+
 const ics = (t: number) => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 function zeit(wert: string): number {
@@ -30,9 +32,9 @@ function termineAus(text: string): Termin[] {
     if (z === "BEGIN:VEVENT") t = { teilnehmer: [], namen: [], ganztag: false };
     else if (z === "END:VEVENT" && t?.uid && t.start) termine.push({ ende: t.start, ...t } as Termin);
     else if (t && name === "UID") t.uid = w;
-    else if (t && name === "SUMMARY") t.titel = w;
-    else if (t && name === "LOCATION") t.ort = w;
-    else if (t && name === "DESCRIPTION") t.notiz = w.replace(/\\n/g, "\n");
+    else if (t && name === "SUMMARY") t.titel = klartext(w);
+    else if (t && name === "LOCATION") t.ort = klartext(w);
+    else if (t && name === "DESCRIPTION") t.notiz = klartext(w);
     else if (t && name === "ATTENDEE") {
       const mail = w.replace(/^mailto:/i, "");
       t.teilnehmer?.push(mail);
@@ -84,7 +86,7 @@ export async function kalenderAbgleich(db: Register, z: Zugang): Promise<void> {
       const daten = /calendar-data[^>]*>([\s\S]*?)<\//i.exec(m[1])?.[1]?.replace(/&#13;/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&") ?? "";
       for (const t of termineAus(daten).map((x) => ({ ...x, kalender: name }))) {
         orte.set(t.uid, { href: absolut(k, /<[^>]*href[^>]*>([^<]+)</i.exec(m[1])?.[1] ?? ""), etag: /getetag[^>]*>([^<]+)</i.exec(m[1])?.[1] ?? "", kalender: k, ics: daten });
-        tage.set(kalenderTag(t.start), [...(tage.get(kalenderTag(t.start)) ?? []), t]);
+        for (const d = new Date(t.start); d.getTime() < Math.max(t.start + 1, t.ganztag ? t.ende : 0); d.setDate(d.getDate() + 1)) tage.set(kalenderTag(d.getTime()), [...(tage.get(kalenderTag(d.getTime())) ?? []), t]);
       }
     }
   }
