@@ -16,6 +16,10 @@ final class ConversationModel: ObservableObject {
     @Published private(set) var entwurfTick = 0
     @Published var sprechWunsch = 0
     var sprechWunschOffen = false
+    var sprechWunschTaste = true
+    @Published var stumm = false
+    @Published private(set) var vonTaste = false
+    @Published private(set) var letzteFrage = ""
 
     let speech = SpeechController()
     weak var store: SenecaStore?
@@ -210,6 +214,7 @@ final class ConversationModel: ObservableObject {
             liestVor = true
         }
         spokenText += (spokenText.isEmpty ? "" : " ") + satz
+        if stumm { return }
         #if DEBUG
         if demoMute {
             demoStimmeEnde = max(Date(), demoStimmeEnde).addingTimeInterval(min(5, max(1.0, Double(satz.count) * 0.055)))
@@ -220,6 +225,7 @@ final class ConversationModel: ObservableObject {
     }
 
     private func stimmeAbschliessen() async {
+        if stumm { return }
         #if DEBUG
         if demoMute {
             let lauf = vorleseLauf
@@ -240,9 +246,9 @@ final class ConversationModel: ObservableObject {
         voiceState = "liest vor"
         liestVor = true
         #if DEBUG
-        if demoMute { try? await Task.sleep(for: .seconds(min(5, max(1.5, Double(text.count) * 0.055)))) } else { await speech.speak(text) }
+        if demoMute { try? await Task.sleep(for: .seconds(min(5, max(1.5, Double(text.count) * 0.055)))) } else if !stumm { await speech.speak(text) }
         #else
-        await speech.speak(text)
+        if !stumm { await speech.speak(text) }
         #endif
         guard vorleseLauf == lauf else { return false }
         liestVor = false
@@ -273,8 +279,10 @@ final class ConversationModel: ObservableObject {
         Task { await chat.stop(p) }
     }
 
-    func gespraechStarten(feld: @escaping (String) -> Void, senden: @escaping (String) -> Bool) {
+    func gespraechStarten(taste: Bool = false, feld: @escaping (String) -> Void, senden: @escaping (String) -> Bool) {
         guard !gespraech.aktiv else { return }
+        vonTaste = taste
+        letzteFrage = ""
         stoppeVorlesen()
         gespraechFeld = feld
         gespraechSenden = senden
@@ -354,7 +362,18 @@ final class ConversationModel: ObservableObject {
         if gespraech.phase == .hoert { gespraechFeld?(gespraech.text) }
     }
 
+    func jetztSenden() {
+        if gespraech.phase == .hoert { ereignis(.stille) }
+    }
+
+    func umStumm() {
+        stumm.toggle()
+        if stumm, gespraech.phase == .spricht { speech.stopSpeaking() }
+    }
+
     private func sendeGesprochen(_ text: String) {
+        letzteFrage = text
+        vonTaste = false
         gespraechRunde += 1
         entwurfGesprochen = true
         gespraechFeld?(text)
