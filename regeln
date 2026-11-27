@@ -15,6 +15,10 @@ haengt_leise_min 10
 haengt_frage_min 30
 gespraech_haengt_hinweis_min 2 app
 gespraech_haengt_stopp_min 10 app
+meeting_erkennen_s 20 app
+meeting_ende_s 10 app
+meeting_live_s 10 app
+meeting_zusammenfassen_ziel_s 60 app
 parallel_max 2 zu_messen
 ruht_pruefen_h 1
 kostenrahmen_standard_cent 50 zu_messen

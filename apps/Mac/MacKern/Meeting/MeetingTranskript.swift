@@ -109,6 +109,13 @@ enum MeetingTranskript {
         return segmente.filter { $0.ende >= ende - minuten * 60 }
     }
 
+    static func stelle(_ satz: String, in segmente: [MeetingSegment]) -> Double? {
+        func w(_ t: String) -> Set<String> { Set(t.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 3 }) }
+        let ziel = w(satz)
+        let best = segmente.map { ($0.start, w($0.text).intersection(ziel).count) }.max { $0.1 < $1.1 }
+        return best.flatMap { $0.1 >= 2 ? $0.0 : nil }
+    }
+
     static func sprecherAnzahl(_ segmente: [MeetingSegment]) -> [Int] {
         Array(Set(segmente.map(\.sprecher))).sorted()
     }

@@ -95,6 +95,10 @@ enum HeuteBild {
                         SnOrteKapsel(aktiv: .heute, fragen: SnOrt.fragen(s), waehle: { _ in }).opacity(0.5).padding(.top, 18).frame(maxHeight: .infinity, alignment: .top)
                         SnKopplungTafel(code: Kopplungscode(adresse: "https://seneca.beispiel.ts.net", schluessel: "beispiel", name: "MacBook Pro von Antonio", bis: Date().addingTimeInterval(582)), iphone: false, neu: {})
                             .frame(maxHeight: .infinity, alignment: .top)
+                    case "meeting-ergebnis":
+                        SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Bereiche/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
+                                          todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })
+                        SnGeruestBild(stand: s, dock: false)
                     case "f-auftrag":
                         SnAuftragLebenslaufBild(stand: s)
                     case "f-lebenslauf":
@@ -139,5 +143,20 @@ struct SnGeruestBild: View {
             if dock { SnDockZu { SnKugel(groesse: 32, atmet: false) }.snGlas(RoundedRectangle(cornerRadius: 28, style: .continuous)) }
         }
         .padding(.top, 28).padding(.bottom, 28)
+    }
+}
+
+enum SnMeetingProbe {
+    static func ergebnis(_ s: SenecaStand) -> MeetingErgebnis {
+        let b = Calendar.current.startOfDay(for: Date(timeIntervalSince1970: s.jetzt / 1000)).addingTimeInterval(14.5 * 3600)
+        var e = MeetingErgebnis(titel: "Telefonat Jonas: Website", beginn: b, dauer: 1692, segmente: [(600, 624, 2, "Dann testet euer Prüfer heute Nacht, und wir gehen Montag live?"), (660, 712, 1, "Genau, wenn er nichts findet."),
+            (840, 864, 2, "Sundartha verlängert die Domain, das Hosting bleibt bei euch.")].map { MeetingSegment(start: $0.0, ende: $0.1, sprecher: $0.2, text: $0.3) },
+            zusammenfassung: "Die Website geht Montag live, wenn Prüfer heute Nacht nichts findet. Danach verlängert Sundartha die Domain.", aufgaben: [], rollen: [1: "Mikrofon, Antonio", 2: "Systemton"],
+            entscheidungen: ["Livegang Montag, 30. November, nach dem Test heute Nacht.", "Sundartha verlängert die Domain, das Hosting bleibt bei dir."],
+            alleAufgaben: [MeetingAufgabe(wer: "Antonio", text: "Texte für die Startseite an Jonas schicken", termin: "Freitag"), MeetingAufgabe(wer: "Prüfer", text: "Neue Website von Sundartha testen", termin: "heute Nacht ab 22:00"),
+                           MeetingAufgabe(wer: "Antonio", text: "Steuerberater: Kleinunternehmer klären", termin: nil)],
+            offeneFragen: ["Braucht die Seite einen Cookie-Hinweis? Jonas klärt das bis Montag."], aufnahme: "probe")
+        e.marken = [661]; e.termin = "Telefonat · Jonas · Sundartha"; e.namen = [2: "Jonas"]
+        return e
     }
 }

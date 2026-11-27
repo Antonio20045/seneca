@@ -23,11 +23,11 @@ public final class SenecaDaten: ObservableObject {
         korb = Ausgangskorb(datei: ordner?.appendingPathComponent("ausgangskorb.json"), geraet: einstellung.profil.geraet)
         stand = speicher.stand
         gestrichelt = korb.offen
-        if let r = speicher.stand?.regeln { var v = verbindung.regeln; v.uebernehme(r); verbindung.regeln = v }
+        if let r = speicher.stand?.regeln { var v = verbindung.regeln; v.uebernehme(r); verbindung.regeln = v; AppRegel.werte = r }
         speicher.aufNeu = { [weak self] s in
             guard let self else { return }
             self.stand = s
-            if let r = s.regeln { var v = self.verbindung.regeln; v.uebernehme(r); self.verbindung.regeln = v }
+            if let r = s.regeln { var v = self.verbindung.regeln; v.uebernehme(r); self.verbindung.regeln = v; AppRegel.werte = r }
         }
         speicher.aufPasstNicht = { [weak self] in self?.passtNicht = true }
         korb.aufAenderung = { [weak self] in self?.gestrichelt = self?.korb.offen ?? [] }
@@ -93,4 +93,9 @@ public final class SenecaDaten: ObservableObject {
             return (a["ergebnis"] as? String ?? "abgelehnt:leer", (a["revision"] as? NSNumber)?.intValue ?? 0)
         }
     }
+}
+
+public enum AppRegel {
+    nonisolated(unsafe) public static var werte: [String: Double] = [:]
+    public static func wert(_ name: String, _ vorgabe: Double) -> Double { werte[name] ?? vorgabe }
 }

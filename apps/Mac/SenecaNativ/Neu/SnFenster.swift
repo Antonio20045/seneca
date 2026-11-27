@@ -422,6 +422,7 @@ struct SnHeuteMitFenster: View {
     @ObservedObject private var tageslauf = TageslaufModell.gemeinsam
     @ObservedObject private var liste = ListenModell.gemeinsam
     @ObservedObject private var aufgaben = AufgabenModell.gemeinsam
+    @ObservedObject private var meeting = MeetingDienst.gemeinsam
     @State private var zeiger = SnZeigerKasten()
     @Environment(\.accessibilityReduceMotion) private var ruhig
 
@@ -441,7 +442,10 @@ struct SnHeuteMitFenster: View {
             let quelle = SnQuelleMitEntscheidungen(basis: daten, entschieden: daten.istEcht ? [] : Set(fenster.entschieden.keys))
             ZStack(alignment: .top) {
                 Group {
-                    if let s = store.stand, modell.teamOffen {
+                    if modell.meetingOffen, let a = meeting.ablage {
+                        SnMeetingErgebnis(e: a.ergebnis, datei: a.datei, dienst: meeting, zurueck: { modell.meetingOffen = false }, todos: store.stand?.todos ?? [])
+                            .background { Button("") { modell.meetingOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
+                    } else if let s = store.stand, modell.teamOffen {
                         SnTeamTafel(stand: s, handle: { store.handle($0, ziel: $1, text: $2) },
                                     schreiben: { id in modell.teamOffen = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
                             .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }

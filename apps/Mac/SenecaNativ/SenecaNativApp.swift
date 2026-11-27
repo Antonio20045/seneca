@@ -181,6 +181,10 @@ struct SenecaNativApp: App {
             return true
         }
         meeting.uebersicht = modell.uebersicht
+        meeting.stand = { [weak modell] in modell?.store.stand }
+        meeting.handle = { [weak modell] a, z, w in modell?.store.handle(a, ziel: z, wert: w) }
+        meeting.oeffneFenster = { openWindow(id: "meeting") }
+        meeting.melde = { [weak modell] k, t, x, kn in Task { await modell?.dienste.mitteilungen.zeigeMeeting(k, t, x, kn) } }
         if !MacPfade.nebenher { meeting.starteWache() }
         #if DEBUG
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] != nil {

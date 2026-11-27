@@ -47,6 +47,20 @@ enum MeetingWav {
 
     static func dauer(_ url: URL) -> Double? { kopf(url)?.dauer }
 
+    static func huelle(_ url: URL, teile: Int) -> [Double] {
+        guard let k = kopf(url), k.bits == 16, let d = try? Data(contentsOf: url, options: .alwaysMapped) else { return [] }
+        let n = k.datenWirklich / k.rahmen, schritt = max(1, n / teile)
+        return (0..<teile).map { t in
+            var summe = 0.0
+            let ab = t * schritt
+            for i in stride(from: ab, to: min(n, ab + schritt), by: max(1, schritt / 400)) {
+                let o = k.datenAb + i * k.rahmen
+                summe = max(summe, abs(Double(Int16(bitPattern: UInt16(d[o]) | UInt16(d[o + 1]) << 8))) / 32768)
+            }
+            return summe
+        }
+    }
+
     @discardableResult
     static func repariere(_ url: URL) throws -> Bool {
         guard let k = kopf(url), k.kaputt, k.datenWirklich > 0 else { return false }

@@ -12,16 +12,10 @@ struct MeetingView: View {
                     kopf
                     if let v = dienst.vorschlag, !dienst.beschaeftigt { vorschlag(v) }
                     if case .fehler(let t) = dienst.zustand { warnung(t) }
-                    if case .wertAus(let t) = dienst.zustand {
-                        HStack(spacing: 12) {
-                            Text(t).font(Schrift.serif(16, kursiv: true)).foregroundStyle(Farbe.ink2)
-                            if dienst.ablage != nil {
-                                Button("Abbrechen") { dienst.brichZusammenfassungAb() }.buttonStyle(.plain).font(Schrift.grotesk(12)).foregroundStyle(Farbe.himmel)
-                                    .accessibilityIdentifier("meeting-zusammenfassung-abbrechen")
-                            }
-                        }
-                    }
-                    if dienst.ablage != nil { ergebnis }
+                    if let b = dienst.bescheid { MeetingKarte { Text("Sag \(b) kurz, dass Seneca mitschreibt.").font(Schrift.grotesk(15)).foregroundStyle(.white)
+                        HStack(spacing: 10) { Button("Gesagt, los") { dienst.bescheidGesagt(true) }.buttonStyle(MeetingKnopf()); Button("Doch nicht") { dienst.bescheidGesagt(false) }.buttonStyle(MeetingKnopf(voll: false)) } } }
+                    if case .wertAus(let t) = dienst.zustand, dienst.fasstSeit == nil { Text(t).font(Schrift.serif(16, kursiv: true)).foregroundStyle(Farbe.ink2) }
+                    if let a = dienst.ablage { SnMeetingErgebnis(e: a.ergebnis, datei: a.datei, dienst: dienst, zurueck: nil) }
                     ForEach(Array(dienst.hinweise.enumerated()), id: \.offset) { _, h in
                         Text(h).font(Schrift.grotesk(12)).foregroundStyle(Farbe.warnText).fixedSize(horizontal: false, vertical: true)
                     }
@@ -35,6 +29,7 @@ struct MeetingView: View {
         .frame(minWidth: 520, minHeight: 560)
         .preferredColorScheme(.dark)
         .task { dienst.ladeFruehere() }
+        .onAppear { dienst.fensterOffen = true }.onDisappear { dienst.fensterOffen = false }
     }
 
     private var kopf: some View {
@@ -78,90 +73,6 @@ struct MeetingView: View {
         Text(t).font(Schrift.grotesk(13)).foregroundStyle(Farbe.warnText).padding(12).frame(maxWidth: .infinity, alignment: .leading)
             .background(Farbe.warnFlaeche, in: RoundedRectangle(cornerRadius: Mass.radiusKlein, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Mass.radiusKlein, style: .continuous).stroke(Farbe.warnKante, lineWidth: 1))
-    }
-
-    @ViewBuilder private var ergebnis: some View {
-        if let a = dienst.ablage {
-            let e = a.ergebnis
-            VStack(alignment: .leading, spacing: 12) {
-                Text(e.titel).font(Schrift.serif(20, kursiv: true)).foregroundStyle(Farbe.ink1)
-                switch e.stand {
-                case .laeuft:
-                    Text("Die Mitschrift ist abgelegt. Die Zusammenfassung wird noch erstellt …").font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink3)
-                case .ohneZusammenfassung(let grund):
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Die Zusammenfassung fehlt (\(grund)). Die Mitschrift ist abgelegt.")
-                            .font(Schrift.grotesk(13)).foregroundStyle(Farbe.warnText).fixedSize(horizontal: false, vertical: true)
-                        Button("Erneut zusammenfassen") { Task { await dienst.erneutZusammenfassen() } }
-                            .buttonStyle(NebenKnopfStil()).disabled(dienst.beschaeftigt).accessibilityIdentifier("meeting-erneut-zusammenfassen")
-                    }
-                case .vollstaendig:
-                    if !e.segmente.isEmpty { zusammenfassung(e) }
-                }
-                mitschrift(e)
-                HStack(spacing: 14) {
-                    Text(a.datei.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                        .font(Schrift.mono(11)).foregroundStyle(Farbe.ink3).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
-                    Spacer()
-                    Button("Datei öffnen") { dienst.oeffneDatei() }.buttonStyle(.plain).font(Schrift.grotesk(12)).foregroundStyle(Farbe.himmel)
-                        .accessibilityIdentifier("meeting-datei-oeffnen")
-                    Button("Im Finder zeigen") { dienst.zeigeInFinder() }.buttonStyle(.plain).font(Schrift.grotesk(12)).foregroundStyle(Farbe.himmel)
-                }
-            }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .snGlas(RoundedRectangle(cornerRadius: Mass.radius, style: .continuous))
-        }
-    }
-
-    @ViewBuilder private func zusammenfassung(_ e: MeetingErgebnis) -> some View {
-        let alle = e.alleAufgaben.isEmpty ? e.aufgaben.map { MeetingAufgabe(wer: "Antonio", text: $0, termin: nil) } : e.alleAufgaben
-        liste("Worum es ging", e.zusammenfassung.isEmpty ? [] : [e.zusammenfassung], punkte: false)
-        liste("Entscheidungen", e.entscheidungen)
-        liste("Aufgaben", alle.map { ($0.fuerAntonio ? "Antonio" : $0.wer) + ": " + $0.alsToDo })
-        if !e.aufgaben.isEmpty {
-            HStack {
-                Button(e.aufgaben.count == 1 ? "Antonios Aufgabe als To-do an Seneca" : "Antonios \(e.aufgaben.count) Aufgaben als To-do an Seneca") {
-                    Task { await dienst.uebergebeAufgaben(trocken: false) }
-                }
-                .buttonStyle(NebenKnopfStil()).disabled(dienst.uebernommen > 0).accessibilityIdentifier("meeting-todo")
-                if !dienst.uebernahme.isEmpty { Text(dienst.uebernahme).font(Schrift.grotesk(12)).foregroundStyle(Farbe.ink3) }
-            }
-        }
-        liste("Offene Fragen", e.offeneFragen)
-    }
-
-    private func liste(_ titel: String, _ zeilen: [String], punkte: Bool = true) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Abschnittstitel(text: titel)
-            if zeilen.isEmpty { Text("keine").font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink3) }
-            ForEach(Array(zeilen.enumerated()), id: \.offset) { _, t in
-                Text((punkte ? "• " : "") + t).font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-            }
-        }
-    }
-
-    private func mitschrift(_ e: MeetingErgebnis) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Abschnittstitel(text: "Mitschrift")
-            if e.segmente.isEmpty {
-                Text("Nichts erkannt.").font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink3)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(e.segmente.enumerated()), id: \.offset) { _, s in
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(s.sprecherName + " · " + MeetingTranskript.zeit(s.start)).font(Schrift.grotesk(11.5)).foregroundStyle(Farbe.ink3)
-                                Text(s.text).font(Schrift.grotesk(12.5)).foregroundStyle(Farbe.ink2).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-                .frame(maxHeight: 240)
-                .padding(12).snGlas(RoundedRectangle(cornerRadius: Mass.radiusKlein, style: .continuous))
-                .accessibilityIdentifier("meeting-mitschrift")
-            }
-        }
     }
 
     private static let datum: DateFormatter = {
@@ -234,6 +145,18 @@ struct MeetingLiveTafel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 20)
+            }
+            if let n = dienst?.endetIn {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 6) { Text("Anruf beendet").font(Schrift.grotesk(15, .medium)).foregroundStyle(.white); Text("· Aufnahme endet in \(n) s").font(Schrift.grotesk(13.5)).foregroundStyle(TafelFarbe.leise); Spacer()
+                        Button("Weiter aufnehmen") { dienst?.weiterAufnehmen() }.buttonStyle(MeetingKnopf(voll: false)) }
+                    GeometryReader { g in Capsule().fill(Color.white.opacity(0.12)).overlay(alignment: .leading) { Capsule().fill(TafelFarbe.himmel).frame(width: g.size.width * Double(n) / MeetingDienst.regel("meeting_ende_s", 10)) } }.frame(height: 2)
+                }
+                .padding(.horizontal, 18).padding(.vertical, 14).background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.06))).padding(.top, 12)
+            }
+            if dienst?.ohneSystemton == true {
+                MeetingKarte { Text("Ich höre nur dich. Für die Stimme deines Gegenübers brauche ich die Freigabe für Systemton.").font(Schrift.grotesk(14)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                    Button("Freigabe öffnen") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!) }.buttonStyle(MeetingKnopf()) }.padding(.top, 12)
             }
             if let a = antworten.last {
                 VStack(alignment: .leading, spacing: 8) {

@@ -20,6 +20,14 @@ struct MeetingErgebnis {
     var offeneFragen: [String] = []
     var stand: MeetingStand = .vollstaendig
     var aufnahme: String? = nil
+    var marken: [Double] = []
+    var namen: [Int: String] = [:]
+    var termin: String? = nil
+    var kandidaten: [String] = []
+
+    var alle: [MeetingAufgabe] { alleAufgaben.isEmpty ? aufgaben.map { MeetingAufgabe(wer: "Antonio", text: $0, termin: nil) } : alleAufgaben }
+    func name(_ n: Int) -> String { namen[n] ?? (n == 1 && rollen[1] != nil ? "Du" : "Sprecher \(n)") }
+    func gemerkt(_ s: MeetingSegment) -> Bool { marken.contains { $0 >= s.start - 1 && $0 <= s.ende + 2 } }
 }
 
 enum MeetingDokument {
@@ -65,7 +73,7 @@ enum MeetingDokument {
         let nummern = MeetingTranskript.sprecherAnzahl(e.segmente)
         let sprecher = (nummern.isEmpty ? [1] : nummern).map { n -> String in
             let r = e.rollen[n].map { " (\($0))" } ?? ""
-            return "Sprecher \(n)\(r)"
+            return e.name(n) + r
         }.joined(separator: ", ")
         let leer: String
         var z: [String] = []
@@ -96,17 +104,22 @@ enum MeetingDokument {
         z.append("")
         z.append("## Aufgaben")
         z.append("")
-        let alle = e.alleAufgaben.isEmpty ? e.aufgaben.map { MeetingAufgabe(wer: "Antonio", text: $0, termin: nil) } : e.alleAufgaben
-        if alle.isEmpty { z.append(leer) } else { for a in alle { z.append(a.fuerAntonio ? "- [ ] \(a.zeile)" : "- \(a.zeile)") } }
+        if e.alle.isEmpty { z.append(leer) } else { for a in e.alle { z.append(a.fuerAntonio ? "- [ ] \(a.zeile)" : "- \(a.zeile)") } }
         z.append("")
         z.append("## Offene Fragen")
         z.append("")
         if e.offeneFragen.isEmpty { z.append(leer) } else { for t in e.offeneFragen { z.append("- \(t)") } }
         z.append("")
+        if !e.marken.isEmpty {
+            z.append("## Gemerkt")
+            z.append("")
+            for m in e.marken { z.append("- [\(MeetingTranskript.zeit(m))] " + (e.segmente.last { $0.start <= m + 1 }?.text ?? "")) }
+            z.append("")
+        }
         z.append("## Mitschrift")
         z.append("")
         if e.segmente.isEmpty { z.append("_Nichts erkannt._") }
-        for s in e.segmente { z.append("**\(s.sprecherName)** [\(MeetingTranskript.zeit(s.start))] \(s.text)"); z.append("") }
+        for s in e.segmente { z.append("**\(e.name(s.sprecher))** [\(MeetingTranskript.zeit(s.start))] \(s.text)" + (e.gemerkt(s) ? " ▮ gemerkt" : "")); z.append("") }
         return z.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
