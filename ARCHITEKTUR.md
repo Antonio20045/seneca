@@ -33,9 +33,10 @@ Geschwister kennen sich nicht. Sie arbeiten über das Register zusammen: ein Mod
 |---|---|---|
 | `apps/SenecaKern/Sources/SenecaKern` | Code, den Mac und iPhone teilen: Chat, Verbindung, Fachlogik. Ein Exemplar, beide Xcode-Projekte übersetzen den Ordner mit. Wo Mac und iPhone verschieden sind, steht `#if os(iOS)` | nichts außerhalb |
 | `apps/Mac/MacKern` | Fachlogik nur für den Mac (Meeting, Menüleiste, Tageslauf, Übersicht) | `apps/SenecaKern` |
-| `apps/Mac/SenecaNativ`, `SenecaWidget` | Oberfläche der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
+| `apps/Mac/SenecaNativ`, `SenecaWidget`, `SenecaTeilen` | Oberfläche, Widget und Teilen-Erweiterung der Mac-App | `apps/SenecaKern`, `apps/Mac/MacKern` |
 | `apps/iPhone/*` | Oberfläche, Widget, Teilen-Erweiterung der iPhone-App | `apps/SenecaKern` |
 | `apps/SenecaKern/Sources/SenecaKern/Widget` | Ein Widget für iPhone (Home, Sperre) und Mac (Mitteilungszentrale): Lage, Zustände, Aussehen. Beide Widget-Erweiterungen übersetzen diese Dateien; die Apps schreiben `WidgetLage` in ihre App-Group | nichts außerhalb |
+| `apps/SenecaKern/Sources/SenecaKern/Teilen` | „An Seneca teilen“ für iPhone und Mac: Blatt (Tafel G-iPhone-Teilen), Eintrag in der App-Group, Lesen. Ohne Frage wird es `eingang.datei`, mit Frage eine Nachricht an Seneca oder den gewählten Mitarbeiter. Ersetzt den Mac-Sortierer | nichts außerhalb |
 
 Die Apps sprechen mit dem Plugin nur über das Gateway. Ihre Zeilen dürfen nicht wachsen (Budget in `pruefen.sh`, Prüfung P1).
 

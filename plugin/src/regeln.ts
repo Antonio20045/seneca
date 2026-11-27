@@ -61,3 +61,13 @@ export function msAusMinuten(minuten: number): number {
 export function sekundenAusMs(ms: number): number {
   return Math.floor(ms / EINHEIT_MS.s);
 }
+
+export function kalenderSpanne(jetzt: number): { von: number; wochen: number } {
+  const d = new Date(jetzt);
+  d.setHours(0, 0, 0, 0);
+  const heute = d.getTime(), woche = 7 * EINHEIT_MS.tage, monatsEnde = new Date(heute).setMonth(d.getMonth() + 1, 1);
+  d.setMonth(d.getMonth() - regelZahl("kal_monate_zurueck"), 1);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const von = d.getTime();
+  return { von, wochen: Math.max(Math.floor((heute - von + EINHEIT_MS.h) / woche) + 1 + regelZahl("kal_wochen_vor"), Math.ceil((monatsEnde - von) / woche)) };
+}

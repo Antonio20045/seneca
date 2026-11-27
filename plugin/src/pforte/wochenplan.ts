@@ -1,6 +1,6 @@
 import { ereignisse, fragen, kalenderTag, termineAm, todos, vorschlagDaten, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { kalenderSpanne, msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { fensterStart } from "./entscheiden.ts";
 import { istSport, kalenderwoche, MONAT, TAG } from "./kalender.ts";
 import { uhrzeit } from "./heute.ts";
@@ -205,8 +205,7 @@ function plant(db: Register, jetzt: number) {
 }
 
 export function wochenplan(db: Register, jetzt: number) {
-  const von = plusTage(montag(jetzt), -7 * regelZahl("kal_wochen_zurueck"));
-  const wochen = regelZahl("kal_wochen_zurueck") + 1 + regelZahl("kal_wochen_vor");
+  const { von, wochen } = kalenderSpanne(jetzt);
   return {
     wochen: Array.from({ length: wochen }, (_, i) => wochenKopf(plusTage(von, 7 * i), jetzt)),
     tage: Array.from({ length: wochen * 7 }, (_, i) => {

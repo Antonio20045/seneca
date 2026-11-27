@@ -48,7 +48,8 @@ enum AgendaLogic {
 }
 
 enum AgendaAnsicht: Equatable, Hashable {
-    case heute, woche, monat
+    case heute, woche
+    case monat(Int)
     case tag(Date)
 }
 
@@ -128,7 +129,7 @@ extension AgendaLogic {
             if cal.isDate(start, inSameDayAs: input.now) { return tagSicht(start, ansicht: .heute, input) }
             return tagSicht(start, ansicht: .tag(start), input)
         case .woche: return wochenSicht(input)
-        case .monat: return monatsSicht(input)
+        case .monat(let versatz): return monatsSicht(input, versatz: versatz)
         }
     }
 
@@ -245,10 +246,16 @@ extension AgendaLogic {
         }?.element
     }
 
-    private static func monatsSicht(_ input: AgendaInput) -> AgendaSicht {
+    static func monatErlaubt(_ versatz: Int, _ input: AgendaInput) -> Bool {
+        let cal = input.calendar
+        guard let start = cal.date(byAdding: .month, value: versatz, to: KalenderLogic.monthStart(input.now, cal)) else { return false }
+        return versatz < 0 ? deckt(start, input) : bekannt(cal.date(byAdding: DateComponents(month: 1, day: -1), to: start) ?? start, input)
+    }
+
+    private static func monatsSicht(_ input: AgendaInput, versatz: Int) -> AgendaSicht {
         let cal = input.calendar
         let heute = cal.startOfDay(for: input.now)
-        let start = KalenderLogic.monthStart(input.now, cal)
+        let start = cal.date(byAdding: .month, value: versatz, to: KalenderLogic.monthStart(input.now, cal)) ?? KalenderLogic.monthStart(input.now, cal)
         let tage = (0..<(cal.range(of: .day, in: .month, for: start)?.count ?? 30)).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
         let proTag = Dictionary(uniqueKeysWithValues: tage.map { ($0, eintraege($0, input)) })
         let monatsname = KalenderLogic.monthName(start, cal)
@@ -263,6 +270,12 @@ extension AgendaLogic {
             tage.filter { $0 > ab }.flatMap { d in
                 (proTag[d] ?? []).filter { !$0.mehrtaegig || cal.isDate($0.item.start, inSameDayAs: d) }
             }
+        }
+        if versatz != 0 {
+            let alle = kommend(ab: cal.date(byAdding: .day, value: -1, to: start) ?? start)
+            let war = versatz < 0 ? "stand" : "steht"
+            return AgendaSicht(ansicht: .monat(versatz), etikett: KalenderLogic.monthLine(start, cal), held: nil, satz: alle.isEmpty ? "Im \(monatsname) \(war) nichts im Kalender." : "",
+                               listenTitel: alle.isEmpty ? "" : "Im \(monatsname)", eintraege: alle, wochentage: [], monat: bild)
         }
         let wochenEnde = KalenderLogic.weekDays(KalenderLogic.weekStart(input.now, cal), cal).last ?? heute
         let kommend = kommend(ab: wochenEnde).isEmpty ? kommend(ab: heute) : kommend(ab: wochenEnde)
@@ -284,7 +297,7 @@ extension AgendaLogic {
             held = AgendaHeld(vorn: "Der Rest vom \(monatsname) ist ", akzent: "frei")
             satz = "Im \(monatsname) steht nichts mehr im Kalender."
         }
-        return AgendaSicht(ansicht: .monat, etikett: KalenderLogic.monthLine(start, cal), held: held, satz: satz,
+        return AgendaSicht(ansicht: .monat(0), etikett: KalenderLogic.monthLine(start, cal), held: held, satz: satz,
                            listenTitel: danach.isEmpty ? "" : "Danach im \(monatsname)", eintraege: danach, wochentage: [], monat: bild)
     }
 

@@ -14,7 +14,7 @@ final class WidgetBridge {
             .debounce(for: .milliseconds(600), scheduler: RunLoop.main)
             .sink { [weak self] s in
                 self?.schreiben(WidgetLogik.lage(s))
-                TeilenEingang.teamMerken((s.team ?? []).map { [$0.name, "\(ChatTafelLogik.punkt($0, s))"] })
+                TeilenEingang.teamMerken(TeilenEingang.team(s))
             }
     }
 

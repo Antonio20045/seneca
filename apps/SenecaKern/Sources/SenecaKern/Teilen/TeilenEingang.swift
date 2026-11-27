@@ -1,4 +1,6 @@
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 struct TeilenEintrag: Codable, Equatable, Identifiable {
     var id: String
@@ -16,7 +18,13 @@ struct TeilenEintrag: Codable, Equatable, Identifiable {
 }
 
 enum TeilenEingang {
+    #if os(macOS)
+    static let gruppe = "5K75RX8FHZ.de.antonio.seneca.nativ"
+    static let geraet = "Mac"
+    #else
     static let gruppe = "group.de.antonio.senecapocket"
+    static let geraet = "iPhone"
+    #endif
     static let textGrenze = 4000
 
     static let teamKey = "teilen.team"
@@ -45,6 +53,64 @@ enum TeilenEingang {
         for name in e.dateien + ["eintrag-\(e.id).json"] { try? FileManager.default.removeItem(at: ordner.appendingPathComponent(name)) }
     }
 
+    static func bild(_ url: URL) -> CGImage? {
+        CGImageSourceCreateWithURL(url as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+    }
+
+    static func bilder(_ e: TeilenEintrag) -> [URL] {
+        e.dateien.compactMap { ordner?.appendingPathComponent($0) }.filter { bild($0) != nil }
+    }
+
+    static func laden(_ items: [NSExtensionItem]) async -> TeilenEintrag {
+        var e = TeilenEintrag(id: UUID().uuidString, zeit: Date())
+        for item in items {
+            if e.titel.isEmpty, let t = item.attributedTitle?.string ?? item.attributedContentText?.string { e.titel = String(t.prefix(200)) }
+            for a in item.attachments ?? [] {
+                if a.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                    if let name = await kopiere(a, .image, endung: "jpg") { e.dateien.append(name); e.bilder += 1 }
+                } else if a.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                    if let name = await kopiere(a, .item, endung: "dat") { e.dateien.append(name) }
+                } else if a.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                    if let url = try? await a.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL { e.adresse = url.absoluteString }
+                } else if a.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                    if let text = try? await a.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String { e.text = [e.text, text].compactMap { $0 }.joined(separator: "\n") }
+                } else if a.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
+                    if let name = await kopiere(a, .data, endung: "dat") { e.dateien.append(name) }
+                }
+            }
+        }
+        if let t = e.text, t == e.titel { e.titel = "" }
+        return e
+    }
+
+    private static func kopiere(_ a: NSItemProvider, _ typ: UTType, endung: String) async -> String? {
+        guard let ordner else { return nil }
+        try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
+        func ziel(_ ext: String) -> URL { ordner.appendingPathComponent("datei-\(UUID().uuidString)." + (ext.isEmpty ? endung : ext)) }
+        if let name: String = await withCheckedContinuation({ weiter in
+            a.loadFileRepresentation(forTypeIdentifier: typ.identifier) { url, _ in
+                guard let url else { weiter.resume(returning: nil); return }
+                let z = ziel(url.pathExtension)
+                weiter.resume(returning: (try? FileManager.default.copyItem(at: url, to: z)) != nil ? z.lastPathComponent : nil)
+            }
+        }) { return name }
+        if a.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
+           let roh = try? await a.loadItem(forTypeIdentifier: UTType.fileURL.identifier),
+           let url = (roh as? URL) ?? (roh as? Data).flatMap({ URL(dataRepresentation: $0, relativeTo: nil) }) {
+            let zugriff = url.startAccessingSecurityScopedResource()
+            defer { if zugriff { url.stopAccessingSecurityScopedResource() } }
+            let z = ziel(url.pathExtension)
+            if (try? FileManager.default.copyItem(at: url, to: z)) != nil { return z.lastPathComponent }
+        }
+        return await withCheckedContinuation { weiter in
+            a.loadDataRepresentation(forTypeIdentifier: typ.identifier) { daten, _ in
+                let z = ziel(a.registeredContentTypes.first { $0.conforms(to: typ) }?.preferredFilenameExtension ?? endung)
+                guard let daten, (try? daten.write(to: z)) != nil else { weiter.resume(returning: nil); return }
+                weiter.resume(returning: z.lastPathComponent)
+            }
+        }
+    }
+
     static func kurz(_ e: TeilenEintrag) -> String {
         let titel = e.titel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !titel.isEmpty { return titel }
@@ -62,7 +128,7 @@ enum TeilenEingang {
     }
 
     static func nachricht(_ e: TeilenEintrag, gelesen: String? = nil) -> String {
-        var teile = [e.frage.trimmingCharacters(in: .whitespacesAndNewlines), "Das habe ich dir dazu vom iPhone geteilt:"]
+        var teile = [e.frage.trimmingCharacters(in: .whitespacesAndNewlines), "Das habe ich dir dazu vom \(geraet) geteilt:"]
         let titel = e.titel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !titel.isEmpty { teile.append("Titel: \(titel)") }
         if let a = e.adresse, !a.isEmpty { teile.append("Adresse: \(a)") }

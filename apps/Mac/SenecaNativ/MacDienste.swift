@@ -311,6 +311,7 @@ final class MacDienste: ObservableObject {
     let merkKuerzel = GlobalesKuerzel(id: 2)
     let meetingKuerzel = GlobalesKuerzel(id: 3)
     let zeichen = MenueZeichenModell()
+    let teilen = TeilenDienst()
     var meetingWertetAus = false
     var meetingGemeldet: Set<String> = []
     private(set) var panel: SchnellfragePanel!
@@ -323,6 +324,7 @@ final class MacDienste: ObservableObject {
 
     func starte(modell: AppModell) {
         self.modell = modell
+        teilen.starte(modell: modell)
         schnellfrage.sende = { [weak modell] text in
             guard let modell else { throw SenecaError.offline }
             return try await modell.chat.send(text, an: .seneca)
@@ -387,6 +389,7 @@ final class MacDienste: ObservableObject {
         case .echt: break
         }
         guard let s = modell?.store.stand else { return }
+        TeilenEingang.teamMerken(TeilenEingang.team(s))
         let neu = WidgetLogik.lage(s)
         guard letzteLage.map({ var a = $0; a.stand = neu.stand; return a != neu }) ?? true else { return }
         letzteLage = neu

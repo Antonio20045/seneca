@@ -1,7 +1,7 @@
 import { kalenderTag, termineAm, uhr, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { ereignis, wertSetzen } from "../register/schreiben.ts";
-import { regelMs, regelText, regelZahl } from "../regeln.ts";
+import { kalenderSpanne, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Zugang = { benutzer?: string; passwort?: string };
 type Termin = { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; namen: string[]; notiz?: string; kalender?: string; ganztag: boolean };
@@ -73,8 +73,7 @@ async function finde(z: Zugang): Promise<Kalender[]> {
 
 export async function kalenderAbgleich(db: Register, z: Zugang): Promise<void> {
   if (!z.benutzer || !z.passwort) return;
-  const heute = new Date(uhr.jetzt());
-  const von = new Date(heute.getFullYear(), heute.getMonth(), heute.getDate() - ((heute.getDay() + 6) % 7)).getTime();
+  const { von } = kalenderSpanne(uhr.jetzt());
   const bis = uhr.jetzt() + regelMs("kalender_vorschau_tage");
   const abfrage = `<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data><c:expand start="${ics(von)}" end="${ics(bis)}"/></c:calendar-data></d:prop>
     <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="${ics(von)}" end="${ics(bis)}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`;

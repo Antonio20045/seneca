@@ -10,7 +10,6 @@
 		B30000000000000000000001 /* SenecaWidget.appex in Embed */ = {isa = PBXBuildFile; fileRef = A30000000000000000000003; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B30000000000000000000002 /* SenecaTeilen.appex in Embed */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B30000000000000000000011 /* SenecaOeffnen.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011; };
-		B30000000000000000000012 /* TeilenEingang.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012; };
 		B30000000000000000000013 /* WidgetFace.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013; };
 		B30000000000000000000014 /* WidgetSnapshot.swift in Widget */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014; };
 		B3000000000000000000001A /* SenecaWidgetKit.swift in Widget */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B; };
@@ -32,8 +31,8 @@
 		A30000000000000000000003 /* SenecaWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SenecaWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A30000000000000000000004 /* SenecaTeilen.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SenecaTeilen.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A30000000000000000000011 /* SenecaOeffnen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaOeffnen.swift; path = Shared/SenecaOeffnen.swift; sourceTree = "<group>"; };
-		A3000000000000000000001A /* TeilenBlatt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenBlatt.swift; path = Shared/TeilenBlatt.swift; sourceTree = "<group>"; };
-		A30000000000000000000012 /* TeilenEingang.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenEingang.swift; path = Shared/TeilenEingang.swift; sourceTree = "<group>"; };
+		A3000000000000000000001A /* TeilenBlatt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenBlatt.swift; path = ../SenecaKern/Sources/SenecaKern/Teilen/TeilenBlatt.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* TeilenEingang.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TeilenEingang.swift; path = ../SenecaKern/Sources/SenecaKern/Teilen/TeilenEingang.swift; sourceTree = "<group>"; };
 		A30000000000000000000013 /* WidgetFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetFace.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetFace.swift; sourceTree = "<group>"; };
 		A3000000000000000000001B /* SenecaWidgetKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SenecaWidgetKit.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/SenecaWidgetKit.swift; sourceTree = "<group>"; };
 		A30000000000000000000014 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshot.swift; path = ../SenecaKern/Sources/SenecaKern/Widget/WidgetSnapshot.swift; sourceTree = "<group>"; };
@@ -381,7 +380,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B30000000000000000000011 /* SenecaOeffnen.swift in Widget */,
-				B30000000000000000000012 /* TeilenEingang.swift in Widget */,
 				B30000000000000000000013 /* WidgetFace.swift in Widget */,
 				B30000000000000000000014 /* WidgetSnapshot.swift in Widget */,
 				B3000000000000000000001A /* SenecaWidgetKit.swift in Widget */,

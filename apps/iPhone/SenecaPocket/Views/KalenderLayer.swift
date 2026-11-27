@@ -18,6 +18,7 @@ struct KalenderLayer: View {
     @State private var tagWahl: Date? = KalenderStart.wert.tag
     @State private var offen: String?
     @State private var offenDemoTitel: String? = KalenderStart.wert.offen
+    @State private var monat = KalenderStart.wert.monat
     private var cal: Calendar { input.calendar }
     private var env: [String: String] {
         #if DEBUG
@@ -53,7 +54,7 @@ struct KalenderLayer: View {
         switch teil {
         case .tag: return tagWahl.map { .tag($0) } ?? .heute
         case .woche: return .woche
-        case .monat: return .monat
+        case .monat: return .monat(monat)
         }
     }
 
@@ -72,7 +73,12 @@ struct KalenderLayer: View {
     var body: some View {
         if let s = store.stand, s.kalender != nil {
             KalenderTafel(stand: s, teil: reiterWahl) {
-                ScrollView { KalenderMonatsAnsicht(m: m, sicht: sicht(agendaInput), cal: cal, offen: offen, umschalten: umschalten, zeigeTag: zeigeTag).padding(.horizontal, 24) }
+                ScrollView {
+                    let ai = agendaInput
+                    KalenderMonatsAnsicht(m: m, sicht: sicht(ai), cal: cal, offen: offen, umschalten: umschalten, zeigeTag: zeigeTag,
+                                          blaettern: { n in AgendaLogic.monatErlaubt(monat + n, ai) && !ohneDaten ? { Bewegung.mit(.wechsel) { offen = nil; monat += n } } : nil })
+                        .padding(.horizontal, 24)
+                }
             }
             .padding(.top, 62)
             .foregroundStyle(TafelFarbe.text)
@@ -92,6 +98,7 @@ struct KalenderLayer: View {
         Binding(get: { teil }, set: { neu in
             offen = nil; offenDemoTitel = nil
             if neu == .tag { tagWahl = tagWahl.flatMap { cal.isDate($0, inSameDayAs: now) ? nil : $0 } }
+            if neu == .monat { monat = 0 }
             teil = neu
         })
     }
@@ -123,6 +130,7 @@ enum KalenderStart {
         var tag: Date?
         var offen: String?
         var fokus: String?
+        var monat = 0
     }
 
     static let wert: Wert = {
@@ -143,6 +151,7 @@ enum KalenderStart {
         }
         w.offen = env["SENECA_DEMO_KALENDER_OFFEN"]
         w.fokus = env["SENECA_DEMO_KALENDER_FOKUS"]
+        w.monat = env["SENECA_DEMO_KALENDER_MONAT"].flatMap { Int($0) } ?? 0
         #endif
         return w
     }()
