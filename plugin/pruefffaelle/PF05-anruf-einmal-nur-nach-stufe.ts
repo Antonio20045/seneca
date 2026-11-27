@@ -154,13 +154,18 @@ test("PF05 k) Unteragent und Nachricht an Kollegen: nie an Ruhende, nur laut Man
   assert.equal(ereignisse(p.db, { art: "unteragent.ende", schluessel: "agent:engineer:subagent:k1" }).length, 1);
 });
 
-test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich, Privat liest nur Seneca", () => {
+test("PF05 i) Ablage: Mitarbeiter schreibt nur in seinem Bereich und _arbeit/<name>, Privat liest nur Seneca", () => {
   const p = ladePlugin();
   const pfad = (rel: string) => ({ path: `/home/ubuntu/Ablage/${rel}` });
   assert.equal(p.aufruf("s", "write", pfad("Sundartha/Hermes/plan.md"), "w1", "produkt"), undefined);
   assert.ok(p.aufruf("s", "write", pfad("Vodafone/x.md"), "w2", "produkt")?.block);
   assert.ok(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r1", "produkt")?.block);
   assert.equal(p.aufruf("s", "read", pfad("Privat/tagebuch.md"), "r2", "seneca"), undefined);
+  assert.equal(p.aufruf("s", "write", pfad("sundartha/website/text.md"), "w3", "produkt"), undefined);
+  assert.equal(p.aufruf("s", "write", pfad("_arbeit/engineer/roh.txt"), "w4", "engineer"), undefined);
+  assert.ok(p.aufruf("s", "write", pfad("_arbeit/produkt/roh.txt"), "w5", "engineer")?.block);
+  assert.ok(p.aufruf("s", "write", pfad("_wissen/notiz.md"), "w6", "engineer")?.block);
+  assert.equal(p.aufruf("s", "read", pfad("_wissen/notiz.md"), "r3", "engineer"), undefined);
 });
 
 test("PF05 j) Live nur mit ausführlichem Ja; Gateway-Neustart nur im Bauablauf mit Ja", async () => {
