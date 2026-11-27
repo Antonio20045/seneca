@@ -56,8 +56,7 @@ struct SnStatistikTafel: View {
                     Spacer()
                     umschalter
                 }
-                SnStatSatz(teile: StatistikLogik.satz(daten, zeitraum), groesse: 28).padding(.top, 22)
-                SnStatGruppe(bereich: "wachstum", unter: "Laufen, Krafttraining, Lesen und Körper").padding(.top, 52)
+                SnStatGruppe(bereich: "wachstum", unter: "Laufen, Krafttraining, Lesen und Körper").padding(.top, 40)
                 VStack(alignment: .leading, spacing: 0) {
                     laufen
                     kraft
@@ -101,7 +100,7 @@ struct SnStatistikTafel: View {
         let km = k?.lauf.km.last ?? 0, ziel = k.flatMap(StatistikLogik.wochenZiel), summe = StatistikLogik.summe(daten, zeitraum, "Laufen")
         let leer = zeitraum == .woche ? km == 0 : summe?.first == "0"
         let seit = k.flatMap { StatistikLogik.letzterLauf($0, daten.lauf) }
-        let tempo = (k?.lauf.paceMonat ?? []).suffix(12).compactMap { p in p.count > 1 ? p[1].alsZahl.map { ("\(StatistikLogik.monatKurz(p[0].alsText ?? "")) \((p[0].alsText ?? "").dropFirst(2).prefix(2))", $0) } : nil }
+        let tempo = (k?.lauf.paceMonat ?? []).suffix(12).compactMap { p in p.count > 1 ? p[1].alsZahl.map { ("\(StatistikLogik.monatKurz(p[0].alsText ?? "")) \((p[0].alsText ?? "").prefix(4))", $0) } : nil }
         return SnStatAbschnitt(bereich: .laufen, oeffne: wechsle, eigene: eigene(.laufen)) {
             SnStatZahl(wert: summe?[0] ?? StatistikLogik.zahl(km), einheit: zeitraum == .woche && ziel != nil ? "VON \(StatistikLogik.zahl(ziel!.km)) KM" : summe?[1] ?? "KM")
             Text(leer ? seit.map { "Seit \(StatistikLogik.datum($0, lang: true)) kein Lauf." } ?? "Noch kein Lauf." : summe.map { String($0[2].dropFirst("Laufen, ".count)) } ?? "Längster Lauf \(StatistikLogik.zahl(k?.lauf.lang.last ?? 0)) km.")
@@ -166,7 +165,7 @@ struct SnStatistikTafel: View {
 
     private var koerper: some View {
         let n = k?.koerper.nacht.last, g = k?.koerper.gewicht ?? [], heute = StatistikLogik.letzteTage(stand, 1).first ?? ""
-        let schlaf = (k?.koerper.nacht ?? []).suffix(14).map { $0.count > 1 ? $0[1].alsZahl ?? 0 : 0 }
+        let nacht = (k?.koerper.nacht ?? []).suffix(14).map { $0.count > 1 ? $0[1].alsZahl ?? 0 : 0 }, schlaf = Array(repeating: 0.0, count: 14 - nacht.count) + nacht
         let gewicht = g.suffix(26).compactMap { p in p.count > 1 ? p[1].alsZahl.map { (StatistikLogik.monatKurz(p[0].alsText ?? ""), $0) } : nil }
         return SnStatAbschnitt(bereich: .koerper, oeffne: wechsle, eigene: eigene(.koerper)) {
             SnStatZahl(wert: n.flatMap { $0.count > 1 ? $0[1].alsZahl.map(StatistikLogik.stunden) : nil } ?? "–", einheit: "STD SCHLAF")

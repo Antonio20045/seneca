@@ -108,17 +108,6 @@ enum StatistikLogik {
         .sorted { ($0.iso, $0.rm) > ($1.iso, $1.rm) }
     }
 
-    static func satz(_ d: SenecaStatistik, _ z: StatZeitraum) -> [String] {
-        guard z == .woche, let k = d.kennzahlen else { return (z == .monat ? d.monat : d.jahr)?.satz ?? d.woche.satz }
-        let km = k.lauf.km.last ?? 0, still = km == 0 && (k.kraft.tage.last ?? 0) == 0 && karte(d, "lesen")?.tage.allSatisfy { $0.zustand != "da" } != false
-        let seit = [letzterLauf(k, d.lauf), bestwerte(k).first?.iso].compactMap { $0 }.max()
-        let erst = still ? seit.map { "Seit dem \(datum($0, lang: true)) ist es still." } ?? "Eine stille Woche." : d.woche.satz.first ?? ""
-        guard let ziel = wochenZiel(k) else { return [erst] }
-        let zweit = km == 0 ? "Der Aufbau für die 100 km beginnt diese Woche mit \(zahl(ziel.lang)) km am Stück."
-            : km >= ziel.km ? "Das Laufziel der Woche ist geschafft." : "Noch \(zahl(ziel.km - km)) km bis zu den \(zahl(ziel.km)) dieser Woche."
-        return [erst, zweit]
-    }
-
     static func nacht(_ k: SenecaStatistik.Kennzahlen, _ iso: String) -> [JSONWert]? { k.koerper.nacht.last { $0.first?.alsText == iso } }
 
     static func letzteTage(_ stand: Double, _ anzahl: Int) -> [String] {

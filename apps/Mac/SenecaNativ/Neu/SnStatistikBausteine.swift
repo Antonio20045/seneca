@@ -122,13 +122,14 @@ struct SnStatBalken: View {
     var ziel: Double?
 
     var body: some View {
-        let hoch = max(werte.max() ?? 0, ziel ?? 0, 0.0001)
+        let hoch = max(werte.max() ?? 0, ziel ?? 0, 0.0001), leer = !werte.contains { $0 > 0 }
         VStack(spacing: 6) {
             GeometryReader { g in
                 ZStack(alignment: .bottomLeading) {
+                    if leer { Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1) }
                     HStack(alignment: .bottom, spacing: werte.count > 20 ? 2 : 6) {
                         ForEach(Array(werte.enumerated()), id: \.offset) { _, v in
-                            RoundedRectangle(cornerRadius: werte.count > 20 ? 1 : 3).fill(v > 0 ? farbe : Color.white.opacity(0.12))
+                            RoundedRectangle(cornerRadius: werte.count > 20 ? 1 : 3).fill(v > 0 ? farbe : Color.white.opacity(leer ? 0 : 0.12))
                                 .frame(height: v > 0 ? max(4, g.size.height * v / hoch) : 2).frame(maxWidth: .infinity)
                         }
                     }
