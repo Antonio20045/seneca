@@ -263,7 +263,7 @@ public final class StandSpeicher {
 }
 
 public struct SenecaStatistik: Codable, Equatable, Sendable {
-    public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool }
+    public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool; public var wert: Double?; public var hoehe: Double? }
     public struct Karte: Codable, Equatable, Sendable, Identifiable {
         public var art: String; public var titel: String; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
         public var tage: [Tag]; public var anteil: Double?; public var rechts: String; public var knopf: String
