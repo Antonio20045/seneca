@@ -114,4 +114,27 @@ enum GespraecheTafelLogik {
         let k = KalenderLogik.cal().dateComponents([.day, .month], from: HeuteTafelLogik.datum(ms))
         return "\(k.day ?? 1). \(k.month ?? 1)."
     }
+
+    struct Station: Equatable { var art: String; var titel: String; var unter: [String] }
+
+    static func station(_ s: SenecaStand, _ m: SenecaStand.Mitglied) -> Station? {
+        let zahl = { (n: Int) in n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n].replacingOccurrences(of: "eine", with: "einer") : "\(n)" }
+        if m.zustand == "hängt" {
+            let min = Int((s.jetzt - (m.schritte?.last?.um ?? m.seit ?? s.jetzt)) / 60_000)
+            return Station(art: "haengt", titel: "\(m.name) kommt nicht weiter.", unter: ["Seit \(zahl(min)) \(min == 1 ? "Minute" : "Minuten") kein Schritt."])
+        }
+        if m.zustand == "arbeitet" {
+            if let n = s.auftraege_neu?.first(where: { $0.wer == m.id }), m.schritte?.isEmpty ?? true {
+                return Station(art: "angenommen", titel: "\(m.name) · angenommen",
+                               unter: [[n.dauer_min.map { "schätzt etwa \(Int($0)) Minuten" }, n.bis.map { "fertig gegen \(HeuteTafelLogik.uhr($0))" }].compactMap { $0 }.joined(separator: " · ")])
+            }
+            let seit = m.seit.map { " · seit \(HeuteTafelLogik.uhr($0))" } ?? ""
+            if m.id == "pruefer" { return Station(art: "arbeit", titel: "\(m.name) \(m.satz ?? "prüft")", unter: ["derselbe Auftrag" + seit]) }
+            return Station(art: "arbeit", titel: (m.satz ?? "arbeitet") + seit, unter: (m.schritte ?? []).compactMap(\.satz))
+        }
+        guard let e = s.heute_erledigt?.last(where: { $0.wer == m.name }) else { return nil }
+        let euro = (e.kosten_cent ?? 0) / 100
+        return Station(art: "fertig", titel: e.titel + (e.pruefer == true ? " · geprüft" : ""),
+                       unter: [[e.pruefer == true ? "\(m.name) und Prüfer" : m.name, e.min.map { "\(Int($0)) Minuten" }, String(format: "%.2f €", euro).replacingOccurrences(of: ".", with: ",")].compactMap { $0 }.joined(separator: " · ")])
+    }
 }

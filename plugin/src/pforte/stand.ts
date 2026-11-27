@@ -1,4 +1,4 @@
-import { aktiveLaeufe, auftraege, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
 import { berichte, rueckblick } from "./berichte.ts";
@@ -187,7 +187,8 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       .map((a) => ({ id: a.id, titel: a.titel, ziel: a.ziel, wer: a.verantwortlich, pruefer: !!a.pruefer_noetig, erteilt: a.erstellt,
         bis: a.schaetzung_min ? Number(a.erstellt) + msAusMinuten(Number(a.schaetzung_min)) : null, dauer_min: a.schaetzung_min,
         danach: a.abnahme_durch === "antonio" ? `${a.pruefer_noetig ? "Prüfer schaut drüber, dann kommt es" : "Es kommt"} als Abnahme ins Fenster um ${regelText("fenster").split(" ")[0]}` : "Fertig ohne Abnahme" })),
-    heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
+    heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")),
+      wer: anzeigeName(String(a.verantwortlich)), pruefer: !!a.pruefer_noetig, min: Math.round((Number(a.geaendert) - Number(a.erstellt)) / 60000), kosten_cent: kostenSeit(db, 0, { auftrag_id: String(a.id) }) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...terminSicht(db, t), weg: weg(db, t).kurz })),
     wochenplan: wochenplan(db, jetzt),
     verlauf: verlauf(db, tagBeginn, jetzt),

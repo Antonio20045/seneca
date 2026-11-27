@@ -246,7 +246,10 @@ struct SnChatSeite: View {
                         ForEach(GL.fragen(s, von: mitglied?.name ?? "").filter { $0.id != mehrFrage?.id }) { f in
                             SnGespraechFrage(frage: f, fokus: s.ruhe?.grund == "fokus", antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, mehr: { modell.mehrFrage = f.id })
                         }
-                        if let m = mitglied, m.zustand == "arbeitet" { SnGespraechLauf(mitglied: m) }
+                        if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { SnGespraechLauf(mitglied: m) }
+                        else if let m = mitglied, let st = GL.station(s, m) {
+                            SnAuftragKarte(station: st, ansehen: { modell.teamOffen = true; modell.gehe(Route.heute) }, anstupsen: { steuerung.sende("Wo hängst du gerade?") })
+                        }
                         if let f = mehrFrage { SnFrageMehrFuss(frage: f) { steuerung.sende($0) } }
                     }
                 }

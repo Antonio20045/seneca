@@ -88,7 +88,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var body_battery: Double?; public var zeit: Double?; public var stress: Double?; public var schritte: Double?
         public var morgens: Double?; public var titel: String?; public var hinweis: String?; public var schlaf: Schlaf?
     }
-    public struct Erledigt: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String }
+    public struct Erledigt: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var wer: String?; public var pruefer: Bool?; public var min: Double?; public var kosten_cent: Double? }
     public struct Notiz: Codable, Equatable, Sendable { public var satz: String; public var um: Double }
     public struct Termin: Codable, Equatable, Sendable, Identifiable {
         public var uid: String
