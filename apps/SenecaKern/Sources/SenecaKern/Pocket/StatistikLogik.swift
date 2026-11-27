@@ -43,6 +43,14 @@ enum StatistikLogik {
         return (r == r.rounded() ? String(Int(r)) : String(format: "%.\(stellen)f", r)).replacingOccurrences(of: ".", with: ",")
     }
 
+    static func tempo(_ s: Double) -> String { String(format: "%d:%02d", Int(s) / 60, Int(s.rounded()) % 60) }
+
+    static func abschnitt(_ s: SenecaStatistik.Kennzahlen.Eigene) -> StatBereich? {
+        ["lauf": .laufen, "satz": .kraft, "lesen": .lesen, "nacht": .koerper, "tag": .koerper, "gewicht": .koerper][s.metrik?.split(separator: ".").first.map(String.init) ?? ""]
+    }
+
+    static func lebensbereich(_ s: SenecaStatistik.Kennzahlen.Eigene) -> String { s.bereich ?? (abschnitt(s) == nil ? "unternehmertum" : "wachstum") }
+
     static func stunden(_ h: Double) -> String { let m = Int((h * 60).rounded()); return String(format: "%d:%02d", m / 60, m % 60) }
 
     static func zeitraum(_ kopf: String, stand: Double) -> String {

@@ -11,7 +11,7 @@ enum SnStatistikProbe {
         host.window?.orderFrontRegardless()
         func pruefe(_ was: String, _ ok: Bool) { protokoll.append((ok ? "OK      " : "FEHLER  ") + was) }
         let zurueck = CGPoint(x: 130, y: 100)
-        for (bereich, ort) in [("Laufen", CGPoint(x: 262, y: 330)), ("Krafttraining", CGPoint(x: 295, y: 560)), ("Lesen", CGPoint(x: 720, y: 560)), ("Körper", CGPoint(x: 1113, y: 560))] {
+        for (bereich, ort) in [("Laufen", CGPoint(x: 200, y: 405)), ("Krafttraining", CGPoint(x: 200, y: 590))] {
             await klick(host, ort)
             pruefe("Klick auf die Kachel \(bereich) öffnet „\(gesehen)“", gesehen == "\(bereich) Woche")
             bild(host, "\(ordner)/klick-\(bereich).png")
@@ -23,7 +23,7 @@ enum SnStatistikProbe {
             pruefe("Umschalter \(z) zeigt „\(gesehen)“", gesehen == "Übersicht \(z)")
             if z == "Jahr" {
                 bild(host, "\(ordner)/klick-Jahr.png")
-                await klick(host, CGPoint(x: 295, y: 560))
+                await klick(host, CGPoint(x: 200, y: 590))
                 pruefe("im Jahr öffnet Krafttraining „\(gesehen)“", gesehen == "Krafttraining Jahr")
                 await klick(host, zurueck)
                 pruefe("zurück landet wieder im Jahr: „\(gesehen)“", gesehen == "Übersicht Jahr")

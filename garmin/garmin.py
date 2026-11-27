@@ -470,7 +470,7 @@ def auswerten(a, e, jetzt):
         for x in xs:
             gruppen.setdefault(schluessel(x["zeit"]), []).append(ABGELEITET[feld](x["w"]) if feld in ABGELEITET else float(x["w"][feld]))
         punkte = [[k.isoformat(), round(RECHNUNG[d.get("rechnung", "summe")](v), 2)] for k, v in sorted(gruppen.items())]
-        return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "grund": d.get("grund"), "diagramm": d.get("diagramm", "balken"), "einheit": d.get("einheit", ""), "ziel": d.get("ziel"),
+        return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "grund": d.get("grund"), "metrik": d["metrik"], "bereich": d.get("bereich"), "diagramm": d.get("diagramm", "balken"), "einheit": d.get("einheit", ""), "ziel": d.get("ziel"),
                 "punkte": punkte, "wert": punkte[-1][1] if punkte else None, "trend": round(punkte[-1][1] - punkte[0][1], 2) if len(punkte) > 1 else None, "grau": a["zustand"] == "grau"}
     except Exception as fehler:
         return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "fehler": f"{type(fehler).__name__}: {fehler}", "grau": a["zustand"] == "grau"}

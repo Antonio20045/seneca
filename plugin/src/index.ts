@@ -29,7 +29,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { mitarbeiterVerwalten, type Eingabe } from "./zugang/mitarbeiter.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
-import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
+import { buch, jahr, lauf, monat, tag, uebung, woche, mitBereich } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragAendern, eintragSetzen, ereignis, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { lebensbereich, letzteUhrzeit, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "./regeln.ts";
 
@@ -219,7 +219,7 @@ export default {
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.verstehen", ({ params }) => verstehen(db, String(params.satz ?? ""), uhr.jetzt()), { scope: "operator.read" });
-    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "datei" ? dateiVorschau(String(params.pfad ?? "")) : params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined), kennzahlen: JSON.parse(wert(db, "statistik:kennzahlen")?.wert ?? "null") }
+    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "datei" ? dateiVorschau(String(params.pfad ?? "")) : params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined), kennzahlen: mitBereich(JSON.parse(wert(db, "statistik:kennzahlen")?.wert ?? "null")) }
       : stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
     let gesendet = 0;
