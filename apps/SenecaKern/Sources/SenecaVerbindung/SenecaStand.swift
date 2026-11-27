@@ -194,3 +194,33 @@ public final class StandSpeicher {
         }
     }
 }
+
+public struct SenecaStatistik: Codable, Equatable, Sendable {
+    public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool }
+    public struct Karte: Codable, Equatable, Sendable, Identifiable {
+        public var art: String; public var titel: String; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
+        public var tage: [Tag]; public var anteil: Double?; public var rechts: String; public var knopf: String
+        public var id: String { art }
+    }
+    public struct Woche: Codable, Equatable, Sendable { public var kopf: String; public var satz: [String]; public var karten: [Karte]; public var hinweis: String? }
+    public struct Km: Codable, Equatable, Sendable { public var nr: Int; public var zeit: String; public var anteil: Double; public var schnellste: Bool }
+    public struct Lauf: Codable, Equatable, Sendable { public var id: String; public var kopf: String; public var satz: [String]; public var werte: [[String]]; public var km: [Km]; public var bestwert: String?; public var woche: String? }
+    public struct Raster: Codable, Equatable, Sendable { public var kopf: String; public var satz: [String]; public var raster: [[String]]; public var zahlen: [[String]]; public var bestwerte: [[String]]? }
+    public struct TagSicht: Codable, Equatable, Sendable { public var kopf: String; public var satz: [String]; public var zeilen: [[String]] }
+    public struct Punkt: Codable, Equatable, Sendable { public var w: String; public var kg: Double?; public var wdh: Int?; public var monat: String }
+    public struct Zeile: Codable, Equatable, Sendable {
+        public var links: String; public var wert: String; public var unter: String; public var bestwert: Bool
+        public init(from d: Decoder) throws {
+            var c = try d.unkeyedContainer()
+            links = try c.decode(String.self); wert = try c.decode(String.self); unter = try c.decode(String.self); bestwert = (try? c.decode(Bool.self)) ?? false
+        }
+        public func encode(to e: Encoder) throws { var c = e.unkeyedContainer(); try c.encode(links); try c.encode(wert); try c.encode(unter); try c.encode(bestwert) }
+    }
+    public struct Uebung: Codable, Equatable, Sendable { public var titel: String; public var satz: String; public var wochen: [Punkt]; public var zeilen: [Zeile]; public var hinweis: String? }
+    public struct Notiz: Codable, Equatable, Sendable { public var kopf: String; public var text: String }
+    public struct Buch: Codable, Equatable, Sendable {
+        public var titel: String; public var kopf: String; public var anteil: Double?; public var seite: String?; public var prozent: String?; public var satz: String; public var prognose: String?
+        public var zahlen: [[String]]; public var zuletzt: [Zeile]; public var notiz: Notiz?
+    }
+    public var woche: Woche; public var lauf: Lauf?; public var tag: TagSicht?; public var monat: Raster?; public var jahr: Raster?; public var uebung: Uebung?; public var buch: Buch?
+}

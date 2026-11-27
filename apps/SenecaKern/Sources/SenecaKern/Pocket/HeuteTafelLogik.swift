@@ -26,6 +26,10 @@ enum HeuteTafelLogik {
         return try? JSONDecoder().decode(SenecaStand.self, from: roh)
     }
 
+    static func beispielStatistik() -> SenecaStatistik? {
+        Bundle.main.url(forResource: "Beispiel-Statistik", withExtension: "json").flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(SenecaStatistik.self, from: $0) }
+    }
+
     static func datumZeile(_ ms: Double) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")

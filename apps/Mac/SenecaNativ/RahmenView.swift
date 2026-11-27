@@ -126,6 +126,7 @@ struct RahmenView: View {
         case .bereich: alteSeite { BereichBuehneView(modell: modell, rand: 40) }
         case .kalender: SnKalenderEcht(modell: modell, store: modell.store)
         case .entscheidungen: SnEntscheidenEcht(store: modell.store)
+        case .statistik: SnStatistikEcht(store: modell.store)
         case .bereiche: alteSeite { BereicheView(modell: modell, rand: 40) }
         case .berichte:
             if let id = modell.route.id, !id.isEmpty { alteSeite { BerichteView(modell: modell, rand: 40) } } else { SnBerichteEcht(modell: modell) }
