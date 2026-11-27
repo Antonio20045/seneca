@@ -1,6 +1,6 @@
 import { kalenderTag, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { wertSetzen } from "../register/schreiben.ts";
+import { ereignis, wertSetzen } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Zugang = { benutzer?: string; passwort?: string };
@@ -10,9 +10,7 @@ type Ort = { href: string; etag: string; kalender: string; ics: string };
 const orte = new Map<string, Ort>();
 let kalender: { url: string; name?: string }[] = [];
 
-function ics(t: number): string {
-  return new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-}
+const ics = (t: number) => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 function zeit(wert: string): number {
   const [, j, mo, d, h = "00", mi = "00", s = "00", z] = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?/.exec(wert) ?? [];
@@ -33,10 +31,7 @@ function termineAus(text: string): Termin[] {
     else if (t && name === "SUMMARY") t.titel = w;
     else if (t && name === "LOCATION") t.ort = w;
     else if (t && name === "ATTENDEE") t.teilnehmer?.push(w.replace(/^mailto:/i, ""));
-    else if (t && (name === "DTSTART" || name === "DTEND")) {
-      t[name === "DTSTART" ? "start" : "ende"] = zeit(w);
-      t.ganztag = kopf.includes("VALUE=DATE");
-    }
+    else if (t && (name === "DTSTART" || name === "DTEND")) Object.assign(t, { [name === "DTSTART" ? "start" : "ende"]: zeit(w), ganztag: kopf.includes("VALUE=DATE") });
   }
   return termine;
 }
@@ -92,7 +87,10 @@ export async function kalenderAbgleich(db: Register, z: Zugang): Promise<void> {
 
 type Eingabe = { aktion: string; uid?: string; titel?: string; start?: number; ende?: number; ort?: string; teilnehmer?: string[]; trotzdem?: boolean };
 
-export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe): Promise<object> {
+const MONAT = "Jan Feb März Apr Mai Juni Juli Aug Sep Okt Nov Dez".split(" ");
+const wann = (d: Date) => `${"So Mo Di Mi Do Fr Sa".split(" ")[d.getDay()]} ${d.getDate()}. ${MONAT[d.getMonth()]} · ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe, sitzung = ""): Promise<object> {
   if (!z.benutzer || !z.passwort) throw new Error("Kalender ist noch nicht verbunden (App-Passwort fehlt).");
   if (p.aktion === "lesen") return { termine: termineAm(db, p.start ?? uhr.jetzt()) };
   if (agent !== regelText("dauerauftraege_von")) throw new Error("Nur Seneca schreibt in den Kalender.");
@@ -118,5 +116,6 @@ export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p
   const ziel = alt?.href ?? `${(await finde(z))[0].url}${uid}.ics`;
   await dav(z, ziel, "PUT", text, { "content-type": "text/calendar; charset=utf-8", ...(alt ? { "if-match": alt.etag } : { "if-none-match": "*" }) });
   await kalenderAbgleich(db, z);
+  ereignis(db, { art: "quittung", schluessel: sitzung, daten: { teil: "Kalender", ergebnis: `${titel} · ${wann(new Date(start))}`, zurueck: altTermin ? { uid, start: altTermin.start, ende: altTermin.ende } : null } });
   return { ok: true, uid, konflikte };
 }

@@ -61,7 +61,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ nachricht_kennung: S, wortlaut: S, ort: S, ziel: S, kern: S, wiederholung_von: O(Z),
       aenderung: Type.Object({ skill: O(S), alt: O(S), neu: O(S), schluessel: O(S), wert: O(S) }) }),
     (db, k, p) => korrigieren(db, k.agent, nachrichtVon(k.sitzung), p as Korrektur)],
-  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, profil:<feld>, fakt:<thema>, termin_notiz:<uid> (was du für den Termin getan hast).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
+  ["seneca_einstellen", "Wert setzen: ruht:<name>, kontakt:<nummer oder mail>, name:<nummer oder mail> (Vorname), profil:<feld>, fakt:<thema>, termin_notiz:<uid> (was du für den Termin getan hast).", Type.Object({ schluessel: S, wert: S, gueltig_bis: O(Z) }),
     (db, k, p) => {
       nurSeneca(k);
       return { ok: wertSetzen(db, String(p.schluessel), String(p.wert), k.agent, p.gueltig_bis as number | undefined) > 0 };
@@ -116,7 +116,7 @@ export default {
     const senden = pushSender(geheim(api, "push"));
     const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
-      (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3])]];
+      (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)]];
     for (const w of alle) api.registerTool(werkzeug(db, w), { name: w[0] });
     const starte: Starter = ({ werkzeuge, ...p }) => api.runtime.subagent.run({ ...p, toolsAlsoAllow: [...alle.map((w) => w[0]), ...werkzeuge], deliver: false });
     const stupse = async (sessionKey: string, text: string, idempotencyKey: string) => (await api.session.workflow.steerActiveRun({ sessionKey, text, idempotencyKey })).steered;

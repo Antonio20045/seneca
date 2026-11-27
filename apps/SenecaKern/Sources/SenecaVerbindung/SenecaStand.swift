@@ -124,6 +124,12 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var heute_erledigt: [Erledigt]?
     public var auftraege_neu: [AuftragNeu]?
     public var termine: [Termin]?
+    public var verlauf: Verlauf?
+    public struct Verlauf: Codable, Equatable, Sendable { public var quittungen: [Quittung]? }
+    public struct Zuruecklegen: Codable, Equatable, Sendable { public var uid: String; public var start: Double; public var ende: Double; public var ab: Double; public var bis: Double }
+    public struct Quittung: Codable, Equatable, Sendable {
+        public var sitzung: String; public var von: Double; public var bis: Double; public var teile: [String]; public var ergebnis: [String]; public var raus: String?; public var zuruecklegen: Zuruecklegen?
+    }
     public var todos: [Todo]?
     public var aufgaben: Aufgaben?
     public var kalender: Kalender?

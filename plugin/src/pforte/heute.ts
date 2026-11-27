@@ -8,7 +8,7 @@ const STUNDE = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sie
 
 type Termin = ReturnType<typeof termineAm>[number];
 
-const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+export const uhrzeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
 export function stundeAlsWort(t: number): string {
   const d = new Date(t);

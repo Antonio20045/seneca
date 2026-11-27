@@ -146,3 +146,5 @@ buendel_frage_min 3 vorschlag
 koerper_schwer_ab 50 vorschlag
 anruf_worte anruf,telefonat,call vorschlag
 satz_ruhe_ab_min 60 vorschlag
+quittung_buendel_min 5
+zuruecklegen_min 60
