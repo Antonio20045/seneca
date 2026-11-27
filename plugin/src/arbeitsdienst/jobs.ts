@@ -197,11 +197,12 @@ async function tagesSicherung(db: Register, register: string, befehl: Befehl): P
   const passwort = regelText("sicherung_passwort");
   if (!existsSync(passwort) || Number(wert(db, "sicherung:tag")?.gueltig_bis ?? 0) > jetzt) return;
   const zustand = join(dirname(register), "openclaw-zustand");
+  const ablage = regelText("ablage_pfad");
   const restic = ["restic", "-r", regelText("sicherung_ziel"), "--password-file", passwort];
   rmSync(zustand, { recursive: true, force: true });
   for (const schritt of [
     [regelText("openclaw_befehl"), "backup", "sqlite", "create", "--global", "--repository", zustand],
-    [...restic, "backup", "--tag", "seneca", register, zustand, ...regelListe("sicherung_quellen")],
+    [...restic, "backup", "--tag", "seneca", "--exclude", join(ablage, "_sicherung"), "--exclude", join(ablage, ".stversions"), register, zustand, ablage, ...regelListe("sicherung_quellen")],
     [...restic, "forget", "--tag", "seneca", "--keep-daily", regelText("sicherung_tage"), "--keep-monthly", regelText("sicherung_monate"), "--prune"],
   ]) {
     const r = await befehl(schritt, regelMs("sicherung_max_min"));
