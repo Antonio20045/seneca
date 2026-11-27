@@ -23,7 +23,7 @@ import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
-import { revision, uhr } from "./register/lesen.ts";
+import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
@@ -113,6 +113,9 @@ function skillLeser(workspaceDir?: string) {
   };
 }
 
+const uebungen = (db: Register) => [...new Set(eintraegeSeit(db, 0).filter((e) => e.art === "satz").map((e) => String(JSON.parse(String(e.werte)).u)).reverse())];
+const uhrSicht = (db: Register, t: number) => ({ ...uhrStand(db, t), tr: uebungen(db).slice(0, regelZahl("uhr_uebungen")).map((u) => uebung(db, t, u)?.uhr).filter(Boolean), l: buch(db, t)?.uhr ?? null });
+
 export default {
   id: "seneca",
   name: "Seneca",
@@ -163,7 +166,7 @@ export default {
         res.end(a.inhalt ? JSON.stringify(a.inhalt) : undefined);
         return true;
       } });
-    route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrStand(db, t)));
+    route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrSicht(db, t)));
     route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));

@@ -200,7 +200,7 @@ function uhrTeam(db: Register, jetzt: number) {
 export function uhrStand(db: Register, jetzt: number) {
   const braucht = brauchtDich(db, jetzt);
   const frage = braucht.find((f) => f.zustand === "offen" && uhrTauglich(f)) ?? vorschlagAnUhr(db);
-  const r = ruhe(db, jetzt);
+  const r = ruhe(db, jetzt), start = wert(db, "uhr:starten");
   return {
     t: jetzt, n: braucht.length,
     q: frage ? uhrFrage(db, frage, jetzt) : null,
@@ -210,6 +210,7 @@ export function uhrStand(db: Register, jetzt: number) {
     tg: termineAm(db, jetzt).filter((t) => !t.ganztag && t.ende > jetzt).slice(0, regelZahl("uhr_termine"))
       .map((t) => [sekundenAusMs(t.start), sekundenAusMs(t.ende), t.titel, t.ort ?? null, istSport(t.titel) ? "s" : istFokus(t) ? "f" : "t", weg(db, t).los_ms === null ? null : sekundenAusMs(Number(weg(db, t).los_ms))]),
     z: r ? { g: r.grund, b: sekundenAusMs(r.bis) } : null,
+    st: (start?.gueltig_bis ?? 0) > jetzt ? [start?.wert, sekundenAusMs(Number(start?.gueltig_bis))] : null,
     koerper: { schlaf: koerper(db, letzteUhrzeit(regelText("tag_grenze"), jetzt), r)?.schlaf ?? null },
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
   };

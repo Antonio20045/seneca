@@ -91,6 +91,8 @@ uhr_frage_zeichen 90
 uhr_todos 3
 uhr_termine 4
 uhr_verlauf 3
+uhr_uebungen 12
+uhr_starten_min 10
 uhr_lauf_ruhe_min 12
 uhr_warteschlange_max 500
 uhr_verbunden_min 10 zu_messen

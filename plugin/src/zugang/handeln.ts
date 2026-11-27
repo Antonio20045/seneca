@@ -134,7 +134,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     return antwort(db, { ...h, wert: { wahl: "ja" } });
   },
   "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),
-  "geraet.aktivitaet": setze(() => "aktivitaet"),
+  "geraet.aktivitaet": (db, h) => setze(() => "aktivitaet")(db, h) && setze(() => "uhr:starten", () => regelMs("uhr_starten_min"))(db, h),
   koerper: (db, h) => {
     const w = h.wert as Wert;
     if (!Number.isFinite(Number(w?.schlaf_min)) || !Number.isFinite(Number(w?.bis))) return "abgelehnt:schlaf_fehlt";
