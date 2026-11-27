@@ -267,13 +267,7 @@ final class SchnellfragePanel {
             f.setFrameTopLeftPoint(NSPoint(x: s.midX - f.frame.width / 2, y: s.maxY - s.height * 0.2))
         }
         f.alphaValue = 0
-        #if DEBUG
-        Testlog.schreibe("panel vor orderFront: app-aktiv=\(NSApp.isActive) vorne=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
-        #endif
         Hintergrund.zeige(f)
-        #if DEBUG
-        Testlog.schreibe("panel zeige: taste=\(f.isKeyWindow) sichtbar=\(f.isVisible) app-aktiv=\(NSApp.isActive)")
-        #endif
         DispatchQueue.main.async { HierMessung.schreibe(["ereignis": "feld", "ms": Int((CFAbsoluteTimeGetCurrent() - seit) * 1000)]) }
         NSAnimationContext.runAnimationGroup { c in
             c.duration = 0.1
@@ -323,9 +317,6 @@ final class SchnellfragePanel {
         fenster = f
         beobachter = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: f, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                #if DEBUG
-                Testlog.schreibe("panel verliert die Taste (app-aktiv=\(NSApp.isActive), vorne=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"))")
-                #endif
                 if let self, let f = self.fenster, self.zeigtSich, CFAbsoluteTimeGetCurrent() - self.zeigeZeit < 0.8, self.nochmal < 5 {
                     self.nochmal += 1
                     DispatchQueue.main.async { f.makeKey() }
