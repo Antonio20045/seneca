@@ -125,8 +125,6 @@ final class TagesablaufQuelle: ObservableObject {
         if store?.demo == true, ["1", "2", "voll", "abend"].contains(ProcessInfo.processInfo.environment["SENECA_DEMO_ABLAUF"] ?? ""), entscheidungen.isEmpty, erledigt.isEmpty { entscheidungen = TagesablaufDemo.entscheidungen }
         #endif
         AblaufSpeicher.schreibePunkte(neu)
-        let stand: Date? = Sinne.shared.kalenderErlaubt ? nil : store?.kalenderStand
-        if store?.today != nil || !neu.isEmpty { WidgetBridge.shared.ablauf(neu, stand: stand, now: jetzt) }
     }
 
     func entscheide(_ e: Entscheidung, wahl: String?, text: String?) {

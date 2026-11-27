@@ -1,121 +1,99 @@
 import Foundation
 
-struct WidgetSnapshot: Codable, Equatable, Sendable {
-    struct Item: Codable, Equatable, Sendable {
-        var title: String
-        var start: Date
-        var end: Date
-        var place: String? = nil
-    }
-    var items: [Item]
-    var writtenAt: Date
-    var coversUntil: Date
-    var stand: Date? = nil
-    var laufend: [Item]? = nil
+struct WidgetLage: Codable, Equatable, Sendable {
+    struct Termin: Codable, Equatable, Sendable { var titel: String; var unter: String?; var von: Date; var bis: Date; var art: String }
+    struct Frage: Codable, Equatable, Sendable { var kurz: String; var von: String; var seit: Date?; var frist: Date? }
+    var stand: Date
+    var termine: [Termin]
+    var fokusVon: Date?
+    var fokusBis: Date?
+    var danach: String?
+    var fragen: [Frage]
+    var wartend: Int
+    var team: String?
+    var bodyBattery: Int?
 }
 
-struct WidgetLines: Equatable, Sendable {
-    enum Kind: Equatable, Sendable { case next, free, stale }
-    var kind: Kind
-    var time: String? = nil
-    var title: String? = nil
-    var headline: String
-    var place: String? = nil
-    var jetzt: String? = nil
-    var jetztBis: String? = nil
-    var inline: String
-    var spoken: String
-}
+enum WidgetZustand: Equatable, Sendable { case ruhig, fokus, frage, alt }
 
 enum WidgetStore {
     static let group = "group.de.antonio.senecapocket"
-    static let key = "seneca-widget.snapshot"
+    static let key = "seneca-widget.lage"
 
-    static func read(_ defaults: UserDefaults? = UserDefaults(suiteName: group)) -> WidgetSnapshot? {
+    static func read(_ defaults: UserDefaults? = UserDefaults(suiteName: group)) -> WidgetLage? {
         guard let data = defaults?.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
+        return try? JSONDecoder().decode(WidgetLage.self, from: data)
     }
-    static func write(_ snapshot: WidgetSnapshot, _ defaults: UserDefaults? = UserDefaults(suiteName: group)) {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+
+    static func write(_ lage: WidgetLage, _ defaults: UserDefaults? = UserDefaults(suiteName: group)) {
+        guard let data = try? JSONEncoder().encode(lage) else { return }
         defaults?.set(data, forKey: key)
     }
 }
 
-enum WidgetLogic {
-    static let staleAfter: TimeInterval = 12 * 3600
-    static let itemLimit = 12
+enum WidgetLogik {
+    static let altNach: TimeInterval = 30 * 60
+    private static let stunde = ["zwölf", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf"]
+    private static let tage = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"]
+    private static let kurzTage = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
 
-    static func shortPlace(_ place: String?, title: String) -> String? {
-        guard let first = place?.split(separator: ",").first?.trimmingCharacters(in: .whitespaces), !first.isEmpty,
-              !title.localizedCaseInsensitiveContains(first) else { return nil }
-        return first
-    }
-
-    static func snapshot(items: [WidgetSnapshot.Item], now: Date, horizon: Date, stand: Date? = nil) -> WidgetSnapshot {
-        let upcoming = items.filter { $0.start > now && $0.start < horizon }.sorted { $0.start < $1.start }
-        let kept = Array(upcoming.prefix(itemLimit))
-        let covers = upcoming.count > itemLimit ? kept.last!.start : horizon
-        return WidgetSnapshot(items: kept, writtenAt: now, coversUntil: covers, stand: stand)
+    static func zustand(_ l: WidgetLage, _ jetzt: Date) -> WidgetZustand {
+        if jetzt.timeIntervalSince(l.stand) > altNach { return .alt }
+        if let b = l.fokusBis, b > jetzt, (l.fokusVon ?? jetzt) <= jetzt { return .fokus }
+        return l.fragen.isEmpty ? .ruhig : .frage
     }
 
-    static func next(_ items: [WidgetSnapshot.Item], after date: Date) -> WidgetSnapshot.Item? {
-        items.filter { $0.start > date }.min { $0.start < $1.start }
+    static func uhr(_ d: Date) -> String {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
     }
 
-    static func hm(_ date: Date, _ cal: Calendar) -> String {
-        let c = cal.dateComponents([.hour, .minute], from: date)
-        return String(format: "%d:%02d", c.hour!, c.minute!)
-    }
-    private static func uhr(_ date: Date, _ cal: Calendar) -> String {
-        let c = cal.dateComponents([.hour, .minute], from: date)
-        return c.minute! == 0 ? "\(c.hour!) Uhr" : String(format: "%d:%02d Uhr", c.hour!, c.minute!)
+    static func stundeWort(_ d: Date) -> String {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+        return c.minute == 0 ? stunde[(c.hour ?? 0) % 12] : uhr(d)
     }
 
-    static func isStale(_ snapshot: WidgetSnapshot, at date: Date) -> Bool {
-        date >= staleFrom(snapshot)
-    }
-    static func staleFrom(_ snapshot: WidgetSnapshot) -> Date {
-        let basis = min(snapshot.writtenAt, snapshot.stand ?? snapshot.writtenAt)
-        return min(basis.addingTimeInterval(staleAfter), snapshot.coversUntil)
+    static func kurzUhr(_ d: Date) -> String {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+        return c.minute == 0 ? "\(c.hour ?? 0)" : uhr(d)
     }
 
-    static func lines(_ snapshot: WidgetSnapshot?, at date: Date, _ cal: Calendar = .current) -> WidgetLines {
-        guard let snapshot else {
-            let hint = "Öffne Seneca einmal, dann steht hier dein Tag."
-            return WidgetLines(kind: .stale, headline: hint, inline: "Öffne Seneca.", spoken: hint)
+    static func tag(_ d: Date) -> String { tage[Calendar.current.component(.weekday, from: d) - 1] }
+    static func kurzTag(_ d: Date) -> String { "\(kurzTage[Calendar.current.component(.weekday, from: d) - 1]) \(Calendar.current.component(.day, from: d))" }
+    static func minuten(_ von: Date, _ bis: Date) -> Int { max(0, Int((bis.timeIntervalSince(von) / 60).rounded(.up))) }
+
+    static func naechste(_ l: WidgetLage, _ jetzt: Date) -> [WidgetLage.Termin] {
+        l.termine.filter { $0.von > jetzt && $0.art != "fokus" && Calendar.current.isDate($0.von, inSameDayAs: jetzt) }
+    }
+
+    static func fragen(_ n: Int) -> String { n == 1 ? "1 Frage" : "\(n) Fragen" }
+
+    static func kurzName(_ t: WidgetLage.Termin) -> String {
+        let w = t.titel.split(separator: " ")
+        return w.count > 1 && ["mit", "bei"].contains(w[w.count - 2].lowercased()) ? String(w.last!) : String(w.last ?? "")
+    }
+
+    static func zeile(_ l: WidgetLage, _ jetzt: Date) -> String {
+        switch zustand(l, jetzt) {
+        case .ruhig: return [kurzTag(jetzt), naechste(l, jetzt).first.map { "\(uhr($0.von)) \($0.titel)" }].compactMap { $0 }.joined(separator: " · ")
+        case .fokus: return "Fokus bis \(kurzUhr(l.fokusBis ?? jetzt))" + (l.fragen.isEmpty ? "" : " · danach \(fragen(l.fragen.count))")
+        case .frage: return "\(fragen(l.fragen.count)) · zuerst \(l.fragen[0].kurz.replacingOccurrences(of: "?", with: ""))"
+        case .alt: return "Stand \(uhr(l.stand)) · Mac antwortet nicht"
         }
-        if isStale(snapshot, at: date) {
-            let hint = "Öffne Seneca für den aktuellen Stand."
-            return WidgetLines(kind: .stale, headline: hint, inline: "Öffne Seneca.", spoken: hint)
-        }
-        let laeuft = ((snapshot.laufend ?? []) + snapshot.items).filter { $0.start <= date && date < $0.end }.max { $0.start < $1.start }
-        let jetzt = laeuft?.title, bis = laeuft.map { "bis " + hm($0.end, cal) }
-        if let next = next(snapshot.items, after: date), cal.isDate(next.start, inSameDayAs: date) {
-            let time = hm(next.start, cal)
-            let place = shortPlace(next.place, title: next.title)
-            let davor = laeuft.map { "Gerade läuft \($0.title) bis \(uhr($0.end, cal)). " } ?? ""
-            return WidgetLines(kind: .next, time: time, title: next.title, headline: "\(time) \(next.title)", place: place, jetzt: jetzt, jetztBis: bis,
-                               inline: "\(time) \(next.title)", spoken: davor + "Um \(uhr(next.start, cal)): \(next.title)" + (place.map { ", \($0)" } ?? "") + ".")
-        }
-        if let l = laeuft {
-            let satz = "Gerade läuft \(l.title) bis \(uhr(l.end, cal)). Danach steht heute nichts mehr an."
-            return WidgetLines(kind: .free, headline: "Danach steht heute nichts mehr an.", jetzt: jetzt, jetztBis: bis, inline: "\(l.title) \(bis ?? "")", spoken: satz)
-        }
-        let free = "Heute steht nichts mehr an."
-        return WidgetLines(kind: .free, headline: free, inline: free, spoken: free)
     }
 
-    static func timelineDates(_ snapshot: WidgetSnapshot?, from now: Date, _ cal: Calendar = .current) -> [Date] {
-        guard let snapshot else { return [now] }
-        let end = staleFrom(snapshot)
-        var dates = snapshot.items.map(\.start).filter { $0 > now && $0 < end }
-        dates += ((snapshot.laufend ?? []) + snapshot.items).map(\.end).filter { $0 > now && $0 < end }
-        var midnight = cal.startOfDay(for: now)
-        while let following = cal.date(byAdding: .day, value: 1, to: midnight), following < end {
-            dates.append(following)
-            midnight = following
+    static func ziel(_ l: WidgetLage, _ jetzt: Date) -> URL? {
+        switch zustand(l, jetzt) {
+        case .frage: return URL(string: "seneca://entscheiden")
+        case .fokus: return URL(string: "seneca://heute")
+        case .ruhig, .alt: return URL(string: "seneca://kalender")
         }
-        if end > now { dates.append(end) }
-        return [now] + Array(Set(dates)).sorted()
+    }
+
+    static func zeiten(_ l: WidgetLage?, ab jetzt: Date) -> [Date] {
+        guard let l else { return [jetzt] }
+        let marken = l.termine.flatMap { [$0.von, $0.bis] } + [l.fokusBis, l.stand.addingTimeInterval(altNach + 1)].compactMap { $0 }
+        let viertel = (1...24).map { jetzt.addingTimeInterval(Double($0) * 900) }
+        return ([jetzt] + (marken + viertel).filter { $0 > jetzt && $0 < jetzt.addingTimeInterval(6 * 3600) }).sorted()
     }
 }

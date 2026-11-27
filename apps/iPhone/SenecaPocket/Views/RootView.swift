@@ -97,7 +97,14 @@ struct RootView: View {
         .overlay { SperreProbe.aus(store.stand) }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
-        .onOpenURL { _ in eingangVerarbeiten() }
+        .onOpenURL { url in
+            switch url.host {
+            case "entscheiden": oeffne(.arbeit(.fragen))
+            case "kalender": show(.kalender)
+            case "heute": show(.today)
+            default: eingangVerarbeiten()
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             store.isActive = phase == .active
             if phase == .active { Task { await reconnect() }; wunschErfuellen(); eingangVerarbeiten() }

@@ -3,35 +3,17 @@ import SwiftUI
 
 struct DayEntry: TimelineEntry {
     let date: Date
-    let lines: WidgetLines
+    let lage: WidgetLage?
 }
 
 struct DayProvider: TimelineProvider {
-    private func sample(_ now: Date) -> WidgetSnapshot {
-        let start = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: now) ?? now
-        return WidgetSnapshot(items: [.init(title: "Kaffee mit Lena", start: start, end: start.addingTimeInterval(3600), place: "Café Lorenz")],
-                              writtenAt: now, coversUntil: now.addingTimeInterval(86_400))
-    }
+    func placeholder(in context: Context) -> DayEntry { DayEntry(date: Date(), lage: WidgetStore.read()) }
 
-    func placeholder(in context: Context) -> DayEntry {
-        let now = Date()
-        return DayEntry(date: now, lines: WidgetLogic.lines(sample(now), at: now))
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (DayEntry) -> Void) {
-        let now = Date()
-        if context.isPreview, WidgetStore.read() == nil {
-            completion(placeholder(in: context))
-        } else {
-            completion(DayEntry(date: now, lines: WidgetLogic.lines(WidgetStore.read(), at: now)))
-        }
-    }
+    func getSnapshot(in context: Context, completion: @escaping (DayEntry) -> Void) { completion(placeholder(in: context)) }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DayEntry>) -> Void) {
-        let now = Date()
-        let snapshot = WidgetStore.read()
-        let entries = WidgetLogic.timelineDates(snapshot, from: now).map { DayEntry(date: $0, lines: WidgetLogic.lines(snapshot, at: $0)) }
-        completion(Timeline(entries: entries, policy: .never))
+        let lage = WidgetStore.read()
+        completion(Timeline(entries: WidgetLogik.zeiten(lage, ab: Date()).map { DayEntry(date: $0, lage: lage) }, policy: .never))
     }
 }
 
@@ -39,22 +21,20 @@ struct DayWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: DayEntry
 
-    private static let oben = Color(red: 0x0A / 255, green: 0x22 / 255, blue: 0x45 / 255)
-    private static let unten = Color(red: 0x06 / 255, green: 0x16 / 255, blue: 0x32 / 255)
-
     private var art: WidgetFace.Art {
         switch family {
         case .accessoryInline: return .zeile
         case .accessoryCircular: return .kreis
         case .accessoryRectangular: return .rechteck
-        default: return .home
+        case .systemMedium: return .mittel
+        default: return .klein
         }
     }
 
     var body: some View {
-        WidgetFace(lines: entry.lines, art: art)
+        WidgetFace(lage: entry.lage, jetzt: entry.date, art: art)
             .containerBackground(for: .widget) {
-                if art == .home { LinearGradient(colors: [Self.oben, Self.unten], startPoint: .top, endPoint: .bottom) } else { Color.clear }
+                if art == .klein || art == .mittel { WidgetFarbe.grund } else { Color.clear }
             }
     }
 }
@@ -64,8 +44,8 @@ struct SenecaDayWidget: Widget {
         StaticConfiguration(kind: "SenecaDay", provider: DayProvider()) { entry in
             DayWidgetView(entry: entry)
         }
-        .configurationDisplayName("Dein Tag")
-        .description("Was jetzt ist und was als Nächstes kommt.")
+        .configurationDisplayName("Seneca")
+        .description("Die nächste Sache, dazu, was wartet.")
         .supportedFamilies([.accessoryRectangular, .accessoryInline, .accessoryCircular, .systemSmall, .systemMedium])
     }
 }

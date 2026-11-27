@@ -3,58 +3,47 @@ import SwiftUI
 
 struct WidgetPreviewScreen: View {
     @EnvironmentObject private var store: SenecaStore
-    private let scale: CGFloat = 1.5
-    private let rect = CGSize(width: 160, height: 72)
-
-    private struct Variant: Identifiable {
-        let id: String
-        let caption: String
-        let lines: WidgetLines
-    }
-
-    private var variants: [Variant] {
-        let cal = Calendar.current
-        func at(_ h: Int, _ m: Int) -> Date { cal.date(bySettingHour: h, minute: m, second: 0, of: Date())! }
-        guard let today = store.today else { return [] }
-        let base = WidgetBridge.snapshot(today, now: at(13, 51))
-        return [
-            Variant(id: "a", caption: "13:51, der nächste Termin", lines: WidgetLogic.lines(base, at: at(13, 51))),
-            Variant(id: "b", caption: "17:05, der darauf folgende", lines: WidgetLogic.lines(base, at: at(17, 5))),
-            Variant(id: "c", caption: "23:00, heute steht nichts mehr an", lines: WidgetLogic.lines(base, at: at(23, 0))),
-            Variant(id: "d", caption: "Stand älter als zwölf Stunden", lines: WidgetLogic.lines(base, at: at(13, 51).addingTimeInterval(13 * 3600))),
-        ]
-    }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            LinearGradient(colors: [Sundartha.ink, Color(red: 0.18, green: 0.26, blue: 0.40)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Sperrbildschirm").font(Sundartha.grotesk(13)).foregroundStyle(.white.opacity(0.6))
-                ForEach(variants) { v in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(v.caption).font(Sundartha.grotesk(11)).foregroundStyle(.white.opacity(0.45))
-                        WidgetFace(lines: v.lines)
-                            .frame(width: rect.width, height: rect.height, alignment: .leading)
-                            .overlay(Rectangle().stroke(.white.opacity(0.12), lineWidth: 0.5))
-                            .scaleEffect(scale, anchor: .topLeading)
-                            .frame(width: rect.width * scale, height: rect.height * scale, alignment: .topLeading)
+        let cal = Calendar.current
+        let tag = store.stand.map { Date(timeIntervalSince1970: $0.jetzt / 1000) } ?? Date()
+        let at = { (h: Int, m: Int) in cal.date(bySettingHour: h, minute: m, second: 0, of: tag)! }
+        let basis = store.stand.map(WidgetBridge.lage)
+        let faelle: [(String, Date, WidgetLage?)] = [
+            ("RUHIG · 14:05", at(14, 5), basis.map { var l = $0; l.stand = at(14, 4); l.fragen = []; l.wartend = 1; return l }),
+            ("FOKUS · 10:08", at(10, 8), basis.map { var l = $0; l.stand = at(10, 8); return l }),
+            ("FRAGE · 11:00", at(11, 0), basis.map { var l = $0; l.stand = at(11, 0); l.fokusBis = at(11, 0); return l }),
+            ("Alter Stand · 10:41".uppercased(), at(10, 41), basis.map { var l = $0; l.stand = at(10, 2); return l }),
+        ]
+        let nr = Int(ProcessInfo.processInfo.environment["SENECA_WIDGET_FALL"] ?? "") ?? 0
+        VStack {
+            HStack(alignment: .top, spacing: 24) {
+                ForEach(faelle[nr...nr], id: \.0) { titel, jetzt, l in
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(titel).mono(11, .medium, abstand: 1).foregroundStyle(TafelFarbe.leise)
+                        feld(WidgetFace(lage: l, jetzt: jetzt, art: .klein), 158, 158)
+                        feld(WidgetFace(lage: l, jetzt: jetzt, art: .mittel), 338, 158)
+                        VStack(spacing: 8) {
+                            WidgetFace(lage: l, jetzt: jetzt, art: .zeile).font(.system(size: 13))
+                            Text(WidgetLogik.uhr(jetzt)).font(.system(size: 64, weight: .semibold, design: .rounded))
+                            HStack(spacing: 10) {
+                                WidgetFace(lage: l, jetzt: jetzt, art: .rechteck).padding(8).frame(width: 150, height: 66).background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.15)))
+                                WidgetFace(lage: l, jetzt: jetzt, art: .kreis).frame(width: 66, height: 66).background(Circle().fill(.white.opacity(0.15)))
+                            }
+                        }
+                        .foregroundStyle(.white).padding(14).frame(width: 338).background(RoundedRectangle(cornerRadius: 22).fill(TafelFarbe.hex(0x153A6E)))
                     }
                 }
-                Text("Eine Zeile über der Uhr").font(Sundartha.grotesk(11)).foregroundStyle(.white.opacity(0.45)).padding(.top, 6)
-                ForEach(variants.prefix(3)) { v in
-                    WidgetFace(lines: v.lines, inline: true)
-                        .font(.system(size: 15 * scale, weight: .medium))
-                        .lineLimit(1)
-                }
             }
-            .foregroundStyle(.white)
-            .padding(.leading, 28)
-            .padding(.top, 20)
+            .padding(24)
+            Spacer()
         }
-        .task {
-            store.loadDemo(now: Calendar.current.date(bySettingHour: 13, minute: 51, second: 0, of: Date())!, streak: 11, record: 3, todos: true, routineDone: true)
-        }
+        .background(TafelFarbe.hex(0x0A1530).ignoresSafeArea())
+        .onAppear { if store.stand == nil { store.zeigeBeispiel("Beispiel-Stand") } }
+    }
+
+    private func feld(_ v: some View, _ b: CGFloat, _ h: CGFloat) -> some View {
+        v.padding(16).frame(width: b, height: h).background(RoundedRectangle(cornerRadius: 22).fill(WidgetFarbe.grund))
     }
 }
 #endif
