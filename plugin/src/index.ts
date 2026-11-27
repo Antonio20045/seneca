@@ -25,7 +25,7 @@ import { uhrAbgleich, uhrAbholen, uhrKoppeln } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
 import { revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
-import { lauf, woche } from "./quellen/statistik.ts";
+import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
 import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { regelMs, regelZahl } from "./regeln.ts";
 
@@ -169,7 +169,7 @@ export default {
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));
     api.registerGatewayMethod("seneca.handeln", ({ params }) => handeln(db, params as Parameters<typeof handeln>[1]), { scope: "operator.write" });
     api.registerGatewayMethod("seneca.verstehen", ({ params }) => verstehen(db, String(params.satz ?? ""), uhr.jetzt()), { scope: "operator.read" });
-    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined) }
+    api.registerGatewayMethod("seneca.stand", ({ params }) => params.sicht === "statistik" ? { woche: woche(db, uhr.jetzt()), lauf: lauf(db, params.lauf as string | undefined), tag: tag(db, uhr.jetzt()), monat: monat(db, uhr.jetzt()), jahr: jahr(db, uhr.jetzt()), uebung: uebung(db, uhr.jetzt(), params.uebung as string | undefined), buch: buch(db, uhr.jetzt(), params.buch as string | undefined) }
       : stand(db, { geraet: String(params.geraet), revision: params.revision as number | undefined }, uhr.jetzt()), { scope: "operator.read" });
 
     let gesendet = 0;

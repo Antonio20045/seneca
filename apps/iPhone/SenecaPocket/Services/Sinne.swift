@@ -15,6 +15,7 @@ enum SinneNamen {
     static let frage = "seneca.frage."
     static let ja = "ja"
     static let mehr = "mehr"
+    static let rueckblick = "seneca.rueckblick"
     static let spaeterNach: TimeInterval = 60 * 60
 }
 
@@ -96,7 +97,7 @@ final class Sinne: NSObject, ObservableObject {
             Task { @MainActor in await Sinne.shared.abgleichen() }
         }
         standAbo = store.$stand.compactMap { $0 }.sink { s in
-            Task { @MainActor in await Sinne.shared.fragenMelden(s) }
+            Task { @MainActor in await Sinne.shared.fragenMelden(s); await Sinne.shared.rueckblickPlanen(s) }
         }
         #if DEBUG
         if ProcessInfo.processInfo.environment["SENECA_SINNE_PROBE"] == "1" {
@@ -269,6 +270,20 @@ final class Sinne: NSObject, ObservableObject {
             gezeigt = Array((gezeigt + [f.id]).suffix(50))
             defaults.set(gezeigt, forKey: Merk.mitteilungen)
         }
+    }
+
+    func rueckblickPlanen(_ s: SenecaStand) async {
+        let mitte = UNUserNotificationCenter.current()
+        let recht = await mitte.notificationSettings().authorizationStatus
+        guard recht == .authorized || recht == .provisional else { return }
+        let um = s.rueckblick.map { Calendar.current.dateComponents([.hour, .minute], from: HeuteTafelLogik.datum($0.um)) } ?? DateComponents(hour: 21, minute: 30)
+        let alt = await mitte.pendingNotificationRequests().first { $0.identifier == SinneNamen.rueckblick }
+        if let t = alt?.trigger as? UNCalendarNotificationTrigger, t.dateComponents.hour == um.hour, t.dateComponents.minute == um.minute { return }
+        let inhalt = UNMutableNotificationContent()
+        inhalt.title = "Rückblick"
+        inhalt.body = "Dein Tag in einer Minute"
+        inhalt.interruptionLevel = .passive
+        _ = try? await mitte.add(UNNotificationRequest(identifier: SinneNamen.rueckblick, content: inhalt, trigger: UNCalendarNotificationTrigger(dateMatching: um, repeats: true)))
     }
 
     fileprivate func frageGewaehlt(_ id: String, wahl: String?) {

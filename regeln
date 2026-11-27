@@ -119,6 +119,10 @@ kal_raster_min 15
 kal_raster_fein_min 5
 kal_bb_gut_ab 60 vorschlag
 ein_tag_tage 1
+stat_lang_km 15
+stat_gute_woche_mal 3
+kraft_volle_wdh 8
+kraft_schritt_kg 2.5
 termin_standard_min 60
 apns_url https://api.push.apple.com
 apns_thema de.antonio.seneca.nativ zu_messen
