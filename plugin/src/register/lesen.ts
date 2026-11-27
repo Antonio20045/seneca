@@ -145,3 +145,7 @@ export function letztesTraining(db: Register, seit: number): number | undefined 
   const z = db.prepare("SELECT MAX(zeit) AS zeit FROM eintrag WHERE art IN ('satz', 'training') AND zeit >= ?").get(seit);
   return z?.zeit === null || z?.zeit === undefined ? undefined : Number(z.zeit);
 }
+
+export function eintraegeSeit(db: Register, seit: number): Zeile[] {
+  return alle(db, "SELECT * FROM eintrag WHERE zustand = 'gueltig' AND zeit >= ? ORDER BY zeit", seit);
+}

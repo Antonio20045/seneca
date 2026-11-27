@@ -30,7 +30,6 @@ struct ReadingDocument: Identifiable, Equatable {
     var title: String
     var body: String
     var format: Format = .bericht
-    var bewertung: BerichtBewertung? = nil
 
     enum Format: Equatable {
         case bericht

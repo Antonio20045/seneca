@@ -119,11 +119,6 @@ struct ReadingView: View {
                 }
                 .padding(.top, Stil.abstand.xl)
                 .accessibilityIdentifier("reading.body")
-                if let ziel = doc.bewertung, doc.format == .bericht {
-                    BewertungsKnoepfe(ziel: ziel)
-                        .padding(.top, Stil.abstand.xxl)
-                        .rise(shown, 0.4, reduceMotion: reduceMotion)
-                }
             }
             .frame(width: textWidth, alignment: .leading)
             .padding(.leading, Stil.rand)
@@ -375,49 +370,3 @@ extension ReadingDocument {
 }
 #endif
 
-private struct BewertungsKnoepfe: View {
-    var ziel: BerichtBewertung
-    @EnvironmentObject private var store: SenecaStore
-    @State private var laeuft = false
-    @State private var urteil: Bool?
-    @State private var meldung = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Stil.abstand.m) {
-            HStack(spacing: Stil.abstand.s) {
-                knopf("Passt", passt: true)
-                knopf("Passt nicht", passt: false)
-            }
-            if !meldung.isEmpty {
-                Text(meldung).schrift(.klein).foregroundStyle(Stil.tinte.zweit)
-                    .accessibilityIdentifier("reading.bewertung.meldung")
-            }
-        }
-        .accessibilityElement(children: .contain)
-    }
-
-    private func knopf(_ titel: String, passt: Bool) -> some View {
-        let gewaehlt = urteil == passt
-        return Button(titel) { senden(passt) }
-            .buttonStyle(KapselStil(art: gewaehlt ? .haupt : .zweit))
-            .disabled(laeuft)
-            .accessibilityIdentifier(passt ? "reading.passt" : "reading.passtNicht")
-            .accessibilityAddTraits(gewaehlt ? .isSelected : [])
-    }
-
-    private func senden(_ passt: Bool) {
-        guard !laeuft else { return }
-        laeuft = true
-        Haptik.tipp()
-        Task { @MainActor in
-            defer { laeuft = false }
-            do {
-                _ = try await store.rufe("seneca.bewerten", params: ziel.params(passt, quelle: "app"), timeout: 15)
-                urteil = passt
-                meldung = passt ? "Danke, „Passt“ ist notiert." : "Danke, „Passt nicht“ ist notiert."
-            } catch {
-                meldung = "Die Bewertung ging nicht durch. Versuch es gleich noch einmal."
-            }
-        }
-    }
-}

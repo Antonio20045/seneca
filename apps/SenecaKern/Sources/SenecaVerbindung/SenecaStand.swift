@@ -141,6 +141,17 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var jeden_tag: [Taeglich]?; public var zaehler: Zaehler?
     }
     public struct Kopplung: Codable, Equatable, Sendable { public var geraet: String; public var zahl: String }
+    public struct Berichte: Codable, Equatable, Sendable {
+        public struct Neu: Codable, Equatable, Sendable, Identifiable { public var id: String; public var kopf: String; public var um: Double; public var text: String; public var beleg: String?; public var wer: String; public var wer_name: String }
+        public struct Gleich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String; public var seit_tage: Int }
+        public struct Seneca: Codable, Equatable, Sendable { public var kopf: String; public var um: Double; public var text: String; public var gestern: String? }
+        public var satz: [String]; public var neu: [Neu]; public var unveraendert: [Gleich]; public var seneca: Seneca?
+    }
+    public struct Rueckblick: Codable, Equatable, Sendable {
+        public struct Frage: Codable, Equatable, Sendable { public var id: String; public var optionen: [Option] }
+        public struct Zahl: Codable, Equatable, Sendable { public var wert: String; public var name: String }
+        public var um: Double; public var saetze: [String]; public var frage: Frage?; public var zahlen: [Zahl]
+    }
 
     public var schema: Int
     public var revision: Int
@@ -171,6 +182,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var todos: [Todo]?
     public var aufgaben: Aufgaben?
     public var kalender: Kalender?
+    public var berichte: Berichte?; public var rueckblick: Rueckblick?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
     public var wartet: String?
