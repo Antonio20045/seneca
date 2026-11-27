@@ -16,7 +16,7 @@ struct AufgabenMeldeMerker: Equatable, Codable {
 }
 
 enum AufgabenMeldungen {
-    static let sammelAb = 4
+    static var sammelAb: Int { Int(AppRegel.wert("mitteilung_sammeln_ab", 2)) }
     static let hoechstAlter: TimeInterval = 24 * 3600
     static let offenVerfall: TimeInterval = 24 * 3600
     static let merkGroesse = 600

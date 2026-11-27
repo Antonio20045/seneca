@@ -91,6 +91,14 @@ enum HeuteBild {
                         MeetingLiveTafel(dienst: nil, live: [(0, 1, 2, "Die Texte für die Startseite fehlen noch, sonst ist alles drin."), (60, 1, 1, "Die schicke ich dir bis Freitag."), (120, 1, 2, "Dann testet euer Prüfer heute Nacht, und wir gehen Montag live?"), (180, 1, 1, "Genau, wenn er nichts findet."), (240, 1, 2, "Und die Domain, wer verlängert die")].map { MeetingSegment(start: $0.0, ende: $0.0 + Double($0.1) * 5, sprecher: $0.2, text: $0.3) },
                                          marken: [181], antworten: [MeetingDienst.Antwort(frage: "Wer zahlt die Domain?", text: "Laut deiner Notiz vom 14. Oktober zahlt Sundartha die Domain, du das Hosting.", laedt: false)], dauer: 724,
                                          beginn: Date(timeIntervalSince1970: (s.jetzt + 724_000 - 240_000) / 1000))
+                    case "sprechen-fremd", "sprechen-seneca":
+                        let feld = env["SENECA_SEITE"] == "sprechen-seneca"
+                        Group {
+                            if feld { DiktatPille(dienst: .gemeinsam, feld: true).frame(width: 760, height: 64).background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.1)))
+                                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.45), lineWidth: 1)) }
+                            else { DiktatBlasenInhalt(dienst: .gemeinsam) }
+                        }
+                        .onAppear { DiktatDienst.gemeinsam.blasenProbe("hoert") }
                     case "meeting-ergebnis":
                         SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Bereiche/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
                                           todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })

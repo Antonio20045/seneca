@@ -19,6 +19,9 @@ meeting_erkennen_s 20 app
 meeting_ende_s 10 app
 meeting_live_s 10 app
 meeting_zusammenfassen_ziel_s 60 app
+diktat_hoere_nichts_s 8 app
+diktat_stille_ende_s 60 app
+mitteilung_sammeln_ab 2 app
 parallel_max 2 zu_messen
 ruht_pruefen_h 1
 kostenrahmen_standard_cent 50 zu_messen
