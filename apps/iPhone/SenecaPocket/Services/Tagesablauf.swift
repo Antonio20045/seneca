@@ -235,7 +235,10 @@ enum Tagesablauf {
         let termine = punkte.filter { !$0.ganztags && $0.istTermin && !$0.routine }
         let laeuft = termine.last { $0.laeuft(jetzt) }
         let naechster = termine.first { $0.zeit > jetzt && cal.isDate($0.zeit, inSameDayAs: jetzt) }
-        func wo(_ p: AblaufPunkt) -> String { WidgetLogic.shortPlace(p.ort, title: p.titel).map { ", \($0)" } ?? "" }
+        func wo(_ p: AblaufPunkt) -> String {
+            guard let o = p.ort?.split(separator: ",").first?.trimmingCharacters(in: .whitespaces), !o.isEmpty, !p.titel.localizedCaseInsensitiveContains(o) else { return "" }
+            return ", \(o)"
+        }
         var saetze: [String] = []
         if let l = laeuft { saetze.append("Gerade läuft „\(l.titel)“" + (l.ende.map { " bis \(uhr($0, cal))" } ?? "") + ".") }
         if let n = naechster {
@@ -256,18 +259,6 @@ enum Tagesablauf {
             let rest = namen.count - 2
             return "\(namen[0]), \(namen[1]) und \(rest == 1 ? "eine weitere Person" : "\(zahl(rest)) weitere") warten auf deine Antwort."
         }
-    }
-
-    static func widget(_ punkte: [AblaufPunkt], jetzt: Date, stand: Date? = nil, _ cal: Calendar = .current) -> WidgetSnapshot {
-        let von = cal.startOfDay(for: jetzt)
-        let horizont = cal.date(byAdding: .day, value: 2, to: von) ?? von.addingTimeInterval(2 * 86_400)
-        let termine = punkte.filter { !$0.ganztags && $0.istTermin }
-        func item(_ p: AblaufPunkt) -> WidgetSnapshot.Item {
-            WidgetSnapshot.Item(title: p.titel, start: p.zeit, end: p.ende ?? p.zeit.addingTimeInterval(1800), place: p.ort)
-        }
-        var s = WidgetLogic.snapshot(items: termine.map(item), now: jetzt, horizon: horizont, stand: stand)
-        s.laufend = termine.filter { $0.laeuft(jetzt) && !$0.routine }.map(item)
-        return s
     }
 }
 

@@ -15,10 +15,11 @@ enum TeilenVerarbeiten {
         }
     }
 
-    static func fragen(_ senden: (String) -> Bool) async {
+    static func fragen(_ senden: (String, String?, [URL]) -> Bool) async {
         for e in TeilenEingang.alle() where !e.nurMerken {
             let text = TeilenEingang.nachricht(e, gelesen: await lesen(e))
-            guard senden(text) else { return }
+            let bilder = e.dateien.compactMap { n in TeilenEingang.ordner?.appendingPathComponent(n) }.filter { UIImage(contentsOfFile: $0.path) != nil }
+            guard senden(text, e.an, bilder) else { return }
             TeilenEingang.entfernen(e)
             try? await Task.sleep(for: .milliseconds(600))
         }

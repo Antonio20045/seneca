@@ -6,47 +6,38 @@ import WidgetKit
 final class WidgetBridge {
     static let shared = WidgetBridge()
     private var sink: AnyCancellable?
-    private var lastWritten: WidgetSnapshot?
-    private var lastReload = Date.distantPast
+    private var letzte: WidgetLage?
 
     func attach(_ store: SenecaStore) {
         guard sink == nil else { return }
-        sink = store.$today.combineLatest(store.$kalenderLang)
+        sink = store.$stand.compactMap { $0 }
             .debounce(for: .milliseconds(600), scheduler: RunLoop.main)
-            .sink { [weak self, weak store] _ in
-                guard let self, !self.vomAblauf, let store, let today = store.today else { return }
-                self.write(Self.snapshot(today, termine: store.kalenderTermine, stand: store.kalenderStand, now: store.clock()))
+            .sink { [weak self] s in
+                self?.schreiben(WidgetBridge.lage(s))
+                TeilenEingang.teamMerken((s.team ?? []).map { [$0.name, "\(ChatTafelLogik.punkt($0, s))"] })
             }
     }
 
-    static func snapshot(_ today: TodaySnapshot, termine: [KalenderTermin]? = nil, stand: Date? = nil, now: Date,
-                         _ cal: Calendar = .current) -> WidgetSnapshot {
-        let entries = termine.map(KalenderParser.eintraege) ?? today.calendar
-        let input = DayInput(now: now, calendar: cal, entries: entries, jobs: today.jobs ?? [], leaders: today.leaders ?? [:],
-                             tasks: today.tasks, days: [:], routineDoneToday: false)
-        let dayStart = cal.startOfDay(for: now)
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: dayStart)!
-        let horizon = cal.date(byAdding: .day, value: 2, to: dayStart)!
-        let orte = Dictionary((termine ?? []).compactMap { t in t.place.map { ("\(t.title)|\(t.start.timeIntervalSince1970)", $0) } },
-                              uniquingKeysWith: { a, _ in a })
-        let items = (DayLogic.items(on: now, input) + DayLogic.items(on: tomorrow, input))
-            .map { WidgetSnapshot.Item(title: $0.title, start: $0.start, end: $0.end, place: orte["\($0.title)|\($0.start.timeIntervalSince1970)"]) }
-        return WidgetLogic.snapshot(items: items, now: now, horizon: horizon, stand: stand)
+    static func lage(_ s: SenecaStand) -> WidgetLage {
+        let d = { (ms: Double?) in ms.map { Date(timeIntervalSince1970: $0 / 1000) } }
+        let termine = (s.kalender?.eintraege ?? []).compactMap { e -> WidgetLage.Termin? in
+            guard let von = d(e.von), let bis = d(e.bis), let t = e.titel else { return nil }
+            return WidgetLage.Termin(titel: t, unter: e.unter.map { $0.components(separatedBy: " · ").filter { !$0.hasSuffix(" Min") && !$0.hasSuffix(" Std") }.joined(separator: " · ") }, von: von, bis: bis, art: e.art)
+        }
+        let fokus = (s.termine ?? []).first { $0.art == "fokus" && $0.ende > s.jetzt && $0.start <= s.jetzt }
+        let m = s.team?.first { $0.zustand == "arbeitet" }
+        return WidgetLage(stand: Date(timeIntervalSince1970: s.jetzt / 1000), termine: termine, fokusVon: d(fokus?.start), fokusBis: d(fokus?.ende),
+                          danach: s.heute?.satz?.dropFirst().first.map { $0.components(separatedBy: ",").first.map { $0.hasSuffix(".") ? $0 : $0 + "." } ?? $0 },
+                          fragen: (s.braucht_dich ?? []).map { .init(kurz: $0.kurz ?? $0.text, von: $0.von ?? "Seneca", seit: d($0.seit), frist: d($0.frist)) },
+                          wartend: s.buendel?.fragen?.count ?? 0,
+                          team: m.map { "\($0.name)" + ($0.rest_min.map { " · noch \(Int($0)) Min" } ?? "") },
+                          bodyBattery: s.koerper?.body_battery.map { Int($0) })
     }
 
-    func ablauf(_ punkte: [AblaufPunkt], stand: Date?, now: Date) {
-        vomAblauf = true
-        write(Tagesablauf.widget(punkte, jetzt: now, stand: stand))
-    }
-    private var vomAblauf = false
-
-    private func write(_ snapshot: WidgetSnapshot) {
-        WidgetStore.write(snapshot)
-        let standSprung = abs((lastWritten?.stand ?? .distantPast).timeIntervalSince(snapshot.stand ?? .distantPast)) > 3600
-        let changed = lastWritten.map { $0.items != snapshot.items || $0.laufend != snapshot.laufend || standSprung } ?? true
-        lastWritten = snapshot
-        guard changed || Date().timeIntervalSince(lastReload) > 30 * 60 else { return }
-        lastReload = Date()
-        WidgetCenter.shared.reloadAllTimelines()
+    private func schreiben(_ l: WidgetLage) {
+        WidgetStore.write(l)
+        let anders = letzte.map { var a = $0; a.stand = l.stand; return a != l } ?? true
+        letzte = l
+        if anders { WidgetCenter.shared.reloadAllTimelines() }
     }
 }

@@ -67,6 +67,8 @@ final class TeilenViewController: UIViewController {
     private func senden() {
         guard var e = modell.eintrag else { return }
         e.frage = modell.frage.trimmingCharacters(in: .whitespacesAndNewlines)
+        e.an = modell.an
+        e.ablegen = modell.ablegen
         e.zeit = Date()
         do { try TeilenEingang.ablegen(e) } catch {
             modell.hinweis = "Das ließ sich nicht ablegen. Öffne Seneca einmal und versuche es noch einmal."
@@ -87,83 +89,5 @@ final class TeilenViewController: UIViewController {
             if let app = r as? UIApplication { app.open(url, options: [:], completionHandler: nil); return }
             naechster = r.next
         }
-    }
-}
-
-final class TeilenModell: ObservableObject {
-    @Published var eintrag: TeilenEintrag?
-    @Published var geladen = false
-    @Published var frage = ""
-    @Published var hinweis: String?
-}
-
-struct TeilenBlatt: View {
-    @ObservedObject var modell: TeilenModell
-    var senden: () -> Void
-    var abbrechen: () -> Void
-    @FocusState private var schreibt: Bool
-
-    private static func serif(_ g: CGFloat) -> Font { .custom("InstrumentSerif-Regular", size: g) }
-    private static func grotesk(_ g: CGFloat) -> Font { .custom("SpaceGrotesk-Regular", size: g) }
-    private static let grund = Color(red: 0x0A / 255, green: 0x22 / 255, blue: 0x45 / 255)
-    private static let grundUnten = Color(red: 0x06 / 255, green: 0x16 / 255, blue: 0x32 / 255)
-
-    private var ohneFrage: Bool { modell.frage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("An Seneca").font(Self.grotesk(13)).foregroundStyle(.white.opacity(0.65))
-                Spacer()
-                Button("Abbrechen", action: abbrechen)
-                    .font(Self.grotesk(15))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(minHeight: 44)
-            }
-            if let e = modell.eintrag {
-                Text(TeilenEingang.kurz(e))
-                    .font(Self.serif(28))
-                    .foregroundStyle(.white)
-                    .lineLimit(5)
-                    .padding(.top, 10)
-                if let a = e.adresse, let ort = TeilenEingang.ort(a), !e.titel.isEmpty {
-                    Text(ort).font(Self.grotesk(15)).foregroundStyle(.white.opacity(0.65)).padding(.top, 8)
-                }
-            } else if modell.geladen {
-                Text("Hier ist nichts, das ich lesen kann.").font(Self.serif(28)).foregroundStyle(.white).padding(.top, 10)
-            }
-            TextField("", text: $modell.frage, prompt: Text("Was möchtest du dazu wissen?").foregroundColor(.white.opacity(0.45)))
-                .font(Self.grotesk(19))
-                .foregroundStyle(.white)
-                .tint(.white)
-                .focused($schreibt)
-                .submitLabel(.send)
-                .onSubmit(senden)
-                .padding(.vertical, 12)
-                .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.3)).frame(height: 1) }
-                .padding(.top, 26)
-                .accessibilityLabel("Deine Frage dazu")
-            if let h = modell.hinweis {
-                Text(h).font(Self.grotesk(15)).foregroundStyle(.white.opacity(0.85)).padding(.top, 12)
-            }
-            Button(action: senden) {
-                Text(ohneFrage ? "Merk dir das" : "Seneca fragen")
-                    .font(Self.grotesk(17))
-                    .foregroundStyle(Self.grund)
-                    .padding(.horizontal, 24)
-                    .frame(minHeight: 46)
-                    .background(Capsule().fill(.white.opacity(0.94)))
-            }
-            .buttonStyle(.plain)
-            .disabled(modell.eintrag == nil)
-            .opacity(modell.eintrag == nil ? 0.4 : 1)
-            .padding(.top, 22)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LinearGradient(colors: [Self.grund, Self.grundUnten], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
-        .onAppear { schreibt = true }
     }
 }

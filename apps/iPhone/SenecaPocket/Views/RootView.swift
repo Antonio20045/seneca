@@ -97,7 +97,14 @@ struct RootView: View {
         .overlay { SperreProbe.aus(store.stand) }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
-        .onOpenURL { _ in eingangVerarbeiten() }
+        .onOpenURL { url in
+            switch url.host {
+            case "entscheiden": oeffne(.arbeit(.fragen))
+            case "kalender": show(.kalender)
+            case "heute": show(.today)
+            default: eingangVerarbeiten()
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             store.isActive = phase == .active
             if phase == .active { Task { await reconnect() }; wunschErfuellen(); eingangVerarbeiten() }
@@ -132,10 +139,11 @@ struct RootView: View {
             setSide(SideState())
             if t.p < 0.5 { go(1, quick: false) }
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 950))
-            await TeilenVerarbeiten.fragen { text in
-                conversation.transcript = text
-                conversation.submitTyped()
-                return conversation.transcript.isEmpty
+            await TeilenVerarbeiten.fragen { text, an, bilder in
+                let p = an.flatMap { $0 == "Seneca" ? nil : ChatTafelLogik.partner($0) } ?? .seneca
+                store.chat.waehle(p)
+                for b in bilder { if let d = try? Data(contentsOf: b) { conversation.anhaengen(d, name: nil, mime: "image/jpeg", fuer: p) } }
+                return conversation.senden(text, an: p)
             }
         }
     }

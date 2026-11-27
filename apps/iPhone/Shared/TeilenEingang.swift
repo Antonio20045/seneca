@@ -9,13 +9,19 @@ struct TeilenEintrag: Codable, Equatable, Identifiable {
     var text: String? = nil
     var dateien: [String] = []
     var bilder = 0
+    var an: String? = nil
+    var ablegen = false
 
-    var nurMerken: Bool { frage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var nurMerken: Bool { ablegen || frage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 }
 
 enum TeilenEingang {
     static let gruppe = "group.de.antonio.senecapocket"
     static let textGrenze = 4000
+
+    static let teamKey = "teilen.team"
+    static func teamMerken(_ t: [[String]]) { UserDefaults(suiteName: gruppe)?.set(t, forKey: teamKey) }
+    static var team: [[String]] { UserDefaults(suiteName: gruppe)?.array(forKey: teamKey) as? [[String]] ?? [] }
 
     static var ordner: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: gruppe)?.appendingPathComponent("Eingang", isDirectory: true)
