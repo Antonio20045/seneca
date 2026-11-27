@@ -111,6 +111,7 @@ To-do: offen · erledigt · geloescht. Die erlaubten Übergänge, Pflichtfelder 
 | HTTP-Routen | `/seneca/uhr/v1/abgleich`, `/seneca/uhr/v1/koppeln`, `/seneca/uhr/v1/abholen` → `zugang/uhr.ts` · `/seneca/github` → `quellen/github.ts` (Lesen des Körpers mit Grenze: `index.ts`) |
 | Hooks | `before_prompt_build`, `agent_end` → `arbeitsdienst/lauf.ts` · `before_tool_call` → `ausgang/ausgang.ts` und `zugang/rechte.ts` · `after_tool_call` → `ausgang/ausgang.ts` · `message_received` → `quellen/whatsapp.ts` |
 | Dienst | `seneca.takt` → `arbeitsdienst/takt.ts` |
+| Verlauf je Gespräch: Quittung (was Seneca getan hat, Ergebnis, „Termin zurücklegen“), Gerät je Nachricht (Schlüssel `<geraet>-<uuid>`), Antworten ohne eigene Frage | `pforte/verlauf.ts` → `seneca.stand.verlauf`; Apps: `SenecaKern/Pocket/VerlaufLogik.swift` |
 | Takt-Jobs | `faellige_auftraege`, `faellige_wirkungen`, `laeufe_pruefen`, `pflegen` → `arbeitsdienst/jobs.ts` · `knoten` → `arbeitsdienst/rechenknoten.ts` · `zustellen` → `pforte/zustellen.ts` · `kalender` → `quellen/kalender.ts` · `eingang` → `quellen/eingang.ts` · `planen` → `pforte/planen.ts` · `melden` (Ereignis `stand` an die Apps bei neuer Revision) → `index.ts` |
 
 ## Uhr-App: Aussehen

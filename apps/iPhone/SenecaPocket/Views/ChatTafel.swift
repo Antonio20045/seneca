@@ -148,3 +148,15 @@ struct ChatLaeuftZeile: View {
         .onAppear { withAnimation(.timingCurve(0.22, 0.8, 0.24, 1, duration: 0.8).repeatForever()) { atmet = true } }
     }
 }
+
+struct ChatQuittung: View {
+    var quittung: SenecaStand.Quittung
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
+            Text(quittung.teile.joined(separator: " · ").uppercased()).mono(11)
+        }
+        .foregroundStyle(TafelFarbe.gruen)
+    }
+}

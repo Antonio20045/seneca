@@ -183,6 +183,11 @@ final class SenecaStore: ObservableObject {
 
     func zeigeBeispiel(_ name: String) {
         stand = HeuteTafelLogik.beispiel(name)
+        #if DEBUG
+        guard let s = stand else { return }
+        let cal = Calendar.current, tage = Double(cal.dateComponents([.day], from: cal.startOfDay(for: HeuteTafelLogik.datum(s.jetzt)), to: cal.startOfDay(for: Date())).day ?? 0)
+        stand?.verlauf?.quittungen = s.verlauf?.quittungen?.map { var q = $0; q.von += tage * 86_400_000; q.bis += tage * 86_400_000; return q }
+        #endif
     }
 
     func erledige(todo id: String) { todo("erledigt", id) }
@@ -717,7 +722,7 @@ final class SenecaStore: ObservableObject {
     func ask(_ text: String, sessionKey target: String? = nil, idempotencyKey: String? = nil, anhaenge: [[String: Any]] = []) async throws -> String {
         tempo("ask() verbunden=\(isConnected)")
         let key = AreasLogic.chatSession(target, main: sessionKey)
-        let id = idempotencyKey ?? UUID().uuidString
+        let id = idempotencyKey ?? VerlaufLogik.schluessel()
         guard asks[id] == nil else { throw SenecaError.message("Diese Frage wird schon gesendet.") }
         let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
         asks[id] = AskTracker(key: id, sessionKey: key, question: question, sentAt: Date())

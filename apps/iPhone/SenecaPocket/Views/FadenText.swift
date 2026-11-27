@@ -16,7 +16,7 @@ struct FadenFrage: View {
                 .padding(.vertical, 10)
                 .background(UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 6, topTrailingRadius: 18, style: .continuous)
                     .fill(TafelFarbe.hex(0x142B4C)))
-                .frame(maxWidth: 280, alignment: .trailing)
+                .frame(maxWidth: 308, alignment: .trailing)
             if let zeit { Text(HeuteTafelLogik.uhr(zeit.timeIntervalSince1970 * 1000)).mono(11).foregroundStyle(TafelFarbe.aus) }
         }
         .accessibilityElement(children: .ignore)
