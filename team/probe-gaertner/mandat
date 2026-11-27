@@ -1,0 +1,20 @@
+bereich: [Privat]
+ziele:
+  - kennzahl: pflanzen_pflege_erinnerungen_erledigt
+    ziel: ">= 80 %"
+signale:
+  - quelle: kalender
+    was: "Antonios Termine, damit Erinnerungen nicht hineinfallen"
+rundgang: []
+befugnisse:
+  unterauftrag_an: [recherche]
+  werkzeuge: []
+  ablage_schreiben: [Privat]
+  live_nur_mit_ja: true
+budget:
+  eigene_auftraege_woche_cent: 75
+modellstufen:
+  standard: sonnet
+  arbeitsarten: { mechanisch: haiku, planen: sonnet }
+kontext: {}
+zugaenge: []

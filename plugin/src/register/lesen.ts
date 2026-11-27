@@ -38,7 +38,7 @@ export function auftraege(db: Register, zustaende: string[]): Zeile[] {
 }
 
 export function faelligeAuftraege(db: Register, jetzt: number): Zeile[] {
-  return alle(db, "SELECT * FROM auftrag WHERE zustand IN ('bereit','wartet','wartet_auf_abnahme') AND naechster_anlass <= ? ORDER BY naechster_anlass", jetzt);
+  return alle(db, "SELECT * FROM auftrag a WHERE (zustand IN ('bereit','wartet','wartet_auf_abnahme') AND naechster_anlass <= ?) OR (zustand = 'wartet' AND coalesce(wartet_auf, '') NOT LIKE 'frage:%' AND geaendert < (SELECT MAX(geaendert) FROM auftrag WHERE eltern_id = a.id AND zustand = 'wartet' AND wartet_auf LIKE 'frage:%')) ORDER BY naechster_anlass", jetzt);
 }
 
 export function aktiveLaeufe(db: Register): Zeile[] {

@@ -18,7 +18,8 @@
       "seneca_anzeige",
       "seneca_todo",
       "seneca_eintrag",
-      "seneca_kalender"
+      "seneca_kalender",
+      "seneca_mitarbeiter"
     ]
   },
   "activation": {

@@ -26,7 +26,7 @@ import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln, uhrSprache, type Antwort } from "./zugang/uhr.ts";
 import { handeln } from "./zugang/handeln.ts";
-import { mitarbeiterVerwalten, type Eingabe } from "./zugang/mitarbeiter.ts";
+import { mitarbeiterVerwalten, type Eingabe } from "./mitarbeiter/verwalten.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche, mitBereich } from "./quellen/statistik.ts";
