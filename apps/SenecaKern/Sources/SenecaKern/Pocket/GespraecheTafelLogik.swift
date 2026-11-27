@@ -84,8 +84,35 @@ enum GespraecheTafelLogik {
     }
 
     static func mehrKopf(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
-        ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zurueckgehalten.map { String($0.split(separator: ",")[0]).replacingOccurrences(of: ".", with: "") }]
+        let haelt = (gehalten(f, s)?.bis ?? 0) > s.jetzt
+        return ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zurueckgehalten.flatMap { haelt ? String($0.split(separator: ",")[0]).replacingOccurrences(of: ".", with: "") : nil }]
             .compactMap { $0 }.joined(separator: " · ").uppercased()
+    }
+
+    struct Gruppe: Equatable {
+        var name: String
+        var punkte: [String]
+    }
+
+    static func worum(_ text: String?, namen: [String]) -> (satz: String, gruppen: [Gruppe]) {
+        var satz: [String] = [], gruppen: [Gruppe] = []
+        for zeile in (text ?? "").split(separator: "\n").map(String.init) {
+            if let r = zeile.range(of: ": "), namen.contains(String(zeile[..<r.lowerBound])) {
+                gruppen.append(Gruppe(name: String(zeile[..<r.lowerBound]), punkte: zeile[r.upperBound...].components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }))
+            } else {
+                satz.append(zeile)
+            }
+        }
+        return (satz.joined(separator: "\n"), gruppen)
+    }
+
+    static func spalten(_ g: [Gruppe]) -> [[Gruppe]] {
+        var out: [[Gruppe]] = [[], []], hoehe = [0, 0]
+        for x in g.sorted(by: { $0.punkte.count > $1.punkte.count }) {
+            let i = hoehe[0] <= hoehe[1] ? 0 : 1
+            out[i].append(x); hoehe[i] += x.punkte.count + 2
+        }
+        return out.filter { !$0.isEmpty }
     }
 
     static func gehaltenSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> (um: Double, satz: String)? {

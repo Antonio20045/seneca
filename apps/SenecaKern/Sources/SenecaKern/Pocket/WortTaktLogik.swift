@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 struct WortTaktPlan: Equatable {
     static let intervall = 0.06
@@ -111,4 +112,66 @@ enum AnswerStream {
         if inWord { out.append(text.endIndex) }
         return out
     }
+}
+
+@MainActor
+final class WortTakt: ObservableObject {
+    @Published private(set) var sichtbar = ""
+    @Published private(set) var frisch = FrischSpanne.keine
+    @Published private(set) var beendet = false
+
+    private var text = ""
+    private var final = false
+    private var schnitte: [String.Index] = []
+    private var plan = WortTaktPlan()
+    private var gezeigteBytes = 0
+    private var lauf: Task<Void, Never>?
+
+    var anzahl: Int { plan.angezeigt }
+    var ziel: String { text }
+
+    func setzeText(_ neu: String, final: Bool = false) {
+        if neu != text || final != self.final {
+            text = neu
+            self.final = final
+            schnitte = WortSchnitte.schnitte(neu, final: final)
+        }
+        plan.setzeZiel(schnitte.count)
+        if final { plan.schliesseAb(jetzt: Self.jetzt()) }
+        starte()
+    }
+
+    private static func jetzt() -> Double { ProcessInfo.processInfo.systemUptime }
+
+    private func starte() {
+        guard lauf == nil else { return }
+        guard takt(schleife: false) else { return }
+        lauf = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(Int(WortTaktPlan.intervall * 1000)))
+                guard let weiter = self?.takt(schleife: true), weiter else { break }
+            }
+            self?.lauf = nil
+        }
+    }
+
+    private func takt(schleife: Bool) -> Bool {
+        let dazu = plan.schritt(jetzt: Self.jetzt())
+        let n = min(plan.angezeigt, schnitte.count)
+        let ende = n == 0 ? text.startIndex : schnitte[n - 1]
+        let teil = String(text[..<ende])
+        if teil != sichtbar { sichtbar = teil }
+        let bytes = teil.utf8.count
+        let zeichen = max(0, bytes - gezeigteBytes)
+        gezeigteBytes = bytes
+        if dazu > 0 || schleife {
+            let neu = frisch.weiter(dazu: dazu > 0 ? zeichen : 0)
+            if neu != frisch { frisch = neu }
+        }
+        let aus = plan.beendet
+        if aus != beendet { beendet = aus }
+        return !plan.fertig || !frisch.istKeine
+    }
+
+    deinit { lauf?.cancel() }
 }

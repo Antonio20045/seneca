@@ -200,21 +200,29 @@ struct SnChatSeite: View {
         return "Diesem Mitarbeiter hast du noch nicht geschrieben." + (zustaendig.hasSuffix(".") ? " " + zustaendig : "")
     }
 
-    static func spalte(_ w: CGFloat, seneca: Bool) -> (links: CGFloat, breite: CGFloat, rand: CGFloat) {
-        let breite: CGFloat = seneca ? 760 : 720, rand: CGFloat = seneca ? 200 : 252
-        return (max(320, w - 40 - rand - (seneca ? 36 : 56) - breite), breite, rand)
+    static func spalte(_ w: CGFloat, seneca: Bool, frage: Bool = false) -> (links: CGFloat, breite: CGFloat, rand: CGFloat) {
+        let voll: CGFloat = seneca ? 760 : 720, luft: CGFloat = seneca ? 36 : 56
+        let rand: CGFloat = w - 40 - luft - 320 - 440 >= (frage ? 312 : seneca ? 200 : 252) ? (frage ? 312 : seneca ? 200 : 252) : 0
+        let breite = min(voll, max(360, w - 40 - (rand > 0 ? rand + luft : 0) - 320))
+        return (max(320, w - 40 - (rand > 0 ? rand + luft : 0) - breite), breite, rand)
+    }
+
+    static func mehrFrage(_ s: SenecaStand?, agent: String, id: String?) -> SenecaStand.Frage? {
+        guard let s, let id else { return nil }
+        let name = s.team?.first { $0.id == agent }?.name ?? ""
+        return GL.fragen(s, von: name).first { $0.id == id }
     }
 
     private var agent: String { gegenueber.ziel?.agentId ?? Hauptagent.id }
     private var istSeneca: Bool { agent == Hauptagent.id }
     private var stand: SenecaStand? { modell.store.stand }
     private var mitglied: SenecaStand.Mitglied? { stand?.team?.first { $0.id == agent } }
-    private var mehrFrage: SenecaStand.Frage? { stand.flatMap { s in GL.fragen(s, von: mitglied?.name ?? "").first { $0.id == modell.mehrFrage } } }
+    private var mehrFrage: SenecaStand.Frage? { Self.mehrFrage(stand, agent: agent, id: modell.mehrFrage) }
 
     var body: some View {
         ZStack(alignment: .top) {
         GeometryReader { g in
-            let (links, breite, rand) = Self.spalte(g.size.width, seneca: istSeneca)
+            let (links, breite, rand) = Self.spalte(g.size.width, seneca: istSeneca, frage: mehrFrage != nil)
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { id in modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id) },
                                   neu: { modell.gegenueber.oeffneChat(key: "agent:\(agent):main", agentId: agent) }, zieht: ziehtZiel, fragt: mehrFrage,
@@ -222,13 +230,6 @@ struct SnChatSeite: View {
                     .padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
                 VStack(alignment: .leading, spacing: 24) {
                     if !store.isConnected { SnNichtErreichbar { await modell.verbinde() } }
-                    if let s = stand, let f = mehrFrage {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text(GL.mehrSeite(f, s)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
-                            SnFrageMehr(frage: f, stand: s, antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, zuruecknehmen: { modell.store.handle("rueckgaengig", ziel: f.id) },
-                                        andereZeit: { steuerung.eingabe = "Andere Zeit: "; steuerung.fokussiere() })
-                        }
-                    }
                     VerlaufView(verlauf: chat.speicher, chat: chat, lauf: laufKopf, name: gegenueber.name,
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
                                 stand: stand, agent: agent, neuLaden: neuLaden,
@@ -237,9 +238,10 @@ struct SnChatSeite: View {
                                 vorschlag: { merken in
                                     if merken, let v = stand?.todo_vorschlag { modell.store.handle("todo.anlegen", ziel: nil, wert: ["titel": .text(v.titel)].merging(v.bereich.map { ["bereich": .text($0)] } ?? [:]) { a, _ in a }) }
                                     modell.store.handle("todo.vorschlag_weg", ziel: nil, wert: [:])
-                                })
+                                }, oben: stand.flatMap { s in mehrFrage.map { SnFrageMehr(frage: $0, stand: s) } })
                         .equatable()
                         .verlaufRein()
+                        .layoutPriority(1)
                     if let s = stand, !istSeneca {
                         if let f = mehrFrage, let g = GL.gehaltenSatz(f, s) {
                             HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -254,18 +256,25 @@ struct SnChatSeite: View {
                         else if let m = mitglied, let st = GL.station(s, m) {
                             SnAuftragKarte(station: st, ansehen: { modell.teamOffen = true; modell.gehe(Route.heute) }, anstupsen: { steuerung.sende("Wo hängst du gerade?") })
                         }
-                        if let f = mehrFrage { SnFrageMehrFuss(frage: f) { steuerung.sende($0) } }
+                    }
+                    if let s = stand, let f = mehrFrage {
+                        SnFrageMehrKnoepfe(frage: f, stand: s, antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, zuruecknehmen: { modell.store.handle("rueckgaengig", ziel: f.id) },
+                                           andereZeit: { steuerung.eingabe = "Andere Zeit: "; steuerung.fokussiere() })
+                            .id(f.id)
+                        SnFrageMehrFuss(frage: f) { steuerung.sende($0) }
                     }
                 }
                 .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
-                SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
-                    .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
+                if rand > 0 {
+                    SnGespraechRand(stand: stand, agent: agent, frage: mehrFrage, zuProjekten: { modell.gehe(.projekte) })
+                        .padding(.leading, g.size.width - 40 - rand).padding(.top, 108)
+                }
             }
             }
             SnBildGross(buehne: buehne) { t, png in steuerung.sende(t, anhaenge: [ChatAnhang.ausDaten(png, mime: "image/png")].compactMap { $0 }) }
             if ziehtZiel {
                 GeometryReader { g in
-                    let (links, breite, _) = Self.spalte(g.size.width, seneca: istSeneca)
+                    let (links, breite, _) = Self.spalte(g.size.width, seneca: istSeneca, frage: mehrFrage != nil)
                     SnZiehHinweis(satz: ziehSatz).frame(width: breite + 32, height: g.size.height - 82).padding(.leading, links - 16).padding(.top, 62)
                 }
                 .allowsHitTesting(false)

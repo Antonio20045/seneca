@@ -295,6 +295,7 @@ struct MarkdownFlussView: NSViewRepresentable {
         v.delegate = context.coordinator
         v.linkTextAttributes = [:]
         v.textStorage?.setAttributedString(text)
+        if let c = v.textContainer { v.layoutManager?.ensureLayout(for: c) }
         return v
     }
 

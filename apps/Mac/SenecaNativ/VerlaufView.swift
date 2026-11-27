@@ -61,14 +61,16 @@ struct VerlaufView: View, Equatable {
     var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     var bearbeiten: (String) -> Void = { _ in }
     var vorschlag: (Bool) -> Void = { _ in }
+    var oben: SnFrageMehr? = nil
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
     @State private var bisher: Int?
+    @State private var frageY: CGFloat = 0
 
     static func == (a: VerlaufView, b: VerlaufView) -> Bool {
         a.verlauf === b.verlauf && a.chat === b.chat && a.lauf == b.lauf
-            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.stand?.verlauf == b.stand?.verlauf && a.agent == b.agent
+            && a.name == b.name && a.hinweis == b.hinweis && a.gesendet == b.gesendet && a.leerSatz == b.leerSatz && a.stand?.verlauf == b.stand?.verlauf && a.agent == b.agent && a.oben == b.oben
     }
 
     private struct Zeile: Identifiable {
@@ -178,7 +180,7 @@ struct VerlaufView: View, Equatable {
                     let ohneFrage = !alleBloecke.contains { if case .zug(let z) = $0, case .user? = z.start { return true }; return false }
                     if verlauf.laedt && bloecke.isEmpty && lauf == nil {
                         Text("Der Verlauf wird geladen.").font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink3).padding(.bottom, Self.abstand)
-                    } else if ohneFrage && lauf == nil && verlauf.fehler == nil {
+                    } else if ohneFrage && lauf == nil && verlauf.fehler == nil && oben == nil {
                         Text(leerSatz ?? "Du hast \(name) noch nicht geschrieben.").font(Schrift.serif(24, kursiv: true)).foregroundStyle(Farbe.ink2)
                             .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 40).padding(.bottom, Self.abstand)
@@ -203,7 +205,8 @@ struct VerlaufView: View, Equatable {
                                         weiter: { erneut("Mach weiter, wo du aufgehört hast.") },
                                         zuruecknehmen: schluessel(z).map { k in { Task { await chat.store?.zuruecknehmen(k) } } },
                                         vorziehen: { if let k = schluessel(z) { Task { await chat.store?.vorziehen(k) } } },
-                                        bearbeiten: { if let k = schluessel(z) { bearbeiten(z.startText); Task { await chat.store?.zuruecknehmen(k) } } })
+                                        bearbeiten: { if let k = schluessel(z) { bearbeiten(z.startText); Task { await chat.store?.zuruecknehmen(k) } } },
+                                        sitzung: verlauf.sitzung)
                                     .equatable()
                                     .onAppear { Messung.markeEinmal("erster Zug sichtbar") }
                             }
@@ -217,6 +220,10 @@ struct VerlaufView: View, Equatable {
                     }
                     if let quelle, !letzterLaeuft {
                         LiveZugView(quelle: quelle, zug: nil, name: name).padding(.bottom, Self.abstand).id("live")
+                    }
+                    if let oben {
+                        oben.padding(.bottom, Self.abstand).id("frage-oben")
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("verlauf-inhalt")).minY } action: { frageY = $0 }
                     }
                     if let hinweis {
                         Text(hinweis).font(Schrift.grotesk(13)).foregroundStyle(Farbe.ink2).textSelection(.enabled).padding(.bottom, Self.abstand)
@@ -236,6 +243,7 @@ struct VerlaufView: View, Equatable {
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
                 .background(RollFuehler(halter: halter, erste: alleZeilen.first?.id))
+                .coordinateSpace(.named("verlauf-inhalt"))
             }
             .id(verlauf.sitzung)
             .mask {
@@ -247,6 +255,11 @@ struct VerlaufView: View, Equatable {
             }
             .safeAreaInset(edge: .top, spacing: 0) { if let leisteInfo { leiste(leisteInfo, leser) } }
             .onChange(of: gesendet) { _, _ in halter.ansEnde() }
+            .task(id: oben?.frage.id) {
+                guard oben != nil else { return }
+                try? await Task.sleep(for: .milliseconds(300))
+                halter.zeige(oben: frageY - 12)
+            }
             .onChange(of: verlauf.bloecke) { _, neu in merker.merkeNeue(neu) }
             .onAppear {
                 halter.obenNah = { [verlauf] in Task { await verlauf.aelterLaden() } }
