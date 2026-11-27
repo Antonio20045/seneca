@@ -153,6 +153,8 @@ kal_bb_gut_ab 60 vorschlag app
 ein_tag_tage 1
 stat_lang_km 15
 garmin_abgleich_min 20
+statistik_anlass_tage 14
+statistik_datenarten lauf:trainer,satz:trainer,training:trainer,aktivitaet:trainer,nacht:trainer,tag:trainer,gewicht:trainer,lesen:seneca
 garmin_haengt_s 240
 garmin_tage 3
 garmin_python /home/ubuntu/.garmin-venv/bin/python

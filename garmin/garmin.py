@@ -457,7 +457,7 @@ def register_lesen(pfad):
     db.row_factory = sqlite3.Row
     e = [{"id": r["id"], "art": r["art"], "zeit": r["zeit"], "quelle": r["quelle"], "kennung": r["handlung_kennung"], "w": json.loads(r["werte"])}
          for r in db.execute("SELECT * FROM eintrag WHERE zustand = 'gueltig' ORDER BY zeit")]
-    return e, [dict(r) for r in db.execute("SELECT id, titel, werte, besitzer FROM anzeige WHERE art = 'statistik' AND zustand = 'aktiv'")]
+    return e, [dict(r) for r in db.execute("SELECT id, titel, werte, besitzer, zustand FROM anzeige WHERE art = 'statistik' AND zustand IN ('aktiv', 'grau')")]
 
 
 def auswerten(a, e, jetzt):
@@ -471,9 +471,9 @@ def auswerten(a, e, jetzt):
             gruppen.setdefault(schluessel(x["zeit"]), []).append(ABGELEITET[feld](x["w"]) if feld in ABGELEITET else float(x["w"][feld]))
         punkte = [[k.isoformat(), round(RECHNUNG[d.get("rechnung", "summe")](v), 2)] for k, v in sorted(gruppen.items())]
         return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "grund": d.get("grund"), "diagramm": d.get("diagramm", "balken"), "einheit": d.get("einheit", ""), "ziel": d.get("ziel"),
-                "punkte": punkte, "wert": punkte[-1][1] if punkte else None, "trend": round(punkte[-1][1] - punkte[0][1], 2) if len(punkte) > 1 else None}
+                "punkte": punkte, "wert": punkte[-1][1] if punkte else None, "trend": round(punkte[-1][1] - punkte[0][1], 2) if len(punkte) > 1 else None, "grau": a["zustand"] == "grau"}
     except Exception as fehler:
-        return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "fehler": f"{type(fehler).__name__}: {fehler}"}
+        return {"id": a["id"], "titel": a["titel"], "von": a["besitzer"], "fehler": f"{type(fehler).__name__}: {fehler}", "grau": a["zustand"] == "grau"}
 
 
 def serien(tage, heute):

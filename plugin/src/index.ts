@@ -17,6 +17,7 @@ import { pushSender } from "./pforte/push.ts";
 import { zustellenJob, type Poster } from "./pforte/zustellen.ts";
 import { nachWerkzeug, pruefeAufruf, unklarePruefen, unteragentEnde, unteragentMerken } from "./ausgang/ausgang.ts";
 import { korrigieren, type Korrektur } from "./lernen/lernen.ts";
+import { anlaesseJob, statistikAnlass, type Anlass } from "./lernen/anlass.ts";
 import { dateiVorschau } from "./quellen/ablage.ts";
 import { eingangJob } from "./quellen/eingang.ts";
 import { githubEingang } from "./quellen/github.ts";
@@ -68,6 +69,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ name: S, untertitel: O(S), worum: O(S), satz: O(S), phasen: O(Type.Array(Type.Object({ name: S, zustand: S }))), start: O(Z), nach: O(S), ruht: O(S) }),
     (db, k, p) => {
       const { name, ...rest } = p;
+      if (!wert(db, `projekt:${name}`) && rest.worum) statistikAnlass(db, k.agent, { art: "ziel", thema: `projekt ${name}`, satz: String(rest.worum) });
       return { ok: wertSetzen(db, `projekt:${name}`, JSON.stringify(rest), k.agent) > 0 };
     }],
   ["seneca_lernen", "Korrektur von Antonio an genau einem Ort lernen: skill, profil, sperre oder fakt.",
@@ -81,6 +83,8 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     }],
   ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt). Statistik ohne Code: anzeigenart statistik, werte { metrik: art.feld aus den Einträgen (lauf.km, lauf.pace_s, lauf.h, satz.1rm, satz.volumen, nacht.hrv, tag.ruhepuls, aktivitaet.anzahl …), filter: { u: \"Kniebeuge\" }, zeitraum_tage, gruppe: tag|woche|monat|einzeln, rechnung: summe|schnitt|max|min|anzahl|letzter, diagramm: balken|linie|ring|zahl, einheit, ziel, grund: ein Satz, warum }.", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
+  ["seneca_statistik", "Anlass für eine Statistik. art frage: Antonio fragt nach einem Stand („wie läuft X“, „wie weit ist Y“); thema: das Ding in ein, zwei kleinen Wörtern (kniebeuge, wochen-km), satz: seine Frage, an: wer zuständig ist. Beim zweiten Mal in 14 Tagen entsteht ein Auftrag an den Zuständigen. art ziel: Ziel neu oder geändert („100 km bis Juni“), satz: das Ziel. art luecke: Auftrag aus dem Rundgang, satz: was fehlt. art sicht: Ziele, Statistiken mit Besitzer, Grund und zuletzt angesehen, Standfragen.",
+    Type.Object({ art: S, thema: O(S), satz: O(S), an: O(S) }), (db, k, p) => statistikAnlass(db, k.agent, p as Anlass)],
   ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; vorschlagen (felder.titel, felder.bereich): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
       nurSeneca(k);
@@ -232,6 +236,7 @@ export default {
         for (const id of a.loeschen) eintragAendern(db, id, { zustand: "geloescht" }, "garmin");
         if (wert(db, "statistik:kennzahlen")?.wert !== k) wertSetzen(db, "statistik:kennzahlen", k, "garmin");
       } },
+      { job: "statistik_anlaesse", ursache: "Neue Datenart oder neues Ziel im Mandat wird Auftrag für eine Statistik", abstand: () => regelMs("garmin_abgleich_min"), lauf: () => anlaesseJob(db) },
       { job: "melden", ursache: "Apps holen den Stand nur bei neuer Revision", lauf: () => {
         const r = revision(db);
         if (r !== gesendet) melde?.(r);

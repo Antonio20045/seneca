@@ -4,6 +4,7 @@ struct SnStatistikEcht: View {
     @ObservedObject var store: SenecaStore
     @State private var daten: SenecaStatistik?
     @State private var stand: Double = 0
+    @State private var gemeldet: Set<String> = []
 
     var body: some View {
         Group {
@@ -14,6 +15,10 @@ struct SnStatistikEcht: View {
                   let roh = try? JSONSerialization.data(withJSONObject: j) else { return }
             daten = try? JSONDecoder().decode(SenecaStatistik.self, from: roh)
             stand = Date().timeIntervalSince1970 * 1000
+            for s in daten?.kennzahlen?.statistiken ?? [] where !gemeldet.contains(s.id) {
+                gemeldet.insert(s.id)
+                store.handle("anzeige.angesehen", ziel: s.id)
+            }
         }
     }
 }
@@ -236,5 +241,6 @@ struct SnStatEigene: View {
                 }
             }
         }
+        .opacity(s.grau == true ? 0.45 : 1)
     }
 }

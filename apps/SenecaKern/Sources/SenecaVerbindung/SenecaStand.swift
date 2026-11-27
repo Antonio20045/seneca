@@ -309,7 +309,7 @@ public struct SenecaStatistik: Codable, Equatable, Sendable {
         public struct Koerper: Codable, Equatable, Sendable { public var nacht: [[JSONWert]]; public var tag: [[JSONWert]]; public var gewicht: [[JSONWert]] }
         public struct Eigene: Codable, Equatable, Sendable, Identifiable {
             public var id: String; public var titel: String; public var von: String?; public var grund: String?; public var diagramm: String?; public var einheit: String?
-            public var ziel: Double?; public var punkte: [[JSONWert]]?; public var wert: Double?; public var fehler: String?
+            public var ziel: Double?; public var punkte: [[JSONWert]]?; public var wert: Double?; public var fehler: String?; public var grau: Bool?
         }
         public var wochen: [String]; public var lauf: Lauf; public var kraft: Kraft; public var koerper: Koerper; public var statistiken: [Eigene]
     }

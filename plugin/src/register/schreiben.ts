@@ -362,6 +362,8 @@ export function anzeigeSetzen(db: Register, a: { id?: string; projekt: string; a
   });
 }
 
+export const anzeigeGesehen = (db: Register, id: string): void => void db.prepare("UPDATE anzeige SET zuletzt_angesehen = ?, zustand = IIF(zustand = 'grau', 'aktiv', zustand) WHERE id = ?").run(uhr.jetzt(), id);
+
 export function anzeigeEntfernen(db: Register, id: string, wer: string): void {
   const a = hole(db, "anzeige", id);
   anzeigeSetzen(db, { id, projekt: String(a.projekt), art: String(a.art), titel: String(a.titel), werte: JSON.parse(String(a.werte)), besitzer: wer, zustand: "entfernt" });

@@ -1,7 +1,7 @@
 import { hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
+  anzeigeEntfernen, anzeigeGesehen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
 } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
@@ -184,6 +184,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
     anzeigeEntfernen(db, String(h.ziel), h.geraet);
     return "angenommen";
   },
+  "anzeige.angesehen": (db, h) => (anzeigeGesehen(db, String(h.ziel)), "angenommen"),
 };
 
 function eingang(db: Register, h: Handlung, quelle: string): string {
