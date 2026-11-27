@@ -1,7 +1,8 @@
 import { termineAm, todos, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { todoSetzen, wertSetzen } from "../register/schreiben.ts";
-import { wann } from "./aufgaben.ts";
+import { wann, ZAHL } from "./aufgaben.ts";
+import { stundeAlsWort, zumWort } from "./heute.ts";
 import { letzteUhrzeit, naechsteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Block = { von: number; bis: number };
@@ -37,6 +38,13 @@ function losHinweis(db: Register, jetzt: number): string {
   return `${t.titel} in ${t.ort}: an um ${uhrzeit(ankunft)}${los}`;
 }
 
+function grund(db: Register, alt: number, neu: number, jetzt: number): string {
+  const t = termineAm(db, alt).find((x) => !x.ganztag && x.start > alt);
+  const rest = t ? Math.max(0, Math.round((t.start - Math.max(jetzt, alt)) / regelMs("eine_minute_min"))) : 0;
+  const vor = t ? ` Vor ${zumWort(t.titel).replace(/^zu(m|r) /, (_, e) => (e === "m" ? "dem " : "der "))} bleiben nur noch ${ZAHL[rest]?.toLowerCase() ?? rest} Minuten.` : "";
+  return `Verschoben auf ${stundeAlsWort(neu)}.${vor}`;
+}
+
 export function planenJob(db: Register): void {
   const jetzt = uhr.jetzt();
   const ende = naechsteUhrzeit(regelText("plan_bis"), jetzt);
@@ -47,6 +55,7 @@ export function planenJob(db: Register): void {
     const l = luecken(belegt, beginn, ende).find((x) => x.bis - x.von >= dauer * regelZahl("luecke_faktor"));
     const plan = l ? { geplant_von: l.von, geplant_bis: l.von + dauer } : { geplant_von: null, geplant_bis: null };
     if (l) belegt.push({ von: l.von, bis: l.von + dauer });
+    if (t.geplant_von && plan.geplant_von && plan.geplant_von > Number(t.geplant_von)) wertSetzen(db, `todo_grund:${t.id}`, JSON.stringify({ vorher: Number(t.geplant_von), satz: grund(db, Number(t.geplant_von), plan.geplant_von, jetzt) }), "planen", ende);
     if (t.geplant_von !== plan.geplant_von || t.geplant_bis !== plan.geplant_bis) todoSetzen(db, { aktion: "aendern", id: String(t.id), felder: plan, geraet: "planen" });
   }
   const hinweis = losHinweis(db, jetzt);

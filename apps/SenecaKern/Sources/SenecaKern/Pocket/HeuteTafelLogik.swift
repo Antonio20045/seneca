@@ -97,8 +97,24 @@ enum HeuteTafelLogik {
     }
 
     static func todosHeute(_ s: SenecaStand) -> [SenecaStand.Todo] {
-        guard let ids = s.aufgaben?.heute else { return (s.todos ?? []).filter { $0.wiederkehrend == nil } }
-        return ids.compactMap { id in s.todos?.first { $0.id == id } }
+        let alle = s.aufgaben?.heute.map { ids in ids.compactMap { id in s.todos?.first { $0.id == id } } } ?? (s.todos ?? []).filter { $0.wiederkehrend == nil }
+        return alle.filter { ueberfaellig($0, s) } + alle.filter { !ueberfaellig($0, s) }
+    }
+
+    static func tagText(_ ms: Double, _ cal: Calendar = .current) -> String {
+        let k = cal.dateComponents([.year, .month, .day], from: datum(ms))
+        return String(format: "%04d-%02d-%02d", k.year ?? 0, k.month ?? 0, k.day ?? 0)
+    }
+
+    static func ueberfaellig(_ t: SenecaStand.Todo, _ s: SenecaStand) -> Bool {
+        t.wiederkehrend == nil && (t.bis_wann ?? .infinity) < (s.tag_beginn ?? 0)
+    }
+
+    static func fristWar(_ bis: Double, _ s: SenecaStand, _ cal: Calendar = .current) -> String {
+        let tage = cal.dateComponents([.day], from: cal.startOfDay(for: datum(bis)), to: cal.startOfDay(for: datum(s.jetzt))).day ?? 0
+        if tage <= 1 { return "Frist war gestern" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "EE d. MMM"
+        return "Frist war am " + f.string(from: datum(bis)).replacingOccurrences(of: ".,", with: "")
     }
 
     static func todoZeile(_ t: SenecaStand.Todo) -> String {

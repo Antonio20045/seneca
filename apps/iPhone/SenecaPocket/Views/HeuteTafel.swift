@@ -285,6 +285,45 @@ struct HeuteTafel: View {
     }
 
     private func todoZeile(_ t: SenecaStand.Todo) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            todoKnopf(t)
+            if let g = t.grund, t.geplant_von != nil {
+                HStack(alignment: .top, spacing: 8) {
+                    Circle().fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: TafelFarbe.akzent, location: 0.26), .init(color: TafelFarbe.hex(0x6E9CE0, 0.5), location: 0.56),
+                                                         .init(color: TafelFarbe.hex(0x6E9CE0, 0), location: 0.76)], center: .center, startRadius: 0, endRadius: 7)).frame(width: 10, height: 10).padding(.top, 4)
+                    Text(g.satz).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.zweit).zeilenHoehe(20, schrift: 14).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 40).padding(.bottom, 8)
+            }
+            if HeuteTafelLogik.ueberfaellig(t, stand) {
+                HStack(spacing: 6) {
+                    if let von = t.geplant_von {
+                        Button { if allowTap() { store.daten?.handeln("todo.aendern", ziel: t.id, wert: .objekt(["bis_wann": .leer, "tag": .text(HeuteTafelLogik.tagText(stand.jetzt))])) } } label: {
+                            Text("Heute \(HeuteTafelLogik.uhr(von))").font(Sundartha.grotesk(14, .medium)).foregroundStyle(.white).padding(.horizontal, 13).frame(height: 32).background(Capsule().fill(.white.opacity(0.1)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button { if allowTap() { oeffne(.aufgaben) } } label: {
+                        Text("Neue Frist").font(Sundartha.grotesk(14, .medium)).foregroundStyle(TafelFarbe.zweit).padding(.horizontal, 5).frame(height: 32)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 40).padding(.bottom, 8)
+            }
+        }
+    }
+
+    private func meta(_ t: SenecaStand.Todo, erledigt: Bool, wartet: Bool) -> Text {
+        let teile = HeuteTafelLogik.todoZeile(t).components(separatedBy: " · ")
+        if erledigt { return Text("\(teile[0]) · erledigt \(HeuteTafelLogik.uhr(stand.jetzt))") }
+        if wartet && !offline { return Text("abgehakt, wird übertragen") }
+        let vorn = t.bereich.map { Text("\($0) · ") } ?? Text("")
+        if HeuteTafelLogik.ueberfaellig(t, stand), let bis = t.bis_wann { return vorn + Text(HeuteTafelLogik.fristWar(bis, stand)).foregroundColor(.white) }
+        if let g = t.grund, let von = t.geplant_von { return vorn + Text(HeuteTafelLogik.uhr(von)).foregroundColor(.white) + Text(" · vorher \(HeuteTafelLogik.uhr(g.vorher))") }
+        return Text(HeuteTafelLogik.todoZeile(t))
+    }
+
+    private func todoKnopf(_ t: SenecaStand.Todo) -> some View {
         let wartet = wartend.contains(t.id), erledigt = nachgereicht.contains(t.id), haken = wartet || erledigt
         return Button { if allowTap(), !wartet { erledige(t.id) } } label: {
             HStack(spacing: 16) {
@@ -302,8 +341,7 @@ struct HeuteTafel: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(t.titel).font(Sundartha.grotesk(17)).foregroundStyle(haken ? TafelFarbe.aus : .white).strikethrough(haken)
                         .zeilenHoehe(22, schrift: 17).fixedSize(horizontal: false, vertical: true)
-                    Text(erledigt ? "\(HeuteTafelLogik.todoZeile(t).components(separatedBy: " · ")[0]) · erledigt \(HeuteTafelLogik.uhr(stand.jetzt))"
-                         : wartet && !offline ? "abgehakt, wird übertragen" : HeuteTafelLogik.todoZeile(t)).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
+                    meta(t, erledigt: erledigt, wartet: wartet).font(Sundartha.grotesk(12)).foregroundStyle(TafelFarbe.leise)
                         .zeilenHoehe(17, schrift: 12)
                     if wartet && offline {
                         Text(ohneNetz ? "abgehakt · wartet aufs Netz" : "abgehakt · geht raus, sobald der Mac antwortet").font(Sundartha.grotesk(11)).foregroundStyle(TafelFarbe.leise)

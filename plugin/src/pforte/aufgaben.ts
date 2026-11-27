@@ -4,7 +4,7 @@ import { naechsteUhrzeit, regelMs, regelText } from "../regeln.ts";
 import { stundeAlsWort, uhrzeit, zumWort } from "./heute.ts";
 import { belegtAm, istFokus, luecken } from "./planen.ts";
 
-const ZAHL = ["Nichts", "Eine", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn", "Elf", "Zwölf"];
+export const ZAHL = ["Nichts", "Eine", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn", "Elf", "Zwölf"];
 
 const datum = (t: number) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
