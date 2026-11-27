@@ -79,9 +79,10 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     }],
   ["seneca_anzeige", "Anzeige setzen oder entfernen (höchstens 4 je Projekt).", Type.Object({ id: O(S), projekt: S, anzeigenart: S, titel: S, werte: Frei, zustand: O(S), beantwortet: O(S) }),
     (db, k, p) => ({ anzeige_id: anzeigeSetzen(db, { ...(p as { projekt: string; titel: string; werte: object }), art: String(p.anzeigenart), besitzer: k.agent }) })],
-  ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
+  ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; vorschlagen (felder.titel, felder.bereich): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
       nurSeneca(k);
+      if (p.aktion === "vorschlagen") return { ok: wertSetzen(db, "todo_vorschlag", JSON.stringify({ ...(p.felder as object), um: uhr.jetzt() }), "seneca", uhr.jetzt() + regelMs("todo_vorschlag_min")) > 0 };
       const r = todoSetzen(db, { ...(p as unknown as TodoAktion), geraet: "seneca" });
       if (r.ergebnis === "ueberholt") ereignis(db, { art: "todo.ueberholt", geraet: "seneca", schluessel: r.id, daten: { aktion: p.aktion, tag: (p.felder as { tag?: string } | undefined)?.tag ?? null } });
       return r;

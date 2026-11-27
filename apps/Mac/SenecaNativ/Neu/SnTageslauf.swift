@@ -84,7 +84,7 @@ enum HeuteBild {
                     case "gespraeche", "gespraeche-team", "f-mehr":
                         SnGespraecheBild(stand: s, agent: env["SENECA_SEITE"] == "gespraeche" ? Hauptagent.id : "engineer", mehr: env["SENECA_SEITE"] == "f-mehr")
                         SnGeruestBild(stand: s, aktiv: .gespraeche, dock: false)
-                    case "g-karten", "g-text", "g-lebenslauf", "g-fehler", "g-bild", "g-anhaenge", "g-verlauf", "g-ziehen", "z-konflikt":
+                    case "g-karten", "g-text", "g-lebenslauf", "g-fehler", "g-bild", "g-anhaenge", "g-verlauf", "g-ziehen", "z-konflikt", "t-todo-03":
                         SnGBild(seite: env["SENECA_SEITE"] ?? "", stand: s)
                     case "statistik":
                         if let d = HeuteTafelLogik.beispielStatistik() { SnStatistikTafel(daten: d, stand: s.jetzt) }

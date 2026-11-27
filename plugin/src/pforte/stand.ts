@@ -189,6 +189,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
     team_kopf: ["Dein Team,", `um ${ungefaehr(jetzt)}.`],
     braucht_dich: braucht.map((f) => ({ ...frageSicht(db, f, jetzt), mitteilung: mitteilung(db, f, braucht.length - 1) })),
+    todo_vorschlag: (wert(db, "todo_vorschlag")?.gueltig_bis ?? 0) > jetzt ? JSON.parse(String(wert(db, "todo_vorschlag")?.wert)) : null,
     eben_beantwortet: fragen(db, "beantwortet").filter((f) => Number(f.antwort_um) > jetzt - regelMs("frage_nachklang_s")).map((f) => frageSicht(db, f, jetzt)),
     buendel: b,
     projekte: projekte(db, jetzt, ruhe(db, jetzt)?.grund === "fokus"),

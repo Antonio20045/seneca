@@ -60,6 +60,7 @@ struct VerlaufView: View, Equatable {
     var neuLaden: () -> Void = {}
     var zuruecklegen: (SenecaStand.Zuruecklegen) -> Void = { _ in }
     var bearbeiten: (String) -> Void = { _ in }
+    var vorschlag: (Bool) -> Void = { _ in }
     @State private var folgt = true
     @State private var merker = FrischMerker()
     @State private var halter = Rollhalter()
@@ -211,6 +212,9 @@ struct VerlaufView: View, Equatable {
                         .id(zeile.id)
                     }
                     ForEach(vermerke[alleZeilen.count]) { Self.vermerk($0).padding(.bottom, Self.abstand) }
+                    if agent == Hauptagent.id, let v = stand?.todo_vorschlag, v.um >= (fragen.last?.ts ?? 0) {
+                        SnTodoVorschlag(v: v, antwort: vorschlag).padding(.bottom, Self.abstand)
+                    }
                     if let quelle, !letzterLaeuft {
                         LiveZugView(quelle: quelle, zug: nil, name: name).padding(.bottom, Self.abstand).id("live")
                     }
@@ -296,5 +300,25 @@ struct SnNeuKnopf: View {
             .background(Capsule().fill(TafelFarbe.himmel))
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct SnTodoVorschlag: View {
+    var v: SenecaStand.TodoVorschlag
+    var antwort: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 8) {
+                SnKugel(groesse: 10, atmet: false)
+                Text("Als To-do merken? ").foregroundColor(TafelFarbe.zweit) + Text(v.titel).foregroundColor(.white)
+            }
+            .font(Schrift.grotesk(14)).frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 4) {
+                Button("Merken") { antwort(true) }.buttonStyle(SnTafelKnopf(art: .voll, groesse: 13))
+                Button("Nein") { antwort(false) }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+            }
+        }
+        .accessibilityIdentifier("todo-vorschlag")
     }
 }

@@ -234,7 +234,11 @@ struct SnChatSeite: View {
                                 leerSatz: leerSatz, hinweis: steuerung.hinweis, gesendet: steuerung.gesendet, erneut: { steuerung.sende($0) },
                                 stand: stand, agent: agent, neuLaden: neuLaden,
                                 zuruecklegen: { z in modell.store.handle("termin.zuruecklegen", ziel: z.uid, wert: ["start": .zahl(z.start), "ende": .zahl(z.ende)]) },
-                                bearbeiten: { steuerung.eingabe = $0; steuerung.fokussiere() })
+                                bearbeiten: { steuerung.eingabe = $0; steuerung.fokussiere() },
+                                vorschlag: { merken in
+                                    if merken, let v = stand?.todo_vorschlag { modell.store.handle("todo.anlegen", ziel: nil, wert: ["titel": .text(v.titel)].merging(v.bereich.map { ["bereich": .text($0)] } ?? [:]) { a, _ in a }) }
+                                    modell.store.handle("todo.vorschlag_weg", ziel: nil, wert: [:])
+                                })
                         .equatable()
                         .verlaufRein()
                     if let s = stand, !istSeneca {

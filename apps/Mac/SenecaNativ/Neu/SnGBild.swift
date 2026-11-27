@@ -21,6 +21,10 @@ struct SnGBild: View {
         case "g-lebenslauf": return lebenslauf
         case "g-anhaenge": return anhaenge
         case "g-verlauf": return verlauf
+        case "t-todo-03": return [AnyView(VStack(alignment: .trailing, spacing: 12) {
+            ZugView(zug: Zug(id: "u", start: .user(id: "u", text: "… und Power BI muss ich auch noch anmelden.", ts: ms(11, 20), pending: false)), neu: false, name: "Seneca", erneut: {})
+            SnTodoVorschlag(v: .init(titel: "In Power BI anmelden", bereich: "Vodafone", um: ms(11, 20)), antwort: { _ in })
+        })]
         case "z-konflikt": return [AnyView(VerlaufView.vermerk(.init(zeit: ms(15, 20), satz: "Schon erledigt am iPhone, 15:20.", unter: "Verschieben auf Freitag fällt weg.")))]
         case "g-ziehen": return [AnyView(SnZiehHinweis(satz: ChatAnhang.ziehSatz(["Bildschirmfoto 11.15.png", "Bildschirmfoto 11.16.png"], summe: 4_100_000, klein: 1_200_000)).frame(height: 520))]
         default: return karten

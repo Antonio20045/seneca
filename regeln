@@ -120,6 +120,7 @@ kopplung_fenster_min 10 app
 kopplung_anfragen_je_std 30
 kopplung_modell_zeichen 40
 uhr_lauf_schluessel_min 32
+todo_vorschlag_min 120 app
 ablage_pfad /home/ubuntu/Ablage
 ablage_alle_lesen _wissen
 arbeitsdateien_tage 7 vorschlag

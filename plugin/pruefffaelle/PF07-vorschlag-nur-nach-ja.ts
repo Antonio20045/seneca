@@ -102,3 +102,16 @@ test("PF07 Geparkte Aufträge: Ja auf den Sammel-Vorschlag nimmt alle auf, einze
   assert.deepEqual(geparkt.map((id) => hole(p.db, "auftrag", id).zustand), ["bereit", "bereit", "bereit"]);
   assert.equal(hole(p.db, "auftrag", v).zustand, "erledigt");
 });
+
+test("PF07 To-do aus dem Gespräch: Seneca fragt leise, legt nichts an; Merken legt an, Nein räumt weg", async () => {
+  const p = ladePlugin();
+  um("11:20");
+  await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "vorschlagen", felder: { titel: "In Power BI anmelden", bereich: "Vodafone" } });
+  const stand = () => p.methode("seneca.stand", { geraet: "mac" }) as { todo_vorschlag: { titel: string } | null; todos: unknown[] };
+  assert.equal(stand().todo_vorschlag?.titel, "In Power BI anmelden");
+  assert.equal(stand().todos.length, 0);
+  p.methode("seneca.handeln", { kennung: "v1", geraet: "mac", art: "todo.anlegen", wert: { titel: "In Power BI anmelden", bereich: "Vodafone" } });
+  p.methode("seneca.handeln", { kennung: "v2", geraet: "mac", art: "todo.vorschlag_weg" });
+  assert.equal(stand().todo_vorschlag, null);
+  assert.equal(stand().todos.length, 1);
+});

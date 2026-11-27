@@ -120,6 +120,7 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "eintrag.loeschen": eintrag(() => ({ zustand: "geloescht" })),
   "eintrag.wiederherstellen": eintrag(() => ({ zustand: "gueltig" })),
   "ziel.setzen": setze((h) => `ziel:${h.ziel}`),
+  "todo.vorschlag_weg": setze(() => "todo_vorschlag", () => 0),
   "termin.anlegen": (db, h) => {
     const w = h.wert as Wert;
     if (!w?.titel || !Number.isFinite(Number(w.start)) || !(Number(w.ende) > Number(w.start))) return "abgelehnt:termin_unvollstaendig";

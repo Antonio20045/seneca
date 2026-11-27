@@ -184,6 +184,8 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var koerper: Koerper?
     public var braucht_dich: [Frage]?
     public var eben_beantwortet: [Frage]?
+    public struct TodoVorschlag: Codable, Equatable, Sendable { public var titel: String; public var bereich: String?; public var um: Double }
+    public var todo_vorschlag: TodoVorschlag?
     public var buendel: Buendel?
     public var entscheiden: Entscheiden?
     public var projekte: Projekte?
