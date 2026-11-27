@@ -234,6 +234,7 @@ export function werkzeugProtokoll(db: Register, sitzung: string, werkzeug: strin
   if (!l || !AKTIV.includes(String(l.zustand))) return;
   const kurz = String(Object.values(params ?? {}).find((v) => typeof v === "string") ?? "").split("\n")[0];
   ereignis(db, { art: "lauf.werkzeug", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: kurz.slice(0, regelZahl("titel_zeichen")), daten: { werkzeug, ms: ms ?? null } });
+  laufSchritt(db, String(l.id), String(l.letzter_schritt ?? ""));
 }
 
 export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {

@@ -119,34 +119,37 @@ test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {
 const abbruch = async () => ({ code: 0, stderr: "" });
 const stupseNie = async () => false;
 
-test("PF12 Anstupsen: Folgezug im laufenden Lauf; ohne Schritt danach einmal neu, geht Steuern nicht, sofort neu", async () => {
+test("PF12 Anstupsen von selbst: still seit 30 min wird gestupst, ohne Schritt danach beendet und neu angesetzt, geht Steuern nicht, sofort; Werkzeuge zählen als Schritt", async () => {
   for (const geht of [true, false]) {
     const p = ladePlugin();
     um("09:00");
     const a = auftragVonAntonio(p.db, "Lange Recherche");
     spaeter(6000);
     await faelligeAuftraegeJob(p.db, p.starte);
-    const gestupst: string[] = [];
-    const stupse = async (sitzung: string, text: string) => (gestupst.push(`${sitzung}: ${text}`), geht);
-    um("09:40");
-    await laeufePruefenJob(p.db, stupse, abbruch);
-    const f = fragen(p.db, "offen").find((x) => x.von === "arbeitsdienst:haengt");
-    assert.ok(f);
-    frageBeantworten(p.db, { frage_id: String(f.id), antwort: "anstupsen", geraet: "iphone", kennung: `s-${geht}` });
-    spaeter(10000);
-    faelligeWirkungenJob(p.db);
-    await laeufePruefenJob(p.db, stupse, abbruch);
+    const sitzung = String(laeufe(p.db, a)[0].sitzung);
+    const gestupst: string[] = [], befehle: string[][] = [];
+    const stupse = async (s: string, text: string) => (gestupst.push(`${s}: ${text}`), geht);
+    const abbruchMerken = async (argv: string[]) => (befehle.push(argv), { code: 0, stderr: "" });
+    um("09:25");
+    p.haken("after_tool_call", { toolName: "exec", params: { command: "gh pr checks 1" }, toolCallId: `w-${geht}`, durationMs: 5 }, { sessionKey: sitzung });
+    um("09:45");
+    await laeufePruefenJob(p.db, stupse, abbruchMerken);
+    assert.deepEqual([gestupst.length, laeufe(p.db, a)[0].zustand], [0, "haengt"]);
+    um("09:56");
+    await laeufePruefenJob(p.db, stupse, abbruchMerken);
+    assert.equal(fragen(p.db, "offen").filter((x) => x.von === "arbeitsdienst:haengt").length, 0);
     assert.equal(gestupst.length, 1);
     assert.equal(laeufe(p.db, a)[0].zustand === "abgebrochen", !geht);
-    if (!geht) continue;
-    um("09:45");
-    await laeufePruefenJob(p.db, stupse, abbruch);
-    assert.notEqual(laeufe(p.db, a)[0].zustand, "abgebrochen");
-    assert.equal(fragen(p.db, "offen").filter((x) => x.von === "arbeitsdienst:haengt").length, 0);
-    um("09:52");
-    await laeufePruefenJob(p.db, stupse, abbruch);
-    assert.equal(laeufe(p.db, a)[0].zustand, "abgebrochen");
-    assert.equal(gestupst.length, 1);
+    if (geht) {
+      um("10:01");
+      await laeufePruefenJob(p.db, stupse, abbruchMerken);
+      assert.notEqual(laeufe(p.db, a)[0].zustand, "abgebrochen");
+      um("10:07");
+      await laeufePruefenJob(p.db, stupse, abbruchMerken);
+      assert.equal(gestupst.length, 1);
+    }
+    assert.deepEqual([laeufe(p.db, a)[0].zustand, hole(p.db, "auftrag", a).zustand], ["abgebrochen", "bereit"]);
+    assert.deepEqual(befehle.map((b) => [b[3], JSON.parse(b[6]).sessionKey]), [["chat.abort", sitzung]]);
   }
 });
 

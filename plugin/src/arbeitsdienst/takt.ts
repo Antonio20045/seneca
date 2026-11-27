@@ -10,6 +10,7 @@ export function takt(db: Register, jobs: Job[]) {
   const stand = new Map<string, Stand>(jobs.map((j) => [j.job, { faellig: 0, versuch: 0 }]));
   let wecker: ReturnType<typeof setTimeout> | undefined;
   let aktiv = false;
+  let letzteRunde: Promise<number> = Promise.resolve(0);
 
   async function einmal(j: Job, s: Stand): Promise<void> {
     s.laeuftSeit = uhr.jetzt();
@@ -35,18 +36,17 @@ export function takt(db: Register, jobs: Job[]) {
       const s = stand.get(j.job) as Stand;
       return s.laeuftSeit === undefined && s.faellig <= t;
     }).map((j) => einmal(j, stand.get(j.job) as Stand));
-    const grenze = new Promise<void>((fertig) => {
-      wecker = setTimeout(fertig, regelMs("takt_job_haengt_s"));
-    });
-    await Promise.race([Promise.all(offen), grenze]);
-    clearTimeout(wecker);
+    let halt: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.all(offen), new Promise<void>((fertig) => { halt = setTimeout(fertig, regelMs("takt_job_haengt_s")); })]);
+    clearTimeout(halt);
     const wuensche = [...stand.values()].flatMap((s) => [s.wunsch ?? Infinity, s.versuch ? s.faellig : Infinity]);
     return Math.min(t + regelMs("takt_s"), ...wuensche);
   }
 
   async function schleife(): Promise<void> {
-    const naechste = await runde();
-    if (aktiv) wecker = setTimeout(schleife, Math.max(0, naechste - uhr.jetzt()));
+    letzteRunde = runde().catch(() => uhr.jetzt() + regelMs("takt_s"));
+    const naechste = await letzteRunde;
+    if (aktiv) wecker = setTimeout(() => void schleife(), Math.max(0, naechste - uhr.jetzt()));
   }
 
   return {
@@ -55,9 +55,10 @@ export function takt(db: Register, jobs: Job[]) {
       aktiv = true;
       void schleife();
     },
-    stopp(): void {
+    async stopp(): Promise<void> {
       aktiv = false;
       clearTimeout(wecker);
+      await letzteRunde;
     },
   };
 }

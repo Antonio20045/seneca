@@ -21,7 +21,7 @@ lauf_wiederholen_start_min 1
 lauf_wiederholen_max_h 1
 start_nachfassen_h 24
 haengt_leise_min 10
-haengt_frage_min 30
+haengt_stupsen_min 30
 gespraech_haengt_hinweis_min 2 app
 gespraech_haengt_stopp_min 10 app
 meeting_erkennen_s 20 app

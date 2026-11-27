@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import { anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung } from "../register/schreiben.ts";
@@ -105,9 +105,15 @@ export function faelligeWirkungenJob(db: Register): number | undefined {
   return naechsteFaelligkeit(db);
 }
 
-function neuStarten(db: Register, l: Zeile, grund: string): void {
-  const a = hole(db, "auftrag", String(l.auftrag_id));
+async function abbrechen(db: Register, l: Zeile, befehl: Befehl): Promise<void> {
+  const r = await befehl([regelText("openclaw_befehl"), "gateway", "call", "chat.abort", "--json", "--params", JSON.stringify({ sessionKey: l.sitzung })], regelMs("takt_job_haengt_s"));
+  if (r.code !== 0) ereignis(db, { art: "lauf.abbruch_offen", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: r.stderr.slice(0, 200) });
+}
+
+async function neuStarten(db: Register, l: Zeile, grund: string, befehl: Befehl): Promise<void> {
   laufEnde(db, String(l.id), "abgebrochen", { grund });
+  await abbrechen(db, l, befehl);
+  const a = hole(db, "auftrag", String(l.auftrag_id));
   if (a.zustand === "laeuft") zurueckMitWartezeit(db, a, "wiederaufnahme");
 }
 
@@ -119,29 +125,18 @@ export async function laeufePruefenJob(db: Register, stupse: Stupser, befehl: Be
     const still = jetzt - Number(l.letzter_schritt_um), auftragId = String(l.auftrag_id), aus = String(hole(db, "auftrag", auftragId).zustand);
     if (aus === "verworfen" || aus === "geparkt") {
       laufEnde(db, String(l.id), "abgebrochen", { grund: `Auftrag ${aus}` });
-      const r = await befehl([regelText("openclaw_befehl"), "gateway", "call", "chat.abort", "--json", "--params", JSON.stringify({ sessionKey: l.sitzung })], regelMs("takt_job_haengt_s"));
-      if (r.code !== 0) ereignis(db, { art: "lauf.abbruch_offen", lauf_id: String(l.id), auftrag_id: auftragId, satz: r.stderr.slice(0, 200) });
-      continue;
-    }
-    const stups = wert(db, `anstupsen:${l.id}`);
-    if (stups?.wert === "offen") {
-      const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);
-      if (ok) wertSetzen(db, `anstupsen:${l.id}`, "gestupst", "arbeitsdienst", jetzt + regelMs("haengt_leise_min"));
-      else neuStarten(db, l, "angestupst, startet neu");
-      continue;
-    }
-    if (stups?.wert === "gestupst" && Number(stups.gueltig_bis) <= jetzt && Number(l.letzter_schritt_um) < Number(stups.gueltig_bis) - regelMs("haengt_leise_min")) {
-      neuStarten(db, l, "angestupst, keine Antwort, startet neu");
+      await abbrechen(db, l, befehl);
       continue;
     }
     if (l.zustand === "laeuft" && still > regelMs("haengt_leise_min")) uebergang(db, "lauf", String(l.id), "haengt", "kein Schritt");
-    if (still > regelMs("haengt_frage_min") && !offeneFrage(db, auftragId) && !stups) {
-      frageStellen(db, {
-        auftrag_id: auftragId, von: "arbeitsdienst:haengt", art: "auswahl", text: `${l.mitarbeiter} hängt seit ${new Date(Number(l.letzter_schritt_um)).toTimeString().slice(0, 5)}. Was tun?`,
-        was_passiert_ist: `Letzter Schritt: ${l.letzter_schritt ?? "keiner"}.`, wenn_nichts: "Der Lauf hängt weiter.", empfehlung: "Anstupsen",
-        optionen: [{ wert: "anstupsen", text: "Anstupsen", folge: "Seneca fragt den Lauf, wo er hängt; ohne Antwort startet er neu." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
-      });
+    const stups = wert(db, `anstupsen:${l.id}`);
+    if (stups?.wert === "offen" || (!stups && still > regelMs("haengt_stupsen_min"))) {
+      const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);
+      if (ok) wertSetzen(db, `anstupsen:${l.id}`, "gestupst", "arbeitsdienst", jetzt + regelMs("haengt_leise_min"));
+      else await neuStarten(db, l, "angestupst, startet neu", befehl);
+      continue;
     }
+    if (stups?.wert === "gestupst" && Number(stups.gueltig_bis) <= jetzt && Number(l.letzter_schritt_um) < Number(stups.gueltig_bis) - regelMs("haengt_leise_min")) await neuStarten(db, l, "angestupst, keine Antwort, startet neu", befehl);
   }
 }
 

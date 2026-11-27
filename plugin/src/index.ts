@@ -260,8 +260,8 @@ export default {
         unklarePruefen(db);
         dienst.start();
       },
-      stop() {
-        dienst.stopp();
+      async stop() {
+        await dienst.stopp();
         db.close();
       },
     });
