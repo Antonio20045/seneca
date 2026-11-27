@@ -515,6 +515,8 @@ final class DiktatDienst: ObservableObject {
     }
 
     #if DEBUG
+    var blasenPruefung: [String: Any]? { blase.pruefung }
+
     func blasenProbe(_ art: String) {
         guard MacPfade.profil != .echt || HeuteBild.ziel != nil || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
         wacheAus = true

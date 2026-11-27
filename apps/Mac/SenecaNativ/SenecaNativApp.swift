@@ -193,6 +193,9 @@ struct SenecaNativApp: App {
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] != nil {
             Task { await MenueProbe.laufe(dienste: modell.dienste) }
         }
+        if let datei = DiktatSicht.datei {
+            Task { await DiktatSicht.laufe(diktat, datei: datei) }
+        }
         if let art = ProcessInfo.processInfo.environment["SENECA_DIKTAT_BLASE"] {
             Task { try? await Task.sleep(for: .seconds(1.5)); diktat.blasenProbe(art) }
         }

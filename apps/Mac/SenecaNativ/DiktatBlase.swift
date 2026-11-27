@@ -152,6 +152,13 @@ struct DiktatHorizont: View {
             return p
         }
         let waagrecht = { (stops: [Gradient.Stop]) in GraphicsContext.Shading.linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: x0, y: 0), endPoint: CGPoint(x: x1, y: 0)) }
+        var d = g
+        d.addFilter(.blur(radius: 2.5))
+        let unter = (0...32).map { i -> Gradient.Stop in
+            let u = Double(i) / 32
+            return .init(color: .black.opacity(0.4 * sicht * min(1, u / 0.18, (1 - u) / 0.18)), location: u)
+        }
+        d.stroke(welle(0, 1), with: waagrecht(unter), lineWidth: 4)
         for k in [2, 1, 0] {
             let anteil = k == 0 ? 1 : nebenAlpha
             if anteil < 0.01 { continue }
@@ -236,6 +243,7 @@ final class DiktatBlase {
     private var beendetHinweis = false
     private var hindernisse: [CGRect] = []
     private var schirm: NSScreen?
+    private var wechselAbo: AnyCancellable?
 
     func zeige(dienst: DiktatDienst) {
         guard panel == nil else { return }
@@ -258,6 +266,9 @@ final class DiktatBlase {
         p.alphaValue = 0
         panel = p
         host = h
+        let ws = NSWorkspace.shared.notificationCenter
+        wechselAbo = Publishers.Merge(ws.publisher(for: NSWorkspace.activeSpaceDidChangeNotification), ws.publisher(for: NSWorkspace.didActivateApplicationNotification))
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.nachziehen() } }
         abo = Publishers.CombineLatest(dienst.$zustand, dienst.$beendetHinweis).removeDuplicates { $0 == $1 }
             .sink { [weak self] z, hinweis in
                 DispatchQueue.main.async { MainActor.assumeIsolated { self?.aktualisiere(z, beendetHinweis: hinweis) } }
@@ -320,8 +331,12 @@ final class DiktatBlase {
 
     private func stoppeTakt() { takt?.invalidate(); takt = nil }
 
+    private func nachziehen() {
+        if sichtbarLaut, let p = panel, p.alphaValue > 0, !(p.isVisible && p.isOnActiveSpace) { p.orderFrontRegardless() }
+    }
+
     private func messe() {
-        if sichtbarLaut, let p = panel, p.alphaValue > 0, !p.isVisible { p.orderFrontRegardless() }
+        nachziehen()
         guard !messt, zustand != .ruht else { return }
         messt = true
         let hoehe = NSScreen.screens.first?.frame.height ?? 900
@@ -377,6 +392,50 @@ final class DiktatBlase {
 }
 
 #if DEBUG
+extension DiktatBlase {
+    var pruefung: [String: Any]? {
+        panel.map { p in
+            let r = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
+            let w = r?.first { ($0[kCGWindowNumber as String] as? Int) == p.windowNumber }
+            return ["ebene": p.level.rawValue, "verhalten": p.collectionBehavior.rawValue,
+                    "stil": p.styleMask.rawValue, "nichtAktivierend": p.styleMask.contains(.nonactivatingPanel), "schwebend": p.isFloatingPanel,
+                    "klicksDurch": p.ignoresMouseEvents, "kannSchluessel": p.canBecomeKey, "kannHaupt": p.canBecomeMain,
+                    "sichtbar": p.isVisible, "alpha": Double(p.alphaValue), "aufAktivemSchreibtisch": p.isOnActiveSpace,
+                    "rahmen": NSStringFromRect(p.frame), "fensterserverSichtbar": (w?[kCGWindowIsOnscreen as String] as? Bool) ?? false,
+                    "fensterserverEbene": (w?[kCGWindowLayer as String] as? Int) ?? -1]
+        }
+    }
+}
+
+enum DiktatSicht {
+    nonisolated static var datei: String? { ProcessInfo.processInfo.environment["SENECA_DIKTAT_SICHT"].flatMap { $0.isEmpty ? nil : $0 } }
+
+    @MainActor static func laufe(_ dienst: DiktatDienst, datei: String) async {
+        NSApp.setActivationPolicy(.regular)
+        try? await Task.sleep(for: .seconds(2))
+        var zeilen: [[String: Any]] = []
+        let schirm = NSScreen.screens.first?.frame ?? .zero
+        for art in ["hoert", "erkennt", "eingefuegt", "startfehler", "beendet"] {
+            dienst.blasenProbe(art)
+            try? await Task.sleep(for: .seconds(1.3))
+            var z = dienst.blasenPruefung ?? [:]
+            let vorn = NSWorkspace.shared.frontmostApplication
+            let fenster = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+                .filter { ($0[kCGWindowOwnerPID as String] as? Int32) == vorn?.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 }
+            let b = fenster.compactMap { ($0[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) } }.max { $0.height < $1.height }
+            z["phase"] = art
+            z["vorn"] = vorn?.bundleIdentifier ?? "?"
+            z["senecaVorn"] = NSApp.isActive
+            z["vornVollbild"] = b.map { $0.width >= schirm.width && $0.maxY >= schirm.height } ?? false
+            z["entscheidung"] = DiktatWache.blaseSichtbar(phase: DiktatDienst.phase(dienst.zustand), zeigtBeendetHinweis: dienst.beendetHinweis)
+            zeilen.append(z)
+        }
+        let daten = try? JSONSerialization.data(withJSONObject: zeilen, options: [.sortedKeys, .prettyPrinted])
+        try? daten?.write(to: URL(fileURLWithPath: datei))
+        exit(0)
+    }
+}
+
 enum DiktatFilm {
     nonisolated static var ordner: String? { ProcessInfo.processInfo.environment["SENECA_DIKTAT_FILM"].flatMap { $0.isEmpty ? nil : $0 } }
 
