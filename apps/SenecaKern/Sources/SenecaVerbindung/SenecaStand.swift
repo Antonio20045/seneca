@@ -172,6 +172,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var kalender: Kalender?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
+    public var wartet: String?
 }
 
 public struct Verstanden: Codable, Equatable, Sendable {

@@ -75,8 +75,6 @@ extension FadenLayer {
     }
 
     func gewaehlt(_ p: ChatPartner, _ proxy: ScrollViewProxy) {
-        wechselOffen = false
-        AgentenWahl.merke(p.id)
         if partner == p {
             Bewegung.mit(.blatt) { proxy.scrollTo("ende", anchor: .bottom) }
             Task { await chat.refreshFill(p) }
@@ -96,12 +94,3 @@ extension FadenLayer {
     }
 }
 
-extension View {
-    func gegenueberWahl(offen: Binding<Bool>, partner: ChatPartner, chat: ChatService,
-                        waehle: @escaping (ChatPartner) -> Void) -> some View {
-        senecaBlatt(isPresented: offen, groesse: .halb, titel: "Mit wem sprechen?") {
-            GegenueberBlatt(alle: GespraechsPartner.alle, aktiv: partner, neu: chat.neu,
-                            zuletzt: { chat.faden($0).messages.last?.date }, waehle: waehle)
-        }
-    }
-}
