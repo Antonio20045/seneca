@@ -4,7 +4,7 @@ import { faelligeAuftraegeJob, faelligeWirkungenJob } from "../src/arbeitsdienst
 import { uhrStand } from "../src/pforte/stand.ts";
 import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { eingangJob } from "../src/quellen/eingang.ts";
-import { auftraege, ereignisse, fragen, hole, laeufe, offeneFrage, todos, uhr, wert } from "../src/register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, kalenderTag, laeufe, offeneFrage, todos, uhr, wert } from "../src/register/lesen.ts";
 import { frageBeantworten, vorschlagAnlegen, wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, ladePlugin, spaeter, um } from "./aufbau.ts";
 
@@ -114,4 +114,28 @@ test("PF07 To-do aus dem Gespräch: Seneca fragt leise, legt nichts an; Merken l
   p.methode("seneca.handeln", { kennung: "v2", geraet: "mac", art: "todo.vorschlag_weg" });
   assert.equal(stand().todo_vorschlag, null);
   assert.equal(stand().todos.length, 1);
+});
+
+test("PF07 Meeting im Kalender wird erkannt, Angebot wird erst mit Klick ein Auftrag, zweimal klicken gibt einen", () => {
+  const p = ladePlugin();
+  const t = um("09:00");
+  const tag = (titel: string, h: number, mehr: object = {}) => ({ uid: `u${h}`, start: t + h * 3600000, ende: t + (h + 1) * 3600000, titel, teilnehmer: [], namen: [], ganztag: false, ...mehr });
+  wertSetzen(p.db, kalenderTag(t), JSON.stringify([tag("Call mit Nora", 2, { teilnehmer: ["nora@x.de"], namen: ["Nora"], notiz: "Agenda anbei" }), tag("Abendessen mit Eltern", 3), tag("Zahnarzt", 4), tag("Review", 5, { ort: "https://zoom.us/j/1" }), tag("Fokus", 6)]), "kalender");
+  const termine = () => (p.methode("seneca.stand", { geraet: "mac" }) as { termine: { titel: string; meeting: { grund: string; phase: string; du: unknown[]; seneca: { quelle: string; genommen: boolean; text: string }[] } | null }[] }).termine;
+  assert.deepEqual(termine().map((x) => x.meeting?.grund ?? null), ["Teilnehmer", null, null, "Videolink", null]);
+  const nora = termine()[0].meeting!;
+  assert.equal(nora.du.length, 2);
+  assert.equal(nora.seneca[0].text, "Hintergrund zu Nora recherchieren");
+  const vorher = auftraege(p.db, ["bereit"]).length;
+  const klick = (k: string) => p.methode("seneca.handeln", { kennung: k, geraet: "mac", art: "auftrag.anlegen", ziel: "u2", wert: { text: nora.seneca[0].text, wer: "recherche", arbeitsart: "recherche", bereich: "Sundartha", quelle: nora.seneca[0].quelle } });
+  klick("a");
+  klick("b");
+  const neu = auftraege(p.db, ["bereit"]).filter((a) => a.wortlaut_quelle === nora.seneca[0].quelle);
+  assert.equal(neu.length, 1);
+  assert.equal(auftraege(p.db, ["bereit"]).length, vorher + 1);
+  assert.equal(neu[0].arbeitsart, "recherche");
+  assert.equal(termine()[0].meeting!.seneca[0].genommen, true);
+  um("12:00");
+  assert.equal(termine()[0].meeting!.phase, "danach");
+  assert.equal(termine()[0].meeting!.seneca[0].text, "Nachfass-Entwurf zu „Call mit Nora“ schreiben");
 });

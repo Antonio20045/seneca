@@ -1,4 +1,4 @@
-import { hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
+import { auftraege, hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
   anzeigeEntfernen, anzeigeGesehen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
@@ -137,10 +137,11 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   "eingang.datei": (db, h) => eingang(db, h, "teilen"),
   "eingang.meeting": (db, h) => eingang(db, h, "meeting"),
   "auftrag.anlegen": (db, h) => {
-    const w = (h.wert ?? {}) as Wert, text = String(w.text ?? "");
-    auftragAnlegen(db, { art: "auftrag", wortlaut: text, wortlaut_quelle: h.kennung, titel: text.slice(0, 60), ziel: "Ergebnis mit Beleg", abnahme: "Beleg liegt vor",
+    const w = (h.wert ?? {}) as Wert, text = String(w.text ?? ""), quelle = String(w.quelle || h.kennung);
+    if (auftraege(db, ["bereit", "laeuft", "wartet", "erledigt"]).some((a) => a.wortlaut_quelle === quelle)) return "angenommen";
+    auftragAnlegen(db, { art: "auftrag", wortlaut: text, wortlaut_quelle: quelle, titel: text.slice(0, 60), ziel: "Ergebnis mit Beleg", abnahme: "Beleg liegt vor",
       abnahme_durch: "antonio", pruefer_noetig: false, verantwortlich: String(w.wer), auftraggeber: "antonio", quelle: "meeting", bereich: String(w.bereich || "Seneca"),
-      arbeitsart: w.wer === "pruefer" ? "pruefen" : "bauen", nachricht: { kennung: h.kennung, text } });
+      arbeitsart: String(w.arbeitsart || (w.wer === "pruefer" ? "pruefen" : "bauen")), nachricht: { kennung: h.kennung, text } });
     return "angenommen";
   },
   "eingang.sensor": (db, h) => eingang(db, h, "sensor"),

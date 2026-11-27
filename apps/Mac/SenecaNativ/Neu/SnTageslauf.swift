@@ -75,6 +75,8 @@ enum HeuteBild {
                                      neu: art == "start-wieder" ? Set((s.team ?? []).filter { $0.name == "Prüfer" }.map(SnHeuteTafel.kennung)) : [], laeuft: false).opacity(art == "start-antwortet-nicht" ? 0.55 : 1)
                         SnGeruestBild(stand: s)
                         SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
+                    case "meeting-ansicht":
+                        SnMeetingAnsicht(termin: (s.termine ?? []).first { $0.titel == "Telefonat Jonas" }!, todos: s.todos ?? [], zurueck: {}, notiere: { SnHeuteMass.notiert.append($0) }, uebernimm: { SnHeuteMass.notiert.append("auftrag:" + $0.quelle) })
                     case "meeting-ergebnis":
                         SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Ablage/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
                                           todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })
@@ -102,6 +104,7 @@ enum HeuteBild {
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
             if let ablauf = env["SENECA_STAT_ABLAUF"] { await SnStatistikProbe.ablauf(host, ablauf) }
             if let ablauf = env["SENECA_HEUTE_ABLAUF"] { await SnBedienProbe.heute(host, ablauf) }
+            if let ablauf = env["SENECA_MEETING_ABLAUF"] { await SnBedienProbe.meeting(host, ablauf) }
             if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()

@@ -218,3 +218,9 @@ stat_balken_km 12
 stat_balken_min 72
 stat_balken_saetze 16
 mitarbeiter_nachzug_s 120
+meeting_worte call,meeting,zoom,teams,besprechung,telefonat,jour\sfixe,abstimmung,sync,standup
+meeting_link zoom\.us|teams\.microsoft|teams\.live|meet\.google|webex|whereby|gotomeeting|facetime\.apple
+meeting_teilnehmer_min 1
+meeting_nachher_h 24
+meeting_recherche_von recherche
+meeting_zeichen 140

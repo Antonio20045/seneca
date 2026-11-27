@@ -103,8 +103,15 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var weg: String?
         public var ankunft: Double?; public var weg_min: Double?
         public var kalender: String?; public var kalender_quelle: String?; public var bereich: String?; public var mit: [String]?; public var entfernung_m: Double?
-        public var notiz: Notiz?; public var bescheid: String?
+        public var notiz: Notiz?; public var bescheid: String?; public var meeting: Meeting?
         public var id: String { uid }
+    }
+    public struct Meeting: Codable, Equatable, Sendable {
+        public struct Du: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String }
+        public struct Angebot: Codable, Equatable, Sendable, Identifiable {
+            public var id: String; public var text: String; public var wer: String; public var arbeitsart: String; public var bereich: String; public var quelle: String; public var genommen: Bool
+        }
+        public var grund: String; public var phase: String; public var du: [Du]; public var seneca: [Angebot]
     }
     public struct TerminDetail: Codable, Equatable, Sendable {
         public var datum: String; public var ort: String?; public var mit: String?; public var kalender: String?; public var notiz: String?
