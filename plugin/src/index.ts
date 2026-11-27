@@ -7,7 +7,7 @@ import { Type, type TSchema } from "typebox";
 import { knotenJob } from "./arbeitsdienst/rechenknoten.ts";
 import type { Starter } from "./arbeitsdienst/lauf.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, kalenderWacheJob, laeufePruefenJob, nachNeustart, pflegenJob } from "./arbeitsdienst/jobs.ts";
-import { agentEnde, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
+import { agentEnde, fragenZurueckziehen, kontext, merkeNachricht, nachrichtVon, werkzeugAntwort, werkzeugAuftrag, werkzeugFortschreiben, type AuftragEingabe, type Fortschreibung } from "./arbeitsdienst/lauf.ts";
 import { takt } from "./arbeitsdienst/takt.ts";
 import { lesenWerkzeug, stand, uhrStand } from "./pforte/stand.ts";
 import { planenJob } from "./pforte/planen.ts";
@@ -26,7 +26,7 @@ import { handeln } from "./zugang/handeln.ts";
 import { eintraegeSeit, revision, uhr } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
 import { buch, jahr, lauf, monat, tag, uebung, woche } from "./quellen/statistik.ts";
-import { anzeigeSetzen, eintragSetzen, frageStellen, fragenZurueckziehen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
+import { anzeigeSetzen, eintragSetzen, frageStellen, todoSetzen, wertSetzen, type NeueFrage, type TodoAktion } from "./register/schreiben.ts";
 import { regelMs, regelZahl } from "./regeln.ts";
 
 type Kontext = { sitzung: string; agent: string };

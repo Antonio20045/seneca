@@ -389,9 +389,3 @@ export function korrekturZuruecknehmen(db: Register, nr: number): string {
     return "angenommen";
   });
 }
-
-export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {
-  if (hole(db, "frage", id).von !== von) throw new Error("Nur wer fragt, zieht die Frage zurück.");
-  uebergang(db, "frage", id, "zurueckgezogen", "von", { grund: satz });
-  return { zustand: "zurueckgezogen" };
-}

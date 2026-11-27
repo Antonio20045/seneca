@@ -205,6 +205,12 @@ export function werkzeugAntwort(db: Register, sitzung: string, frageId: string, 
   return frageBeantworten(db, { frage_id: frageId, antwort, geraet: "gespraech", kennung, nachricht_kennung: kennung });
 }
 
+export function fragenZurueckziehen(db: Register, id: string, von: string, satz: string): { zustand: string } {
+  if (hole(db, "frage", id).von !== von) throw new Error("Nur wer fragt, zieht die Frage zurück.");
+  uebergang(db, "frage", id, "zurueckgezogen", "von", { grund: satz });
+  return { zustand: "zurueckgezogen" };
+}
+
 export type Fortschreibung = {
   letzter_stand: string; naechster_schritt: string; ergebnis: "weiter" | "wartet" | "fertig"; beleg?: string; wartet_auf?: string; folge?: string;
   nachfass_um?: number; schritt_nr?: number; schritt_gesamt?: number; befunde?: string[]; stufe?: "hoch"; abnahme_art?: string; hoerprobe_s?: number; abnahme?: Record<string, unknown>;
