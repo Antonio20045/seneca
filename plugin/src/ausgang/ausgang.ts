@@ -13,7 +13,7 @@ type Urteil = { block: true; blockReason: string } | undefined;
 
 const STRENGE = ["frei", "kurz_fragen", "ausfuehrlich"];
 const WORT: Record<string, string> = { anruf: "Anruf", live: "Live schalten", gateway: "Gateway-Neustart" };
-const gestartet = new Map<string, string>();
+const gestartet = new Map<string, { schluessel: string; sitzung: string; daten: Daten }>();
 
 function trifft(eintrag: string, a: Aufruf): boolean {
   const trenner = eintrag.indexOf("~");
@@ -68,9 +68,9 @@ function freigabeGilt(db: Register, schluessel: string): "ja" | "wartet" | "nein
   return f.antwort === "ja" && wirkt ? "ja" : f.antwort === "ja" ? "wartet" : "nein";
 }
 
-function starten(db: Register, a: Aufruf, schluessel: string, daten: object): Urteil {
+function starten(db: Register, a: Aufruf, schluessel: string, daten: Daten): Urteil {
   if (!ereignis(db, { art: "ausgang.gestartet", schluessel, daten }, true)) return { block: true, blockReason: "Schon ausgeführt. Nichts geht doppelt hinaus." };
-  if (a.aufrufId) gestartet.set(a.aufrufId, schluessel);
+  if (a.aufrufId) gestartet.set(a.aufrufId, { schluessel, sitzung: a.sitzung, daten });
   return undefined;
 }
 
@@ -136,10 +136,14 @@ export function pruefeAufruf(db: Register, a: Aufruf, n?: Nachricht): Urteil {
 }
 
 export function nachWerkzeug(db: Register, aufrufId: string | undefined, fehler?: string): void {
-  const schluessel = aufrufId ? gestartet.get(aufrufId) : undefined;
-  if (!schluessel || !aufrufId) return;
+  const g = aufrufId ? gestartet.get(aufrufId) : undefined;
+  if (!g || !aufrufId) return;
   gestartet.delete(aufrufId);
-  ereignis(db, { art: "ausgang.ergebnis", schluessel, daten: { ergebnis: fehler ? "fehlgeschlagen" : "ok", rueckmeldung: fehler ?? null } });
+  ereignis(db, { art: "ausgang.ergebnis", schluessel: g.schluessel, daten: { ergebnis: fehler ? "fehlgeschlagen" : "ok", rueckmeldung: fehler ?? null } });
+  for (const e of fehler || g.daten.kanal !== "nachricht" ? [] : g.daten.empfaenger) {
+    const name = wert(db, `name:${e}`)?.wert ?? e;
+    ereignis(db, { art: "quittung", schluessel: g.sitzung, daten: { teil: `Nachricht an ${name}`, name, raus: true } });
+  }
 }
 
 export function unklarePruefen(db: Register): void {

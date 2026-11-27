@@ -19,7 +19,7 @@ enum GespraecheTafelLogik {
         switch m.zustand {
         case "arbeitet", "hängt":
             return (.arbeitet, [Zeile(text: (m.satz ?? "arbeitet") + (n > 0 ? " · " : ""))] + (n > 0 ? [Zeile(text: anzahl(n), hervor: true)] : []))
-        case "ruht": return (.ruht, [Zeile(text: "ruht")])
+        case "ruht": return (.ruht, [Zeile(text: m.ruht_seit.map { VerlaufLogik.ruhtSeit($0, jetzt: s.jetzt) } ?? "ruht")])
         default:
             if n > 0 { return (.wartet, [Zeile(text: "wartet auf dich · \(anzahl(n))", hervor: true)]) }
             if let z = m.zuletzt, let satz = z.satz { return (.fertig, [Zeile(text: "fertig · \(satz)" + (z.um.map { " · \(HeuteTafelLogik.uhr($0))" } ?? ""))]) }

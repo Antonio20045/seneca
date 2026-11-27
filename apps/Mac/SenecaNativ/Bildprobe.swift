@@ -94,8 +94,6 @@ enum Bildprobe {
                 switch env["SENECA_BILD_SEITE"] ?? "projekte" {
                 case "board":
                     inhalt = AnyView(ScrollView { SnBoard(liste: liste, jetzt: jetzt, eingangOffenZuBeginn: offen == "eingang").padding(.horizontal, 60).padding(.top, 60) })
-                case "chat":
-                    inhalt = chatAnsicht(liste: liste, aufgaben: aufgaben, jetzt: jetzt, env: env)
                 case "heute":
                     inhalt = AnyView(HeuteTafelLogik.beispiel().map { SnHeuteTafel(stand: $0, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}) })
                 case "aufgabe":
@@ -122,31 +120,6 @@ enum Bildprobe {
         }
         app.run()
         exit(0)
-    }
-
-    static func chatAnsicht(liste: ArbeitsListe?, aufgaben: AufgabenListe?, jetzt: Date, env: [String: String]) -> AnyView {
-            let agent = env["SENECA_BILD_AGENT"].flatMap { $0.isEmpty ? nil : $0 } ?? Hauptagent.id
-            let zeilen: [[String: Any]] = (env["SENECA_BILD_SPEICHER"].flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }
-                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["zeilen"] as? [[String: Any]]) ?? []
-            let alle = ChatSpeicherLogik.bloecke(zeilen)
-            let q = Quittungen.zuordnen(nachrichten: Quittungen.nachrichten(alle), karten: liste?.auftragskarten ?? [], agent: agent, jetzt: jetzt)
-            let n = Int(env["SENECA_BILD_ZUEGE"] ?? "") ?? 2
-            let ende = (alle.lastIndex { if case .zug(let z) = $0 { return !(q[z.id] ?? []).isEmpty }; return false } ?? alle.count - 1) + 1
-            let sicht = alle[max(0, ende - n)..<ende]
-            let laeuft = aufgaben?.laeuftGerade(fuer: agent) ?? []
-            return AnyView(HStack(alignment: .top, spacing: 56) {
-                SnLaeuftGerade(aufgaben: laeuft, jetzt: jetzt).frame(width: 300)
-                VStack(alignment: .leading, spacing: 22) {
-                    ForEach(Array(sicht)) { b in
-                        if case .zug(var z) = b {
-                            let _ = { z.antwort = nil; z.schritte = [] }()
-                            ZugView(zug: z, status: nil, lauf: nil, frisch: nil, zustand: nil, neu: false, name: "Seneca", gross: false, nurAntwort: true,
-                                    quittungen: q[z.id] ?? [], erneut: {})
-                        }
-                    }
-                }
-                .frame(width: 720, alignment: .leading)
-            }.padding(.top, 60).frame(maxWidth: .infinity, alignment: .top))
     }
 
     static func schreibe(_ seite: some View, breite: Double, hoehe: Double) async {
@@ -179,7 +152,6 @@ struct MessSeite: View {
             if !art.hasSuffix("-ohnegrund") { SnGrund(fortschritt: 0) }
             switch art.replacingOccurrences(of: "-ohnegrund", with: "") {
             case "board": ScrollView { SnBoard(liste: halter.liste, jetzt: jetzt).padding(.horizontal, 60).padding(.top, 60) }
-            case "chat": Bildprobe.chatAnsicht(liste: halter.liste, aufgaben: halter.aufgaben, jetzt: jetzt, env: env)
             case "aufgaben-voll": ScrollView { SnAufgabenVoll(liste: halter.aufgaben, jetzt: jetzt, agentenOffenZuBeginn: true, zuletztOffenZuBeginn: true).padding(.horizontal, 60).padding(.top, 60) }
             default: if let s = HeuteTafelLogik.beispiel() { SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, zuDenFragen: {}, zurArbeit: {}) }
             }

@@ -62,7 +62,6 @@ enum Hintergrund {
         guard aktiv, let d = UserDefaults(suiteName: "sn-hintergrund-\(ProcessInfo.processInfo.processIdentifier)") else { return .standard }
         let echt = UserDefaults.standard
         if let z = ProcessInfo.processInfo.environment["SENECA_HINTERGRUND_ZIEL"] ?? echt.string(forKey: GegenueberModell.zielKey) { d.set(z, forKey: GegenueberModell.zielKey) }
-        if ProcessInfo.processInfo.environment["SENECA_HINTERGRUND_ALLES"] == "1" { d.set(false, forKey: NurUnterhaltung.schluessel) }
         return d
     }
 }

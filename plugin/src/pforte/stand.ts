@@ -3,6 +3,7 @@ import { istFokus } from "./planen.ts";
 import { buendelText, heute, koerper, projektVon, restMin } from "./heute.ts";
 import { projekte } from "./projekte.ts";
 import { weg, wochenplan } from "./wochenplan.ts";
+import { verlauf } from "./verlauf.ts";
 import { buendelFortschritt, entscheiden, fensterStart, istSport, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
 import { letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
@@ -60,8 +61,14 @@ function frageSicht(db: Register, f: Zeile) {
     id: f.id, text: f.text, von: anzeigeName(String(f.von)), projekt: projektVon(db, f.auftrag_id), seit: f.gestellt, art: f.art, wirkung_aussen: f.wirkung_aussen, ...optionenSicht(f),
     empfehlung: f.empfehlung, kontext: { worum: f.was_passiert_ist, wenn_nicht: f.wenn_nichts }, frist: f.frist, wirkt_ab: f.wirkt_ab,
     zustellung: ereignisse(db, { art: "zustellung", frage_id: String(f.id) }).map((e) => ({ geraet: e.geraet, zeit: e.zeit, ...JSON.parse(String(e.daten)) })),
-    antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null,
+    antwort: f.antwort ? { wahl: f.antwort, geraet: f.antwort_geraet, zeit: f.antwort_um } : null, ...bericht(db, String(f.auftrag_id)),
   };
+}
+
+function bericht(db: Register, auftrag: string) {
+  const f = JSON.parse(String(ereignisse(db, { art: "fortschreibung", auftrag_id: auftrag, grenze: 1 })[0]?.daten ?? "{}"));
+  const n = ereignisse(db, { art: "lauf.schritt", auftrag_id: auftrag }).length;
+  return { checkliste: f.checkliste ?? null, bericht: f.letzter_stand ? { satz: [`${n} Schritte`, f.bericht].filter(Boolean).join(" · "), text: f.letzter_stand, beleg: f.beleg ?? null } : null };
 }
 
 function team(db: Register, jetzt: number) {
@@ -74,7 +81,8 @@ function team(db: Register, jetzt: number) {
     const zuletzt = l ? undefined : beendeteLaeufe(db, name, tagBeginn)[0];
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null };
+      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null,
+      ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null };
   });
 }
 
@@ -117,6 +125,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     heute_erledigt: auftraege(db, ["erledigt"]).filter((a) => Number(a.geaendert) >= tagBeginn).map((a) => ({ id: a.id, titel: a.titel, ergebnis: JSON.parse(String(a.ergebnis ?? "null")) })),
     termine: termineAm(db, jetzt).map((t) => ({ ...t, art: istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin", weg: weg(db, t).kurz })),
     wochenplan: wochenplan(db, jetzt),
+    verlauf: verlauf(db, tagBeginn, jetzt),
     todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min,
       geplant_von: t.geplant_von, wiederkehrend: t.wiederkehrend, wichtig: !!t.wichtig, revision: t.revision })),
     hinweise: [...werte(db, "hinweis:").values()].filter(Boolean),
@@ -161,7 +170,7 @@ export function uhrStand(db: Register, jetzt: number) {
     d: todos(db, "offen").slice(0, regelZahl("uhr_todos")).map((t) => [t.id, t.kurz_uhr ?? t.titel, t.bereich, t.dauer_min]),
     tm: uhrTeam(db, jetzt),
     tg: termineAm(db, jetzt).filter((t) => !t.ganztag && t.ende > jetzt).slice(0, regelZahl("uhr_termine"))
-      .map((t) => [sekundenAusMs(t.start), sekundenAusMs(t.ende), t.titel, t.ort ?? null, istSport(t.titel) ? "s" : istFokus(t) ? "f" : "t"]),
+      .map((t) => [sekundenAusMs(t.start), sekundenAusMs(t.ende), t.titel, t.ort ?? null, istSport(t.titel) ? "s" : istFokus(t) ? "f" : "t", weg(db, t).los_ms === null ? null : sekundenAusMs(Number(weg(db, t).los_ms))]),
     z: r ? { g: r.grund, b: sekundenAusMs(r.bis) } : null,
     koerper: { schlaf: koerper(db, letzteUhrzeit(regelText("tag_grenze"), jetzt), r)?.schlaf ?? null },
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },

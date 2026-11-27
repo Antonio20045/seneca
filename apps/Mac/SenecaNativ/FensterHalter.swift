@@ -104,6 +104,7 @@ final class FensterSicht: ObservableObject {
 private struct FensterSichtbarSchluessel: EnvironmentKey { static let defaultValue = true }
 
 extension EnvironmentValues {
+    @Entry var festeZeit: Double?
     var fensterSichtbar: Bool {
         get { self[FensterSichtbarSchluessel.self] }
         set { self[FensterSichtbarSchluessel.self] = newValue }

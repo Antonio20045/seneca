@@ -35,7 +35,7 @@ final class SnWeg {
                     if let g = gerechnet[t.uid], g.ort == t.ort, -g.um.timeIntervalSinceNow < r("weg_neu_min", 5) * 60 { continue }
                     guard let w = await rechne(t.ort ?? "", fussBisMin: r("weg_zu_fuss_bis_min", 20)) else { continue }
                     gerechnet[t.uid] = (t.ort ?? "", Date())
-                    store.handle("termin.wegzeit", ziel: t.uid, wert: ["min": .zahl(Double(w.min)), "m": .zahl(w.m), "art": .text(w.art)])
+                    store.handle("termin.weg", ziel: t.uid, wert: KalWeg.wert(w))
                 }
             }
             try? await Task.sleep(for: .seconds(60))

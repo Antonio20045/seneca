@@ -1,6 +1,6 @@
 import { kalenderTag, termineAm, uhr, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { wertSetzen } from "../register/schreiben.ts";
+import { ereignis, wertSetzen } from "../register/schreiben.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Zugang = { benutzer?: string; passwort?: string };
@@ -114,11 +114,22 @@ export async function kalenderJob(db: Register, z: Zugang): Promise<void> {
 
 type Eingabe = { aktion: string; uid?: string; titel?: string; start?: number; ende?: number; ort?: string; teilnehmer?: string[]; trotzdem?: boolean; kalender?: string };
 
-export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe): Promise<object> {
+const TAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const MONAT = ["Jan", "Feb", "März", "Apr", "Mai", "Juni", "Juli", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+function wann(t: number): string {
+  const d = new Date(t);
+  return `${TAG[d.getDay()]} ${d.getDate()}. ${MONAT[d.getMonth()]} · ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe, sitzung = ""): Promise<object> {
   if (!z.benutzer || !z.passwort) throw new Error("Kalender ist noch nicht verbunden (App-Passwort fehlt).");
   if (p.aktion === "lesen") return { termine: termineAm(db, p.start ?? uhr.jetzt()) };
   if (agent !== regelText("dauerauftraege_von")) throw new Error("Nur Seneca schreibt in den Kalender.");
-  return schreiben(db, z, { ...p, kalender: p.kalender ?? regelText("kalender_seneca") });
+  const r = await schreiben(db, z, { ...p, kalender: p.kalender ?? regelText("kalender_seneca") }) as { ok?: boolean; uid?: string; titel?: string; vorher?: Termin };
+  if (r.ok && p.aktion !== "loeschen") ereignis(db, { art: "quittung", schluessel: sitzung, daten: { teil: "Kalender", ergebnis: `${r.titel} · ${wann(Number(p.start))}`,
+    zurueck: r.vorher ? { uid: r.uid, start: r.vorher.start, ende: r.vorher.ende } : null } });
+  return r;
 }
 
 async function schreiben(db: Register, z: Zugang, p: Eingabe): Promise<object> {
@@ -145,5 +156,5 @@ async function schreiben(db: Register, z: Zugang, p: Eingabe): Promise<object> {
   const text = `${kopf}SUMMARY:${titel}\r\n${p.ort ?? altTermin?.ort ? `LOCATION:${p.ort ?? altTermin?.ort}\r\n` : ""}${leute}END:VEVENT\r\nEND:VCALENDAR\r\n`;
   await dav(z, ziel, "PUT", text, { "content-type": "text/calendar; charset=utf-8", ...(alt ? { "if-match": alt.etag } : { "if-none-match": "*" }) });
   await kalenderAbgleich(db, z);
-  return { ok: true, uid, konflikte };
+  return { ok: true, uid, konflikte, titel, vorher: altTermin };
 }

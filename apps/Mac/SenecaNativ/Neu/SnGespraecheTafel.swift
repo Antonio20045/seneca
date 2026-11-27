@@ -123,6 +123,7 @@ struct SnGespraechFrage: View {
     var fokus: Bool
     var antworte: (String) -> Void
     @State private var mehr = false
+    @State private var bericht = false
 
     var body: some View {
         let haupt = frage.optionen?.first { $0.wert == frage.empfehlung } ?? frage.optionen?.first
@@ -145,6 +146,33 @@ struct SnGespraechFrage: View {
             .padding(.top, 2)
             if mehr, let w = frage.kontext?.wenn_nicht {
                 Text(w).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+            }
+            if let l = frage.checkliste, !l.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(l, id: \.text) { p in
+                        HStack(spacing: 10) {
+                            Text(p.fertig ? "✓" : "○").foregroundStyle(p.fertig ? TafelFarbe.gruen : TafelFarbe.leise)
+                            Text(p.text).foregroundStyle(p.fertig ? TafelFarbe.text : TafelFarbe.zweit)
+                        }
+                    }
+                }
+                .font(Schrift.grotesk(14)).lineHeight(.exact(points: 21))
+                .padding(.top, 14).frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }.padding(.top, 6)
+            }
+            if let b = frage.bericht {
+                Button { withAnimation(Kurve.sn(0.25)) { bericht.toggle() } } label: {
+                    HStack(spacing: 22) {
+                        Text((bericht ? "▾ " : "▸ ") + "Ganzer Bericht").font(Schrift.grotesk(13))
+                        Text(b.satz).font(Schrift.mono(12))
+                    }
+                    .foregroundStyle(TafelFarbe.leise).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if bericht {
+                    Text(b.text).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    if let l = b.beleg, let u = URL(string: l) { Link(l, destination: u).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.himmel) }
+                }
             }
         }
         .padding(.horizontal, 26).padding(.vertical, 24)
@@ -177,8 +205,9 @@ struct SnGespraecheBild: View {
             return [Zug(id: "t1", start: .user(id: "u1", text: "Bereite den Testanruf auf Staging vor. Ich will den Ablauf einmal mit echter Nummer hören.", ts: ms(9, 14), pending: false)),
                     Zug(id: "t2", start: .ereignis(ZugEreignis(id: "e1", art: .system, titel: "Engineer hat angefangen · Prüfer schaut mit", ts: ms(9, 15))))]
         }
-        return [Zug(id: "z1", start: .user(id: "u1", text: "Plan mir den Vormittag.", ts: ms(8, 52), pending: false),
-                    antwort: ZugAntwort(id: "a1", text: "Bis elf hast du Fokus. Danach eine Freigabe für Hermes, dann Mittag mit Nora.\n\nFragen aus dem Team halte ich bis dahin zurück. Hermes bleibt auf Kurs für den 1. Dezember.", ts: ms(8, 53))),
+        let gelesen = ["Kalender", "Hermes", "Nachricht", "Nachricht"].map { Schritt(art: .lesen, text: "gelesen", detail: $0) }
+        return [Zug(id: "z1", start: .user(id: "u1", text: "Plan mir den Vormittag.", ts: ms(8, 52), pending: false), schritte: gelesen,
+                    antwort: ZugAntwort(id: "a1", text: "Bis elf hast du Fokus. Danach eine Freigabe für Hermes, dann Mittag mit Nora.\n\nFragen aus dem Team halte ich bis dahin zurück. Hermes bleibt auf Kurs für den 1. Dezember.", ts: ms(8, 53)), von: ms(8, 53) - 14_000),
                 Zug(id: "z2", start: .ereignis(ZugEreignis(id: "e1", art: .system, titel: "Prüfer hat Hermes getestet, keine Fehler", ts: ms(9, 40)))),
                 Zug(id: "z3", start: .user(id: "u2", text: "Verschieb den Zahnarzt auf nächste Woche und sag Nora, dass ich zehn Minuten später komme.", ts: ms(10, 4), pending: false),
                     antwort: ZugAntwort(id: "a2", text: "Erledigt. Der Zahnarzt ist jetzt am Dienstag früh, und Nora weiß, dass du zehn Minuten später kommst.", ts: ms(10, 5)))]
@@ -190,15 +219,18 @@ struct SnGespraecheBild: View {
             let m = stand.team?.first { $0.id == agent }
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { _ in }, neu: {}).padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
-                VStack(alignment: .leading, spacing: 24) {
-                    Spacer(minLength: 0)
-                    ForEach(zuege) { z in ZugView(zug: z, lauf: nil, frisch: nil, zustand: nil, neu: false, name: "Seneca", gross: true, nurAntwort: true, erneut: {}) }
+                VStack(alignment: .leading, spacing: 26) {
+                    ForEach(zuege) { z in
+                        ZugView(zug: z, lauf: nil, frisch: nil, zustand: nil, neu: false, name: "Seneca", gross: true,
+                                quittung: VerlaufLogik.quittung(stand, sitzung: "agent:\(agent):main", von: z.startTs, bis: zuege.last(where: { $0.startTs != nil && $0.id != z.id && ($0.startTs ?? 0) > (z.startTs ?? 0) })?.startTs),
+                                alt: z.startTs != nil && z.id != zuege.last(where: { $0.startTs != nil })?.id, erneut: {}).fixedSize(horizontal: false, vertical: true)
+                    }
                     if let m, agent != Hauptagent.id {
                         ForEach(GL.fragen(stand, von: m.name)) { f in SnGespraechFrage(frage: f, fokus: stand.ruhe?.grund == "fokus", antworte: { _ in }) }
                         if m.zustand == "arbeitet" { SnGespraechLauf(mitglied: m) }
                     }
                 }
-                .frame(width: sp.breite).padding(.leading, sp.links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
+                .frame(width: sp.breite, height: max(0, g.size.height - 220), alignment: .bottom).clipped().environment(\.festeZeit, stand.jetzt).padding(.leading, sp.links).padding(.top, 92)
                 SnGespraechRand(stand: stand, agent: agent, zuProjekten: {}).padding(.leading, g.size.width - 40 - sp.rand).padding(.top, 108)
                 HStack(spacing: 14) {
                     SnAnZeile(name: m?.name ?? "Seneca", seneca: agent == Hauptagent.id)

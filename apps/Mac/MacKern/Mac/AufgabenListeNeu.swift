@@ -191,7 +191,6 @@ struct AufgabenListe: Equatable {
         return ausgabe
     }
 
-    func laeuftGerade(fuer agent: String) -> [Aufgabe] { offeneArbeit(fuer: agent) }
 
     var heuteSatz: (String, String) {
         let arbeit = offeneArbeit()
