@@ -70,14 +70,9 @@ struct SnStatDetail: View {
                 SnStatFlaeche {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack {
-                            SnStatKopf(titel: "Der Weg zu 100 km", zusatz: "Woche für Woche, bis zum Lauf im Juni", rechts: "")
-                            SnStatLegende(eintraege: [("WOCHE", TafelFarbe.gruen.opacity(0.4)), ("LÄNGSTER LAUF", TafelFarbe.gruen), ("AUFBAU", TafelFarbe.himmel.opacity(0.55))])
+                            SnStatKopf(titel: "Kilometer je Woche", zusatz: "die letzten 12 Wochen", rechts: "")
                         }
-                        SnWegZu100(weg: L.weg(k)).frame(height: 300)
-                        if let ziel {
-                            Text("Diese Woche sieht der Aufbau \(L.zahl(ziel.km)) km vor, davon \(L.zahl(ziel.lang)) am Stück. Der lange Lauf wächst um 2 km je Woche, jede vierte Woche ist leichter.")
-                                .font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.text)
-                        }
+                        SnStatBalken(werte: Array(k.lauf.km.suffix(12)), farbe: TafelFarbe.gruen, beschriftung: nil, ziel: ziel?.km).frame(height: 240)
                     }
                 }
                 HStack(alignment: .top, spacing: 16) {

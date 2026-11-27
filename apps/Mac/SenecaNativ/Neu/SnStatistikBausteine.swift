@@ -170,31 +170,6 @@ struct SnBewegungRaster: View {
     }
 }
 
-struct SnWegLinie: View {
-    var weg: [StatWegWoche]
-
-    var body: some View {
-        GeometryReader { g in
-            let x = { (i: Int) in CGFloat(i) / CGFloat(max(1, weg.count - 1)) * (g.size.width - 30) }
-            let y = { (v: Double) in (1 - CGFloat(v / 100)) * (g.size.height - 22) + 4 }
-            let heute = weg.lastIndex { !$0.plan } ?? 0
-            ZStack(alignment: .topLeading) {
-                Path { p in p.move(to: CGPoint(x: 0, y: y(100))); p.addLine(to: CGPoint(x: x(weg.count - 1), y: y(100))) }
-                    .stroke(TafelFarbe.gruen.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
-                Path { p in for (i, w) in weg.enumerated() where !w.plan { i == 0 ? p.move(to: CGPoint(x: x(i), y: y(w.lang))) : p.addLine(to: CGPoint(x: x(i), y: y(w.lang))) } }
-                    .stroke(TafelFarbe.gruen, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
-                Path { p in p.move(to: CGPoint(x: x(heute), y: y(weg[heute].lang))); for (i, w) in weg.enumerated() where w.plan { p.addLine(to: CGPoint(x: x(i), y: y(w.lang))) } }
-                    .stroke(TafelFarbe.himmel.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, lineJoin: .round, dash: [4, 4]))
-                Circle().fill(Color.white).frame(width: 7, height: 7).position(x: x(heute), y: y(weg[heute].lang))
-                Circle().fill(TafelFarbe.gruen).frame(width: 9, height: 9).position(x: x(weg.count - 1), y: y(100))
-                Text("100").font(Schrift.mono(10)).foregroundStyle(TafelFarbe.gruen).position(x: x(weg.count - 1) + 20, y: y(100))
-                Text("HEUTE").font(Schrift.mono(9)).foregroundStyle(TafelFarbe.leise).position(x: x(heute), y: g.size.height)
-                Text("CA. JUNI").font(Schrift.mono(9)).foregroundStyle(TafelFarbe.gruen).position(x: x(weg.count - 1), y: g.size.height)
-            }
-        }
-    }
-}
-
 struct SnWegZu100: View {
     var weg: [StatWegWoche]
 

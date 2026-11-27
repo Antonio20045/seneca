@@ -7,6 +7,7 @@ private extension View {
 struct SnProjekteTafel: View {
     var stand: SenecaStand
     var zuDenFragen: () -> Void
+    var lauf: SenecaStatistik.Kennzahlen? = nil
 
     private let linie = Color.white.opacity(0.10)
 
@@ -36,6 +37,7 @@ struct SnProjekteTafel: View {
             }
             VStack(spacing: 0) {
                 ForEach(Array(liste.enumerated()), id: \.element.id) { i, pr in zeile(pr, offen: i == 0) }
+                if let lauf, !liste.contains(where: { $0.name == Self.wegName }) { wegZeile(lauf) }
             }
             .overlay(alignment: .top) { linie.frame(height: 1) }
             .padding(.top, 36)
@@ -100,9 +102,31 @@ struct SnProjekteTafel: View {
         .padding(.vertical, 6)
     }
 
-    private func rechts(_ p: SenecaStand.Projekt) -> some View {
+    static let wegName = "Der Weg zu 100 km"
+
+    private func wegZeile(_ k: SenecaStatistik.Kennzahlen) -> some View {
+        HStack(alignment: .top, spacing: 40) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(Self.wegName).font(Schrift.serif(30)).hoehe(31.5).foregroundStyle(.white)
+                Text("Lauf im Juni").font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.leise)
+            }
+            .frame(width: 240, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(StatistikLogik.wegSatz(k)).font(Schrift.grotesk(16)).hoehe(24).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                SnWegZu100(weg: StatistikLogik.weg(k)).frame(height: 190).padding(.top, 18)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            rechtsSpalte(zustand: (k.lauf.km.last ?? 0) > 0 ? "laeuft" : "wartet", frist: nil, texte: ["ca. Juni", "längster Lauf \(StatistikLogik.zahl(k.lauf.lang.max() ?? 0)) km"]).frame(width: 180, alignment: .trailing)
+        }
+        .padding(.top, 22).padding(.bottom, 22)
+        .overlay(alignment: .bottom) { linie.frame(height: 1) }
+    }
+
+    private func rechts(_ p: SenecaStand.Projekt) -> some View { rechtsSpalte(zustand: p.zustand, frist: p.frist, texte: p.rechts ?? []) }
+
+    private func rechtsSpalte(zustand: String, frist: Double?, texte r: [String]) -> some View {
         VStack(alignment: .trailing, spacing: 8) {
-            switch p.zustand {
+            switch zustand {
             case "braucht":
                 Text("braucht dich").font(Schrift.grotesk(13, .medium)).foregroundStyle(TafelFarbe.bernstein)
                     .padding(.horizontal, 12).padding(.vertical, 5).background(Capsule().fill(TafelFarbe.bernstein.opacity(0.16)))
@@ -113,10 +137,9 @@ struct SnProjekteTafel: View {
                 HStack(spacing: 8) { Circle().strokeBorder(TafelFarbe.leise, lineWidth: 1.5).frame(width: 7, height: 7); Text("wartet") }
                     .font(Schrift.grotesk(13, .medium)).foregroundStyle(TafelFarbe.zweit)
             }
-            if let f = p.frist, p.zustand == "braucht" {
+            if let f = frist, zustand == "braucht" {
                 Text(HeuteTafelLogik.frist(f, jetzt: stand.jetzt)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.bernstein)
             }
-            let r = p.rechts ?? []
             ForEach(Array(r.enumerated()), id: \.offset) { i, t in
                 Text(t).font(Schrift.mono(12)).foregroundStyle(r.count > 1 && i == 0 ? TafelFarbe.zweit : TafelFarbe.leise)
             }
@@ -127,10 +150,16 @@ struct SnProjekteTafel: View {
 struct SnProjekteEcht: View {
     let modell: AppModell
     @ObservedObject var store: SenecaStore
+    @State private var statistik: SenecaStatistik?
 
     var body: some View {
         if let s = store.stand {
-            SnProjekteTafel(stand: s, zuDenFragen: { modell.gehe(Route(.entscheidungen)) })
+            SnProjekteTafel(stand: s, zuDenFragen: { modell.gehe(Route(.entscheidungen)) }, lauf: statistik?.kennzahlen)
+                .task(id: s.revision) {
+                    guard let j = try? await store.rufe("seneca.stand", params: ["geraet": "mac", "sicht": "statistik"]),
+                          let roh = try? JSONSerialization.data(withJSONObject: j) else { return }
+                    statistik = try? JSONDecoder().decode(SenecaStatistik.self, from: roh)
+                }
         } else {
             SnHeuteSkelett()
         }

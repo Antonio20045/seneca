@@ -83,6 +83,11 @@ enum StatistikLogik {
         return vorbei + plan
     }
 
+    static func wegSatz(_ k: SenecaStatistik.Kennzahlen) -> String {
+        guard let ziel = wochenZiel(k) else { return "Der Aufbau für die 100 km am Stück läuft Woche für Woche bis zum Lauf im Juni." }
+        return "Diese Woche sieht der Aufbau \(zahl(ziel.km)) km vor, davon \(zahl(ziel.lang)) am Stück. Der lange Lauf wächst um 2 km je Woche, jede vierte Woche ist leichter."
+    }
+
     static func laufWochen(_ k: SenecaStatistik.Kennzahlen, _ anzahl: Int) -> [StatLaufWoche] {
         k.wochen.indices.reversed().filter { k.lauf.km[$0] > 0 }.prefix(anzahl).map { StatLaufWoche(iso: k.wochen[$0], km: k.lauf.km[$0], tage: k.lauf.tage[$0], lang: k.lauf.lang[$0]) }
     }
