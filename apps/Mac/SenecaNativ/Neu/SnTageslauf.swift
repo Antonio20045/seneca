@@ -85,6 +85,8 @@ enum HeuteBild {
                         SnGeruestBild(stand: s, dock: false)
                     case "menue-fokus", "menue-frage", "menue-meeting":
                         SnMenueBild(stand: s, art: env["SENECA_SEITE"] ?? "")
+                    case "bildschirm-vorher", "bildschirm-antwort":
+                        SnBildschirmBild(antwort: env["SENECA_SEITE"] == "bildschirm-antwort")
                     case "f-auftrag":
                         SnAuftragLebenslaufBild(stand: s)
                     case "f-lebenslauf":

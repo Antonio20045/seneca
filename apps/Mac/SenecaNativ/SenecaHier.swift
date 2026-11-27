@@ -173,7 +173,7 @@ enum HierLeser {
                 } else { z.art = .fenster }
             }
         }
-        if z.text.isEmpty, z.dateien.isEmpty, z.markiert.isEmpty {
+        if z.dateien.isEmpty {
             if let foto = await fensterfoto(v.pid) { z.dateien = [foto]; z.hatFensterfoto = true }
             else if satz == nil, !CGPreflightScreenCaptureAccess() {
                 satz = "Mit der Freigabe „Bildschirmaufnahme“ bekäme Seneca zusätzlich ein Foto dieses Fensters."
@@ -216,21 +216,16 @@ enum BildschirmFoto {
 
 struct HierVorschau: View {
     let datei: URL
+    var breite: CGFloat = 176
     @State private var bild: NSImage?
 
     var body: some View {
-        ZStack {
-            if let bild {
-                Image(nsImage: bild).resizable().aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Farbe.linie, lineWidth: 1))
-            }
-        }
-        .frame(height: 96, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: datei) { bild = NSImage(contentsOf: datei) }
-        .accessibilityLabel("Foto deines Bildschirms")
-        .accessibilityIdentifier("hier-vorschau")
+        ZStack { if let bild { Image(nsImage: bild).resizable().aspectRatio(contentMode: .fill) } }
+            .frame(width: breite, height: breite * 0.58).background(Color.white.opacity(0.05)).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+            .task(id: datei) { bild = NSImage(contentsOf: datei) }
+            .accessibilityLabel("Foto deines Bildschirms")
+            .accessibilityIdentifier("hier-vorschau")
     }
 }
 
@@ -246,111 +241,146 @@ enum HierMessung {
     }
 }
 
-private struct HierHoehe: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 struct HierKarte: View {
     @ObservedObject var modell: SchnellfrageModell
     var schliesse: () -> Void = {}
     var imChat: () -> Void = {}
     var freigabe: (() -> Void)?
+    var ausschnitt: (String) -> Void = { _ in }
     @FocusState private var fokus: Bool
-    @State private var textHoehe: CGFloat = 0
 
-    private static let einzug: CGFloat = 36
-    private static let hoechstens: CGFloat = 380
-
-    private var sicht: String {
-        if let z = modell.zusammenhang { return z.sichtSatz }
-        return modell.liest ? "Seneca schaut, was du vor dir hast." : ""
-    }
+    private var foto: URL? { modell.zusammenhang.flatMap { $0.hatBildschirmfoto || $0.hatFensterfoto ? $0.dateien.first : nil } }
+    private var art: String { !modell.ausschnitt.isEmpty ? modell.ausschnitt : modell.zusammenhang?.hatBildschirmfoto == true ? "bildschirm" : "fenster" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 14) {
-                SnKugel(groesse: 22, atmet: modell.beschaeftigt)
-                TextField("", text: $modell.text, prompt: Text(modell.zusammenhang?.hatBildschirmfoto == true ? "Was soll ich damit tun?" : modell.zusammenhang?.istLeer == false ? "Frag Seneca dazu" : "Frag Seneca etwas").foregroundColor(Farbe.ink4))
-                    .textFieldStyle(.plain).font(Schrift.serif(25)).foregroundStyle(Color.white)
-                    .focused($fokus)
-                    .disabled(modell.beschaeftigt)
-                    .onSubmit { Task { await modell.abschicken() } }
-                    .onExitCommand { schliesse() }
-                    .accessibilityIdentifier("schnellfrage-feld")
+        VStack(alignment: .leading, spacing: 14) {
+            switch modell.phase {
+            case .antwort(let frage, let text): antwort(frage, text)
+            case .wartet(let frage): antwort(frage, modell.strom.isEmpty ? (modell.laufZeile.isEmpty ? "Deine Frage geht an Seneca." : modell.laufZeile) : modell.strom, fertig: false)
+            default: eingabe
             }
-            if let z = modell.zusammenhang, z.hatBildschirmfoto, let foto = z.dateien.first {
-                HierVorschau(datei: foto)
-                    .padding(.leading, Self.einzug).padding(.top, 12)
-            }
-            if !sicht.isEmpty {
-                Text(sicht).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(Farbe.ink3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, Self.einzug).padding(.top, 7)
-                    .transition(.opacity)
-            }
-            if let s = modell.freigabeSatz, modell.phase == .eingabe {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(s).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(Farbe.ink3).fixedSize(horizontal: false, vertical: true)
-                    if let freigabe {
-                        Button("Einstellung öffnen") { freigabe() }.buttonStyle(SnLeiserStil()).font(Schrift.grotesk(13, .medium)).padding(.vertical, 3)
-                    }
-                }
-                .padding(.leading, Self.einzug).padding(.top, 8)
-                .transition(.opacity)
-            }
-            antwort
         }
-        .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 18)
-        .frame(width: 660, alignment: .leading)
-        .background(Farbe.kasten, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Farbe.linie, lineWidth: 1))
-        .shadow(color: Farbe.kastenSchatten, radius: 24, y: 14)
-        .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 34)
+        .padding(.horizontal, modell.phase == .eingabe ? 18 : 22).padding(.vertical, modell.phase == .eingabe ? 18 : 20)
+        .frame(width: modell.phase == .eingabe ? 700 : 760, alignment: .leading)
+        .background(ZStack {
+            LinearGradient(colors: [TafelFarbe.hex(0x123264), TafelFarbe.hex(0x061632)], startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [TafelFarbe.himmel.opacity(0.26), TafelFarbe.himmel.opacity(0.11), .clear], center: UnitPoint(x: 0.76, y: 0.1), startRadius: 0, endRadius: 300)
+        }.clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous)))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        .shadow(color: .black.opacity(0.7), radius: 35, y: 30)
+        .padding(.horizontal, 40).padding(.top, 14).padding(.bottom, 60)
         .animation(Kurve.ease(0.22), value: modell.phase)
-        .animation(Kurve.ease(0.22), value: sicht)
         .onAppear { fokus = true }
         .onChange(of: modell.phase) { _, _ in if !modell.beschaeftigt { fokus = true } }
     }
 
-    @ViewBuilder private var antwort: some View {
-        switch modell.phase {
-        case .eingabe: EmptyView()
-        case .wartet(let frage): teil(frage: frage, text: modell.strom, fertig: false, lauf: modell.laufZeile)
-        case .antwort(let frage, let text): teil(frage: frage, text: text.isEmpty ? "Seneca hat nichts zurückgegeben." : text, fertig: true)
-        case .fehler(let t):
-            Text(t).font(Schrift.grotesk(14)).foregroundStyle(Farbe.koralle).fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, Self.einzug).padding(.top, 14)
+    @ViewBuilder private var eingabe: some View {
+        if let z = modell.zusammenhang, !z.istLeer {
+            HStack(alignment: .center, spacing: 16) {
+                if let foto { HierVorschau(datei: foto) }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("SENECA SIEHT").font(Schrift.mono(11)).kerning(1.2).foregroundStyle(TafelFarbe.leise)
+                    Text(art == "bildschirm" ? "Ganzer Bildschirm" + (z.programm.isEmpty ? "" : " · vorn \(z.programm)") : z.sichtKurz).font(Schrift.grotesk(15)).foregroundStyle(.white).lineLimit(1)
+                    HStack(spacing: 2) {
+                        ForEach([("fenster", "macwindow", "Fenster"), ("bildschirm", "display", "Ganzer Bildschirm"), ("bereich", "viewfinder", "Bereich ziehen")], id: \.0) { k, bild, titel in
+                            Button { ausschnitt(k) } label: {
+                                Label(titel, systemImage: bild).font(Schrift.grotesk(12.5, .medium)).foregroundStyle(art == k ? .white : TafelFarbe.leise)
+                                    .padding(.horizontal, 10).padding(.vertical, 5).background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(art == k ? 0.14 : 0)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(3).background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.07)))
+                }
+            }
         }
+        HStack(spacing: 12) {
+            TextField("", text: $modell.text, prompt: Text(foto != nil ? "Was siehst du?" : "Frag Seneca etwas").foregroundColor(TafelFarbe.leise))
+                .textFieldStyle(.plain).font(Schrift.grotesk(16)).foregroundStyle(.white).focused($fokus)
+                .onSubmit { Task { await modell.abschicken() } }.onExitCommand { schliesse() }.accessibilityIdentifier("schnellfrage-feld")
+            Label("rechte ⌘", systemImage: "mic").font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise).fixedSize()
+            Button { Task { await modell.abschicken() } } label: {
+                Image(systemName: "arrow.up").font(.system(size: 14, weight: .semibold)).foregroundStyle(TafelFarbe.aufHimmel).frame(width: 34, height: 34).background(Circle().fill(TafelFarbe.himmel))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 16).padding(.trailing, 8).frame(height: 48)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08)))
+        if let s = modell.freigabeSatz {
+            HStack {
+                Text(s).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+                if let freigabe { Button("Einstellung öffnen") { freigabe() }.buttonStyle(SnLeiserStil()).font(Schrift.grotesk(13, .medium)) }
+            }
+        }
+        HStack {
+            Text("Nichts geht raus, bevor du fragst.")
+            Spacer()
+            HStack(spacing: 4) { Text("schließen"); taste("esc") }
+        }
+        .font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise)
     }
 
-    private func teil(frage: String, text: String, fertig: Bool, lauf: String = "") -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Rectangle().fill(Farbe.linie2).frame(height: 1).padding(.top, 16)
-            Text(frage).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(Farbe.ink3).lineLimit(2)
-                .padding(.top, 14)
-            if text.isEmpty {
-                Text(lauf.isEmpty ? "Deine Frage geht an Seneca." : lauf).font(Schrift.grotesk(15)).foregroundStyle(Farbe.ink2).padding(.top, 8)
-            } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    Text(SchnellfrageFeld.markdown(text))
-                        .font(Schrift.grotesk(15)).lineSpacing(5).foregroundStyle(Farbe.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-                        .background(GeometryReader { g in Color.clear.preference(key: HierHoehe.self, value: g.size.height) })
-                        .accessibilityIdentifier("schnellfrage-antwort")
+    private func taste(_ t: String, _ farbe: Color = TafelFarbe.zweit) -> some View {
+        Text(t).font(Schrift.mono(11)).foregroundStyle(farbe).padding(.horizontal, 6).padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+    }
+
+    private func antwort(_ frage: String, _ text: String, fertig: Bool = true) -> some View {
+        let (kopf, rest) = Self.teile(text)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 18) {
+                if let foto { HierVorschau(datei: foto, breite: 200) }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text((["SENECA", HeuteTafelLogik.uhr(Date().timeIntervalSince1970 * 1000)] + (foto == nil ? [] : ["\(["bereich": "Bereich", "bildschirm": "Bildschirm"][art] ?? "Fenster") aus \(modell.zusammenhang?.programm ?? "")"])).joined(separator: " · ").uppercased())
+                        .font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
+                    Text(frage).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.akzent).lineLimit(2)
+                    if !kopf.isEmpty { Text(kopf).font(Schrift.serif(26)).lineHeight(.exact(points: 29)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true) }
+                    if !rest.isEmpty {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            Text(SchnellfrageFeld.markdown(rest)).font(Schrift.grotesk(14)).lineSpacing(5).foregroundStyle(TafelFarbe.zweit)
+                                .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true).textSelection(.enabled).accessibilityIdentifier("schnellfrage-antwort")
+                        }
+                        .frame(maxHeight: 320).defaultScrollAnchor(fertig ? .top : .bottom)
+                    }
                 }
-                .defaultScrollAnchor(fertig ? .top : .bottom)
-                .frame(height: min(max(textHoehe, 22), Self.hoechstens))
-                .onPreferenceChange(HierHoehe.self) { textHoehe = $0 }
-                .padding(.top, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             if fertig {
-                Button("Im Chat weiterführen") { imChat() }.buttonStyle(SnLeiserStil()).font(Schrift.grotesk(14, .medium))
-                    .padding(.top, 12)
+                HStack(spacing: 10) {
+                    Button(action: imChat) { HStack(spacing: 6) { Text("Im Gespräch weiter"); taste("⌘↩", TafelFarbe.aufHimmel) } }
+                        .buttonStyle(SnTafelKnopf(groesse: 13)).keyboardShortcut(.return, modifiers: .command)
+                    Button("Neue Frage") { modell.neueFrage() }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 13))
+                    Button("Kopieren") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string) }.buttonStyle(SnTafelKnopf(art: .leise, groesse: 13))
+                    Spacer()
+                    if let d = modell.dauer { Text(String(format: "%d:%02d", Int(d) / 60, Int(d) % 60)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
+                }
             }
         }
-        .padding(.leading, Self.einzug)
         .transition(.opacity)
+    }
+
+    static func teile(_ t: String) -> (String, String) {
+        let absaetze = t.components(separatedBy: "\n\n")
+        if absaetze.count > 1, absaetze[0].count <= 160, !absaetze[0].hasPrefix("#"), !absaetze[0].hasPrefix("-") { return (absaetze[0], absaetze.dropFirst().joined(separator: "\n\n")) }
+        return ("", t)
+    }
+}
+
+struct SnBildschirmBild: View {
+    var antwort: Bool
+    @StateObject private var modell = SchnellfrageModell(sende: { _ in "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst." })
+
+    var body: some View {
+        let foto = URL(fileURLWithPath: (ProcessInfo.processInfo.environment["SENECA_G_PROBE"] ?? "") + "/powerbi.png")
+        ZStack(alignment: .top) {
+            LinearGradient(colors: [TafelFarbe.hex(0x48618A), TafelFarbe.hex(0x1D2A44)], startPoint: .top, endPoint: .bottom)
+            Image(nsImage: NSImage(contentsOf: foto) ?? NSImage()).resizable().frame(width: 1240, height: 480).clipShape(RoundedRectangle(cornerRadius: 12)).padding(.top, 56)
+            HierKarte(modell: modell).padding(.top, antwort ? 546 : 560)
+        }
+        .task {
+            modell.zusammenhang = HierZusammenhang(art: .browser, programm: "Safari", titel: "Power BI · Anrufe pro Tag · Oktober", dateien: [foto], hatFensterfoto: true)
+            modell.text = "Warum ist der Oktober so niedrig?"
+            if antwort { modell.ausschnitt = "bereich"; modell.sendeHier = { _, _ in "Die Lücke ist kein Einbruch. Vier Tage lang kamen keine Daten an.\n\nVom 9. bis 12. Oktober lief der Webhook nicht. Die Webhook-Kette von heute früh kann die vier Tage nachholen, sobald du sie um 16 Uhr abnimmst." }; await modell.abschicken() }
+        }
     }
 }

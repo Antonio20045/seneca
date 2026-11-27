@@ -238,14 +238,25 @@ final class SchnellfragePanel {
         f.setFrame(NSRect(x: f.frame.minX, y: f.frame.maxY - g.height, width: g.width, height: g.height), display: true)
     }
 
-    func zeige(bild: URL, vorn: String) {
-        zeige(fuelle: { m in
-            var z = HierZusammenhang(art: .fenster, programm: vorn)
-            z.dateien = [bild]
-            z.hatBildschirmfoto = true
-            m.zusammenhang = z
-            m.leerFrage = "Schau dir meinen Bildschirm an und sag mir kurz, was du siehst und was ich als Nächstes tun sollte."
-        })
+    func ausschnitt(_ a: String) {
+        let vorn = NSWorkspace.shared.frontmostApplication?.processIdentifier, display = BildschirmFoto.unterMaus()
+        Task { @MainActor in
+            var url: URL?
+            if a == "fenster", let vorn { url = await HierLeser.fensterfoto(vorn) }
+            if a == "bildschirm", case .foto(let u) = await BildschirmFoto.nimm(display: display) { url = u }
+            if a == "bereich" {
+                fenster?.orderOut(nil)
+                let ziel = FileManager.default.temporaryDirectory.appendingPathComponent("Bereich-\(Int(Date().timeIntervalSince1970)).png")
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); p.arguments = ["-i", "-x", ziel.path]
+                try? p.run()
+                while p.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
+                url = (try? Data(contentsOf: ziel)).flatMap { ChatAnhang.ausDaten($0, name: ziel.lastPathComponent, mime: "image/png")?.url }
+                fenster?.makeKeyAndOrderFront(nil)
+            }
+            guard let url, var z = modell.zusammenhang else { return }
+            z.dateien = [url]; z.hatFensterfoto = a == "fenster"; z.hatBildschirmfoto = a != "fenster"
+            modell.zusammenhang = z; modell.ausschnitt = a
+        }
     }
 
     func zeige(hinweis: String, freigabe: HierFreigabe?) {
@@ -306,7 +317,7 @@ final class SchnellfragePanel {
         f.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let host = NSHostingView(rootView: HierKarte(modell: modell, schliesse: { [weak self] in self?.schliesse() }, imChat: { [weak self] in
             self?.schliesse(); self?.oeffneFenster()
-        }, freigabe: { [weak self] in self?.freigabe?.oeffne() })
+        }, freigabe: { [weak self] in self?.freigabe?.oeffne() }, ausschnitt: { [weak self] a in self?.ausschnitt(a) })
             .background(GeometryReader { g in Color.clear.preference(key: PanelGroesse.self, value: g.size) })
             .onPreferenceChange(PanelGroesse.self) { [weak self] g in Task { @MainActor in self?.passeAn(g) } }
             .frame(maxHeight: .infinity, alignment: .top)

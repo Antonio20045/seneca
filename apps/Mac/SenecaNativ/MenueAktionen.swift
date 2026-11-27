@@ -208,33 +208,7 @@ extension MacDienste {
     }
 
     func zeigeBildschirm() {
-        if schnellfrage.beschaeftigt {
-            HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "feldBelegt"])
-            DispatchQueue.main.async { MainActor.assumeIsolated { MenueFenster.schliesse(); self.panel.zeige() } }
-            return
-        }
-        let display = BildschirmFoto.unterMaus()
-        let vorn = VorneMerker.gemeinsam.vorneName()
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                MenueFenster.schliesse()
-                if self.panel.zeigtSich { self.panel.schliesse() }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(380))
-                    switch await BildschirmFoto.nimm(display: display) {
-                    case .foto(let url):
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "foto"])
-                        self.panel.zeige(bild: url, vorn: vorn)
-                    case .keineFreigabe:
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "keineFreigabe"])
-                        self.panel.zeige(hinweis: "Seneca darf deinen Bildschirm noch nicht sehen. Schalte in den Systemeinstellungen unter Datenschutz, „Bildschirm- & Systemaudioaufnahme“ Seneca ein. Bietet macOS an, Seneca neu zu öffnen, nimm das an. Dann noch einmal auf „Bildschirm zeigen“ klicken.", freigabe: .bildschirm)
-                    case .fehler:
-                        HierMessung.schreibe(["ereignis": "bildschirm", "ergebnis": "fehler"])
-                        self.panel.zeige(hinweis: "Das Foto vom Bildschirm hat nicht geklappt. Klick noch einmal auf „Bildschirm zeigen“.", freigabe: nil)
-                    }
-                }
-            }
-        }
+        DispatchQueue.main.async { MainActor.assumeIsolated { MenueFenster.schliesse(); self.panel.zeige() } }
     }
 
     func meetingStand(_ z: MeetingDienst.Zustand) {
