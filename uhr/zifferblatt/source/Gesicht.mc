@@ -2,6 +2,7 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
+(:rund)
 module Gesicht {
     const LINKS = Zeichnen.LINKS;
     const MITTIG = Zeichnen.MITTIG;

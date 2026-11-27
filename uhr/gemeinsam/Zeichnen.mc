@@ -5,27 +5,47 @@ import Toybox.System;
 import Toybox.WatchUi;
 
 module Zeichnen {
-    const ENTWURF = 466.0;
-    const MITTE = 233;
+    (:rund) const ENTWURF = 466.0;
+    (:rund) const MITTE = 233;
     const SCHWARZ = 0x000000;
     const WEISS = 0xFFFFFF;
-    const TEXT = 0xE2E4E9;
-    const LEISE = 0xBAC1CB;
-    const GEDAEMPFT = 0x939EAD;
-    const MATT = 0x6B7686;
-    const STUMM = 0x536076;
-    const SPUR = 0x1E2838;
-    const HIMMEL = 0x8FB6E3;
-    const HELL = 0xCFE4FA;
-    const GRUEN = 0x6BD98F;
-    const BERNSTEIN = 0xE8B84B;
-    const GLUT = 0xF07A5F;
-    const BERNSTEIN_GRUND = 0x251D0C;
-    const NACHT_KOPF = 0x5A6577;
-    const NACHT_TITEL = 0x8A94A3;
-    const NACHT_LEISE = 0x4F5968;
-    const WARTET_PUNKT = 0x8C6F2E;
-    const HAKEN_DUNKEL = 0x04210F;
+    (:rund) const TEXT = 0xE2E4E9;
+    (:rund) const LEISE = 0xBAC1CB;
+    (:rund) const GEDAEMPFT = 0x939EAD;
+    (:rund) const MATT = 0x6B7686;
+    (:rund) const STUMM = 0x536076;
+    (:rund) const SPUR = 0x1E2838;
+    (:rund) const HIMMEL = 0x8FB6E3;
+    (:rund) const HELL = 0xCFE4FA;
+    (:rund) const GRUEN = 0x6BD98F;
+    (:rund) const BERNSTEIN = 0xE8B84B;
+    (:rund) const GLUT = 0xF07A5F;
+    (:rund) const BERNSTEIN_GRUND = 0x251D0C;
+    (:rund) const NACHT_KOPF = 0x5A6577;
+    (:rund) const NACHT_TITEL = 0x8A94A3;
+    (:rund) const NACHT_LEISE = 0x4F5968;
+    (:rund) const WARTET_PUNKT = 0x8C6F2E;
+    (:rund) const HAKEN_DUNKEL = 0x04210F;
+    (:mip) const ENTWURF = 280.0;
+    (:mip) const MITTE = 140;
+    (:mip) const TEXT = 0xFFFFFF;
+    (:mip) const LEISE = 0xAAAAAA;
+    (:mip) const GEDAEMPFT = 0xAAAAAA;
+    (:mip) const MATT = 0x555555;
+    (:mip) const STUMM = 0x555555;
+    (:mip) const SPUR = 0x0055AA;
+    (:mip) const HIMMEL = 0x55AAFF;
+    (:mip) const HELL = 0xAAFFFF;
+    (:mip) const GRUEN = 0x55FFAA;
+    (:mip) const BERNSTEIN = 0xFFAA00;
+    (:mip) const GLUT = 0xFF5555;
+    (:mip) const BERNSTEIN_GRUND = 0x000000;
+    (:mip) const NACHT_KOPF = 0x555555;
+    (:mip) const NACHT_TITEL = 0xAAAAAA;
+    (:mip) const NACHT_LEISE = 0x555555;
+    (:mip) const WARTET_PUNKT = 0xAA5500;
+    (:mip) const HAKEN_DUNKEL = 0x000000;
+    (:mip) const NAVY = 0x000055;
     const START = 60;
     const BACK = 120;
     const UP = 270;
@@ -33,16 +53,23 @@ module Zeichnen {
     const LINKS = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
     const MITTIG = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
     const RECHTS = Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER;
-    const TASTE_AUSSEN = 228;
-    const TASTE_BREITE = 4;
-    const TASTE_LANG = 26;
-    const TASTE_KURZ = 20;
+    (:rund) const TASTE_AUSSEN = 228;
+    (:rund) const TASTE_BREITE = 4;
+    (:rund) const TASTE_LANG = 26;
+    (:rund) const TASTE_KURZ = 20;
+    (:mip) const TASTE_AUSSEN = 139;
+    (:mip) const TASTE_BREITE = 5;
+    (:mip) const TASTE_LANG = 20;
+    (:mip) const TASTE_KURZ = 14;
     const TASTE_WORT_X = 392;
     const TASTE_WORT_START_Y = 117;
     const TASTE_WORT_BACK_Y = 359;
-    const RING_RADIUS = 221;
-    const RING_BREITE = 4;
-    const AUFTRITT = 22;
+    (:rund) const RING_RADIUS = 221;
+    (:rund) const RING_BREITE = 4;
+    (:rund) const AUFTRITT = 22;
+    (:mip) const RING_RADIUS = 135;
+    (:mip) const RING_BREITE = 6;
+    (:mip) const AUFTRITT = 12;
     const AUFTRITT_S = 0.35;
     const WECHSEL_S = 0.22;
     const POP_S = 0.45;
@@ -59,7 +86,10 @@ module Zeichnen {
     function schrift(id as ResourceId) as FontType {
         var geladen = _schriften[id];
         if (geladen == null) {
-            geladen = WatchUi.loadResource(id);
+            geladen = Schriften.vektor(id);
+            if (geladen == null) {
+                geladen = WatchUi.loadResource(id);
+            }
             _schriften[id] = geladen;
         }
         return geladen as FontType;
@@ -165,7 +195,7 @@ module Zeichnen {
         dc.setPenWidth(1);
     }
 
-    (:glance)
+    (:glance, :rund)
     function lichtpunkt(dc as Dc, x as Numeric, y as Numeric) as Void {
         var bild = WatchUi.loadResource(Rez.Drawables.Lichtpunkt) as BitmapType;
         dc.drawBitmap(p(x) - bild.getWidth() / 2, p(y + versatz) - bild.getHeight() / 2, bild);
@@ -184,6 +214,7 @@ module Zeichnen {
         dc.setPenWidth(1);
     }
 
+    (:rund)
     function taste(dc as Dc, winkel as Number, laenge as Number, farbe as Number, wort as String) as Void {
         var rand = TASTE_BREITE / 2.0;
         dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);
@@ -219,6 +250,7 @@ module Zeichnen {
         dc.setPenWidth(1);
     }
 
+    (:rund)
     function tasteMit(dc as Dc, winkel as Number, farbe as Number, id as ResourceId, wortFarbe as Number, wort as String, y as Numeric) as Void {
         var rand = TASTE_BREITE / 2.0;
         dc.setColor(farbe, Graphics.COLOR_TRANSPARENT);

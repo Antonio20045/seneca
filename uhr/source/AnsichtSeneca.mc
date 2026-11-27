@@ -284,8 +284,7 @@ class TeamAnsicht extends ListenAnsicht {
         var arbeitet = Inhalt.teamArbeitet();
         var kopf = "TEAM · " + (arbeitet == null ? 0 : arbeitet).toString() + " ARBEITET";
         if (liste.size() == 0) {
-            Zeichnen.mitte(dc, 70, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, "TEAM");
-            Zeichnen.mitte(dc, 233, Rez.Fonts.G4_20, Zeichnen.LEISE, "Noch kein Stand vom iPhone");
+            Bildschirm.teamLeer(dc);
             return;
         }
         Bildschirm.team(dc, kopf, liste, _auswahl < liste.size() ? _auswahl : 0);

@@ -1,0 +1,20 @@
+info face="Zahl" size=44 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1
+common lineHeight=57 base=44 scaleW=128 scaleH=128 pages=1 packed=0
+page id=0 file="Zahl.png"
+chars count=16
+char id=48 x=0 y=0 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=49 x=30 y=0 width=29 height=32 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=50 x=60 y=0 width=29 height=32 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=51 x=90 y=0 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=52 x=0 y=34 width=29 height=32 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=53 x=30 y=34 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=54 x=60 y=34 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=55 x=90 y=34 width=29 height=32 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=56 x=0 y=68 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=57 x=30 y=68 width=29 height=33 xoffset=-1 yoffset=13 xadvance=27 page=0 chnl=15
+char id=58 x=60 y=68 width=14 height=25 xoffset=-1 yoffset=21 xadvance=12 page=0 chnl=15
+char id=8211 x=75 y=68 width=28 height=16 xoffset=-1 yoffset=29 xadvance=26 page=0 chnl=15
+char id=45 x=104 y=68 width=21 height=16 xoffset=-1 yoffset=29 xadvance=19 page=0 chnl=15
+char id=44 x=0 y=102 width=14 height=15 xoffset=-1 yoffset=36 xadvance=12 page=0 chnl=15
+char id=46 x=15 y=102 width=14 height=11 xoffset=-1 yoffset=35 xadvance=12 page=0 chnl=15
+char id=32 x=30 y=102 width=13 height=2 xoffset=-1 yoffset=43 xadvance=11 page=0 chnl=15

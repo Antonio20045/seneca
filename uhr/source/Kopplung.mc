@@ -1,6 +1,7 @@
 import Toybox.Communications;
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 module Kopplung {
@@ -129,6 +130,9 @@ module Kopplung {
 }
 
 class KopplungAnsicht extends Ansicht {
+    const BEWEGUNG_MS = 150;
+    private var _bewegung as Timer.Timer = new Timer.Timer();
+
     function initialize() {
         Ansicht.initialize();
     }
@@ -136,11 +140,19 @@ class KopplungAnsicht extends Ansicht {
     function onShow() as Void {
         Ansicht.onShow();
         Kopplung.oeffnen();
+        _bewegung.start(method(:bewegen), BEWEGUNG_MS, true);
     }
 
     function onHide() as Void {
+        _bewegung.stop();
         Kopplung.aktiv = false;
         Kopplung.gekoppeltUm = 0;
+    }
+
+    function bewegen() as Void {
+        if (Kopplung.wartet || Kopplung.laeuft()) {
+            WatchUi.requestUpdate();
+        }
     }
 
     function zeichnen(dc as Dc) as Void {

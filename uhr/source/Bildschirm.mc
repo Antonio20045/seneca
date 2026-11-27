@@ -1,9 +1,19 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 
+(:rund)
 module Bildschirm {
     const LINKS = Zeichnen.LINKS;
     const MITTIG = Zeichnen.MITTIG;
+
+    function taste(dc as Dc, winkel as Number, laenge as Number, farbe as Number, wort as String) as Void {
+        Zeichnen.taste(dc, winkel, laenge, farbe, wort);
+    }
+
+    function teamLeer(dc as Dc) as Void {
+        Zeichnen.mitte(dc, 70, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, "TEAM");
+        Zeichnen.mitte(dc, 233, Rez.Fonts.G4_20, Zeichnen.LEISE, "Noch kein Stand vom iPhone");
+    }
 
     function zeile(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, hoechstens as Numeric) as Void {
         Zeichnen.mitte(dc, y, id, farbe, Zeichnen.kuerzen(dc, inhalt, id, hoechstens));

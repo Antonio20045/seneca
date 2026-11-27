@@ -107,6 +107,7 @@ class Trail extends WatchUi.DataField {
         dc.fillRectangle(Zeichnen.p(x), Zeichnen.p(y), Zeichnen.p(breite), Zeichnen.p(hoehe));
     }
 
+    (:rund)
     function onUpdate(dc as Dc) as Void {
         Zeichnen.flaeche(dc);
         var M = Zeichnen.MITTIG;
@@ -135,6 +136,38 @@ class Trail extends WatchUi.DataField {
             dc.setColor(Zeichnen.HIMMEL, Graphics.COLOR_TRANSPARENT);
             dc.fillRoundedRectangle(Zeichnen.p(163), Zeichnen.p(386), Zeichnen.p(140), Zeichnen.p(32), Zeichnen.p(16));
             Zeichnen.gruppe(dc, Zeichnen.MITTE, 402, [[Rez.Fonts.M5_13W, NAVI_GRUND, "NOCH"], [Rez.Fonts.G5_20, NAVI_GRUND, km(_rest, 1) + " km"]], 8, M);
+        }
+    }
+
+    (:mip)
+    function onUpdate(dc as Dc) as Void {
+        Zeichnen.flaeche(dc);
+        var M = Zeichnen.MITTIG;
+        Zeichnen.mitte(dc, 36, Rez.Fonts.Marke, Zeichnen.LEISE, "ZEIT");
+        Zeichnen.mitte(dc, 64, Rez.Fonts.Zeit, Zeichnen.WEISS, dauer(_zeit));
+        trenner(dc, 40, 88, 200, 2);
+        Zeichnen.text(dc, 84, 104, Rez.Fonts.Marke, Zeichnen.LEISE, "PULS", M);
+        Zeichnen.text(dc, 84, 140, Rez.Fonts.Gross, Zeichnen.WEISS, _puls == null ? "–" : _puls.toString(), M);
+        var aktiv = zone();
+        for (var i = 0; i < 5; i += 1) {
+            dc.setColor(i + 1 == aktiv ? ZONEN[i] : Zeichnen.SPUR, Graphics.COLOR_TRANSPARENT);
+            dc.fillRoundedRectangle(44 + i * 17, 172, 14, 6, 3);
+        }
+        trenner(dc, 139, 98, 2, 84);
+        Zeichnen.text(dc, 196, 104, Rez.Fonts.Marke, Zeichnen.LEISE, "ANSTIEG", M);
+        var gross = _anstieg != null && _anstieg >= ANSTIEG_GROSS;
+        Zeichnen.text(dc, 196, 140, gross ? Rez.Fonts.Mittel : Rez.Fonts.Gross, Zeichnen.WEISS, _anstieg == null ? "–" : _anstieg.toString(), M);
+        Zeichnen.text(dc, 196, 174, Rez.Fonts.Marke, Zeichnen.LEISE, "m", M);
+        trenner(dc, 30, 190, 220, 2);
+        Zeichnen.text(dc, 86, 206, Rez.Fonts.Marke, Zeichnen.LEISE, "DISTANZ KM", M);
+        Zeichnen.text(dc, 86, 232, Rez.Fonts.Wert, Zeichnen.WEISS, km(_distanz, 2), M);
+        trenner(dc, 139, 198, 2, 50);
+        Zeichnen.text(dc, 194, 206, Rez.Fonts.Marke, Zeichnen.LEISE, "PACE /KM", M);
+        Zeichnen.text(dc, 194, 232, Rez.Fonts.Wert, Zeichnen.WEISS, pace(), M);
+        if (_rest != null) {
+            dc.setColor(Zeichnen.HIMMEL, Graphics.COLOR_TRANSPARENT);
+            dc.fillRoundedRectangle(84, 252, 112, 24, 12);
+            Zeichnen.gruppe(dc, Zeichnen.MITTE, 264, [[Rez.Fonts.Navi, Zeichnen.SCHWARZ, "NOCH"], [Rez.Fonts.Navi, Zeichnen.SCHWARZ, km(_rest, 1) + " km"]], 6, M);
         }
     }
 }

@@ -63,7 +63,7 @@ class TodoAnsicht extends ListenAnsicht {
             _auswahl = anzeige.size() - 1;
         }
         Bildschirm.todos(dc, "HEUTE · " + offen(zeilen).toString() + " OFFEN", anzeige, _auswahl);
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "abhaken");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "abhaken");
     }
 
     function waehlen() as Void {

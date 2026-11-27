@@ -10,10 +10,8 @@ from PIL import Image, ImageDraw, ImageFont
 UHR = Path(__file__).resolve().parent.parent
 QUELLE = Path(sys.argv[1])
 ENTWURF = 466
-GERAETE = {'resources': 466, 'resources-fenix9pro47mm': 454, 'resources-fenix9pro43mm': 416, 'resources-fenix9prosolar51mm': 280}
-MIP = {280: 10}
-SCHARF = 20
-BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+GERAETE = {'resources': 466, 'resources-fenix9pro47mm': 454, 'resources-fenix9pro43mm': 416}
+MIP = 'resources-fenix9prosolar51mm'
 ERSATZ = [Path('/System/Library/Fonts/Menlo.ttc'), Path('/System/Library/Fonts/Apple Symbols.ttf')]
 
 GROSS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789·:%●Ø/.,–-+'
@@ -43,6 +41,7 @@ def grotesk(gewicht, tabellarisch):
 
 MONO5, MONO4 = (QUELLE / 'IBMPlexMono-Medium.ttf').read_bytes(), (QUELLE / 'IBMPlexMono-Regular.ttf').read_bytes()
 G5T, G5, G4, G4T = grotesk(500, True), grotesk(500, False), grotesk(400, False), grotesk(400, True)
+G6, G6T = grotesk(600, False), grotesk(600, True)
 IS, ISR = (QUELLE / 'InstrumentSerif-Italic.ttf').read_bytes(), (QUELLE / 'InstrumentSerif-Regular.ttf').read_bytes()
 
 SCHRIFTEN = {
@@ -124,12 +123,55 @@ TRAIL = {
     'G5_20': (G5T, 20, 0, ZIFFERN + ' km', False),
 }
 
+MIP_APP = {
+    'Kopf': (MONO5, 17, 1, VOLL, True),
+    'Mono': (MONO5, 18, 0, VOLL, False),
+    'Klein': (G5, 21, 0, VOLL, True),
+    'Text': (G5, 25, 0, VOLL, False),
+    'Haupt': (G6, 28, 0, VOLL, True),
+    'Gross': (G6, 32, 0, VOLL, False),
+    'Titel': (G6, 42, 0, VOLL, False),
+    'Zahl': (G6T, 44, 0, ZIFFERN + ' ', True),
+    'Zahl2': (G6T, 76, -1, ZIFFERN, False),
+    'Zahl1': (G6T, 100, -2, ZIFFERN, False),
+    'Koppel': (G6, 64, 0, '0123456789 ', False),
+    'Buch': (IS, 36, 0, VOLL, False),
+    'Gruss': (ISR, 40, 0, VOLL, False),
+}
+
+MIP_ZIFFERBLATT = {
+    'Datum': (MONO5, 18, 1.5, DATUM, False),
+    'Marke': (G5, 16, 1, GROSS, False),
+    'Wert': (G6T, 26, 0, WERTE, False),
+    'Prozent': (G5, 16, 0, '%', False),
+    'Zeile': (G5, 21, 0, VOLL, False),
+    'Zeit': (ISR, 112, -2, ZIFFERN, False),
+    'ZeitKlein': (ISR, 100, -2, ZIFFERN, False),
+    'Sport': (G6T, 92, -2, ZIFFERN, False),
+    'SportDatum': (G6, 19, 2, DATUM, False),
+    'SportWert': (G6T, 30, 0, WERTE, False),
+}
+
+MIP_TRAIL = {
+    'Marke': (MONO5, 16, 1, GROSS + 'm', False),
+    'Zeit': (G6T, 36, 0, ZIFFERN, False),
+    'Gross': (G6T, 64, -1, ZIFFERN, False),
+    'Mittel': (G6T, 52, -1, ZIFFERN, False),
+    'Wert': (G6T, 32, 0, ZIFFERN, False),
+    'Navi': (G6, 18, 0, ZIFFERN + ' kmNOCH', False),
+}
+
+
 def schnitt(daten, zeichen, px):
     for quelle in [daten] + ERSATZ:
         roh = quelle if isinstance(quelle, bytes) else quelle.read_bytes()
         if ord(zeichen) in TTFont(io.BytesIO(roh), fontNumber=0).getBestCmap():
             return ImageFont.truetype(io.BytesIO(roh), px)
     return None
+
+
+def kante(wert):
+    return max(0, min(255, round((wert - 64) * 2)))
 
 
 def schrift(name, daten, px, sperrung, zeichen, ziel, scharf):
@@ -142,8 +184,9 @@ def schrift(name, daten, px, sperrung, zeichen, ziel, scharf):
         links, oben, rechts, boden = f.getbbox(z, anchor='ls')
         bild = Image.new('L', (max(rechts - links, 0) + 2, max(boden - oben, 0) + 2), 0)
         stift = ImageDraw.Draw(bild)
-        stift.fontmode = '1' if scharf else 'L'
         stift.text((1 - links, 1 - oben), z, font=f, fill=255, anchor='ls')
+        if scharf:
+            bild = bild.point(kante)
         glyphen.append((z, bild, links - 1, ober + oben - 1, round(f.getlength(z) + sperrung)))
     seite = 128
     while True:
@@ -200,33 +243,41 @@ def hintergrund(n):
         for x in range(n):
             a = verlauf([(t, (w,)) for t, w in glanz], math.hypot(x / n - .74, y / n - .16) * ENTWURF / weit)[0]
             farbe = [g + (h - g) * a for g, h in zip(grund, (0x8F, 0xB6, 0xE3))]
-            if n in MIP:
-                schwelle = (BAYER[y % 4 * 4 + x % 4] + .5) / 16
-                farbe = [min(int(c / 85 + schwelle), 3) * 85 for c in farbe]
             bild.putpixel((x, y), tuple(round(c) for c in farbe))
     return bild
 
 
-def gestalt(projekt, schriften, mitHintergrund, mitBlick):
+def liste(ziel, schriften, scharf, mitBlick):
+    zeilen = ['<resources>', '    <fonts>']
+    for name, (daten, px, sperrung, zeichen, blick) in schriften.items():
+        schrift(name, daten, px, sperrung, zeichen, ziel, scharf)
+        umfang = ' scope="glance"' if blick and mitBlick else ''
+        zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{umfang}/>')
+    return zeilen + ['    </fonts>']
+
+
+def gestalt(projekt, schriften, mip, mitHintergrund, mitBlick):
     for ordner, breite in GERAETE.items():
         s = breite / ENTWURF
         ziel = projekt / ordner / 'gestalt'
         ziel.mkdir(parents=True, exist_ok=True)
-        zeilen = ['<resources>', '    <fonts>']
-        for name, (daten, px, sperrung, zeichen, blick) in schriften.items():
-            groesse = max(px * s, MIP.get(breite, 0))
-            schrift(name, daten, groesse, sperrung * s, zeichen, ziel, breite in MIP and groesse < SCHARF)
-            zeilen.append(f'        <font id="{name}" filename="{name}.fnt" antialias="true"{" scope=\"glance\"" if blick else ""}/>')
+        skaliert = {n: (d, px * s, sp * s, z, b) for n, (d, px, sp, z, b) in schriften.items()}
+        zeilen = liste(ziel, skaliert, False, True)
         lichtpunkt(14 * s).save(ziel / 'lichtpunkt.png')
         umfang = ' scope="glance"' if mitBlick else ''
-        zeilen += ['    </fonts>', '    <drawables>', f'        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"{umfang}/>']
+        zeilen += ['    <drawables>', f'        <bitmap id="Lichtpunkt" filename="lichtpunkt.png"{umfang}/>']
         if mitHintergrund:
             hintergrund(breite).save(ziel / 'hintergrund.png')
             zeilen.append(f'        <bitmap id="Hintergrund" filename="hintergrund.png"/>')
         zeilen += ['    </drawables>', '</resources>', '']
         (ziel / 'gestalt.xml').write_text('\n'.join(zeilen))
+    ziel = projekt / MIP / 'gestalt'
+    for alt in ziel.glob('*'):
+        alt.unlink()
+    ziel.mkdir(parents=True, exist_ok=True)
+    (ziel / 'gestalt.xml').write_text('\n'.join(liste(ziel, mip, True, mitBlick) + ['</resources>', '']))
 
 
-gestalt(UHR, SCHRIFTEN, False, True)
-gestalt(UHR / 'zifferblatt', ZIFFERBLATT, True, False)
-gestalt(UHR / 'trail', TRAIL, False, False)
+gestalt(UHR, SCHRIFTEN, MIP_APP, False, True)
+gestalt(UHR / 'zifferblatt', ZIFFERBLATT, MIP_ZIFFERBLATT, True, False)
+gestalt(UHR / 'trail', TRAIL, MIP_TRAIL, False, False)

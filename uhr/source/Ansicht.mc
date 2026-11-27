@@ -66,7 +66,7 @@ class Ansicht extends WatchUi.View {
         var anteil = fristAnteil();
         Zeichnen.versatz = 0.0;
         Bildschirm.bestaetigung(dc, Rueckgaengig.bild, Rueckgaengig.titel, Rueckgaengig.zeile, _pop.wert, anteil);
-        Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
+        Bildschirm.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
         return true;
     }
 
