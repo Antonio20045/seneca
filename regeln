@@ -134,6 +134,8 @@ sport_worte Gym,Training,Laufen,Lauf,Trail,Yoga,Schwimmen,Rad
 wegzeit_vorlauf_min 60
 ankunft_puffer_min 0
 aufgaben_block_min 15
+team_schritte 3
+auftrag_quittung_min 10
 eine_minute_min 1
 ein_tag_h 24
 rechenknoten_name rechenknoten zu_messen

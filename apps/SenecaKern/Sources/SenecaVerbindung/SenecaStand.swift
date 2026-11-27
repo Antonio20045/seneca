@@ -61,6 +61,10 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
         public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?
     }
+    public struct AuftragNeu: Codable, Equatable, Sendable, Identifiable {
+        public var id: String; public var titel: String; public var ziel: String?; public var wer: String; public var pruefer: Bool?
+        public var erteilt: Double; public var bis: Double?; public var dauer_min: Double?; public var danach: String?
+    }
     public struct Heute: Codable, Equatable, Sendable { public var satz: [String]?; public var satz_folge: [String]? }
     public struct Schlaf: Codable, Equatable, Sendable { public var minuten: Double; public var bis: Double }
     public struct Koerper: Codable, Equatable, Sendable {
@@ -139,6 +143,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var projekte: Projekte?
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
+    public var auftraege_neu: [AuftragNeu]?
     public var termine: [Termin]?
     public var wochenplan: Wochenplan?
     public var verlauf: Verlauf?
