@@ -6,5 +6,11 @@
         <complication id="1" access="protected" longLabel="@Strings.SenecaTodos" icon="@Drawables.SenecaZeichen">
             <faceIt defaultText="@Strings.SenecaTodos"/>
         </complication>
+        <complication id="2" access="protected" longLabel="@Strings.SenecaSprechen" icon="@Drawables.SenecaZeichen">
+            <faceIt defaultText="@Strings.SenecaSprechen"/>
+        </complication>
+        <complication id="3" access="protected" longLabel="@Strings.SenecaFrage" icon="@Drawables.SenecaZeichen">
+            <faceIt defaultText="@Strings.SenecaFrage"/>
+        </complication>
     </complications>
 </resources>

@@ -212,7 +212,9 @@ export default {
         return true;
       } });
     route("/seneca/uhr/v1/abgleich", (roh, kopf) => uhrAbgleich(db, roh, kopf, (t) => uhrSicht(db, t)));
-    route("/seneca/uhr/v1/zifferblatt", (_roh, kopf) => schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) === wert(db, `uhr:${LAUF}`)?.wert ? { status: 200, inhalt: zifferblattSicht(db, uhr.jetzt()) } : { status: 401, inhalt: { f: "unbekannt" } });
+    const laufGeprueft = (kopf: IncomingHttpHeaders) => schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) === wert(db, `uhr:${LAUF}`)?.wert;
+    route("/seneca/uhr/v1/zifferblatt", (_roh, kopf) => laufGeprueft(kopf) ? { status: 200, inhalt: zifferblattSicht(db, uhr.jetzt()) } : { status: 401, inhalt: { f: "unbekannt" } });
+    route("/seneca/uhr/v1/sonde", (roh, kopf) => !laufGeprueft(kopf) ? { status: 401, inhalt: { f: "unbekannt" } } : !String(kopf["content-type"] ?? "").includes("json") ? { status: 200, inhalt: { n: roh.length } } : { status: 200, inhalt: { ok: wertSetzen(db, "uhr-sonde", JSON.stringify({ ...JSON.parse(wert(db, "uhr-sonde")?.wert ?? "{}"), [String(JSON.parse(roh.toString("utf8")).k)]: JSON.parse(roh.toString("utf8")) }), "uhr") } });
     route("/seneca/uhr/v1/koppeln", (roh) => uhrKoppeln(db, roh));
     route("/seneca/uhr/v1/abholen", (roh) => uhrAbholen(db, roh));
     route("/seneca/github", (roh, kopf) => ({ status: githubEingang(db, roh, kopf, geheim(api, "github").geheimnis) }));

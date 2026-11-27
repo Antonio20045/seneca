@@ -12,8 +12,8 @@ class StartAnsicht extends ListenAnsicht {
         }
     }
 
-    function vor() as Void {
-        waehlen();
+    function bereich() as Number {
+        return 0;
     }
 
     function initialize() {
@@ -37,14 +37,16 @@ class StartAnsicht extends ListenAnsicht {
         return liste;
     }
 
-    private var _todosOeffnen as Boolean = false;
+    private var _ziel as Object? = null;
+    private var _wahl as Object? = null;
 
     function vomZifferblatt(komplikation as Object) as Void {
-        if (komplikation == 1) {
-            _todosOeffnen = true;
-        } else {
-            _auswahl = eintraege().indexOf(:training);
-        }
+        _ziel = komplikation == 3 && Frage.offen() == null ? null : komplikation;
+    }
+
+    function ausMitteilung(wahl as Object) as Void {
+        _ziel = Frage.offen() != null ? 3 : null;
+        _wahl = wahl;
     }
 
     function anzahl() as Number {
@@ -53,9 +55,18 @@ class StartAnsicht extends ListenAnsicht {
 
     function onShow() as Void {
         ListenAnsicht.onShow();
-        if (_todosOeffnen) {
-            _todosOeffnen = false;
+        var ziel = _ziel;
+        _ziel = null;
+        if (ziel == 1 || ziel == 2) {
             Ansichten.oeffnen(new TodoAnsicht());
+            return;
+        }
+        if (ziel == 3) {
+            var frage = new EntscheidungAnsicht(Frage.offen() as Dictionary);
+            Ansichten.oeffnen(frage);
+            if (_wahl != null) {
+                frage.vorwahl(_wahl);
+            }
             return;
         }
         Hinweise.zeigen(true);

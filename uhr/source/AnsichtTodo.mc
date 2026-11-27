@@ -31,7 +31,11 @@ class TodoAnsicht extends ListenAnsicht {
     }
 
     function tippenOeffnet() as Boolean {
-        return false;
+        return true;
+    }
+
+    function bereich() as Number {
+        return 1;
     }
 
     function initialize() {

@@ -11,8 +11,8 @@ class UebungenAnsicht extends ListenAnsicht {
         return Bildschirm.zonen(:uebungen);
     }
 
-    function vor() as Void {
-        waehlen();
+    function bereich() as Number {
+        return 2;
     }
 
     function initialize(alle as Boolean) {

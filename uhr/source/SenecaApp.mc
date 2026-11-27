@@ -10,6 +10,7 @@ import Toybox.WatchUi;
 class SenecaApp extends Application.AppBase {
     private var _vordergrund as Boolean = false;
     private var _vomZifferblatt as Object? = null;
+    private var _ausMitteilung as Object? = null;
 
     function initialize() {
         AppBase.initialize();
@@ -17,6 +18,7 @@ class SenecaApp extends Application.AppBase {
 
     function onStart(zustand as Dictionary?) as Void {
         _vomZifferblatt = zustand != null ? zustand[:launchedFromComplication] : null;
+        _ausMitteilung = zustand != null ? zustand[:launchedFromNotification] : null;
     }
 
     function anmelden() as Void {
@@ -35,6 +37,9 @@ class SenecaApp extends Application.AppBase {
         var start = new StartAnsicht();
         if (_vomZifferblatt != null) {
             start.vomZifferblatt(_vomZifferblatt);
+        }
+        if (_ausMitteilung != null) {
+            start.ausMitteilung(_ausMitteilung);
         }
         return [start, new Bedienung(start)];
     }

@@ -50,6 +50,8 @@ module Stand {
         try {
             Complications.updateComplication(0, {:value => z[0] as String, :shortLabel => (z[1] as Boolean) ? "!" : ""});
             Complications.updateComplication(1, {:value => todoZeile()});
+            Complications.updateComplication(2, {:value => "+"});
+            Complications.updateComplication(3, {:value => Frage.offen() != null ? 1 : 0});
         } catch (e) {
             return;
         }

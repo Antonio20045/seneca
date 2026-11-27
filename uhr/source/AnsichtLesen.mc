@@ -15,6 +15,10 @@ class LesenAnsicht extends ListenAnsicht {
         return false;
     }
 
+    function bereich() as Number {
+        return 3;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
         _auswahl = 2;

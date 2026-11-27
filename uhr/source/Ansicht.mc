@@ -78,7 +78,8 @@ class Ansicht extends WatchUi.View {
         waehlen();
     }
 
-    function vor() as Void {
+    function bereich() as Number {
+        return -1;
     }
 
     function hoch() as Void {
@@ -149,12 +150,49 @@ class Bedienung extends WatchUi.BehaviorDelegate {
             _ansicht.runter();
         } else if (richtung == WatchUi.SWIPE_DOWN) {
             _ansicht.hoch();
-        } else if (richtung == WatchUi.SWIPE_RIGHT) {
-            _ansicht.zurueck();
         } else {
-            _ansicht.vor();
+            Bereiche.schritt(_ansicht, richtung == WatchUi.SWIPE_LEFT ? 1 : -1);
         }
         return true;
+    }
+
+    function onHold(ereignis as WatchUi.ClickEvent) as Boolean {
+        _ansicht.menue();
+        return true;
+    }
+}
+
+module Bereiche {
+    function neu(nummer as Number) as Ansicht {
+        return nummer == 1 ? new TodoAnsicht() : nummer == 2 ? new UebungenAnsicht(false) : nummer == 3 ? new LesenAnsicht() : new TeamAnsicht();
+    }
+
+    function schritt(ansicht as Ansicht, richtung as Number) as Void {
+        var jetzt = ansicht.bereich();
+        var ziel = jetzt + richtung;
+        if (jetzt < 0 || ziel < 0) {
+            if (richtung < 0 && Rueckgaengig.rest() > 0) {
+                Ansichten.schliessen();
+            } else if (richtung < 0) {
+                ansicht.zurueck();
+            }
+            return;
+        }
+        if (ziel > 4) {
+            Signal.kurz();
+            return;
+        }
+        if (ziel == 0) {
+            Ansichten.zumStart();
+            return;
+        }
+        var neue = neu(ziel);
+        if (jetzt == 0) {
+            Ansichten.oeffnen(neue);
+            return;
+        }
+        Ansichten.oben = neue;
+        WatchUi.switchToView(neue, new Bedienung(neue), richtung > 0 ? WatchUi.SLIDE_LEFT : WatchUi.SLIDE_RIGHT);
     }
 }
 

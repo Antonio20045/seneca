@@ -203,6 +203,16 @@ class EntscheidungAnsicht extends Ansicht {
         antworten("ja", :ja, "Ja an " + von(), _frage["p"] instanceof String ? kurz() + " für " + Inhalt.gross(_frage["p"] as String) : kurz());
     }
 
+    function vorwahl(wahl as Object) as Void {
+        if ("ja".equals(wahl)) {
+            waehlen();
+        } else if ("nein".equals(wahl)) {
+            runter();
+        } else {
+            zurueck();
+        }
+    }
+
     function runter() as Void {
         antworten("nein", :nein, "Nein an " + von(), kurz() + " wartet");
     }
@@ -280,8 +290,8 @@ class TeamAnsicht extends ListenAnsicht {
         return Bildschirm.zonen(:team);
     }
 
-    function vor() as Void {
-        waehlen();
+    function bereich() as Number {
+        return 4;
     }
 
     function initialize() {
