@@ -88,5 +88,7 @@ for n in $(rg -o --no-filename -P -r '$1' '^export (?:async )?(?:function|const|
   [ "$(rg -lw "$n" plugin -g '*.ts' | wc -l)" -ge 2 ] || melde P14 "toter Export $n"
 done
 
-[ $fehler = 0 ] && echo "pruefen: alle 14 Prüfungen bestanden"
+verbot P15 -e '(~|/|")Bereiche/' $PRUEFBAR
+
+[ $fehler = 0 ] && echo "pruefen: alle 15 Prüfungen bestanden"
 exit $fehler

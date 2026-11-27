@@ -76,7 +76,7 @@ enum HeuteBild {
                         SnGeruestBild(stand: s)
                         SnStartZeilen(stand: s, verbunden: art == "start-wieder", seit: art == "start-antwortet-nicht" ? Date(timeIntervalSince1970: s.jetzt / 1000 - 120) : nil, fehler: "", warum: .constant(false), wieder: art == "start-wieder" ? 1 : nil)
                     case "meeting-ergebnis":
-                        SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Bereiche/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
+                        SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Ablage/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
                                           todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })
                         SnGeruestBild(stand: s, dock: false)
                     case "f-auftrag":

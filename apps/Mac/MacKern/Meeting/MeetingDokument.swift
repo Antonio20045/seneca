@@ -33,7 +33,7 @@ struct MeetingErgebnis {
 
 enum MeetingDokument {
     static func ordnerStandard() -> URL {
-        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).appendingPathComponent("Bereiche/privat/meetings", isDirectory: true)
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).appendingPathComponent("Ablage/privat/meetings", isDirectory: true)
     }
 
     static func slug(_ titel: String) -> String {
