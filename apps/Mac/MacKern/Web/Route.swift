@@ -1,7 +1,7 @@
 import Foundation
 
 enum Seite: String, CaseIterable {
-    case heute, entscheidungen, projekte, projekt, kalender, berichte, bereiche, bereich, chat
+    case heute, entscheidungen, projekte, projekt, kalender, berichte, bereiche, bereich, chat, statistik
 
     static let leiste: [Seite] = [.heute, .kalender, .entscheidungen, .projekte, .bereiche, .berichte]
 
@@ -13,6 +13,7 @@ enum Seite: String, CaseIterable {
         case .projekte, .projekt: return "Projekte"
         case .bereiche, .bereich: return "Bereiche"
         case .berichte: return "Berichte"
+        case .statistik: return "Statistik"
         }
     }
 
@@ -25,7 +26,7 @@ enum Seite: String, CaseIterable {
     }
 
     static func vonGTaste(_ t: String) -> Seite? {
-        ["h": .heute, "k": .kalender, "e": .entscheidungen, "r": .bereiche, "p": .projekte, "b": .berichte][t.lowercased()]
+        ["h": .heute, "k": .kalender, "e": .entscheidungen, "r": .bereiche, "p": .projekte, "b": .berichte, "s": .statistik][t.lowercased()]
     }
 }
 

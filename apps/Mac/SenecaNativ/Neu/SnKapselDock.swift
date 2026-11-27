@@ -2,14 +2,14 @@ import SwiftUI
 import Combine
 
 enum SnOrt: CaseIterable {
-    case heute, projekte, fragen, kalender, gespraeche
+    case heute, projekte, fragen, kalender, statistik, gespraeche
 
     var titel: String {
-        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Entscheiden"; case .kalender: "Kalender"; case .gespraeche: "Gespräche" }
+        switch self { case .heute: "Heute"; case .projekte: "Projekte"; case .fragen: "Entscheiden"; case .kalender: "Kalender"; case .statistik: "Statistik"; case .gespraeche: "Gespräche" }
     }
 
     var seite: Seite {
-        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .gespraeche: .chat }
+        switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .statistik: .statistik; case .gespraeche: .chat }
     }
 
     static func fragen(_ s: SenecaStand?) -> Int { (s?.braucht_dich?.count ?? 0) + (s?.buendel?.fragen?.count ?? 0) }
@@ -20,6 +20,7 @@ enum SnOrt: CaseIterable {
         case .projekte, .projekt, .bereiche, .bereich: .projekte
         case .entscheidungen: .fragen
         case .kalender: .kalender
+        case .statistik: .statistik
         case .chat: .gespraeche
         default: nil
         }
