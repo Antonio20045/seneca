@@ -2,64 +2,93 @@ import SwiftUI
 import AppKit
 import Combine
 
-struct PegelWelle: View {
-    @ObservedObject var quelle: PegelQuelle
-    var hoehe: CGFloat = 18
-    var anzahl = 12
-    @State private var werte: [Double] = []
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(Array(werte.enumerated()), id: \.offset) { _, w in RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.9)).frame(width: 2.5, height: max(4, hoehe * min(1, w))) }
-            ForEach(Array([5.0, 3, 4, 3, 5, 3, 4, 3, 5, 3].prefix(anzahl / 3).enumerated()), id: \.offset) { _, h in RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.35)).frame(width: 2.5, height: h) }
-        }
-        .frame(height: hoehe).accessibilityHidden(true)
-        .onChange(of: quelle.wert) { _, w in werte = Array((werte + [w]).suffix(anzahl)) }
-    }
+private final class WellenGlaetter {
+    var pegel = 0.0
+    var ausschlag = 0.0
+    var schimmer = 0.0
+    var schimmerStart = Date()
 }
 
-struct DiktatPille: View {
+struct DiktatHorizont: View {
     @ObservedObject var dienst: DiktatDienst
-    var feld = false
+    @State private var bild = Bild.aus
+    @State private var seit = Date()
+    @State private var aufSeit = Date()
+    @State private var glaetter = WellenGlaetter()
 
-    private func taste(_ t: String) -> Text { Text(" \(t) ").font(Schrift.mono(11)).foregroundColor(TafelFarbe.zweit) }
-    private var zustand: DiktatDienst.Zustand { dienst.anzeigeZustand }
+    static let laenge: CGFloat = 440
+    private static let hoehe: CGFloat = 48
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
-            HStack(spacing: feld ? 14 : 10) { inhalt(ctx.date) }
-                .padding(.leading, feld ? 20 : 18).padding(.trailing, feld ? 16 : 18)
+    enum Bild: Equatable { case aus, oeffnet, hoert, schreibt, eingefuegt, fehler, beendet }
+
+    private var aktuell: Bild {
+        if dienst.beendetHinweis { return .beendet }
+        if dienst.startetAnzeige { return .oeffnet }
+        switch dienst.anzeigeZustand {
+        case .ruht: return dienst.zustand == .ruht ? .aus : .hoert
+        case .hoert: return .hoert
+        case .erkennt: return .schreibt
+        case .eingefuegt: return .eingefuegt
+        case .fehler: return .fehler
         }
     }
 
-    private func punkt(_ farbe: Color, atmet: Bool) -> some View {
-        Circle().fill(farbe).frame(width: 8, height: 8).background(Circle().fill(farbe.opacity(0.18)).frame(width: 16, height: 16))
-            .phaseAnimator(atmet ? [0.35, 1] : [1]) { v, p in v.opacity(p) } animation: { _ in .easeInOut(duration: 0.8) }
+    private var ruht: Bool { dienst.zustand == .ruht && !dienst.beendetHinweis && !dienst.startetAnzeige }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: ruht)) { ctx in
+            let dt = ctx.date.timeIntervalSince(seit)
+            let zieh = bild == .eingefuegt ? Self.seg(dt, 0.85, 1.45) : 0
+            VStack(spacing: 6) {
+                ZStack {
+                    zeile(ctx.date).id(bild)
+                        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.15).delay(0.12)), removal: .opacity.animation(.easeIn(duration: 0.12))))
+                }
+                .animation(.easeInOut(duration: 0.15), value: bild)
+                    .opacity((0.35 + 0.65 * Self.seg(ctx.date.timeIntervalSince(aufSeit), 0, 0.5)) * (1 - zieh))
+                Canvas { g, groesse in male(g, groesse, ctx.date) }.frame(height: Self.hoehe)
+            }
+            .frame(width: Self.laenge + 40)
+            .background(EllipticalGradient(colors: [TafelFarbe.hex(0x061632, 0.6 * (1 - zieh)), TafelFarbe.hex(0x061632, 0.3 * (1 - zieh)), TafelFarbe.hex(0x061632, 0)]).frame(width: Self.laenge + 160, height: 150))
+        }
+        .onAppear { wechsle(aktuell) }
+        .onChange(of: aktuell) { _, neu in wechsle(neu) }
+        .accessibilityElement(children: .combine)
     }
 
-    private func titel(_ t: String, _ farbe: Color = .white) -> some View {
-        Text(t).font(Schrift.grotesk(feld ? 15 : 14, .medium)).foregroundStyle(farbe).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+    private func wechsle(_ neu: Bild) {
+        let jetzt = Date()
+        if bild == .aus || neu == .oeffnet || neu == .beendet || neu == .hoert && bild != .oeffnet { aufSeit = jetzt }
+        if neu == .schreibt { glaetter.schimmerStart = jetzt }
+        bild = neu
+        seit = jetzt
     }
 
-    private func leise(_ t: String) -> some View { Text(t).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.zweit).lineLimit(1) }
+    private func marke(_ t: String, _ farbe: Color) -> some View {
+        Text(t).font(Schrift.mono(11)).tracking(2.6).foregroundStyle(farbe).lineLimit(1)
+    }
 
-    @ViewBuilder private func inhalt(_ jetzt: Date) -> some View {
-        if dienst.beendetHinweis {
-            punkt(TafelFarbe.aus, atmet: false); titel("Aufnahme beendet"); leise("Das Mikrofon hat nichts mehr geliefert."); Spacer(minLength: 0)
-        } else if dienst.startetAnzeige {
-            punkt(TafelFarbe.jetzt, atmet: true); titel("Mikrofon öffnet"); Spacer(minLength: 0)
-        } else {
-            switch zustand {
-            case .hoert, .ruht: hoert(jetzt)
-            case .erkennt:
-                punkt(Farbe.himmel, atmet: true); titel("Schreibe auf")
-                ProgressView().progressViewStyle(.linear).tint(Farbe.himmel).frame(width: 120); Spacer(minLength: 0)
-            case .eingefuegt(let t):
-                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Farbe.gruen).frame(width: 16)
-                titel("Eingefügt"); leise("· \(DiktatPille.woerter(t)) Wörter"); Spacer(minLength: 0)
-            case .fehler(let meldung, let zwischenablage):
-                Image(systemName: zwischenablage ? "doc.on.clipboard" : "exclamationmark.triangle").font(.system(size: 12, weight: .semibold)).foregroundStyle(Farbe.koralle).frame(width: 16)
-                titel(meldung, Farbe.warnText).padding(.vertical, 12)
+    @ViewBuilder private func zeile(_ jetzt: Date) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            switch bild {
+            case .aus, .oeffnet:
+                marke("MIKROFON ÖFFNET", TafelFarbe.zweit); Spacer(minLength: 0)
+            case .hoert:
+                let still = DiktatWache.ichHoereNichts(sekundenSeitAusschlag: jetzt.timeIntervalSince(dienst.letzterAusschlag))
+                marke(still ? "ICH HÖRE NICHTS" : "HÖRT ZU", still ? TafelFarbe.jetzt : TafelFarbe.zweit); Spacer(minLength: 0)
+                marke(DiktatWache.laufzeit(jetzt.timeIntervalSince(dienst.aufnahmeBeginn)), Self.tinte3).monospacedDigit()
+            case .schreibt:
+                marke("SCHREIBT", TafelFarbe.zweit); Spacer(minLength: 0)
+            case .eingefuegt:
+                marke("EINGEFÜGT", TafelFarbe.hex(0x9FE3B6)); Spacer(minLength: 0)
+                if case .eingefuegt(let t) = dienst.anzeigeZustand { marke("\(Self.woerter(t)) \(Self.woerter(t) == 1 ? "WORT" : "WÖRTER")", Self.tinte3) }
+            case .beendet:
+                marke("AUFNAHME BEENDET", TafelFarbe.zweit); Spacer(minLength: 0)
+                marke("MIKROFON LIEFERT NICHTS", Self.tinte3)
+            case .fehler:
+                if case .fehler(let meldung, _) = dienst.anzeigeZustand {
+                    Text(meldung).font(Schrift.grotesk(13)).foregroundStyle(Farbe.warnText).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer(minLength: 0)
                 if dienst.letzteAufnahme != nil {
                     Button("Erneut erkennen") { dienst.erneutErkennen() }.buttonStyle(.plain)
@@ -69,24 +98,91 @@ struct DiktatPille: View {
                     .accessibilityLabel("Hinweis schließen")
             }
         }
+        .padding(.horizontal, 20)
     }
 
-    @ViewBuilder private func hoert(_ jetzt: Date) -> some View {
-        let still = DiktatWache.ichHoereNichts(sekundenSeitAusschlag: jetzt.timeIntervalSince(dienst.letzterAusschlag))
-        punkt(TafelFarbe.jetzt, atmet: true)
-        titel(still ? "Ich höre nichts" : "Hört zu", still ? TafelFarbe.jetzt : .white)
-        Text(DiktatWache.laufzeit(jetzt.timeIntervalSince(dienst.aufnahmeBeginn))).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.zweit).monospacedDigit()
-        if feld { Spacer(minLength: 0) }
-        PegelWelle(quelle: dienst.pegelQuelle, hoehe: feld ? 22 : 18, anzahl: feld ? 30 : 12)
-        Spacer(minLength: 0)
-        if feld {
-            HStack(spacing: 4) {
-                Text("fertig"); taste("rechte ⌘").overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
-                Text("· verwerfen"); taste("esc").overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
-            }.font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
+    private func male(_ g: GraphicsContext, _ groesse: CGSize, _ jetzt: Date) {
+        let dt = jetzt.timeIntervalSince(seit), dtAuf = jetzt.timeIntervalSince(aufSeit)
+        let t = jetzt.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 10_000)
+        let auf = Self.seg(dtAuf, 0, 0.5)
+        switch bild {
+        case .hoert: glaetter.pegel += (dienst.pegelQuelle.wert - glaetter.pegel) * 0.22
+        case .schreibt, .eingefuegt: break
+        default: glaetter.pegel = 0
+        }
+        let atem = 1 + 0.35 * sin(t * .pi * 2 / 1.6)
+        let ruhig = bild == .schreibt ? Self.seg(dt, 0, 0.8) : 1
+        let lv = bild == .hoert ? glaetter.pegel : bild == .schreibt ? glaetter.pegel * (1 - ruhig) : 0
+        let glatt = bild == .eingefuegt ? 1 - Self.seg(dt, 0, 0.55) : 1
+        let ziel: Double = switch bild {
+        case .hoert: (0.2 + lv) * Self.seg(dtAuf, 0.15, 0.6)
+        case .schreibt: (0.2 + lv) * (1 + (atem * 1.1 - 1) * ruhig)
+        case .eingefuegt: 0.2 * atem * 1.1 * glatt
+        default: 0
+        }
+        glaetter.ausschlag += (ziel - glaetter.ausschlag) * (bild == .eingefuegt ? 0.3 : 0.2)
+        let amp = glaetter.ausschlag
+        let schimmerZiel = bild == .schreibt ? Self.seg(dt, 0.05, 0.5) : 0
+        glaetter.schimmer = schimmerZiel > glaetter.schimmer ? schimmerZiel : glaetter.schimmer + (0 - glaetter.schimmer) * 0.12
+        let sh = glaetter.schimmer
+        let schimmerOrt = -0.1 + 1.2 * (jetzt.timeIntervalSince(glaetter.schimmerStart) / 1.15).truncatingRemainder(dividingBy: 1)
+        let gruen = bild == .eingefuegt ? Self.seg(dt, 0.35, 0.65) : 0
+        let flash = bild == .eingefuegt ? Self.seg(dt, 0.4, 0.6) * (1 - Self.seg(dt, 0.7, 1.2)) : 0
+        let zieh = bild == .eingefuegt ? Self.seg(dt, 0.85, 1.45) : 0
+        let erlischt = bild == .eingefuegt ? Self.seg(dt, 1.15, 1.58) : 0
+        let sicht = (0.35 + 0.65 * auf) * (1 - erlischt)
+        let l = Self.laenge * (0.06 + 0.94 * auf) * (1 - zieh * 0.95)
+        let mitte = groesse.height / 2, x0 = groesse.width / 2 - l / 2, x1 = groesse.width / 2 + l / 2
+        let grund: (Double, Double, Double) = switch bild {
+        case .fehler: (240, 122, 95)
+        case .beendet: (107, 118, 134)
+        default: (255 + (107 - 255) * gruen, 255 + (217 - 255) * gruen, 255 + (143 - 255) * gruen)
+        }
+        let grundAlpha = bild == .fehler || bild == .beendet ? 0.85 : 0.95 + (0.72 - 0.95) * sh + ((0.55 + flash * 0.45) - (0.95 + (0.72 - 0.95) * sh)) * gruen
+        let nebenAlpha = bild == .oeffnet || bild == .hoert || bild == .schreibt || bild == .eingefuegt ? glatt : 0
+        let welle: (Int, Double) -> Path = { k, breite in
+            var p = Path()
+            var px = x0
+            while px <= x1 {
+                let u = (px - x0) / max(1, x1 - x0), huelle = pow(sin(.pi * u), 1.4), q = Double(px - x0) + 230, kd = Double(k)
+                let y = mitte + huelle * amp * (17 - kd * 4.5) * sin(q * (0.05 + kd * 0.022) - t * (5 + kd * 1.7) + kd * 1.3) * sin(q * 0.017 + t * 1.3 + kd)
+                if px == x0 { p.move(to: CGPoint(x: px, y: y)) } else { p.addLine(to: CGPoint(x: px, y: y)) }
+                px += breite
+            }
+            return p
+        }
+        let waagrecht = { (stops: [Gradient.Stop]) in GraphicsContext.Shading.linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: x0, y: 0), endPoint: CGPoint(x: x1, y: 0)) }
+        for k in [2, 1, 0] {
+            let anteil = k == 0 ? 1 : nebenAlpha
+            if anteil < 0.01 { continue }
+            let stops = (0...32).map { i -> Gradient.Stop in
+                let u = Double(i) / 32, rand = min(1, u / 0.18, (1 - u) / 0.18), band = sh * exp(-pow((u - schimmerOrt) / 0.075, 2))
+                var (r, gg, bb) = k == 0 ? grund : (143.0, 182.0, 227.0)
+                var a = k == 0 ? grundAlpha : (k == 1 ? 0.7 : 0.5) * anteil
+                r += (255 - r) * band; gg += (255 - gg) * band; bb += (255 - bb) * band; a = min(1, a + band * 0.6)
+                return .init(color: Color(.sRGB, red: r / 255, green: gg / 255, blue: bb / 255, opacity: a * rand * sicht), location: u)
+            }
+            var c = g
+            c.blendMode = .plusLighter
+            c.addFilter(.shadow(color: (gruen > 0.5 && k == 0 ? Farbe.gruen : bild == .fehler ? TafelFarbe.jetzt : Farbe.himmel).opacity(0.95 * sicht),
+                                radius: k == 0 ? 5 + flash * 7 + lv * 4 + sh * 2 : 2.5))
+            c.stroke(welle(k, 1), with: waagrecht(stops), lineWidth: k == 0 ? 1.5 + flash * 1.2 : 1)
+        }
+        if sh > 0.01 {
+            let stops = (0...48).map { i -> Gradient.Stop in
+                let u = Double(i) / 48, band = exp(-pow((u - schimmerOrt) / 0.06, 2)) * min(1, u / 0.12, (1 - u) / 0.12)
+                return .init(color: Color(.sRGB, red: 220 / 255, green: 236 / 255, blue: 1, opacity: 0.85 * band * sh * sicht), location: u)
+            }
+            var c = g
+            c.blendMode = .plusLighter
+            c.addFilter(.shadow(color: TafelFarbe.hex(0xCFE4FA, sicht), radius: 7))
+            c.stroke(welle(0, 1), with: waagrecht(stops), lineWidth: 2.6)
         }
     }
 
+    private static let tinte3 = TafelFarbe.hex(0x8A93A0)
+    static func seg(_ t: Double, _ a: Double, _ b: Double) -> Double { ease(min(1, max(0, (t - a) / (b - a)))) }
+    static func ease(_ x: Double) -> Double { x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2 }
     static func woerter(_ t: String) -> Int { t.split(whereSeparator: \.isWhitespace).count }
 }
 
@@ -94,13 +190,12 @@ struct DiktatBlasenInhalt: View {
     @ObservedObject var dienst: DiktatDienst
 
     var body: some View {
-        DiktatPille(dienst: dienst).frame(width: 560).frame(minHeight: 46)
-            .background(Capsule().fill(TafelFarbe.hex(0x0C1A32, 0.92)).shadow(color: .black.opacity(0.6), radius: 22, y: 18))
-            .overlay(Capsule().strokeBorder(LinearGradient(colors: [Color.white.opacity(0.14), Color.white.opacity(0.06)], startPoint: .top, endPoint: .center), lineWidth: 1))
+        DiktatHorizont(dienst: dienst)
             .padding(40).fixedSize()
             .accessibilityIdentifier("diktat-blase")
     }
 }
+
 
 private final class DiktatPanel: NSPanel {
     override var canBecomeKey: Bool { false }
@@ -251,7 +346,7 @@ final class DiktatBlase {
         guard let p = panel else { return }
         zustand = z
         beendetHinweis = hinweis
-        if !sichtbarLaut || (dienst?.imFeld == true && NSApp.isActive && !istFehler) {
+        if !sichtbarLaut {
             stoppeTakt()
             NSAnimationContext.runAnimationGroup({ c in
                 c.duration = 0.25
@@ -280,3 +375,44 @@ final class DiktatBlase {
         messe()
     }
 }
+
+#if DEBUG
+enum DiktatFilm {
+    nonisolated static var ordner: String? { ProcessInfo.processInfo.environment["SENECA_DIKTAT_FILM"].flatMap { $0.isEmpty ? nil : $0 } }
+
+    static func laufe(_ ordner: String) -> Never {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.prohibited)
+        Task { @MainActor in
+            let dienst = DiktatDienst.gemeinsam
+            let szene = ZStack(alignment: .bottom) {
+                LinearGradient(colors: [TafelFarbe.hex(0x123264), TafelFarbe.hex(0x061632)], startPoint: .top, endPoint: .bottom)
+                DiktatBlasenInhalt(dienst: dienst).padding(.bottom, 8)
+            }
+            .frame(width: 900, height: 280).preferredColorScheme(.dark)
+            let fenster = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 280), styleMask: [.borderless], backing: .buffered, defer: true)
+            let host = NSHostingView(rootView: szene)
+            fenster.contentView = host
+            try? FileManager.default.createDirectory(atPath: ordner, withIntermediateDirectories: true)
+            let start = Date()
+            var phase = ""
+            var n = 0
+            while Date().timeIntervalSince(start) < 7.2 {
+                let t = Date().timeIntervalSince(start)
+                let soll = t < 3.4 ? "hoert" : t < 4.8 ? "erkennt" : "eingefuegt"
+                if soll != phase { phase = soll; dienst.blasenProbe(soll) }
+                host.layoutSubtreeIfNeeded(); CATransaction.flush()
+                if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                    host.cacheDisplay(in: host.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: ordner + String(format: "/%@-%04d-%.2f.png", phase, n, t)))
+                    n += 1
+                }
+                try? await Task.sleep(for: .milliseconds(40))
+            }
+            exit(0)
+        }
+        app.run()
+        exit(0)
+    }
+}
+#endif

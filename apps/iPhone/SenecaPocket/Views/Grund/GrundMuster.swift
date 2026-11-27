@@ -93,7 +93,6 @@ struct GrundMuster: View {
 
             AbschnittKopf("Schreiben")
             SchreibFeld("Frag Seneca etwas", text: $entwurf, senden: {})
-                .links { RundKnopf("mic", beschriftung: "Sprechen") {} }
             SchreibFeld("Neue Aufgabe", text: .constant(""), zeilen: 1...1, eingabeSendet: true, senden: {})
                 .padding(.top, Stil.abstand.s)
             HauptKnopf("Eintragen", breit: true) {}

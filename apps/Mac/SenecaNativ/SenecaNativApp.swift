@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum Start {
     static func main() {
         if HeuteBild.ziel != nil { MainActor.assumeIsolated { HeuteBild.laufe() } }
+        #if DEBUG
+        if let o = DiktatFilm.ordner { MainActor.assumeIsolated { DiktatFilm.laufe(o) } }
+        #endif
         SenecaNativApp.main()
     }
 }
