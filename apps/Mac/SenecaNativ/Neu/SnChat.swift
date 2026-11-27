@@ -163,11 +163,6 @@ final class SnChatSteuerung: ObservableObject {
     }
 }
 
-enum SnChatName {
-    static func initial(_ p: Person) -> String { p.wer.first.map { String($0).uppercased() } ?? "" }
-    static func initial(name: String) -> String { name.first.map { String($0).uppercased() } ?? "" }
-}
-
 struct SnChatSeite: View {
     @ObservedObject var modell: AppModell
     @ObservedObject var steuerung: SnChatSteuerung

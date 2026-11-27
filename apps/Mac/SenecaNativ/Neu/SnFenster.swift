@@ -515,16 +515,3 @@ struct SnHeuteMitFenster: View {
     #endif
 }
 
-struct SnEchteSeite<Inhalt: View>: View {
-    let modell: AppModell
-    @ObservedObject private var uebersicht: OverviewStore
-    let inhalt: (any SenecaDatenQuelle, any SnProjekteQuelle) -> Inhalt
-
-    init(modell: AppModell, @ViewBuilder inhalt: @escaping (any SenecaDatenQuelle, any SnProjekteQuelle) -> Inhalt) {
-        self.modell = modell
-        _uebersicht = ObservedObject(wrappedValue: modell.uebersicht)
-        self.inhalt = inhalt
-    }
-
-    var body: some View { inhalt(modell.snDaten, modell.snProjekte) }
-}
