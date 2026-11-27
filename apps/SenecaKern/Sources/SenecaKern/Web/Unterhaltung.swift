@@ -78,7 +78,7 @@ enum Urheber: Equatable, Sendable {
 
     private static func erkenneOhneProbe(zeile m: [String: Any], text: String) -> Urheber {
         let meta = m["__openclaw"] as? [String: Any]
-        if let p = m["provenance"] as? [String: Any] {
+        if let p = m["provenance"] as? [String: Any], !ausApp(p, meta) {
             var e = ausProvenance(p, text: text)
             e.auftrag = istAuftragsWeckruf(text)
             return .eingespeist(e)
@@ -95,6 +95,10 @@ enum Urheber: Equatable, Sendable {
     }
 
     private static func agentAus(_ s: String?) -> String? { s?.treffer(#"agent:([\w-]+)"#)?[1] }
+
+    private static func ausApp(_ p: [String: Any], _ meta: [String: Any]?) -> Bool {
+        p["kind"] as? String == "external_user" && ((meta?["transport"] as? [String: Any])?["clients"] as? [[String: Any]] ?? []).contains { $0["mode"] as? String == "ui" }
+    }
 
     private static func ausProvenance(_ p: [String: Any], text: String) -> Einspeisung {
         let kind = p["kind"] as? String ?? ""
