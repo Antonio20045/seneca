@@ -13,6 +13,7 @@ struct ErsterStart: View {
     @State private var fehler: String?
     @State private var abgebrochen = false
     @State private var bestaetigt = false
+    @State private var wartetLange = false
 
     var body: some View {
         GeometryReader { g in
@@ -32,7 +33,11 @@ struct ErsterStart: View {
             guard da, schritt != .uhr else { return }
             Task { try? await Task.sleep(for: .seconds(1.4)); Bewegung.mit(.seite) { schritt = .uhr } }
         }
-        .task(id: schritt) { if schritt == .uhr, !store.demo { store.daten?.handeln("geraet.uhr_koppeln") } }
+        .task(id: schritt) { await fensterOffenHalten() }
+        .onChange(of: kopplung?.zahl) { _, neu in
+            guard neu != nil else { return }
+            Bewegung.mit(.klein) { bestaetigt = false; abgebrochen = false }
+        }
         #if DEBUG
         .onAppear {
             guard store.demo, ProcessInfo.processInfo.environment["SENECA_DEMO_START"] == "2" else { return }
@@ -176,8 +181,26 @@ struct ErsterStart: View {
     private func satz(_ k: SenecaStand.Kopplung?) -> String {
         if bestaetigt { return "Die Uhr ist gekoppelt. Sie holt sich ihren Stand über dieses iPhone." }
         if abgebrochen { return "Abgebrochen. Neu geht es jederzeit unter Einstellungen › Uhr verbinden, solange Seneca auf der Uhr offen ist." }
-        guard let k else { return "Öffne Seneca auf der Uhr. Connect IQ findet sie über dieses iPhone, dann zeigen beide dieselbe Zahl." }
+        guard let k else {
+            if !store.isConnected, !store.demo { return "Dein iPhone erreicht Seneca gerade nicht. Ist Tailscale am iPhone an? Die Uhr kommt nur über dieses Netz zu Seneca." }
+            if wartetLange { return "Noch keine Zahl. Ist Seneca auf der Uhr offen? Drück dort START. Die Uhr spricht über Garmin Connect auf diesem iPhone: Bluetooth an, Garmin Connect offen." }
+            return "Öffne Seneca auf der Uhr. Connect IQ findet sie über dieses iPhone, dann zeigen beide dieselbe Zahl."
+        }
         return "\(k.modell ?? "Deine Uhr") ist installiert. Die Uhr bekommt deine To-dos, Übungen und das aktuelle Buch. Sie schickt Sätze, Lesezeit und Antworten."
+    }
+
+    private func fensterOffenHalten() async {
+        wartetLange = false
+        guard schritt == .uhr, !store.demo else { return }
+        var seit = Date.distantPast
+        while !Task.isCancelled {
+            if Date().timeIntervalSince(seit) >= 300 {
+                store.daten?.handeln("geraet.uhr_koppeln")
+                seit = Date()
+            }
+            try? await Task.sleep(for: .seconds(30))
+            if !Task.isCancelled { Bewegung.mit(.klein) { wartetLange = true } }
+        }
     }
 
     private func fertig() {

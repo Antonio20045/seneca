@@ -222,7 +222,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
       grund: ((w) => (w && (w.gueltig_bis ?? 0) > jetzt ? JSON.parse(w.wert) : null))(wert(db, `todo_grund:${t.id}`)) })),
     hinweise: [...werte(db, "hinweis:").keys()].map((k) => wert(db, k)).filter((w) => w?.wert && (w.gueltig_bis ?? Infinity) > jetzt).map((w) => w?.wert),
     kopplung: [...werte(db, "kopplung:").keys()].filter((k) => k !== "kopplung:fenster").map((k) => ({ k, w: wert(db, k) })).filter(({ w }) => w && (w.gueltig_bis ?? Infinity) > jetzt)
-      .map(({ k, w }) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(String(w?.wert)) })).filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl })),
+      .map(({ k, w }) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(String(w?.wert)) })).filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl, modell: k.modell })),
   };
   if (JSON.stringify(inhalt).length > regelZahl("stand_max_kb") * 1024) throw new Error("Stand zu gross");
   return inhalt;

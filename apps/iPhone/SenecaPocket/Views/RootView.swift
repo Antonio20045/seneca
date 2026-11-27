@@ -94,6 +94,12 @@ struct RootView: View {
                            chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
         .task { await launch() }
+        .onChange(of: store.stand?.kopplung?.last(where: { $0.bestaetigt != true })?.zahl) { _, zahl in
+            guard zahl != nil, ersterStart == nil else { return }
+            einstellungen = false
+            reading = nil
+            Bewegung.mit(.seite) { ersterStart = .uhr }
+        }
         #if DEBUG
         .overlay { SperreProbe.aus(store.stand) }
         #endif
