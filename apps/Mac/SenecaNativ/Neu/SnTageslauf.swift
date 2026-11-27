@@ -102,7 +102,11 @@ enum HeuteBild {
                                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(TafelFarbe.jetzt.opacity(0.45), lineWidth: 1)) }
                             else { DiktatBlasenInhalt(dienst: .gemeinsam) }
                         }
-                        .onAppear { DiktatDienst.gemeinsam.blasenProbe("hoert") }
+                        .onAppear {
+                            #if DEBUG
+                            DiktatDienst.gemeinsam.blasenProbe("hoert")
+                            #endif
+                        }
                     case "meeting-ergebnis":
                         SnMeetingErgebnis(e: SnMeetingProbe.ergebnis(s), datei: URL(fileURLWithPath: NSHomeDirectory() + "/Bereiche/sundartha/meetings/2026-11-26-telefonat-jonas.md"), zurueck: {},
                                           todos: [try? JSONDecoder().decode(SenecaStand.Todo.self, from: Data(#"{"id":"t","titel":"Steuerberater: Kleinunternehmer klären","tag":"heute","dauer_min":15}"#.utf8))].compactMap { $0 })
