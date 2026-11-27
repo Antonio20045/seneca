@@ -34,7 +34,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Mitglied: Codable, Equatable, Sendable {
         public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
-        public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?
+        public var auftrag_id: String?; public var schritte: [Zuletzt]?; public var ruht_seit: Double?; public var titel: String?
     }
     public struct AuftragNeu: Codable, Equatable, Sendable, Identifiable {
         public var id: String; public var titel: String; public var ziel: String?; public var wer: String; public var pruefer: Bool?

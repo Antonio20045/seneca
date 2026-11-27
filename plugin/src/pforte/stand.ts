@@ -76,7 +76,7 @@ function team(db: Register, jetzt: number) {
     const zuletzt = l ? undefined : beendeteLaeufe(db, name, tagBeginn)[0];
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null,
+      zuletzt: zuletzt ? { satz: zuletzt.letzter_schritt ?? zuletzt.titel, um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
       ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null };
   });
