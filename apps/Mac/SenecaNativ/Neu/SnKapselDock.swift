@@ -74,18 +74,10 @@ private struct SnOrtKnopf: View {
 }
 
 private struct DockKugel: View {
-    @ObservedObject private var diktat = DiktatDienst.gemeinsam
     @State private var nimmtAuf = false
 
-    private var diktiert: Bool {
-        switch diktat.zustand {
-        case .hoert, .erkennt: return true
-        default: return false
-        }
-    }
-
     var body: some View {
-        SnKugel(groesse: 32, atmet: diktiert || nimmtAuf)
+        SnKugel(groesse: 32, atmet: nimmtAuf)
             .onReceive(MeetingDienst.gemeinsam.$zustand.map { $0 == .nimmtAuf }.removeDuplicates()) { nimmtAuf = $0 }
     }
 }
@@ -101,7 +93,7 @@ struct SnDock: View {
     @State private var hover = false
     @ObservedObject private var diktat = DiktatDienst.gemeinsam
     @Environment(\.accessibilityReduceMotion) private var ruhig
-    private var hoertHier: Bool { offen && diktat.zustand == .hoert && !diktat.startetAnzeige && NSApp.isActive }
+    private var hoertHier: Bool { offen && diktat.zustand == .hoert && NSApp.isActive }
 
     var body: some View {
         ZStack {

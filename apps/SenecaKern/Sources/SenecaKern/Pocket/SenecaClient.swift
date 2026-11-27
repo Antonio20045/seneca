@@ -343,11 +343,16 @@ final class SenecaStore: ObservableObject {
     private var reloadAgain = false
 
 
-    #if os(iOS)
-    nonisolated static let phoneHint = "\n\n[Vom iPhone: erst ein kurzer Ergebnissatz, dann knapp; Termine als „HH:MM Titel“.]"
-    #else
-    nonisolated static let phoneHint = ""
-    #endif
+    var umfeld: (@MainActor () -> String?)?
+    private var askUmfeld: [String: String] = [:]
+
+    nonisolated static func hinweis(umfeld: String?) -> String {
+        #if os(iOS)
+        "\n\n[Vom iPhone: erst ein kurzer Ergebnissatz, dann knapp; Termine als „HH:MM Titel“.]"
+        #else
+        umfeld.map { "\n\n[Vom Mac, diktiert. Davor war vorn: \($0.replacingOccurrences(of: "]", with: ")").replacingOccurrences(of: "[", with: "("))]" } ?? ""
+        #endif
+    }
 
     private func publishLives() {
         chat.setLives(asks.values.map(\.live))
@@ -368,6 +373,7 @@ final class SenecaStore: ObservableObject {
         asks[id] = AskTracker(key: id, sessionKey: key, question: question, sentAt: Date())
         if chat.speicher.zustand(sitzung: key, schluessel: id) == nil { chat.speicher.legeFrageAn(sitzung: key, text: question, schluessel: id) }
         if !anhaenge.isEmpty { askAnhaenge[id] = anhaenge }
+        if let u = umfeld?() { askUmfeld[id] = u }
         publishLives()
         return try await withCheckedThrowingContinuation { continuation in
             answerWaiters[id] = continuation
@@ -398,7 +404,7 @@ final class SenecaStore: ObservableObject {
             do {
                 tempo("chat.send raus id=\(id.prefix(8)) session=\(tracker.sessionKey) versuch=\(tracker.versuche + 1)")
                 var sendeParams: [String: Any] = ["sessionKey": tracker.sessionKey, "agentId": AreasLogic.agentID(of: tracker.sessionKey),
-                                                  "message": tracker.question + Self.phoneHint, "idempotencyKey": id, "queueMode": "followup"]
+                                                  "message": tracker.question + Self.hinweis(umfeld: askUmfeld[id]), "idempotencyKey": id, "queueMode": "followup"]
                 if let anhaenge = askAnhaenge[id] { sendeParams["attachments"] = anhaenge }
                 let result = try await rufe("chat.send", params: sendeParams, timeout: ZustellPlan.sendeTimeout)
                 let runID = result["runId"] as? String
@@ -530,6 +536,7 @@ final class SenecaStore: ObservableObject {
     private func finishAsk(_ id: String, _ result: Result<String, Error>) {
         let tracker = asks.removeValue(forKey: id)
         askAnhaenge[id] = nil
+        askUmfeld[id] = nil
         gemeldet[id] = nil
         publishLives()
         if let tracker {

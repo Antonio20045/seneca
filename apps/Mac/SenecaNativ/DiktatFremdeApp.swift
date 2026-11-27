@@ -10,7 +10,7 @@ enum DiktatFremdeApp {
 
     static var vorne: NSRunningApplication? { NSWorkspace.shared.frontmostApplication }
 
-    static func zielText(_ a: NSRunningApplication) -> String {
+    static func beschreibung(_ a: NSRunningApplication) -> String {
         let app = AXUIElementCreateApplication(a.processIdentifier)
         var f: CFTypeRef?, t: CFTypeRef?
         if AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &f) == .success, let f,

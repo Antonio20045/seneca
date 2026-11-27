@@ -234,7 +234,7 @@ struct SnMenueBild: View {
 
     var body: some View {
         let meeting = art == "menue-meeting" ? ("12:04", MeetingSegment(start: 0, ende: 1, sprecher: 1, text: "Und die Domain, wer verlängert die")) : nil
-        let z = MenueZeichen.entscheide(diktat: .ruht, meetingNimmtAuf: meeting != nil, meetingDauer: 724, meetingArbeitet: false, braucht: stand.zaehler?.braucht ?? 0, fokus: stand.ruhe?.grund == "fokus")
+        let z = MenueZeichen.entscheide(meetingNimmtAuf: meeting != nil, meetingDauer: 724, meetingArbeitet: false, braucht: stand.zaehler?.braucht ?? 0, fokus: stand.ruhe?.grund == "fokus")
         ZStack(alignment: .topLeading) {
             LinearGradient(colors: [TafelFarbe.hex(0x48618A), TafelFarbe.hex(0x1D2A44)], startPoint: .topLeading, endPoint: .bottom)
             HStack(spacing: 18) {

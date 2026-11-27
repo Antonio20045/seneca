@@ -179,6 +179,7 @@ struct SenecaNativApp: App {
             }
             return true
         }
+        modell.store.umfeld = { DiktatDienst.gemeinsam.nimmKontext() }
         meeting.uebersicht = modell.uebersicht
         meeting.stand = { [weak modell] in modell?.store.stand }
         meeting.handle = { [weak modell] a, z, w in modell?.store.handle(a, ziel: z, wert: w) }

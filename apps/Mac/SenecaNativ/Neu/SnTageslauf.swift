@@ -66,7 +66,7 @@ enum HeuteBild {
                         }
                         .onAppear {
                             #if DEBUG
-                            DiktatDienst.gemeinsam.blasenProbe("hoert")
+                            DiktatDienst.gemeinsam.blasenProbe(env["SENECA_DIKTAT_BLASE"] ?? "hoert")
                             #endif
                         }
                     case "start-weiter", "start-antwortet-nicht", "start-wieder":
