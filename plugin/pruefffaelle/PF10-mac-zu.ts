@@ -49,6 +49,7 @@ test("PF10 „Verschieb den Zahnarzt“ wirkt ohne Mac; Konflikt wird gemeldet, 
   assert.equal(r.ok, true);
   assert.equal(termineAm(p.db, morgen("00:00")).find((t) => t.uid === "zahn")?.start, morgen("16:00"));
   assert.match(String((await p.werkzeug("seneca_kalender", "agent:produkt:main", "produkt", { aktion: "anlegen", start: morgen("18:00") })).fehler), /Nur Seneca/);
+  assert.match(String((await p.werkzeug("seneca_kalender", "agent:seneca:main", "seneca", { aktion: "anlegen", titel: "Sekunden", start: 1795960800, ende: 1795962600 })).fehler), /Millisekunden/);
   zurueck();
   attrappe.server.close();
 });

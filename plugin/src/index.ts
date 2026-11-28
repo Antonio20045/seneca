@@ -149,7 +149,7 @@ export default {
     const kalender = geheim(api, "kalender");
     const senden = pushSender(geheim(api, "push"));
     const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
-    const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
+    const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. start und ende in Millisekunden. Mit Teilnehmern fragt der Ausgang.",
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
       (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)],
     ["seneca_mitarbeiter", "Mitarbeiter anlegen, aendern, ruhen (ruht false weckt wieder, bis in ms), loeschen, erst nach Antonios „passt“. anlegen und aendern: name, rolle (Text von rolle.md: erste Zeile „# Anzeigename“, höchstens 60 Zeilen), mandat (YAML wie team/trainer/mandat). Danach steht der Mitarbeiter im Team und ist im Chat ansprechbar, ohne Neustart; das Repo zieht von selbst nach.",
