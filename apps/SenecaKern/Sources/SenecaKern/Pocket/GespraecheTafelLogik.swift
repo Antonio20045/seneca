@@ -44,8 +44,7 @@ enum GespraecheTafelLogik {
     }
 
     static func laufSatz(_ m: SenecaStand.Mitglied) -> String {
-        let w = (m.satz ?? "arbeitet").split(separator: " ", maxSplits: 1).map(String.init)
-        return "Solange du überlegst, \(w[0]) \(m.name)\(w.count > 1 ? " " + w[1] : "")" + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
+        "\(m.name) arbeitet" + (m.titel.flatMap { $0.isEmpty ? nil : " an „\($0)“" } ?? "") + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
     }
 
     static func seneca(_ s: SenecaStand) -> String? {
@@ -141,7 +140,7 @@ enum GespraecheTafelLogik {
 
     static func wirktSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
         let n = Int(s.regeln?["rueckgaengig_s"] ?? 5)
-        return "\(haupt(f)?.knopf ?? haupt(f)?.text ?? "Ja") wirkt nach \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden. Bis dahin kannst du es zurücknehmen."
+        return "Nach dem Tippen \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden zum Zurücknehmen."
     }
 
     static func wann(_ ms: Double, _ s: SenecaStand) -> String {
