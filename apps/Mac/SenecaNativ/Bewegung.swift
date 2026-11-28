@@ -118,19 +118,23 @@ private struct Aufklappen: Shape {
     var anteil: Double
     var animatableData: Double { get { anteil } set { anteil = newValue } }
     func path(in r: CGRect) -> Path {
-        Path(roundedRect: CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height * anteil), cornerRadius: 24, style: .continuous)
+        Path(CGRect(x: r.minX - 24, y: r.minY - 24, width: r.width + 48, height: (r.height + 24) * anteil))
     }
 }
 
 struct Entfaltet: ViewModifier {
     var aktiv: Bool
     @State private var da = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(!aktiv || da ? 1 : 0)
-            .offset(y: !aktiv || da ? 0 : -8)
-            .clipShape(Aufklappen(anteil: !aktiv || da ? 1.2 : 0))
-            .onAppear { if aktiv { withAnimation(Kurve.ease(0.95).delay(0.1)) { da = true } } }
+    @ViewBuilder func body(content: Content) -> some View {
+        if aktiv {
+            content
+                .opacity(da ? 1 : 0)
+                .offset(y: da ? 0 : -8)
+                .clipShape(Aufklappen(anteil: da ? 1.2 : 0))
+                .onAppear { withAnimation(Kurve.ease(0.95).delay(0.1)) { da = true } }
+        } else {
+            content
+        }
     }
 }
 
@@ -139,12 +143,16 @@ struct KernRein: ViewModifier {
     var dauer = 0.8
     var verzoegerung = 0.16
     @State private var da = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(!aktiv || da ? 1 : 0)
-            .offset(y: !aktiv || da ? 0 : 9)
-            .blur(radius: !aktiv || da ? 0 : 6)
-            .onAppear { if aktiv { withAnimation(Kurve.ease(dauer).delay(verzoegerung)) { da = true } } }
+    @ViewBuilder func body(content: Content) -> some View {
+        if aktiv {
+            content
+                .opacity(da ? 1 : 0)
+                .offset(y: da ? 0 : 9)
+                .blur(radius: da ? 0 : 6)
+                .onAppear { withAnimation(Kurve.ease(dauer).delay(verzoegerung)) { da = true } }
+        } else {
+            content
+        }
     }
 }
 

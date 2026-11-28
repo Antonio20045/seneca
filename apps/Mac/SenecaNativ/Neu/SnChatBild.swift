@@ -48,7 +48,7 @@ private struct SnChatBildInhalt: View {
                     .padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
                 VStack(alignment: .leading, spacing: 24) {
                     VerlaufView(verlauf: verlauf, chat: chat, lauf: lauf, name: name, hinweis: nil, erneut: { _ in }, stand: stand, agent: agent,
-                                oben: frage.map { SnFrageMehr(frage: $0, stand: stand) })
+                                oben: frage.map { SnFrageMehr(frage: $0, stand: stand) }, fragenOben: seneca ? [] : GL.fragen(stand, von: name).filter { $0.id != frage?.id })
                         .equatable()
                         .layoutPriority(1)
                     if let f = frage {

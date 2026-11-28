@@ -239,7 +239,9 @@ struct SnChatSeite: View {
                                 vorschlag: { merken in
                                     if merken, let v = stand?.todo_vorschlag { modell.store.handle("todo.anlegen", ziel: nil, wert: ["titel": .text(v.titel)].merging(v.bereich.map { ["bereich": .text($0)] } ?? [:]) { a, _ in a }) }
                                     modell.store.handle("todo.vorschlag_weg", ziel: nil, wert: [:])
-                                }, oben: stand.flatMap { s in mehrFrage.map { SnFrageMehr(frage: $0, stand: s) } })
+                                }, oben: stand.flatMap { s in mehrFrage.map { SnFrageMehr(frage: $0, stand: s) } },
+                                fragenOben: stand.map { s in istSeneca ? [] : GL.fragen(s, von: mitglied?.name ?? "").filter { $0.id != mehrFrage?.id } } ?? [],
+                                fokus: stand?.ruhe?.grund == "fokus", antworte: { modell.store.antworte(frage: $0, wahl: $1) }, mehr: { modell.mehrFrage = $0 })
                         .equatable()
                         .verlaufRein()
                         .layoutPriority(1)
@@ -249,9 +251,6 @@ struct SnChatSeite: View {
                                 Text(HeuteTafelLogik.uhr(g.um)).font(Schrift.mono(11)).foregroundStyle(TafelFarbe.aus).frame(width: 52, alignment: .leading)
                                 Text(g.satz).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
                             }
-                        }
-                        ForEach(GL.fragen(s, von: mitglied?.name ?? "").filter { $0.id != mehrFrage?.id }) { f in
-                            SnGespraechFrage(frage: f, fokus: s.ruhe?.grund == "fokus", antworte: { modell.store.antworte(frage: f.id, wahl: $0) }, mehr: { modell.mehrFrage = f.id })
                         }
                         if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { SnGespraechLauf(mitglied: m) }
                         else if let m = mitglied, let st = GL.station(s, m) {

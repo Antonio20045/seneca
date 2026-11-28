@@ -106,6 +106,7 @@ enum HeuteBild {
             if let ablauf = env["SENECA_HEUTE_ABLAUF"] { await SnBedienProbe.heute(host, ablauf) }
             if let ablauf = env["SENECA_MEETING_ABLAUF"] { await SnBedienProbe.meeting(host, ablauf) }
             if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
+            if let mess = env["SENECA_MESS"] { await SnChatMessung.laufe(host, mess, dauer: env["SENECA_FILM_DAUER"].flatMap(Double.init) ?? 20) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()
                 var nr = 0, zeiten: [String] = []
