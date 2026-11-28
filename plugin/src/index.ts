@@ -25,7 +25,7 @@ import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln, uhrSprache, type Antwort } from "./zugang/uhr.ts";
-import { aufAntoniosWort, handeln } from "./zugang/handeln.ts";
+import { aufAntoniosWort, handeln, nurAntonioTodo } from "./zugang/handeln.ts";
 import { mitarbeiterVerwalten, type Eingabe } from "./mitarbeiter/verwalten.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
@@ -86,7 +86,7 @@ const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
     Type.Object({ art: S, thema: O(S), satz: O(S), an: O(S) }), (db, k, p) => statistikAnlass(db, k.agent, p as Anlass)],
   ["seneca_todo", "To-do anlegen, ändern, erledigt (mit satz: was du getan hast), verschieben, löschen, wiederherstellen; felder.bereich ist soziales, wachstum oder unternehmertum (fehlt er, ordnet Seneca nach dem Titel zu); vorschlagen (felder.titel): Antonio erwähnt im Gespräch etwas zu tun, dann leise fragen statt still anlegen.", Type.Object({ aktion: S, id: O(S), felder: O(Frei), gesehen_revision: O(Z), satz: O(S) }),
     (db, k, p) => {
-      nurSeneca(k);
+      nurSeneca(k); nurAntonioTodo(db, nachrichtVon(k.sitzung), k.sitzung);
       if (p.aktion === "vorschlagen") return { ok: wertSetzen(db, "todo_vorschlag", JSON.stringify({ ...(p.felder as object), um: uhr.jetzt() }), "seneca", uhr.jetzt() + regelMs("todo_vorschlag_min")) > 0 };
       const r = todoSetzen(db, { ...(p as unknown as TodoAktion), geraet: "seneca" });
       if (r.ergebnis === "ueberholt") ereignis(db, { art: "todo.ueberholt", geraet: "seneca", schluessel: r.id, daten: { aktion: p.aktion, tag: (p.felder as { tag?: string } | undefined)?.tag ?? null } });
@@ -149,7 +149,7 @@ export default {
     const kalender = geheim(api, "kalender");
     const senden = pushSender(geheim(api, "push"));
     const befehl: Befehl = (argv, ms) => api.runtime.system.runCommandWithTimeout(argv, ms).then((r) => ({ code: r.code, stderr: r.stderr }));
-    const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. Mit Teilnehmern fragt der Ausgang.",
+    const alle: typeof WERKZEUGE = [...WERKZEUGE, ["seneca_kalender", "Kalender lesen; Seneca: anlegen, verschieben, loeschen. start und ende in Millisekunden. Mit Teilnehmern fragt der Ausgang.",
       Type.Object({ aktion: S, uid: O(S), titel: O(S), start: O(Z), ende: O(Z), ort: O(S), teilnehmer: O(Type.Array(S)), trotzdem: O(Type.Boolean()) }),
       (db, k, p) => kalenderWerkzeug(db, kalender, k.agent, p as Parameters<typeof kalenderWerkzeug>[3], k.sitzung)],
     ["seneca_mitarbeiter", "Mitarbeiter anlegen, aendern, ruhen (ruht false weckt wieder, bis in ms), loeschen, erst nach Antonios „passt“. anlegen und aendern: name, rolle (Text von rolle.md: erste Zeile „# Anzeigename“, höchstens 60 Zeilen), mandat (YAML wie team/trainer/mandat). Danach steht der Mitarbeiter im Team und ist im Chat ansprechbar, ohne Neustart; das Repo zieht von selbst nach.",

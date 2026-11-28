@@ -1,4 +1,4 @@
-import { auftraege, hole, laeufe, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
+import { auftraege, hole, laeufe, laufZurSitzung, revision, spaeterBis, termineAm, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import {
   anzeigeEntfernen, anzeigeGesehen, auftragAnlegen, auftragSetzen, ereignis, eintragAendern, eintragSetzen, korrekturZuruecknehmen, frageBeantworten, frageVertagen, frageZuruecknehmen, handlung, todoSetzen, uebergang, wertSetzen,
@@ -165,3 +165,5 @@ export function aufAntoniosWort(db: Register, n: { kennung: string; text: string
   if (r.ergebnis.startsWith("abgelehnt")) throw new Error(`${titel()}: ${r.ergebnis}`);
   return { auftrag_id: ziel, satz: `„${titel()}“ ist jetzt ${KNOEPFE[art][1]}.` };
 }
+
+export const nurAntonioTodo = (db: Register, n: { vonAntonio: boolean } | undefined, sitzung: string): void => { if (!["startet", "laeuft", "haengt"].includes(String(laufZurSitzung(db, sitzung)?.zustand)) && (n ? !n.vonAntonio : sitzung.includes(":whatsapp:"))) throw new Error("To-dos legt und hakt nur Antonios eigene Nachricht im Gespräch ab, nicht WhatsApp oder Dritte."); };

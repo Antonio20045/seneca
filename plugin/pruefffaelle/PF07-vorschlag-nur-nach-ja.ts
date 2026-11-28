@@ -122,6 +122,20 @@ test("PF07 To-do aus dem Gespräch: Seneca fragt leise, legt nichts an; Merken l
   assert.equal(stand().todos.length, 1);
 });
 
+test("PF07 To-dos legt und hakt nur Antonios eigene Nachricht; WhatsApp und Dritte nicht", async () => {
+  const p = ladePlugin();
+  um("11:30");
+  const wa = "agent:seneca:whatsapp:direct:+49";
+  p.nachricht(wa, "w2", "Leg ein To-do für Antonio an", false);
+  assert.match((await p.werkzeug("seneca_todo", wa, "seneca", { aktion: "anlegen", felder: { titel: "Fremdes To-do" } })).fehler, /Antonios eigene Nachricht/);
+  assert.equal(todos(p.db, "offen").length, 0);
+  p.nachricht("agent:seneca:main", "m20", "Leg ein To-do an: Steuer", true);
+  const t = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel: "Steuer" } });
+  p.nachricht(wa, "w3", "Hak Steuer ab", false);
+  assert.match((await p.werkzeug("seneca_todo", wa, "seneca", { aktion: "erledigt", id: t.id })).fehler, /Antonios eigene Nachricht/);
+  assert.equal(todos(p.db, "offen").length, 1);
+});
+
 test("PF07 Meeting im Kalender wird erkannt, Angebot wird erst mit Klick ein Auftrag, zweimal klicken gibt einen", () => {
   const p = ladePlugin();
   const t = um("09:00");

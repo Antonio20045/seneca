@@ -136,14 +136,14 @@ export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p
 async function schreiben(db: Register, z: Zugang, p: Eingabe): Promise<object> {
   const alt = p.uid ? orte.get(p.uid) : undefined;
   if (p.aktion === "loeschen") {
-    if (!alt) throw new Error("Termin unbekannt.");
-    await dav(z, alt.href, "DELETE", undefined, { "if-match": alt.etag });
-    await kalenderAbgleich(db, z);
-    return { ok: true };
+    const ziele = alt ? [alt.href] : (await finde(z)).map((k) => `${k.url}${p.uid}.ics`);
+    const weg = await Promise.all(ziele.map((u) => dav(z, u, "DELETE", undefined, alt ? { "if-match": alt.etag } : {}).then(() => true, () => false)));
+    if (!weg.includes(true)) throw new Error("Termin unbekannt.");
+    await kalenderAbgleich(db, z); return { ok: true };
   }
   if (p.aktion === "verschieben" && !alt) throw new Error("Termin unbekannt.");
   const start = Number(p.start);
-  const ende = Number(p.ende ?? start + regelMs("termin_standard_min"));
+  const ende = Number(p.ende ?? start + regelMs("termin_standard_min")); if (!(start > 1e11 && ende > 1e11)) throw new Error("start und ende in Millisekunden angeben (Unix-Zeit mal 1000), nicht in Sekunden.");
   const konflikte = termineAm(db, start).filter((t) => t.uid !== p.uid && !t.ganztag && t.start < ende && t.ende > start).map((t) => t.titel);
   if (konflikte.length && !p.trotzdem) return { ok: false, konflikte };
   const uid = p.uid ?? `${uhr.jetzt()}-seneca`;
