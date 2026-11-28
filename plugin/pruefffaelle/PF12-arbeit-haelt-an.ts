@@ -77,6 +77,27 @@ test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife,
   assert.match(p.kontext(p.starts[0].sessionKey) ?? "", /# Bauregeln/);
 });
 
+test("PF12 Startfrage räumt sich selbst weg, sobald derselbe Mitarbeiter wieder starten kann, ohne Extra-Lauf", async () => {
+  const p = ladePlugin();
+  um("09:00");
+  const a = auftragVonAntonio(p.db, "Staging-Probe", { verantwortlich: "engineer" });
+  const abgelehnt = async () => {
+    throw new Error("plugin seneca does not uniquely own subagent tool");
+  };
+  for (const t of ["09:01", "09:03", "09:10"]) {
+    um(t);
+    await faelligeAuftraegeJob(p.db, abgelehnt);
+  }
+  const frage = String(fragen(p.db, "offen").find((f) => f.auftrag_id === a)?.id);
+  auftragVonAntonio(p.db, "Andere Sache", { verantwortlich: "engineer" });
+  um("09:20");
+  await faelligeAuftraegeJob(p.db, p.starte);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.equal(hole(p.db, "frage", frage).zustand, "zurueckgezogen");
+  assert.equal(hole(p.db, "auftrag", a).zustand, "bereit");
+  assert.equal(p.starts.length, 1);
+});
+
 test("PF12 Abo am echten Limit: genau ein Satz, kein Lauf, der sicher scheitert", async () => {
   const p = ladePlugin();
   um("09:00");

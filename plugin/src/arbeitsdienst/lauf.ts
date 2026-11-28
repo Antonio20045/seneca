@@ -113,7 +113,8 @@ const zeit = (t: number): string => new Date(t).toTimeString().slice(0, 5);
 
 function anlassSatz(db: Register, a: Zeile): string {
   const wirkt = ereignisse(db, { art: "frage.wirkt", auftrag_id: String(a.id), grenze: 1 })[0];
-  if (a.anlass === "kind_haengt") return "Anlass: Ein Unterauftrag hängt (siehe Unteraufträge). Arbeite an dem weiter, was nicht davon abhängt.";
+  const kind = { kind_haengt: "Ein Unterauftrag hängt (siehe Unteraufträge). Arbeite an dem weiter, was nicht davon abhängt.", kind_fertig: "Ein Unterauftrag ist fertig (siehe Unteraufträge). Nimm ihn ab; fehlt nur Antonios Freigabe, frag ihn danach. Dann prüf, welches offene Paket jetzt ohne Antwort geht.", kind_antwort: "Antonio hat eine Frage an einem Unterauftrag beantwortet (siehe Unteraufträge). Mach dort weiter." }[String(a.anlass)];
+  if (kind) return `Anlass: ${kind}`;
   if (!wirkt || !["antwort", "freigabe"].includes(String(a.anlass))) return `Anlass: ${a.anlass}.`;
   const f = hole(db, "frage", String(wirkt.frage_id));
   return `Anlass: Antwort auf deine Frage ${zeit(Number(f.gestellt))} „${f.text}“: ${f.antwort}, ${zeit(Number(f.antwort_um))} am Gerät ${f.antwort_geraet}.`;
@@ -128,10 +129,10 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
   const eltern = a.eltern_id ? hole(db, "auftrag", String(a.eltern_id)) : undefined;
   const verbraucht = kostenSeit(db, 0, { auftrag_id: String(a.id) });
   const teile: [string, boolean][] = [
-    [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Hängt ein Teil an einem Unterauftrag, einer Frage oder einem Zugang, arbeite am nächsten Teil weiter, der nicht davon abhängt, und schreib weiter fort; wartet nur, wenn kein Teil mehr ohne das geht. Braucht ein Teil etwas von Antonio (Zugang, Entscheidung), frag ihn mit seneca_frage samt Empfehlung, statt es nur in den nächsten Schritt zu schreiben.`, true],
+    [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Hängt ein Teil an einem Unterauftrag, einer Frage oder einem Zugang, arbeite am nächsten Teil weiter, der nicht davon abhängt, und schreib weiter fort; wartet nur, wenn kein Teil mehr ohne das geht. Braucht ein Teil etwas von Antonio (Zugang, Entscheidung), frag ihn mit seneca_frage samt Empfehlung, statt es nur in den nächsten Schritt zu schreiben. Wartest du auf Antonio, geh bei jedem Anlass einmal die offenen Pakete durch: Geht eines ohne seine Antwort, arbeite daran oder gib es ab. Bleibst du bei wartet, schreib in den Stand je Paket kurz, woran es hängt. Ist ein Ergebnis fertig und grün und fehlt nur Antonios Freigabe (etwa das Approve eines PR), frag ihn kurz mit seneca_frage: Link, Empfehlung, kurz „PR … freigeben?“. Hat dein Auftrag schon eine offene Frage, stell die neue am Unterauftrag (auftrag_id), sonst ersetzt sie die alte.`, true],
     [`${rolle(wer)}\nBefugnisse: Unteraufträge an ${m.befugnisse.unterauftrag_an.join(", ")}; Werkzeuge ${m.befugnisse.werkzeuge.join(", ")}; Zugänge ${m.zugaenge.join(", ")}.`, false],
     [bauregeln(wer), true],
-    [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg. Berichte und fertige Dateien legst du in _arbeit/${wer}/ oder im Projektordner deines Bereichs in der Ablage ab, nie unter ~/Bereiche und nicht nur im eigenen Arbeitsordner.`, true],
+    [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg. Berichte und fertige Dateien legst du in _arbeit/${wer}/ oder im Projektordner deines Bereichs in der Ablage ab, nie unter ~/Bereiche und nicht nur im eigenen Arbeitsordner. Zu jedem fertigen Ergebnis (auch PR oder Lauf) legst du dort eine kurze Notiz ab: was es ist, Link, was geprüft ist; ihren Pfad nennst du im Beleg.`, true],
     [skill(wer, String(a.arbeitsart)) ?? "", true],
     [(m.kontext[String(a.arbeitsart)] ?? []).map((s) => `${s}: ${wert(db, s)?.wert ?? "nicht hinterlegt"}`).join("\n"), false],
     [`Auftrag von ${a.auftraggeber}, Quelle ${a.wortlaut_quelle}, ${new Date(Number(a.erstellt)).toLocaleString("de-DE")}. Wortlaut:\n${a.wortlaut}`, true],
@@ -296,4 +297,5 @@ export function agentEnde(db: Register, sitzung: string, letzteAntwort: string, 
   }
   if (a.abnahme_durch === "beleg") return uebergang(db, "auftrag", id, "erledigt", "fertig", { ergebnis });
   uebergang(db, "auftrag", id, "wartet_auf_abnahme", "fertig", { ergebnis, naechster_anlass: regelUhrzeitNach("fenster", jetzt) });
+  if (a.eltern_id && hole(db, "auftrag", String(a.eltern_id)).zustand === "wartet") uebergang(db, "auftrag", String(a.eltern_id), "bereit", "kind_fertig", { naechster_anlass: jetzt });
 }

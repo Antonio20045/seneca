@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, laeufeSeit, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
 import { anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung } from "../register/schreiben.ts";
@@ -19,6 +19,7 @@ async function starteOderBefund(db: Register, a: Zeile, starte: Starter): Promis
 
 export async function faelligeAuftraegeJob(db: Register, starte: Starter): Promise<number | undefined> {
   const jetzt = uhr.jetzt();
+  for (const a of fragen(db, "offen").filter((f) => f.von === "arbeitsdienst:start" && laeufeSeit(db, String(hole(db, "auftrag", String(f.auftrag_id)).verantwortlich), Number(f.gestellt) + 1).some((l) => l.run_id)).map((f) => hole(db, "auftrag", String(f.auftrag_id))).filter((a) => a.zustand === "wartet")) uebergang(db, "auftrag", String(a.id), "bereit", "start_wieder_frei", { naechster_anlass: Math.max(jetzt, Number(a.naechster_anlass)) });
   for (const a of faelligeAuftraege(db, jetzt)) {
     const id = String(a.id);
     if (a.zustand === "bereit") await starteOderBefund(db, a, starte);
@@ -48,6 +49,7 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   const jetztA = hole(db, "auftrag", id);
   if (anhalten && ["bereit", "laeuft", "wartet"].includes(String(jetztA.zustand))) return uebergang(db, "auftrag", id, "geparkt", "anhalten");
   if (jetztA.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
+  else if (jetztA.eltern_id && hole(db, "auftrag", String(jetztA.eltern_id)).zustand === "wartet") uebergang(db, "auftrag", String(jetztA.eltern_id), "bereit", "kind_antwort", { naechster_anlass: jetzt });
 }
 
 const OFT = ["sonntags", "montags", "dienstags", "mittwochs", "donnerstags", "freitags", "samstags"];
