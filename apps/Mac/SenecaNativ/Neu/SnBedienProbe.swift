@@ -124,6 +124,59 @@ enum SnBedienProbe {
         for _ in 0..<12 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
     }
 
+    static func abdruck(_ host: NSView) -> [UInt8] {
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return [] }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let d = rep.bitmapData else { return [] }
+        let n = rep.bytesPerRow * rep.pixelsHigh
+        return stride(from: 0, to: n, by: 97).map { d[$0] }
+    }
+
+    static func anders(_ a: [UInt8], _ b: [UInt8]) -> Double {
+        guard a.count == b.count, !a.isEmpty else { return 1 }
+        return Double(zip(a, b).filter { abs(Int($0) - Int($1)) > 24 }.count) / Double(a.count)
+    }
+
+    static func rolle(_ f: NSWindow, _ dy: CGFloat) async -> Double {
+        let t = Date()
+        for _ in 0..<6 { await wisch(f, dx: 0, dy: dy) }
+        return Date().timeIntervalSince(t) * 1000 / 6
+    }
+
+    static func abnahme(_ host: NSView, _ ordner: String) async {
+        NSApp.setActivationPolicy(.accessory)
+        guard let f = host.window else { return }
+        f.setFrameOrigin(NSPoint(x: -6000, y: -6000))
+        f.makeKeyAndOrderFront(nil)
+        let geste = ZurueckGeste { w in
+            guard let esc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: w.windowNumber, context: nil,
+                                             characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}", isARepeat: false, keyCode: 53) else { return }
+            _ = w.performKeyEquivalent(with: esc)
+        }
+        geste.installiere()
+        try? await Task.sleep(for: .milliseconds(600))
+        var z: [String] = [String(format: "Fenster %.0f×%.0f", host.bounds.width, host.bounds.height)]
+        bild(host, "\(ordner)/oben.png")
+        let basis = abdruck(host)
+        let runter = await rolle(f, -600)
+        bild(host, "\(ordner)/unten.png")
+        let hoch = await rolle(f, 600)
+        z.append(String(format: "ROLLEN unten anders als oben %.3f, langsamster Schritt %.0f/%.0f ms, wieder oben %.3f", anders(basis, abdruck(host)) == 0 ? 0 : anders(basis, abdruck(host)), runter, hoch, anders(basis, abdruck(host))))
+        for (i, p) in (ProcessInfo.processInfo.environment["SENECA_ABNAHME_KLICKS"] ?? "").split(separator: ";").enumerated() {
+            let xy = p.split(separator: ",").compactMap { Double($0) }
+            guard xy.count == 2 else { continue }
+            await klick(host, CGPoint(x: xy[0], y: xy[1]))
+            try? await Task.sleep(for: .milliseconds(500))
+            let wirkung = anders(basis, abdruck(host))
+            bild(host, String(format: "%@/k%02d.png", ordner, i))
+            await wisch(f, dx: 180, dy: 10)
+            let zurueck = anders(basis, abdruck(host))
+            if zurueck > 0.002, let esc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: f.windowNumber, context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}", isARepeat: false, keyCode: 53) { _ = f.performKeyEquivalent(with: esc); try? await Task.sleep(for: .milliseconds(400)) }
+            z.append(String(format: "KLICK k%02d (%@) Wirkung %.3f, nach Zurück-Geste %.3f, nach Esc %.3f", i, String(p), wirkung, zurueck, anders(basis, abdruck(host))))
+        }
+        try? (z.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/ablauf.txt", atomically: true, encoding: .utf8)
+    }
+
     private static func bild(_ host: NSView, _ pfad: String) {
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
         host.cacheDisplay(in: host.bounds, to: rep)

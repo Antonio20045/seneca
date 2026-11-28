@@ -98,7 +98,7 @@ enum HeuteBild {
             }
             .frame(width: breite, height: hoehe)
             .preferredColorScheme(.dark)
-            let fenster = NSWindow(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: env["SENECA_HEUTE_ABLAUF"] == nil ? [.borderless] : [.titled], backing: .buffered, defer: true)
+            let fenster = NSWindow(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: env["SENECA_HEUTE_ABLAUF"] == nil && env["SENECA_ABNAHME"] == nil ? [.borderless] : [.titled], backing: .buffered, defer: true)
             let host = NSHostingView(rootView: seite)
             fenster.contentView = host
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
@@ -107,6 +107,7 @@ enum HeuteBild {
             if let ablauf = env["SENECA_KACHEL_ABLAUF"] { await SnBedienProbe.kachel(host, ablauf) }
             if let ablauf = env["SENECA_MEETING_ABLAUF"] { await SnBedienProbe.meeting(host, ablauf) }
             if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
+            if let ablauf = env["SENECA_ABNAHME"] { await SnBedienProbe.abnahme(host, ablauf); exit(0) }
             if let mess = env["SENECA_MESS"] { await SnChatMessung.laufe(host, mess, dauer: env["SENECA_FILM_DAUER"].flatMap(Double.init) ?? 20) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {
                 let t0 = Date()

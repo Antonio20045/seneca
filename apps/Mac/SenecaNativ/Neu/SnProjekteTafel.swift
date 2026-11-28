@@ -49,7 +49,7 @@ struct SnProjekteTafel: View {
         HStack(alignment: .top, spacing: 40) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(p.name).font(Schrift.serif(30)).hoehe(31.5).foregroundStyle(.white)
-                (Text(TafelFarbe.bereichWort(p.bereich).map { "\($0) · " } ?? "").foregroundStyle(TafelFarbe.bereich(p.bereich)) + Text(p.untertitel ?? "").foregroundStyle(TafelFarbe.leise)).font(Schrift.grotesk(13)).hoehe(18)
+                (Text(TafelFarbe.bereichWort(p.bereich).map { (p.untertitel ?? "").isEmpty ? $0 : "\($0) · " } ?? "").foregroundStyle(TafelFarbe.bereich(p.bereich)) + Text(p.untertitel ?? "").foregroundStyle(TafelFarbe.leise)).font(Schrift.grotesk(13)).hoehe(18)
             }
             .frame(width: 240, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
@@ -67,11 +67,11 @@ struct SnProjekteTafel: View {
     }
 
     private func phasen(_ p: SenecaStand.Projekt) -> some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: 18) {
             ForEach(Array((p.phasen ?? []).enumerated()), id: \.offset) { _, ph in
                 let farbe = ph.zustand == "fertig" ? TafelFarbe.gruen : ph.zustand == "jetzt" ? (p.zustand == "braucht" ? TafelFarbe.bernstein : TafelFarbe.himmel) : Color.white.opacity(0.12)
                 VStack(alignment: .leading, spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2).fill(farbe).frame(height: 3).padding(.trailing, 4)
+                    RoundedRectangle(cornerRadius: 2).fill(farbe).frame(height: 3)
                     Text(ph.name).font(Schrift.mono(11)).tracking(0.4).foregroundStyle(ph.zustand == "jetzt" ? farbe : TafelFarbe.leise)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -76,11 +76,12 @@ struct SnEntscheidenTafel: View {
     private var seiteFragen: some View {
         GeometryReader { g in
             ScrollView(.vertical, showsIndicators: false) {
+                let breite = max(560, min(880, g.size.width - 432))
                 HStack(alignment: .top, spacing: 84) {
-                    haupt.frame(width: 880, alignment: .topLeading)
+                    haupt.frame(width: breite, alignment: .topLeading)
                     seite.frame(width: 300, alignment: .topLeading)
                 }
-                .padding(.leading, max(24, (g.size.width - 1248) / 2))
+                .padding(.leading, max(24, (g.size.width - breite - 384) / 2))
                 .padding(.top, 108).padding(.bottom, 140)
                 .frame(width: g.size.width, alignment: .topLeading)
             }
