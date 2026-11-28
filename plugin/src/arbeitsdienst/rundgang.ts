@@ -80,7 +80,7 @@ function regel(db: Register, wer: string, titel: string, warum: string, wirkung:
   vorschlagAnlegen(db, {
     wortlaut: warum, wortlaut_quelle: `rundgang:${wer}`, titel, ziel: titel, abnahme: "Wirkt nach Ja", abnahme_durch: "beleg", pruefer_noetig: false,
     verantwortlich: wer, auftraggeber: wer, bereich: mandat(wer).bereich[0], arbeitsart: "regel", herkunft: "rundgang",
-    frage: { text: `${titel}?`, was_passiert_ist: warum, empfehlung: "Ja, wenn das so stimmt." }, wirkung,
+    frage: { text: `${titel.replace(/[\s.!?:…]+$/u, "")}?`, was_passiert_ist: warum, empfehlung: "Ja, wenn das so stimmt." }, wirkung,
   });
 }
 

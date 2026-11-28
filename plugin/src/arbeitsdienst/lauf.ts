@@ -196,7 +196,7 @@ export function werkzeugAuftrag(db: Register, ctx: { sitzung: string; agent: str
   };
   if (p.art === "vorschlag") {
     if (p.termin && wert(db, `vorschlag:lassen:${new Date(p.termin.start).getDay()}:${p.termin.titel}`)) throw new Error("Antonio will diesen Vorschlag an diesem Wochentag nicht mehr.");
-    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist }, wirkung: p.termin ? { termin: p.termin } : undefined });
+    const id = vorschlagAnlegen(db, { ...felder, herkunft: p.herkunft ?? `mitarbeiter:${ctx.agent}`, frage: { text: `${felder.titel.replace(/[\s.!?:…]+$/u, "")}?`, was_passiert_ist: felder.wortlaut, empfehlung: felder.ziel, frist: p.frist }, wirkung: p.termin ? { termin: p.termin } : undefined });
     return { auftrag_id: id, satz: "Vorschlag liegt bei Antonio." };
   }
   const { id, kostenrahmen_cent } = auftragAnlegen(db, {
