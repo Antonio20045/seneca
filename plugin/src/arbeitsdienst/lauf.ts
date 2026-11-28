@@ -122,7 +122,7 @@ function anlassSatz(db: Register, a: Zeile): string {
 
 export function kontext(db: Register, sitzung: string, skill: SkillLeser): string | undefined {
   const l = laufZurSitzung(db, sitzung), wer0 = sitzung.split(":")[1];
-  if (!l || !AKTIV.includes(String(l.zustand))) return wer0 !== regelText("dauerauftraege_von") && mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
+  if (!l || !AKTIV.includes(String(l.zustand))) return mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
   const wer = String(l.mitarbeiter);
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const m = mandat(wer);
