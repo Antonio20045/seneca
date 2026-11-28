@@ -19,7 +19,7 @@ async function starteOderBefund(db: Register, a: Zeile, starte: Starter): Promis
 
 export async function faelligeAuftraegeJob(db: Register, starte: Starter): Promise<number | undefined> {
   const jetzt = uhr.jetzt();
-  for (const a of fragen(db, "offen").filter((f) => f.von === "arbeitsdienst:start" && laeufeSeit(db, String(hole(db, "auftrag", String(f.auftrag_id)).verantwortlich), Number(f.gestellt) + 1).some((l) => l.run_id)).map((f) => hole(db, "auftrag", String(f.auftrag_id))).filter((a) => a.zustand === "wartet")) uebergang(db, "auftrag", String(a.id), "bereit", "start_wieder_frei", { naechster_anlass: Math.max(jetzt, Number(a.naechster_anlass)) });
+  for (const f of fragen(db, "offen").filter((f) => f.von === "arbeitsdienst:start")) { const a = hole(db, "auftrag", String(f.auftrag_id)); if (a.zustand === "wartet" && laeufeSeit(db, String(a.verantwortlich), Number(f.gestellt) + 1).some((l) => l.run_id)) { uebergang(db, "frage", String(f.id), "zurueckgezogen", "start_wieder_frei", { grund: "Der Start klappt wieder." }); uebergang(db, "auftrag", String(a.id), "bereit", "start_wieder_frei", { naechster_anlass: Math.max(jetzt, Number(a.naechster_anlass)) }); } }
   for (const a of faelligeAuftraege(db, jetzt)) {
     const id = String(a.id);
     if (a.zustand === "bereit") await starteOderBefund(db, a, starte);

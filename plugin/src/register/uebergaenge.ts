@@ -35,7 +35,7 @@ export const UEBERGAENGE = {
     { nr: "F2", von: ["offen"], nach: "beantwortet", ausloeser: "erste Antwort" },
     { nr: "F3", von: ["beantwortet"], nach: "offen", ausloeser: "rueckgaengig vor wirkt_ab" },
     { nr: "F4", von: ["offen"], nach: "ersetzt", ausloeser: "neue Frage am Auftrag" },
-    { nr: "F5", von: ["offen"], nach: "zurueckgezogen", ausloeser: "Auftrag verlaesst wartet oder endet" },
+    { nr: "F5", von: ["offen"], nach: "zurueckgezogen", ausloeser: "Auftrag endet (erledigt, verworfen) oder Startfrage obsolet" },
     { nr: "F6", von: ["offen"], nach: "abgelaufen", ausloeser: "Frist vorbei" },
   ],
   todo: [
@@ -56,7 +56,6 @@ export const PFLICHT_BEI = {
 } as const;
 
 export const NEBENWIRKUNGEN = [
-  { art: "auftrag", von: "wartet", nach: "*", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "erledigt", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "verworfen", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "erledigt", wirkung: "eltern_wecken" },

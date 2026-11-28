@@ -7,9 +7,9 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
-import { auftraege, ereignisse, fragen, hole, laeufe, wert } from "../src/register/lesen.ts";
-import { auftragSetzen, frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
-import { auftragVonAntonio, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
+import { auftraege, ereignisse, fragen, hole, laeufe, uhr, wert } from "../src/register/lesen.ts";
+import { auftragSetzen, frageBeantworten, uebergang, wertSetzen } from "../src/register/schreiben.ts";
+import { auftragVonAntonio, jaNeinFrage, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
 
 test("PF12 ruhender Mitarbeiter wird nie geweckt und wacht nach dem Ende von selbst auf", async () => {
   const p = ladePlugin();
@@ -96,6 +96,18 @@ test("PF12 Startfrage räumt sich selbst weg, sobald derselbe Mitarbeiter wieder
   assert.equal(hole(p.db, "frage", frage).zustand, "zurueckgezogen");
   assert.equal(hole(p.db, "auftrag", a).zustand, "bereit");
   assert.equal(p.starts.length, 1);
+});
+
+test("PF12 Aufwachen zum Nachfassen zieht Antonios Frage nicht zurück, Verwerfen schon", () => {
+  const p = ladePlugin();
+  um("09:00");
+  const a = auftragVonAntonio(p.db, "Staging-Name klären");
+  const f = jaNeinFrage(p.db, a, "Staging-Name festlegen?");
+  uebergang(p.db, "auftrag", a, "wartet", "frage", { wartet_auf: `frage:${f}`, folge: "Ruht.", naechster_anlass: uhr.jetzt() });
+  uebergang(p.db, "auftrag", a, "bereit", "nachfassen", { naechster_anlass: uhr.jetzt() });
+  assert.equal(hole(p.db, "frage", f).zustand, "offen");
+  uebergang(p.db, "auftrag", a, "verworfen", "antonio");
+  assert.equal(hole(p.db, "frage", f).zustand, "zurueckgezogen");
 });
 
 test("PF12 Abo am echten Limit: genau ein Satz, kein Lauf, der sicher scheitert", async () => {

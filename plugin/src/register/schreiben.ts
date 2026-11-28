@@ -89,7 +89,7 @@ export function uebergang(db: Register, art: Maschine, id: string, nach: string,
     ereignis(db, { art: "uebergang", auftrag_id: bezug, frage_id: art === "frage" ? id : undefined, lauf_id: art === "lauf" ? id : undefined,
       schluessel: art === "todo" ? id : undefined, daten: { art, von, nach, anlass, nr: r.nr } });
     for (const n of NEBENWIRKUNGEN) {
-      if (n.art === art && (n.von === von || n.von === "*") && (n.nach === nach || n.nach === "*")) WIRKUNG[n.wirkung](db, id, nach);
+      if (n.art === art && (n.von === von || n.von === "*") && n.nach === nach) WIRKUNG[n.wirkung](db, id, nach);
     }
   });
 }
