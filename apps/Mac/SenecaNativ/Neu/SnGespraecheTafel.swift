@@ -40,7 +40,6 @@ struct SnGespraechLeiste: View {
         .frame(width: 268, alignment: .topLeading)
     }
 
-    /// Unter „Seneca“ steht keine Zusammenfassung (Wunsch 27.11.). Beim Zeigen sagt er, was er gerade tut, wie die anderen.
     private var senecaHilfe: String {
         guard let s = stand, let m = s.team?.first(where: { $0.id == Hauptagent.id }) else { return "Frag Seneca etwas." }
         if m.zustand == "arbeitet" || m.zustand == "hängt" { return GL.ohneNummern(GL.hilfe(m, GL.mitglied(m, s).zeilen)) }
@@ -233,7 +232,7 @@ struct SnGespraechLauf: View {
     var body: some View {
         HStack(spacing: 12) {
             Circle().fill(TafelFarbe.gruen).frame(width: 8, height: 8)
-            Text(GL.laufSatz(mitglied) ?? "")
+            Text(GL.laufSatz(mitglied))
                 .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).foregroundStyle(TafelFarbe.zweit)
             Spacer()
             Text("⌘. stoppt").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)

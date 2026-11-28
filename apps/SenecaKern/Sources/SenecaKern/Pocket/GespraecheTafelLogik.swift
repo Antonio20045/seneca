@@ -43,22 +43,12 @@ enum GespraecheTafelLogik {
         return s.prefix(1).uppercased() + s.dropFirst()
     }
 
-    /// Nur ein echter Tätigkeitssatz („schreibt die Begrüßung“) ergibt eine Zeile. Ein Zustandswort wie „angenommen“ ergäbe Unsinn.
-    static func laufSatz(_ m: SenecaStand.Mitglied) -> String? {
-        let w = ohneNummern(m.satz ?? "").split(separator: " ", maxSplits: 1).map(String.init)
-        guard w.count == 2, !["angenommen", "arbeitet", "wartet", "frei", "fertig"].contains(w[0].lowercased()) else { return nil }
-        return "Solange du überlegst, \(w[0]) \(m.name) \(w[1])" + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
-    }
-
-    /// Antwort-Etikett ist zu lang für einen Knopf (gleiche Regel wie die Kachel auf Heute und der Server).
     static func langesEtikett(_ s: String) -> Bool { s.count > 28 || s.split(separator: " ").count > 3 }
 
-    /// Serifen-Überschrift: bis 80 Zeichen groß, bis 130 mittel, darüber klein (wie die Kachel auf Heute).
     static func ueberschrift(_ t: String, gross: Double = 38) -> (groesse: Double, zeile: Double) {
         t.count <= 80 ? (gross, gross + 3) : t.count <= 130 ? (30, 34) : (25, 29)
     }
 
-    /// Erster Satz, für knappe Zeilen am Rand.
     static func ersterSatz(_ t: String) -> String {
         let s = ohneNummern(t)
         guard let r = s.range(of: #"(?<!\d)[.!?](\s+(?=[A-ZÄÖÜ„])|$)"#, options: .regularExpression) else { return s }
@@ -72,12 +62,15 @@ enum GespraecheTafelLogik {
         (#"\(\s*\)"#, ""), (#"[ \t]{2,}"#, " "), (#"\s+([.,;:!?)])"#, "$1"), (#"\(\s+"#, "("),
     ].compactMap { m, z in (try? NSRegularExpression(pattern: m.replacingOccurrences(of: "§", with: nummer)), z) }.map { ($0.0!, $0.1) }
 
-    /// Interne Nummern (Auftrags-IDs „0m…“, Lauf-Nummern ab 9 Ziffern, Hashes) zeigt die App nie. Einziger Ort dafür.
     static func ohneNummern(_ t: String) -> String {
         guard t.range(of: nummer, options: .regularExpression) != nil else { return t }
         var s = t
         for (r, z) in nummerRegeln { s = r.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: z) }
         return s
+    }
+
+    static func laufSatz(_ m: SenecaStand.Mitglied) -> String {
+        "\(m.name) arbeitet" + (m.titel.flatMap { $0.isEmpty ? nil : " an „\($0)“" } ?? "") + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
     }
 
     static func seneca(_ s: SenecaStand) -> String? {
@@ -173,11 +166,7 @@ enum GespraecheTafelLogik {
 
     static func wirktSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
         let n = Int(s.regeln?["rueckgaengig_s"] ?? 5)
-        let k = haupt(f)?.knopf ?? haupt(f)?.text ?? "Ja"
-        if (f.optionen ?? []).contains(where: { langesEtikett($0.knopf ?? $0.text ?? "") }) {
-            return "Deine Wahl wirkt nach \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden. Bis dahin kannst du sie zurücknehmen."
-        }
-        return "\(k) wirkt nach \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden. Bis dahin kannst du es zurücknehmen."
+        return "Nach dem Tippen \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden zum Zurücknehmen."
     }
 
     static func wann(_ ms: Double, _ s: SenecaStand) -> String {

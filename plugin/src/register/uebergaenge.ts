@@ -18,6 +18,7 @@ export const UEBERGAENGE = {
     { nr: "A14", von: ["laeuft"], nach: "wartet_auf_abnahme", ausloeser: "fertig mit Beleg" },
     { nr: "A15", von: ["laeuft"], nach: "erledigt", ausloeser: "fertig, Abnahme durch Beleg" },
     { nr: "A16", von: ["wartet_auf_abnahme"], nach: "erledigt", ausloeser: "abnahme.passt" },
+    { nr: "A16a", von: ["geparkt", "bereit"], nach: "erledigt", ausloeser: "abnahme.passt auf Antonios Wort im Gespräch (schon fertig)" },
     { nr: "A17", von: ["wartet_auf_abnahme", "erledigt"], nach: "bereit", ausloeser: "abnahme.nachbessern" },
     { nr: "A19", von: ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"], nach: "verworfen", ausloeser: "auftrag.verwerfen" },
   ],

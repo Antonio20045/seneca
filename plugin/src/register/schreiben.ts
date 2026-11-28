@@ -162,10 +162,16 @@ export type NeueFrage = {
   art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string; mehr?: Record<string, unknown>;
 };
 
-export function kurzFrage(f: { text: string; optionen: Option[] }): void {
+export function ohneNummern(...felder: unknown[]): void {
+  const treffer = JSON.stringify(felder).match(new RegExp(`\\b0m[a-z0-9]{10,}\\b|\\d{${regelZahl("id_ziffern_ab")},}|\\b[0-9a-f]{40}\\b|\\b(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,12}\\b`));
+  if (treffer) throw new Error(`Das liest Antonio: „${treffer[0]}“ ist eine interne Nummer. Schreib neu in Alltagssprache, was gemeint ist (Links als lesbares Ziel, z. B. „PR 6411 bei Hermes“); Nummern und Belege gehören in den Bericht, nicht in den Text an ihn.`);
+}
+
+export function kurzFrage(f: NeueFrage): void {
   const lang = f.optionen.find((o) => o.text.length > regelZahl("frage_etikett_zeichen") || o.text.split(/\s+/).length > regelZahl("frage_etikett_woerter"));
-  if (f.text.length > regelZahl("frage_text_zeichen")) throw new Error(`Frage zu lang: text ist die Überschrift, höchstens ${regelZahl("frage_text_zeichen")} Zeichen; Hintergrund gehört in was_passiert_ist`);
+  if (f.text.length > regelZahl("frage_text_zeichen")) throw new Error(`Frage zu lang: text ist die Überschrift, ein Satz, höchstens ${regelZahl("frage_text_zeichen")} Zeichen; Hintergrund gehört in was_passiert_ist`);
   if (lang) throw new Error(`Antwort-Etikett zu lang („${lang.text.slice(0, 30)}…“): text höchstens ${regelZahl("frage_etikett_woerter")} Wörter wie „Du führst sie“; der ganze Satz gehört in folge`);
+  ohneNummern(f.text, f.was_passiert_ist, f.wenn_nichts, f.empfehlung, f.kurz, f.zeit_fuer, f.optionen.map((o) => [o.text, o.folge, o.titel]), f.mehr);
 }
 
 export function frageStellen(db: Register, { kurz, zeit_fuer, mehr, ...f }: NeueFrage): string {

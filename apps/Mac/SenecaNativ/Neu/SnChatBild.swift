@@ -32,7 +32,6 @@ struct SnChatBild: View {
     }
 
     #if DEBUG
-    /// Probe: ganz nach oben scrollen, Frage beantworten, Nachricht senden, Antwort strömt ein. Misst Senden bis sichtbar.
     private func ablauf(_ frage: String, _ e: [(Double, String, [String: Any])], _ log: String) async {
         func warte(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func flaeche(_ v: NSView) -> NSScrollView? {

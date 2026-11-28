@@ -25,7 +25,7 @@ import { kalenderJob, kalenderWerkzeug } from "./quellen/kalender.ts";
 import { mitlesen } from "./quellen/whatsapp.ts";
 import { dateiRecht } from "./zugang/rechte.ts";
 import { LAUF, schluesselHash, uhrAbgleich, uhrAbholen, uhrKoppeln, uhrSprache, type Antwort } from "./zugang/uhr.ts";
-import { handeln } from "./zugang/handeln.ts";
+import { aufAntoniosWort, handeln } from "./zugang/handeln.ts";
 import { mitarbeiterVerwalten, type Eingabe } from "./mitarbeiter/verwalten.ts";
 import { eintraegeSeit, ereignisse, revision, termineAm, todos, uhr, wert } from "./register/lesen.ts";
 import { oeffne, type Register } from "./register/schema.ts";
@@ -49,11 +49,11 @@ function nurSeneca(k: Kontext): void {
 const WERKZEUGE: [string, string, TSchema, Ausfuehren][] = [
   ["seneca_lesen", "Kurze Sicht aus dem Register: tag (Antonios Tag für Briefing, Morgenbericht, Rückblick: Satz, To-dos, Routinen, Termine, Körper, Fragen, Aufträge seit gestern), status (ehrliche Lage auf „Status“: alle offenen Fragen an Antonio, geparkte Aufträge mit Zahl, was läuft, nächste Läufe, Team), auftrag mit id, auftraege (deine offenen Aufträge mit Wortlaut und Stand, mit id = Projekt nur dieses), team, fragen (alle offenen), profil, fakten, kontakt.", Type.Object({ was: S, id: O(S) }),
     (db, k, p) => lesenWerkzeug(db, String(p.was), p.id as string | undefined, k.agent)],
-  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht im Gespräch; nachricht_kennung nur, wenn du sie kennst, sonst gilt seine letzte; wortlaut = sein Text), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme, Verwerfen oder geparkten Auftrag fortsetzen (nur auf Antonios Nachricht).",
+  ["seneca_auftrag", "Auftrag anlegen (nur aus Antonios Nachricht im Gespräch; nachricht_kennung nur, wenn du sie kennst, sonst gilt seine letzte; wortlaut = sein Text), Unterauftrag, Vorschlag (mit termin: Block im Kalender nach Ja), Idee, Abnahme. Auf Antonios Nachricht im Gespräch mit auftrag_id: verwerfen, erledigt (er sagt, es ist schon fertig), anhalten, fortsetzen (geparkten Auftrag wieder an den Mitarbeiter geben); das wirkt sofort wie sein Knopf in der App, je Auftrag ein Aufruf. So beauftragst du Mitarbeiter, nie per Nachricht an sie.",
     Type.Object({ art: S, nachricht_kennung: O(S), wortlaut: O(S), titel: O(S), ziel: O(S), abnahme: O(S), abnahme_durch: O(S), pruefer_noetig: O(Type.Boolean()),
       an: O(S), bereich: O(S), projekt: O(S), frist: O(Z), arbeitsart: O(S), schaetzung_min: O(Z), eltern_id: O(S), auftrag_id: O(S), urteil: O(S), satz: O(S), herkunft: O(S),
       termin: O(Type.Object({ titel: S, start: Z, ende: Z, ort: O(S) })) }),
-    (db, k, p) => werkzeugAuftrag(db, k, p as AuftragEingabe)],
+    (db, k, p) => aufAntoniosWort(db, nachrichtVon(k.sitzung), p as AuftragEingabe) ?? werkzeugAuftrag(db, k, p as AuftragEingabe)],
   ["seneca_fortschreiben", "Pflicht am Ende jedes Laufs: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Bei fertig: abnahme_art text, test, hoerprobe oder bau; bei Hörprobe hoerprobe_s; abnahme: kursiv (Halbsatz zum Titel), transkript, geaendert, vorher (Datei), vorher_s, unterschied (Text mit [-weg-] {+neu+}, Code als Zeilen mit „+ “/„- “), dateien, folge („Passt: …“), ergebnis (Test in einem Satz), urteil (Prüfer: passt oder nachbessern, letzter_stand nennt dann den Fehler in einem Satz). befunde: Teilergebnisse, die schon bereitliegen (mit beleg). checkliste: was fertig ist und was offen bleibt; bericht: kurz, z. B. „4 Dateien · Tests grün“.",
     Type.Object({ letzter_stand: S, naechster_schritt: S, ergebnis: S, beleg: O(S), wartet_auf: O(S), folge: O(S), nachfass_um: O(Z), schritt_nr: O(Z),
       schritt_gesamt: O(Z), befunde: O(Type.Array(S)), stufe: O(S), abnahme_art: O(S), hoerprobe_s: O(Z),

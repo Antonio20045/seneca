@@ -13,7 +13,6 @@ private func randKnopf(_ t: String, groesse: CGFloat, _ tun: @escaping () -> Voi
     .buttonStyle(.plain)
 }
 
-/// Lange Antwort als ruhige Auswahlzeile (Punkt links, gewählte Zeile heller). Gemeinsam für Heute-Kachel und Frage im Gespräch.
 struct SnAuswahlZeile: View {
     var text: String
     var gewaehlt: Bool

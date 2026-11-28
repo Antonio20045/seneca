@@ -96,6 +96,12 @@ test("PF07 Geparkte Aufträge: Ja auf den Sammel-Vorschlag nimmt alle auf, einze
   p.nachricht("agent:seneca:main", "m9", "Nimm Idee C wieder auf");
   assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m8" })).fehler, /Antonios Nachricht/);
   await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m9" });
+  const [d, e] = ["Idee D", "Idee E"].map((w) => auftragVonAntonio(p.db, w, { art: "idee" }));
+  p.nachricht("agent:seneca:whatsapp:direct:+49", "w1", "Verwirf Idee D", false);
+  assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:whatsapp:direct:+49", "seneca", { art: "verwerfen", auftrag_id: d })).fehler, /laufenden Seneca-Lauf/);
+  p.nachricht("agent:seneca:main", "m10", "D ist veraltet, E ist schon fertig");
+  for (const [art, id] of [["verwerfen", d], ["erledigt", e]]) assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art, auftrag_id: id })).satz, /ist jetzt/);
+  assert.deepEqual([d, e].map((id) => hole(p.db, "auftrag", id).zustand), ["verworfen", "erledigt"]);
   frageBeantworten(p.db, { frage_id: String(offeneFrage(p.db, v)?.id), antwort: "ja", geraet: "mac", kennung: "m1" });
   spaeter(6000);
   faelligeWirkungenJob(p.db);

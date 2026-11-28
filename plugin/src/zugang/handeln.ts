@@ -107,14 +107,8 @@ const ARTEN: Record<string, (db: Register, h: Handlung) => string> = {
   },
   "termin.verschieben": (db, h) => terminVerschieben(db, h.kennung, String(h.ziel), (h.wert as Wert) ?? {}),
   "termin.weg": ja((db, h) => wegSetzen(db, String(h.ziel), h.wert as Wert, h.geraet)),
-  "termin.zuruecklegen": (db, h) => {
-    wertSetzen(db, `zurueckgelegt:${h.ziel}`, "ja", h.geraet);
-    return terminVerschieben(db, h.kennung, String(h.ziel), h.wert as Wert);
-  },
-  "vorschlag.anders": (db, h) => {
-    wertSetzen(db, `vorschlag:zeit:${h.ziel}`, String(Number((h.wert as Wert)?.start)), h.geraet);
-    return antwort(db, { ...h, wert: { wahl: "ja" } });
-  },
+  "termin.zuruecklegen": (db, h) => (wertSetzen(db, `zurueckgelegt:${h.ziel}`, "ja", h.geraet), terminVerschieben(db, h.kennung, String(h.ziel), h.wert as Wert)),
+  "vorschlag.anders": (db, h) => (wertSetzen(db, `vorschlag:zeit:${h.ziel}`, String(Number((h.wert as Wert)?.start)), h.geraet), antwort(db, { ...h, wert: { wahl: "ja" } })),
   "kalender.lassen": setze((h) => `kalender:lassen:${h.ziel}`),
   "geraet.aktivitaet": (db, h) => setze(() => "aktivitaet")(db, h) && setze(() => "uhr:starten", () => regelMs("uhr_starten_min"))(db, h),
   koerper: (db, h) => {
@@ -161,4 +155,13 @@ export function handeln(db: Register, h: Handlung): { ergebnis: string; revision
   } catch (fehler) {
     return { ergebnis: `abgelehnt:${(fehler as Error).message}`, revision: revision(db) };
   }
+}
+
+const KNOEPFE: Record<string, [string, string]> = { verwerfen: ["auftrag.verwerfen", "verworfen"], anhalten: ["auftrag.anhalten", "geparkt"], fortsetzen: ["auftrag.fortsetzen", "bereit"], erledigt: ["abnahme.passt", "erledigt"] };
+export function aufAntoniosWort(db: Register, n: { kennung: string; text: string; vonAntonio: boolean } | undefined, p: { art: string; urteil?: string; auftrag_id?: string; satz?: string; nachricht_kennung?: string }) {
+  const art = p.art === "abnahme" && p.urteil === "passt" ? "erledigt" : p.art, ziel = String(p.auftrag_id), titel = () => hole(db, "auftrag", ziel).titel;
+  if (!KNOEPFE[art] || !n?.vonAntonio || (p.nachricht_kennung && p.nachricht_kennung !== n.kennung)) return undefined;
+  const r = handeln(db, { kennung: `${n.kennung}:${art}:${ziel}`, geraet: "gespraech", art: KNOEPFE[art][0], ziel, wert: p.satz ?? n.text.slice(0, regelZahl("titel_zeichen")) });
+  if (r.ergebnis.startsWith("abgelehnt")) throw new Error(`${titel()}: ${r.ergebnis}`);
+  return { auftrag_id: ziel, satz: `„${titel()}“ ist jetzt ${KNOEPFE[art][1]}.` };
 }
