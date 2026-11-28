@@ -8,8 +8,14 @@ LAUF=$HOME/.seneca/uhr-lauf
 [ -s "$LAUF" ] || (umask 077 && openssl rand -hex 24 > "$LAUF")
 mkdir -p bin/adresse
 printf '(:background, :glance)\nmodule Adresse {\n    const SERVER = "%s";\n    const LAUF = "%s";\n}\n' "${ADRESSE%/}" "$(cat "$LAUF")" > bin/adresse/Adresse.mc
-for projekt in .:seneca zifferblatt:zifferblatt trail:trail; do
+for projekt in .:seneca zifferblatt:zifferblatt trail:trail sonde:sonde sonde/zifferblatt:sonde-blatt; do
   for geraet in fenix9pro43mm fenix9pro47mm fenix9pro51mm fenix9prosolar51mm; do
     "$SDK/bin/monkeyc" -d "$geraet" -f "${projekt%%:*}/monkey.jungle" -o "bin/${projekt#*:}-$geraet.prg" -y "$SCHLUESSEL" -r -w
   done
 done
+if [ "${1:-}" = "--iq" ]; then
+  mkdir -p "$HOME/Desktop/seneca-garmin"
+  for projekt in .:seneca zifferblatt:seneca-zifferblatt sonde:seneca-sonde sonde/zifferblatt:seneca-sonde-blatt; do
+    "$SDK/bin/monkeyc" -e -f "${projekt%%:*}/monkey.jungle" -o "$HOME/Desktop/seneca-garmin/${projekt#*:}.iq" -y "$SCHLUESSEL" -r -w
+  done
+fi

@@ -1,12 +1,12 @@
 import { ereignisse, fragen, kalenderTag, termineAm, todos, vorschlagDaten, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { kalenderSpanne, msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { kalenderSpanne, lebensbereich, msAusMinuten, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { fensterStart } from "./entscheiden.ts";
 import { istSport, kalenderwoche, MONAT, TAG } from "./kalender.ts";
 import { uhrzeit } from "./heute.ts";
 
 type Termin = ReturnType<typeof termineAm>[number] & { namen?: string[]; notiz?: string; kalender?: string; wartet?: boolean };
-type Block = { id: string; titel: string; unter: string | null; start: number; ende: number; art: string; laeuft?: boolean; frage_id?: string; uid?: string; teile?: string[]; detail?: object; andere?: number[] };
+type Block = { id: string; titel: string; unter: string | null; start: number; ende: number; art: string; bereich?: string; laeuft?: boolean; frage_id?: string; uid?: string; teile?: string[]; detail?: object; andere?: number[] };
 
 const WEG: Record<string, string> = { fuss: "zu Fuß", rad: "mit dem Rad", auto: "mit dem Auto" };
 
@@ -30,9 +30,7 @@ function plusTage(t: number, n: number): number {
   return d.getTime();
 }
 
-function wochenZwischen(a: number, b: number): number {
-  return Math.round((b - a) / (7 * regelMs("ein_tag_tage")));
-}
+const wochenZwischen = (a: number, b: number): number => Math.round((b - a) / (7 * regelMs("ein_tag_tage")));
 
 function wochenKopf(von: number, jetzt: number) {
   const bis = plusTage(von, 6);
@@ -143,7 +141,7 @@ function bloecke(db: Register, tag: number, jetzt: number): { bloecke: Block[]; 
   for (const g of zugleich(liste.filter((t) => !istSeneca(t) && !istSport(t.titel)))) {
     if (g.length === 1) {
       const t = g[0];
-      b.push({ id: t.uid, uid: t.uid, titel: t.titel, unter: t.wartet ? "wird eingetragen" : uhrzeit(t.start), start: t.start, ende: t.ende, art: "termin", detail: detail(db, t) });
+      b.push({ id: t.uid, uid: t.uid, titel: t.titel, unter: t.wartet ? "wird eingetragen" : uhrzeit(t.start), start: t.start, ende: t.ende, art: "termin", bereich: lebensbereich(`${t.titel} ${t.kalender ?? ""}`), detail: detail(db, t) });
     } else b.push({ id: g.map((t) => t.uid).join("+"), titel: g.map((t) => kurz(t.titel)).join(" + "), unter: `${g.length} zugleich`, art: "zugleich", teile: g.map((t) => t.titel),
       start: Math.min(...g.map((t) => t.start)), ende: Math.max(...g.map((t) => t.ende)) });
   }

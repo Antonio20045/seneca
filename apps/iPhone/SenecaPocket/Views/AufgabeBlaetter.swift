@@ -94,9 +94,9 @@ struct AufgabeBearbeiten: View {
                             .buttonStyle(.plain)
                         }
                     } hinweis: { todo.geschaetzt == nil ? nil : "Gestrichelt: geschätzt von Seneca." }
-                    zeile("Bereich", bereich ?? "ohne") {
+                    zeile("Bereich", TafelFarbe.bereichWort(bereich) ?? "–") {
                         Menu {
-                            ForEach(bereiche, id: \.self) { b in Button(b) { bereich = b; sichere(["bereich": .text(b)]) } }
+                            ForEach(bereiche, id: \.self) { b in Button(TafelFarbe.bereichWort(b) ?? b) { bereich = b; sichere(["bereich": .text(b)]) } }
                         } label: { Text("ändern").font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.himmel) }
                     }
                     zeile("Wichtig", "steht dann oben in Heute") { schalter($wichtig) { sichere(["wichtig": .zahl($0 ? 1 : 0)]) } }
@@ -132,7 +132,7 @@ struct AufgabeBearbeiten: View {
         }
     }
 
-    private var bereiche: [String] { Array(Set((stand.todos ?? []).compactMap(\.bereich) + ["Privat"])).sorted() }
+    private let bereiche = ["unternehmertum", "wachstum", "soziales"]
 
     private var notizZeile: String {
         let erste = notiz.split(separator: "\n").first.map(String.init) ?? ""
@@ -214,7 +214,7 @@ struct AufgabeNeu: View {
     @State private var verstanden: Verstanden?
     @FocusState private var fokus: Bool
 
-    private var bereiche: [String] { Array(Set((stand.todos ?? []).compactMap(\.bereich) + [verstanden?.bereich].compactMap { $0 })).sorted() }
+    private let bereiche = ["unternehmertum", "wachstum", "soziales"]
     private var v: Verstanden {
         var v = verstanden ?? Verstanden(erkannt: false, titel: satz.trimmingCharacters(in: .whitespaces), hinweis: "Du bekommst es auf die Uhr.")
         if let d = dauerWahl { v.dauer_min = d; v.geschaetzt?.removeAll { $0 == "dauer" } }
@@ -242,7 +242,7 @@ struct AufgabeNeu: View {
                     Menu { ForEach([5, 15, 30, 40, 60], id: \.self) { m in Button(AufgabeWort.dauer(m)) { dauerWahl = m } } } label: {
                         kachel("DAUER", v.dauer_min.map(AufgabeWort.dauer) ?? "offen", an: false)
                     }
-                    Menu { ForEach(bereiche, id: \.self) { b in Button(b) { bereichWahl = b } } } label: { kachel("BEREICH", v.bereich ?? "offen", an: false) }
+                    Menu { ForEach(bereiche, id: \.self) { b in Button(TafelFarbe.bereichWort(b) ?? b) { bereichWahl = b } } } label: { kachel("BEREICH", TafelFarbe.bereichWort(v.bereich) ?? "offen", an: false) }
                     kachel("WIEDERHOLEN", v.wiederkehrend == nil ? "nie" : "jeden Tag", an: false)
                 }
             }

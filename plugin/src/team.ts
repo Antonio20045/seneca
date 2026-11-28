@@ -17,7 +17,7 @@ export type Mandat = {
   ziele: { kennzahl: string; ziel: string }[];
 };
 
-function ordner(): string {
+export function ordner(): string {
   return process.env.SENECA_TEAM ?? new URL("../../team", import.meta.url).pathname;
 }
 

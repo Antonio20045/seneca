@@ -1,7 +1,9 @@
+import Toybox.Complications;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
+(:rund)
 module Gesicht {
     const LINKS = Zeichnen.LINKS;
     const MITTIG = Zeichnen.MITTIG;
@@ -49,6 +51,19 @@ module Gesicht {
         leiste(dc, [116, 350], 318, Rez.Fonts.M5_16L, Rez.Fonts.G4_32, Rez.Fonts.G4_20);
     }
 
+    function ziel(y as Numeric) as Complications.Id? {
+        return y >= 150 && y <= 235 && Werte.seneca != null && Kontext.startbar(Kontext.jetzt()) ? Werte.seneca : null;
+    }
+
+    function elegantAuto(dc as Dc, wach as Boolean) as Void {
+        var zeile = Werte.zeile();
+        if (zeile == null) {
+            elegant(dc);
+        } else {
+            mitSeneca(dc, zeile[0] as String, zeile[1] as Boolean);
+        }
+    }
+
     function mitSeneca(dc as Dc, zeile as String, wartet as Boolean) as Void {
         grund(dc);
         Zeichnen.mitte(dc, 100, Rez.Fonts.M5_20D, Zeichnen.LEISE, Werte.datumLang());
@@ -82,7 +97,7 @@ module Gesicht {
         Zeichnen.text(dc, Zeichnen.MITTE + halb, y, id, farbe, minute, LINKS);
     }
 
-    function sportlich(dc as Dc) as Void {
+    function sportlich(dc as Dc, wach as Boolean) as Void {
         var akku = Werte.akku();
         var batterie = Werte.batterie();
         var schritte = Werte.schritte();

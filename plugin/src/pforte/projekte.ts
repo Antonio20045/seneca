@@ -1,12 +1,12 @@
 import { aktiveLaeufe, auftraege, fragen, hole, offeneFrage, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { naechsteUhrzeit, regelMs } from "../regeln.ts";
+import { lebensbereich, naechsteUhrzeit, regelMs } from "../regeln.ts";
 import { anzeigeName } from "../team.ts";
 import { optionenSicht } from "./entscheiden.ts";
 import { restMin, ZAHLWORT } from "./heute.ts";
 
 type Phase = { name: string; zustand: "fertig" | "jetzt" | "offen" };
-type Projekt = { untertitel?: string; worum?: string; satz?: string; phasen?: Phase[]; start?: number; ruht?: string | boolean; nach?: string };
+type Projekt = { untertitel?: string; worum?: string; satz?: string; phasen?: Phase[]; start?: number; ruht?: string | boolean; nach?: string; bereich?: string };
 
 const datum = (t: number) => new Date(t).toLocaleDateString("de-DE", { day: "numeric", month: "long" });
 
@@ -31,7 +31,7 @@ function sicht(db: Register, name: string, p: Projekt, jetzt: number) {
     ...danach.slice(0, 1).map((a: Zeile) => ({ art: "danach", id: a.id, text: a.titel, wer: `danach, ${anzeigeName(String(a.verantwortlich))}`,
       rechts: Number(a.naechster_anlass ?? Infinity) < naechsteUhrzeit("00:00", jetzt) ? "heute" : null })),
   ];
-  return { name, untertitel: p.untertitel ?? null, worum: p.worum ?? null, satz: p.satz ?? null, phasen: p.phasen ?? [], zustand, frist: frist ?? null, rechts, zeilen, start: p.start ?? null };
+  return { name, bereich: lebensbereich(`${name} ${p.untertitel ?? ""} ${p.worum ?? ""}`, p.bereich), untertitel: p.untertitel ?? null, worum: p.worum ?? null, satz: p.satz ?? null, phasen: p.phasen ?? [], zustand, frist: frist ?? null, rechts, zeilen, start: p.start ?? null };
 }
 
 export function projekte(db: Register, jetzt: number, fokus: boolean) {

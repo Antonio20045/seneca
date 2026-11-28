@@ -15,8 +15,8 @@ class AbgleichAnsicht extends Ansicht {
         } else {
             Bildschirm.abgleich(dc, wartend.toString(), "warten aufs iPhone", "ältester " + Zeit.uhrzeit(Warteschlange.aeltester()) + " · " + Inhalt.wasWartet(), "sicher auf der Uhr", farbe);
         }
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, Abgleich.laeuft ? "sendet …" : "jetzt senden");
-        Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.GEDAEMPFT, "zurück");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, Abgleich.laeuft ? "sendet …" : "jetzt senden");
+        Bildschirm.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.GEDAEMPFT, "zurück");
     }
 
     function waehlen() as Void {

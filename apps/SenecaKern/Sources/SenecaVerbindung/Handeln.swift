@@ -35,6 +35,9 @@ public enum JSONWert: Codable, Equatable, Sendable {
         case .leer: return NSNull()
         }
     }
+
+    public var alsZahl: Double? { if case .zahl(let d) = self { d } else { nil } }
+    public var alsText: String? { if case .text(let s) = self { s } else { nil } }
 }
 
 public struct Handlung: Codable, Equatable, Sendable, Identifiable {

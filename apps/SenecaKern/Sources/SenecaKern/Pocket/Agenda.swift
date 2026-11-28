@@ -233,7 +233,6 @@ extension AgendaLogic {
             if e.mehrtaegig { p += 60 } else if e.ganztags { p += 40 }
             if ["geburtstag", "hochzeit", "urlaub", "reise", "konzert", "fest", "feier", "party", "kino", "theater", "essen", "brunch",
                 "ausflug", "flug", "lesung", "markt"].contains(where: { t.contains($0) }) { p += 30 }
-            if ["meeting", "call", "workshop", "sync", "daily", "review", "jour fixe", "abstimmung", "besprechung", "termin"].contains(where: { t.contains($0) }) { p -= 20 }
             if let s = e.start {
                 if cal.component(.hour, from: s) >= 17 { p += 8 }
                 if cal.isDateInWeekend(s) { p += 10 }

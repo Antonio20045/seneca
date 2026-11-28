@@ -9,7 +9,7 @@ enum GespraecheTafelLogik {
     }
 
     static func fragen(_ s: SenecaStand, von name: String) -> [SenecaStand.Frage] {
-        ((s.braucht_dich ?? []) + (s.buendel?.fragen ?? [])).filter { $0.von == name && $0.antwort == nil }
+        s.offeneFragen.filter { $0.von == name }
     }
 
     private static func anzahl(_ n: Int) -> String { n == 1 ? "1 Frage" : "\(n) Fragen" }
@@ -34,9 +34,44 @@ enum GespraecheTafelLogik {
             .enumerated().sorted { (rang.firstIndex(of: $0.element.punkt) ?? 9, $0.offset) < (rang.firstIndex(of: $1.element.punkt) ?? 9, $1.offset) }.map(\.element)
     }
 
+    static func hilfe(_ m: SenecaStand.Mitglied, _ zeilen: [Zeile]) -> String {
+        var s = zeilen.map(\.text).joined()
+        if m.zustand == "arbeitet" || m.zustand == "hängt" {
+            if let t = m.titel, !t.isEmpty { s += " · Auftrag „\(t)“" }
+            if let r = m.rest_min { s += " · noch etwa \(Int(r)) Min" }
+        }
+        return s.prefix(1).uppercased() + s.dropFirst()
+    }
+
+    static func langesEtikett(_ s: String) -> Bool { s.count > 28 || s.split(separator: " ").count > 3 }
+
+    static func ueberschrift(_ t: String, gross: Double = 38) -> (groesse: Double, zeile: Double) {
+        t.count <= 80 ? (gross, gross + 3) : t.count <= 130 ? (30, 34) : (25, 29)
+    }
+
+    static func ersterSatz(_ t: String) -> String {
+        let s = ohneNummern(t)
+        guard let r = s.range(of: #"(?<!\d)[.!?](\s+(?=[A-ZÄÖÜ„])|$)"#, options: .regularExpression) else { return s }
+        return String(s[..<r.upperBound]).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static let nummer = #"(?:(?<!\w)#\d+-[0-9a-z]+|\b[0O]m(?=[a-z]*\d)[a-z0-9]{6,}…?|(?<![+\d])\b[1-9]\d{8,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b)"#
+    private static let nummerRegeln: [(NSRegularExpression, String)] = [
+        (#"\s*\((?:[A-Za-zÄÖÜäöüß-]+\s)?§(?:\s*(?:,|/|und)\s*§)*\)"#, ""),
+        (#"\s*(?:\b(?:Frage|Lauf|Run|Auftrag|Aufträgen|Aufträge|ID|Nr\.?)\s)?§(?:\s*(?:,|/|und)\s*§)*"#, ""),
+        (#"\b(habe|haben|hat) (ich |wir )?Antonio (gefragt|gebeten|angeschrieben)"#, "$1 $2dich $3"),
+        (#"\(\s*\)"#, ""), (#"[ \t]{2,}"#, " "), (#"\s+([.,;:!?)])"#, "$1"), (#"\(\s+"#, "("),
+    ].compactMap { m, z in (try? NSRegularExpression(pattern: m.replacingOccurrences(of: "§", with: nummer)), z) }.map { ($0.0!, $0.1) }
+
+    static func ohneNummern(_ t: String) -> String {
+        guard t.range(of: nummer, options: .regularExpression) != nil || t.contains("Antonio") else { return t }
+        var s = t
+        for (r, z) in nummerRegeln { s = r.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: z) }
+        return s
+    }
+
     static func laufSatz(_ m: SenecaStand.Mitglied) -> String {
-        let w = (m.satz ?? "arbeitet").split(separator: " ", maxSplits: 1).map(String.init)
-        return "Solange du überlegst, \(w[0]) \(m.name)\(w.count > 1 ? " " + w[1] : "")" + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
+        "\(m.name) arbeitet" + (m.titel.flatMap { $0.isEmpty ? nil : " an „\($0)“" } ?? "") + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
     }
 
     static func seneca(_ s: SenecaStand) -> String? {
@@ -67,7 +102,7 @@ enum GespraecheTafelLogik {
 
     static func mitmachen(_ s: SenecaStand, projekt: String) -> [(name: String, was: String, hervor: Bool)] {
         var l: [(String, String, Bool)] = (s.team ?? []).filter { $0.projekt == projekt && $0.id != Hauptagent.id }.map { ($0.name, $0.zustand == "arbeitet" ? "arbeitet" : $0.zustand, false) }
-        if ((s.braucht_dich ?? []) + (s.buendel?.fragen ?? [])).contains(where: { $0.projekt == projekt && $0.antwort == nil }) { l.append(("Du", "gibst frei", true)) }
+        if s.offeneFragen.contains(where: { $0.projekt == projekt }) { l.append(("Du", "gibst frei", true)) }
         return l
     }
 
@@ -84,8 +119,35 @@ enum GespraecheTafelLogik {
     }
 
     static func mehrKopf(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
-        ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zurueckgehalten.map { String($0.split(separator: ",")[0]).replacingOccurrences(of: ".", with: "") }]
+        let haelt = (gehalten(f, s)?.bis ?? 0) > s.jetzt
+        return ["\(f.von ?? "Seneca") fragt", f.seit.map { "seit \(HeuteTafelLogik.uhr($0))" }, f.zurueckgehalten.flatMap { haelt ? String($0.split(separator: ",")[0]).replacingOccurrences(of: ".", with: "") : nil }]
             .compactMap { $0 }.joined(separator: " · ").uppercased()
+    }
+
+    struct Gruppe: Equatable {
+        var name: String
+        var punkte: [String]
+    }
+
+    static func worum(_ text: String?, namen: [String]) -> (satz: String, gruppen: [Gruppe]) {
+        var satz: [String] = [], gruppen: [Gruppe] = []
+        for zeile in (text ?? "").split(separator: "\n").map(String.init) {
+            if let r = zeile.range(of: ": "), namen.contains(String(zeile[..<r.lowerBound])) {
+                gruppen.append(Gruppe(name: String(zeile[..<r.lowerBound]), punkte: zeile[r.upperBound...].components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }))
+            } else {
+                satz.append(zeile)
+            }
+        }
+        return (satz.joined(separator: "\n"), gruppen)
+    }
+
+    static func spalten(_ g: [Gruppe]) -> [[Gruppe]] {
+        var out: [[Gruppe]] = [[], []], hoehe = [0, 0]
+        for x in g.sorted(by: { $0.punkte.count > $1.punkte.count }) {
+            let i = hoehe[0] <= hoehe[1] ? 0 : 1
+            out[i].append(x); hoehe[i] += x.punkte.count + 2
+        }
+        return out.filter { !$0.isEmpty }
     }
 
     static func gehaltenSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> (um: Double, satz: String)? {
@@ -105,7 +167,7 @@ enum GespraecheTafelLogik {
 
     static func wirktSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
         let n = Int(s.regeln?["rueckgaengig_s"] ?? 5)
-        return "\(haupt(f)?.knopf ?? haupt(f)?.text ?? "Ja") wirkt nach \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden. Bis dahin kannst du es zurücknehmen."
+        return "Nach dem Tippen \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden zum Zurücknehmen."
     }
 
     static func wann(_ ms: Double, _ s: SenecaStand) -> String {

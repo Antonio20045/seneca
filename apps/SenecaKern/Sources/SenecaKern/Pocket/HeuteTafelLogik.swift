@@ -14,6 +14,9 @@ enum TafelFarbe {
     static let jetzt = hex(0xF07A5F)
     static let himmel = hex(0x8FB6E3)
     static let aufHimmel = hex(0x0A2245)
+    static let koralle = hex(0xE88A6B)
+    static func bereich(_ b: String?) -> Color { b == "wachstum" ? gruen : b == "soziales" ? koralle : himmel }
+    static func bereichWort(_ b: String?) -> String? { b.map { $0.prefix(1).uppercased() + $0.dropFirst() } }
 }
 
 enum HeuteTafelLogik {
@@ -37,8 +40,8 @@ enum HeuteTafelLogik {
         return try? JSONDecoder().decode(SenecaStand.self, from: roh)
     }
 
-    static func beispielStatistik() -> SenecaStatistik? {
-        Bundle.main.url(forResource: "Beispiel-Statistik", withExtension: "json").flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(SenecaStatistik.self, from: $0) }
+    static func beispielStatistik(_ pfad: String? = nil) -> SenecaStatistik? {
+        (pfad.map { URL(fileURLWithPath: $0) } ?? Bundle.main.url(forResource: "Beispiel-Statistik", withExtension: "json")).flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(SenecaStatistik.self, from: $0) }
     }
 
     static func datumZeile(_ ms: Double) -> String {
@@ -83,6 +86,14 @@ enum HeuteTafelLogik {
         return s.braucht_dich?.first { $0.antwort == nil }
     }
 
+    static func projekteSatz(_ s: SenecaStand) -> [String]? {
+        let n = s.offeneFragen.count
+        guard let satz = s.projekte?.satz, satz.count == 2 else { return nil }
+        guard n > 0, !(s.projekte?.liste ?? []).contains(where: { $0.zustand == "braucht" }) else { return satz }
+        let zahl = n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n].prefix(1).uppercased() + VerlaufLogik.zahlwort[n].dropFirst() : "\(n)"
+        return ["Kein Projekt hängt an dir.", "\(zahl) \(n == 1 ? "Frage wartet" : "Fragen warten") bei Entscheiden."]
+    }
+
     static func wartenZeile(_ s: SenecaStand) -> String? {
         let n = (s.buendel?.fragen?.count ?? 0) + (s.ruhe == nil ? 0 : s.braucht_dich?.count ?? 0)
         guard let r = s.ruhe, n > 0 else { return nil }
@@ -118,7 +129,7 @@ enum HeuteTafelLogik {
     }
 
     static func todoZeile(_ t: SenecaStand.Todo) -> String {
-        [t.bereich, t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
+        [TafelFarbe.bereichWort(t.bereich), t.dauer_min.map { "\(Int($0)) Min" }].compactMap { $0 }.joined(separator: " · ")
     }
 
     static func anteil(_ ms: Double, _ cal: Calendar = .current) -> Double {

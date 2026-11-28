@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { faelligeAuftraegeJob } from "../src/arbeitsdienst/jobs.ts";
 import { kalenderAbgleich } from "../src/quellen/kalender.ts";
-import { planenJob } from "../src/pforte/planen.ts";
+import { einplanen, planenJob } from "../src/pforte/planen.ts";
 import { ereignisse, laeufe, termineAm, todos, wert } from "../src/register/lesen.ts";
 import { wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, kalenderAttrappe, ladePlugin, regelnMit, spaeter, um } from "./aufbau.ts";
@@ -49,6 +49,7 @@ test("PF10 „Verschieb den Zahnarzt“ wirkt ohne Mac; Konflikt wird gemeldet, 
   assert.equal(r.ok, true);
   assert.equal(termineAm(p.db, morgen("00:00")).find((t) => t.uid === "zahn")?.start, morgen("16:00"));
   assert.match(String((await p.werkzeug("seneca_kalender", "agent:produkt:main", "produkt", { aktion: "anlegen", start: morgen("18:00") })).fehler), /Nur Seneca/);
+  assert.match(String((await p.werkzeug("seneca_kalender", "agent:seneca:main", "seneca", { aktion: "anlegen", titel: "Sekunden", start: 1795960800, ende: 1795962600 })).fehler), /Millisekunden/);
   zurueck();
   attrappe.server.close();
 });
@@ -61,8 +62,8 @@ test("PF10 Tagesplan am Server: To-dos in Lücken (1,5 × Dauer), Fenster bleibt
   const todo = (titel: string, dauer_min: number) => p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel, dauer_min, tag: "2026-11-27" } });
   um("08:00");
   return Promise.all([todo("Mail an Steuerberater", 20), todo("Angebot schreiben", 20), todo("Ablage sortieren", 90)]).then(() => {
-    planenJob(p.db);
-    const plan = Object.fromEntries(todos(p.db, "offen").map((t) => [t.titel, t.geplant_von]));
+    const offen = todos(p.db, "offen");
+    const plan = Object.fromEntries(einplanen(p.db, offen, um("08:00")).map((e, i) => [offen[i].titel, e.geplant_von]));
     assert.equal(plan["Mail an Steuerberater"], um("09:00"));
     assert.equal(plan["Angebot schreiben"], um("15:30"));
     assert.equal(plan["Ablage sortieren"], null);

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
-import { letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { lebensbereich, letzteUhrzeit, regelMs, regelText, regelZahl } from "../regeln.ts";
 import { hole, kinder, offeneFrage, revision, uhr, zurueckgenommen, type Tabelle, type Zeile } from "./lesen.ts";
 import type { Register } from "./schema.ts";
 import { NEBENWIRKUNGEN, NEU, PFLICHT_BEI, UEBERGAENGE } from "./uebergaenge.ts";
@@ -17,7 +17,7 @@ function neueId(): string {
   return uhr.jetzt().toString(36).padStart(9, "0") + randomBytes(4).toString("hex");
 }
 
-function schritt<T>(db: Register, f: () => T): T {
+export function schritt<T>(db: Register, f: () => T): T {
   if (db.isTransaction) return f();
   db.exec("BEGIN IMMEDIATE");
   let fertig = false;
@@ -89,7 +89,7 @@ export function uebergang(db: Register, art: Maschine, id: string, nach: string,
     ereignis(db, { art: "uebergang", auftrag_id: bezug, frage_id: art === "frage" ? id : undefined, lauf_id: art === "lauf" ? id : undefined,
       schluessel: art === "todo" ? id : undefined, daten: { art, von, nach, anlass, nr: r.nr } });
     for (const n of NEBENWIRKUNGEN) {
-      if (n.art === art && (n.von === von || n.von === "*") && (n.nach === nach || n.nach === "*")) WIRKUNG[n.wirkung](db, id, nach);
+      if (n.art === art && (n.von === von || n.von === "*") && n.nach === nach) WIRKUNG[n.wirkung](db, id, nach);
     }
   });
 }
@@ -161,6 +161,18 @@ export type NeueFrage = {
   auftrag_id: string; von: string; text: string; was_passiert_ist: string; wenn_nichts: string; empfehlung: string;
   art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string; mehr?: Record<string, unknown>;
 };
+
+export function ohneNummern(...felder: unknown[]): void {
+  const treffer = JSON.stringify(felder).match(new RegExp(`\\b0m[a-z0-9]{10,}\\b|\\d{${regelZahl("id_ziffern_ab")},}|\\b[0-9a-f]{40}\\b|\\b(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,12}\\b`));
+  if (treffer) throw new Error(`Das liest Antonio: „${treffer[0]}“ ist eine interne Nummer. Schreib neu in Alltagssprache, was gemeint ist (Links als lesbares Ziel, z. B. „PR 6411 bei Hermes“); Nummern und Belege gehören in den Bericht, nicht in den Text an ihn.`);
+}
+
+export function kurzFrage(f: NeueFrage): void {
+  const lang = f.optionen.find((o) => o.text.length > regelZahl("frage_etikett_zeichen") || o.text.split(/\s+/).length > regelZahl("frage_etikett_woerter"));
+  if (f.text.length > regelZahl("frage_text_zeichen")) throw new Error(`Frage zu lang: text ist die Überschrift, ein Satz, höchstens ${regelZahl("frage_text_zeichen")} Zeichen; Hintergrund gehört in was_passiert_ist`);
+  if (lang) throw new Error(`Antwort-Etikett zu lang („${lang.text.slice(0, 30)}…“): text höchstens ${regelZahl("frage_etikett_woerter")} Wörter wie „Du führst sie“; der ganze Satz gehört in folge`);
+  ohneNummern(f.text, f.was_passiert_ist, f.wenn_nichts, f.empfehlung, f.kurz, f.zeit_fuer, f.optionen.map((o) => [o.text, o.folge, o.titel]), f.mehr);
+}
 
 export function frageStellen(db: Register, { kurz, zeit_fuer, mehr, ...f }: NeueFrage): string {
   return schritt(db, () => {
@@ -306,7 +318,7 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (a.aktion === "anlegen") {
       regel("todo", NEU, "offen");
       const id = neueId();
-      einfuegen(db, "todo", { herkunft: a.geraet, ...a.felder, id, zustand: "offen", revision: revision(db) + 1 });
+      einfuegen(db, "todo", { herkunft: a.geraet, ...a.felder, bereich: lebensbereich(String(a.felder?.titel ?? ""), a.felder?.bereich), id, zustand: "offen", revision: revision(db) + 1 });
       ereignis(db, { art: "todo.geaendert", geraet: a.geraet, schluessel: id, daten: { aktion: a.aktion } });
       return { id, ergebnis: "angenommen" };
     }
@@ -322,7 +334,7 @@ export function todoSetzen(db: Register, a: TodoAktion): { id: string; ergebnis:
     if (alt.zustand === "erledigt") return { id, ergebnis: "ueberholt", hinweis: "Schon erledigt. Abhaken gewinnt." };
     const verdraengt = Number(alt.revision) > (a.gesehen_revision ?? Infinity);
     if (verdraengt) ereignis(db, { art: "bearbeitung.verdraengt", geraet: a.geraet, schluessel: id, daten: { fassung: alt, geraet: a.geraet } });
-    const mehr: Felder = a.aktion === "verschieben" ? { verschoben_anzahl: Number(alt.verschoben_anzahl) + 1 } : {};
+    const mehr: Felder = { bereich: lebensbereich(String(a.felder?.titel ?? alt.titel), a.felder?.bereich ?? alt.bereich), ...(a.aktion === "verschieben" ? { verschoben_anzahl: Number(alt.verschoben_anzahl) + 1 } : {}) };
     setzen(db, "todo", id, { ...a.felder, ...mehr, revision: revision(db) + 1 });
     ereignis(db, { art: "todo.geaendert", geraet: a.geraet, schluessel: id, daten: { aktion: a.aktion } });
     return { id, ergebnis: "angenommen", hinweis: verdraengt ? "Woanders geändert, die andere Fassung steht im Verlauf." : undefined };
@@ -361,6 +373,8 @@ export function anzeigeSetzen(db: Register, a: { id?: string; projekt: string; a
     return id;
   });
 }
+
+export const anzeigeGesehen = (db: Register, id: string): void => void db.prepare("UPDATE anzeige SET zuletzt_angesehen = ?, zustand = IIF(zustand = 'grau', 'aktiv', zustand) WHERE id = ?").run(uhr.jetzt(), id);
 
 export function anzeigeEntfernen(db: Register, id: string, wer: string): void {
   const a = hole(db, "anzeige", id);

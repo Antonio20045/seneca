@@ -7,6 +7,18 @@ class LesenAnsicht extends ListenAnsicht {
     const STUFEN = 16;
     private var _gestern as Boolean = false;
 
+    function zonen() as Array<Array<Number>> {
+        return Lesen.timerLaeuft() ? [] as Array<Array<Number>> : Bildschirm.zonen(:lesen);
+    }
+
+    function tippenOeffnet() as Boolean {
+        return false;
+    }
+
+    function bereich() as Number {
+        return 3;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
         _auswahl = 2;
@@ -40,12 +52,12 @@ class LesenAnsicht extends ListenAnsicht {
             var unter = (sekunden % Regeln.SEKUNDEN_JE_MINUTE).toString() + " S · ZIEL " + ziel().toString() + " MIN";
             var eintrag = minuten < 1 ? 1 : minuten;
             Bildschirm.lesetimer(dc, Inhalt.buch(), minuten.toString(), unter, "Stoppen trägt " + eintrag.toString() + " Min ein");
-            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_KURZ, Zeichnen.HIMMEL, "stoppen");
+            Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_KURZ, Zeichnen.HIMMEL, "stoppen");
             return;
         }
         var kopf = "LESEN · " + (_gestern ? "GESTERN" : "HEUTE " + Inhalt.heuteGelesen().toString() + " VON " + ziel().toString());
         Bildschirm.lesen(dc, kopf, Inhalt.buch(), wahl(), _auswahl);
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, _auswahl == 0 ? "starten" : "eintragen");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, _auswahl == 0 ? "starten" : "eintragen");
     }
 
     function waehlen() as Void {

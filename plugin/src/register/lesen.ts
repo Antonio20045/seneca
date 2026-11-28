@@ -38,7 +38,7 @@ export function auftraege(db: Register, zustaende: string[]): Zeile[] {
 }
 
 export function faelligeAuftraege(db: Register, jetzt: number): Zeile[] {
-  return alle(db, "SELECT * FROM auftrag WHERE zustand IN ('bereit','wartet','wartet_auf_abnahme') AND naechster_anlass <= ? ORDER BY naechster_anlass", jetzt);
+  return alle(db, "SELECT * FROM auftrag a WHERE (zustand IN ('bereit','wartet','wartet_auf_abnahme') AND naechster_anlass <= ?) OR (zustand = 'wartet' AND coalesce(wartet_auf, '') NOT LIKE 'frage:%' AND geaendert < (SELECT MAX(geaendert) FROM auftrag WHERE eltern_id = a.id AND zustand = 'wartet' AND wartet_auf LIKE 'frage:%')) ORDER BY naechster_anlass", jetzt);
 }
 
 export function aktiveLaeufe(db: Register): Zeile[] {
@@ -46,15 +46,15 @@ export function aktiveLaeufe(db: Register): Zeile[] {
 }
 
 export function beendeteLaeufe(db: Register, mitarbeiter: string, seit: number): Zeile[] {
-  return alle(db, `SELECT lauf.*, auftrag.titel FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
+  return alle(db, `SELECT lauf.*, auftrag.titel, auftrag.arbeitsart FROM lauf JOIN auftrag ON auftrag.id = lauf.auftrag_id WHERE mitarbeiter = ? AND lauf.zustand NOT IN ${AKTIV} AND beendet_um >= ? ORDER BY beendet_um DESC`, mitarbeiter, seit);
 }
 
 export function laeufeSeit(db: Register, mitarbeiter: string, seit: number): Zeile[] {
   return alle(db, "SELECT * FROM lauf WHERE mitarbeiter = ? AND gestartet >= ? ORDER BY gestartet", mitarbeiter, seit);
 }
 
-export function anzeigen(db: Register, besitzer: string): Zeile[] {
-  return alle(db, "SELECT * FROM anzeige WHERE besitzer = ? AND zustand != 'entfernt'", besitzer);
+export function anzeigen(db: Register, besitzer?: string, projekt?: string): Zeile[] {
+  return alle(db, `SELECT * FROM anzeige WHERE ${projekt ? "projekt = ?" : besitzer ? "besitzer = ? AND projekt NOT LIKE 'gespraech:%'" : "art = 'statistik'"} AND zustand != 'entfernt'`, ...[projekt ?? besitzer].filter((x) => x !== undefined));
 }
 
 export function laeufe(db: Register, auftragId: string): Zeile[] {

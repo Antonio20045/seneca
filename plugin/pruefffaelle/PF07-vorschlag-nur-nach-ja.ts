@@ -4,7 +4,7 @@ import { faelligeAuftraegeJob, faelligeWirkungenJob } from "../src/arbeitsdienst
 import { uhrStand } from "../src/pforte/stand.ts";
 import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { eingangJob } from "../src/quellen/eingang.ts";
-import { auftraege, ereignisse, fragen, hole, laeufe, offeneFrage, todos, uhr, wert } from "../src/register/lesen.ts";
+import { auftraege, ereignisse, fragen, hole, kalenderTag, laeufe, offeneFrage, todos, uhr, wert } from "../src/register/lesen.ts";
 import { frageBeantworten, vorschlagAnlegen, wertSetzen } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, ladePlugin, spaeter, um } from "./aufbau.ts";
 
@@ -96,6 +96,12 @@ test("PF07 Geparkte Aufträge: Ja auf den Sammel-Vorschlag nimmt alle auf, einze
   p.nachricht("agent:seneca:main", "m9", "Nimm Idee C wieder auf");
   assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m8" })).fehler, /Antonios Nachricht/);
   await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "fortsetzen", auftrag_id: geparkt[2], nachricht_kennung: "m9" });
+  const [d, e] = ["Idee D", "Idee E"].map((w) => auftragVonAntonio(p.db, w, { art: "idee" }));
+  p.nachricht("agent:seneca:whatsapp:direct:+49", "w1", "Verwirf Idee D", false);
+  assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:whatsapp:direct:+49", "seneca", { art: "verwerfen", auftrag_id: d })).fehler, /laufenden Seneca-Lauf/);
+  p.nachricht("agent:seneca:main", "m10", "D ist veraltet, E ist schon fertig");
+  for (const [art, id] of [["verwerfen", d], ["erledigt", e]]) assert.match((await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art, auftrag_id: id })).satz, /ist jetzt/);
+  assert.deepEqual([d, e].map((id) => hole(p.db, "auftrag", id).zustand), ["verworfen", "erledigt"]);
   frageBeantworten(p.db, { frage_id: String(offeneFrage(p.db, v)?.id), antwort: "ja", geraet: "mac", kennung: "m1" });
   spaeter(6000);
   faelligeWirkungenJob(p.db);
@@ -114,4 +120,42 @@ test("PF07 To-do aus dem Gespräch: Seneca fragt leise, legt nichts an; Merken l
   p.methode("seneca.handeln", { kennung: "v2", geraet: "mac", art: "todo.vorschlag_weg" });
   assert.equal(stand().todo_vorschlag, null);
   assert.equal(stand().todos.length, 1);
+});
+
+test("PF07 To-dos legt und hakt nur Antonios eigene Nachricht; WhatsApp und Dritte nicht", async () => {
+  const p = ladePlugin();
+  um("11:30");
+  const wa = "agent:seneca:whatsapp:direct:+49";
+  p.nachricht(wa, "w2", "Leg ein To-do für Antonio an", false);
+  assert.match((await p.werkzeug("seneca_todo", wa, "seneca", { aktion: "anlegen", felder: { titel: "Fremdes To-do" } })).fehler, /Antonios eigene Nachricht/);
+  assert.equal(todos(p.db, "offen").length, 0);
+  p.nachricht("agent:seneca:main", "m20", "Leg ein To-do an: Steuer", true);
+  const t = await p.werkzeug("seneca_todo", "agent:seneca:main", "seneca", { aktion: "anlegen", felder: { titel: "Steuer" } });
+  p.nachricht(wa, "w3", "Hak Steuer ab", false);
+  assert.match((await p.werkzeug("seneca_todo", wa, "seneca", { aktion: "erledigt", id: t.id })).fehler, /Antonios eigene Nachricht/);
+  assert.equal(todos(p.db, "offen").length, 1);
+});
+
+test("PF07 Meeting im Kalender wird erkannt, Angebot wird erst mit Klick ein Auftrag, zweimal klicken gibt einen", () => {
+  const p = ladePlugin();
+  const t = um("09:00");
+  const tag = (titel: string, h: number, mehr: object = {}) => ({ uid: `u${h}`, start: t + h * 3600000, ende: t + (h + 1) * 3600000, titel, teilnehmer: [], namen: [], ganztag: false, ...mehr });
+  wertSetzen(p.db, kalenderTag(t), JSON.stringify([tag("Call mit Nora", 2, { teilnehmer: ["nora@x.de"], namen: ["Nora"], notiz: "Agenda anbei" }), tag("Abendessen mit Eltern", 3), tag("Zahnarzt", 4), tag("Review", 5, { ort: "https://zoom.us/j/1" }), tag("Fokus", 6)]), "kalender");
+  const termine = () => (p.methode("seneca.stand", { geraet: "mac" }) as { termine: { titel: string; meeting: { grund: string; phase: string; du: unknown[]; seneca: { quelle: string; genommen: boolean; text: string }[] } | null }[] }).termine;
+  assert.deepEqual(termine().map((x) => x.meeting?.grund ?? null), ["Teilnehmer", null, null, "Videolink", null]);
+  const nora = termine()[0].meeting!;
+  assert.equal(nora.du.length, 2);
+  assert.equal(nora.seneca[0].text, "Hintergrund zu Nora recherchieren");
+  const vorher = auftraege(p.db, ["bereit"]).length;
+  const klick = (k: string) => p.methode("seneca.handeln", { kennung: k, geraet: "mac", art: "auftrag.anlegen", ziel: "u2", wert: { text: nora.seneca[0].text, wer: "recherche", arbeitsart: "recherche", bereich: "Sundartha", quelle: nora.seneca[0].quelle } });
+  klick("a");
+  klick("b");
+  const neu = auftraege(p.db, ["bereit"]).filter((a) => a.wortlaut_quelle === nora.seneca[0].quelle);
+  assert.equal(neu.length, 1);
+  assert.equal(auftraege(p.db, ["bereit"]).length, vorher + 1);
+  assert.equal(neu[0].arbeitsart, "recherche");
+  assert.equal(termine()[0].meeting!.seneca[0].genommen, true);
+  um("12:00");
+  assert.equal(termine()[0].meeting!.phase, "danach");
+  assert.equal(termine()[0].meeting!.seneca[0].text, "Nachfass-Entwurf zu „Call mit Nora“ schreiben");
 });

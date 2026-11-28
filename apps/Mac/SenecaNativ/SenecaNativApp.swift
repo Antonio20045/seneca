@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum Start {
     static func main() {
         if HeuteBild.ziel != nil { MainActor.assumeIsolated { HeuteBild.laufe() } }
+        #if DEBUG
+        if let o = DiktatFilm.ordner { MainActor.assumeIsolated { DiktatFilm.laufe(o) } }
+        #endif
         SenecaNativApp.main()
     }
 }
@@ -118,6 +121,8 @@ struct SenecaNativApp: App {
                     .disabled(modell.zustand != .bereit)
             }
             CommandGroup(after: .sidebar) {
+                Button("Ablage im Finder öffnen") { NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory() + "/Ablage", isDirectory: true)) }
+                    .keyboardShortcut("a", modifiers: [.command, .option])
                 Button(modell.gespraechAn ? "Gespräch ausblenden" : "Gespräch einblenden") { modell.schalteGespraech() }
                     .keyboardShortcut("\\", modifiers: .command)
                     .disabled(modell.zustand != .bereit)
@@ -189,6 +194,9 @@ struct SenecaNativApp: App {
         #if DEBUG
         if ProcessInfo.processInfo.environment["SENECA_MENUE_PROBE"] != nil {
             Task { await MenueProbe.laufe(dienste: modell.dienste) }
+        }
+        if let datei = DiktatSicht.datei {
+            Task { await DiktatSicht.laufe(diktat, datei: datei) }
         }
         if let art = ProcessInfo.processInfo.environment["SENECA_DIKTAT_BLASE"] {
             Task { try? await Task.sleep(for: .seconds(1.5)); diktat.blasenProbe(art) }

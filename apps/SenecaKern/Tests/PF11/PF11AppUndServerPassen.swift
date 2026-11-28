@@ -99,4 +99,24 @@ struct PF11AppUndServerPassen {
         #expect(alle.allSatisfy { !$0.scopes.contains("operator.admin") })
         #expect(ClientProfil.mac.scopes.contains("operator.pairing") && !ClientProfil.iphone.scopes.contains("operator.pairing"))
     }
+
+    @Test("Statistik vom Server: Kennzahlen kommen vollständig in der App an")
+    func statistikKennzahlen() throws {
+        let datei = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Sources/SenecaKern/Beispiel/Beispiel-Statistik.json")
+        let k = try #require(try JSONDecoder().decode(SenecaStatistik.self, from: Data(contentsOf: datei)).kennzahlen)
+        #expect(k.wochen.count == 52 && k.lauf.km.count == 52 && k.kraft.tage.count == 52)
+        #expect(k.lauf.laengster?.first?.alsZahl == 30.4 && k.lauf.aufbau.first?.first?.alsText == k.wochen.last)
+        #expect(k.kraft.bestwerte["Rudern"]?.compactMap(\.alsZahl) == [57, 45, 8])
+        #expect(k.koerper.nacht.last?[7].alsZahl == 69)
+    }
+
+    @Test("Fragen zählen aus einer Quelle: dringende und Bündel, beantwortete nicht")
+    func offeneFragenEineQuelle() throws {
+        let frage = { (id: String) -> [String: Any] in ["id": id, "text": "Frage?"] }
+        let beantwortet: [String: Any] = ["id": "c", "text": "Frage?", "antwort": ["wahl": "ja", "um": 1]]
+        let s: [String: Any] = ["schema": 1, "revision": 1, "jetzt": 1, "braucht_dich": [frage("a")], "buendel": ["fragen": [frage("b"), beantwortet]]]
+        let stand = try JSONDecoder().decode(SenecaStand.self, from: JSONSerialization.data(withJSONObject: s))
+        #expect(stand.alleFragen.count == 3)
+        #expect(stand.offeneFragen.map(\.id) == ["a", "b"])
+    }
 }

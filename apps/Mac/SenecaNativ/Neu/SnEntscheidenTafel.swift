@@ -61,7 +61,7 @@ struct SnEntscheidenTafel: View {
     private typealias L = HeuteTafelLogik
 
     private var fragen: [SenecaStand.Frage] {
-        ((stand.braucht_dich ?? []) + (stand.buendel?.fragen ?? [])).filter { $0.antwort == nil || beantwortet[$0.id] != nil }
+        stand.alleFragen.filter { $0.antwort == nil || beantwortet[$0.id] != nil }
     }
 
     var body: some View {
@@ -76,12 +76,13 @@ struct SnEntscheidenTafel: View {
     private var seiteFragen: some View {
         GeometryReader { g in
             ScrollView(.vertical, showsIndicators: false) {
+                let breite = max(560, min(880, g.size.width - 432))
                 HStack(alignment: .top, spacing: 84) {
-                    haupt.frame(width: 880, alignment: .topLeading)
+                    haupt.frame(width: breite, alignment: .topLeading)
                     seite.frame(width: 300, alignment: .topLeading)
                 }
-                .padding(.leading, max(24, (g.size.width - 1248) / 2))
-                .padding(.top, 108).padding(.bottom, 140)
+                .padding(.leading, max(24, (g.size.width - breite - 384) / 2))
+                .padding(.top, 108).padding(.bottom, SnDock.freiraum)
                 .frame(width: g.size.width, alignment: .topLeading)
             }
             .scrollClipDisabled()
@@ -130,7 +131,7 @@ struct SnEntscheidenTafel: View {
                 Text((f.projekt ?? "").uppercased()).foregroundStyle(TafelFarbe.leise)
             }
             .font(Schrift.mono(11)).tracking(1)
-            Text(f.text).font(Schrift.grotesk(22, .medium)).hoehe(30).foregroundStyle(.white).padding(.top, 10).fixedSize(horizontal: false, vertical: true)
+            Text(GL.ohneNummern(f.text)).font(Schrift.grotesk(22, .medium)).hoehe(30).foregroundStyle(.white).padding(.top, 10).fixedSize(horizontal: false, vertical: true)
             if f.antwort == nil, let g = f.zustellung?.first(where: { $0.was == "gesehen" && $0.geraet != "mac" }), let z = g.zeit {
                 HStack(spacing: 7) {
                     Circle().fill(TafelFarbe.leise).frame(width: 5, height: 5)
@@ -165,7 +166,7 @@ struct SnEntscheidenTafel: View {
                         .buttonStyle(SnTafelKnopf(art: .leise))
                     Spacer(minLength: 12)
                     if let folge = f.folge ?? option?.folge {
-                        Text(folge).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).lineLimit(2).multilineTextAlignment(.trailing)
+                        Text(GL.ohneNummern(folge)).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise).lineLimit(2).multilineTextAlignment(.trailing)
                     }
                 }
                 .padding(.top, 18)
@@ -211,7 +212,7 @@ struct SnEntscheidenTafel: View {
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
-                    Text(o?.quittung ?? o?.text ?? w).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white)
+                    Text(GL.ohneNummern(o?.quittung ?? o?.text ?? w)).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white)
                     Spacer()
                     if rest > 0 {
                         Button("Rückgängig") { handle("rueckgaengig", f.id, nil); beantwortet[f.id] = nil; zurueck.insert(f.id) }
@@ -255,8 +256,8 @@ struct SnEntscheidenTafel: View {
                 Text((["ABGELAUFEN", v.frist.map { L.frist($0, jetzt: stand.jetzt) }] as [String?]).compactMap { $0 }.joined(separator: " · ").uppercased())
                     .font(Schrift.mono(11, .medium)).tracking(1).foregroundStyle(TafelFarbe.leise)
             }
-            Text(v.text).font(Schrift.grotesk(17)).strikethrough().foregroundStyle(TafelFarbe.leise)
-            if let s = v.satz { Text(s).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit) }
+            Text(GL.ohneNummern(v.text)).font(Schrift.grotesk(17)).strikethrough().foregroundStyle(TafelFarbe.leise)
+            if let s = v.satz { Text(GL.ohneNummern(s)).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.zweit) }
         }
         .padding(.horizontal, 26).padding(.vertical, 16).frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
@@ -355,8 +356,8 @@ struct SnEntscheidenTafel: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Circle().fill(.white).frame(width: 8, height: 8).frame(width: 20, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
-                Text(a.titel).font(Schrift.grotesk(15)).hoehe(21).foregroundStyle(.white)
-                if let s = a.satz { Text(s).font(Schrift.grotesk(13)).hoehe(19).foregroundStyle(TafelFarbe.leise).fixedSize(horizontal: false, vertical: true) }
+                Text(GL.ohneNummern(a.titel)).font(Schrift.grotesk(15)).hoehe(21).foregroundStyle(.white)
+                if let s = a.satz { Text(GL.ohneNummern(s)).font(Schrift.grotesk(13)).hoehe(19).foregroundStyle(TafelFarbe.leise).fixedSize(horizontal: false, vertical: true) }
                 if nachbessern == a.id {
                     HStack(spacing: 10) {
                         TextField("Was soll anders werden?", text: $notiz).textFieldStyle(.plain).font(Schrift.grotesk(14))
@@ -403,7 +404,7 @@ struct SnEntscheidenTafel: View {
                             GridRow {
                                 Text(e.zeit.map { L.uhr($0) } ?? "").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise).frame(width: 52, alignment: .leading).padding(.top, 2)
                                 VStack(alignment: .leading, spacing: 0) {
-                                    Text(e.titel).font(Schrift.grotesk(14)).hoehe(20).foregroundStyle(TafelFarbe.text)
+                                    Text(GL.ohneNummern(e.titel)).font(Schrift.grotesk(14)).hoehe(20).foregroundStyle(TafelFarbe.text)
                                     if let u = e.unter { Text(u).font(Schrift.grotesk(13)).hoehe(20).foregroundStyle(TafelFarbe.leise) }
                                 }
                             }

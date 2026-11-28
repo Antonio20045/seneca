@@ -1,11 +1,9 @@
 import { existsSync, readdirSync, rmdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, offeneFrage, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, ereignisse, faelligeAuftraege, faelligeWirkungen, fragen, hole, naechsteFaelligkeit, laeufeSeit, termineAm, todos, uhr, vorschlagDaten, wert, werte, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { sichern } from "../register/sichern.ts";
-import {
-  anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung,
-} from "../register/schreiben.ts";
+import { anzeigeEntfernen, auftragAnlegen, auftragSetzen, befund, ereignis, frageBeantworten, frageStellen, frageWirkt, vorschlagAnlegen, laufEnde, todoSetzen, uebergang, wertSetzen, type Wirkung } from "../register/schreiben.ts";
 import { regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { mandat, mitarbeiter } from "../team.ts";
 import { naechsterTermin, starteLauf, zurueckMitWartezeit, type Starter } from "./lauf.ts";
@@ -21,10 +19,11 @@ async function starteOderBefund(db: Register, a: Zeile, starte: Starter): Promis
 
 export async function faelligeAuftraegeJob(db: Register, starte: Starter): Promise<number | undefined> {
   const jetzt = uhr.jetzt();
+  for (const f of fragen(db, "offen").filter((f) => f.von === "arbeitsdienst:start")) { const a = hole(db, "auftrag", String(f.auftrag_id)); if (a.zustand === "wartet" && laeufeSeit(db, String(a.verantwortlich), Number(f.gestellt) + 1).some((l) => l.run_id)) { uebergang(db, "frage", String(f.id), "zurueckgezogen", "start_wieder_frei", { grund: "Der Start klappt wieder." }); uebergang(db, "auftrag", String(a.id), "bereit", "start_wieder_frei", { naechster_anlass: Math.max(jetzt, Number(a.naechster_anlass)) }); } }
   for (const a of faelligeAuftraege(db, jetzt)) {
     const id = String(a.id);
     if (a.zustand === "bereit") await starteOderBefund(db, a, starte);
-    else if (a.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", "nachfassen", { naechster_anlass: jetzt });
+    else if (a.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", Number(a.naechster_anlass) <= jetzt ? "nachfassen" : "kind_haengt", { naechster_anlass: jetzt });
     else auftragSetzen(db, id, { naechster_anlass: regelUhrzeitNach("fenster", jetzt) }, "Abnahme rutscht ins nächste Fenster.");
   }
   return naechsteFaelligkeit(db);
@@ -49,9 +48,8 @@ function wirkung(db: Register, f: Zeile, a: Zeile, jetzt: number): void {
   }
   const jetztA = hole(db, "auftrag", id);
   if (anhalten && ["bereit", "laeuft", "wartet"].includes(String(jetztA.zustand))) return uebergang(db, "auftrag", id, "geparkt", "anhalten");
-  if (jetztA.zustand === "wartet") {
-    uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
-  }
+  if (jetztA.zustand === "wartet") uebergang(db, "auftrag", id, "bereit", ["freigabe", "ausfuehrliches_ja"].includes(String(f.art)) ? "freigabe" : "antwort", { naechster_anlass: jetzt });
+  else if (jetztA.eltern_id && hole(db, "auftrag", String(jetztA.eltern_id)).zustand === "wartet") uebergang(db, "auftrag", String(jetztA.eltern_id), "bereit", "kind_antwort", { naechster_anlass: jetzt });
 }
 
 const OFT = ["sonntags", "montags", "dienstags", "mittwochs", "donnerstags", "freitags", "samstags"];
@@ -84,9 +82,7 @@ function vorschlagWirkt(db: Register, id: string, f: Zeile, jetzt: number): void
 
 export function kalenderWacheJob(db: Register): void {
   const jetzt = uhr.jetzt();
-  for (const f of fragen(db, "offen").filter((x) => x.art === "vorschlag" && x.frist !== null && Number(x.frist) < jetzt)) {
-    frageBeantworten(db, { frage_id: String(f.id), antwort: "nein", geraet: "frist", kennung: `frist:${f.id}` });
-  }
+  for (const f of fragen(db, "offen").filter((x) => x.art === "vorschlag" && x.frist !== null && Number(x.frist) < jetzt)) frageBeantworten(db, { frage_id: String(f.id), antwort: "nein", geraet: "frist", kennung: `frist:${f.id}` });
   if (Number(wert(db, "praesenz:mac")?.gueltig_bis ?? 0) <= jetzt) return;
   for (const t of termineAm(db, jetzt)) {
     const weg = regelMs("eine_minute_min") * Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0);
@@ -107,44 +103,42 @@ export function kalenderWacheJob(db: Register): void {
 
 export function faelligeWirkungenJob(db: Register): number | undefined {
   const jetzt = uhr.jetzt();
-  for (const f of faelligeWirkungen(db, jetzt)) {
-    if (frageWirkt(db, String(f.id))) wirkung(db, f, hole(db, "auftrag", String(f.auftrag_id)), jetzt);
-  }
+  for (const f of faelligeWirkungen(db, jetzt)) if (frageWirkt(db, String(f.id))) wirkung(db, f, hole(db, "auftrag", String(f.auftrag_id)), jetzt);
   return naechsteFaelligkeit(db);
 }
 
-function neuStarten(db: Register, l: Zeile, grund: string): void {
-  const a = hole(db, "auftrag", String(l.auftrag_id));
+async function abbrechen(db: Register, l: Zeile, befehl: Befehl): Promise<void> {
+  const r = await befehl([regelText("openclaw_befehl"), "gateway", "call", "chat.abort", "--json", "--params", JSON.stringify({ sessionKey: l.sitzung })], regelMs("takt_job_haengt_s"));
+  if (r.code !== 0) ereignis(db, { art: "lauf.abbruch_offen", lauf_id: String(l.id), auftrag_id: String(l.auftrag_id), satz: r.stderr.slice(0, 200) });
+}
+
+async function neuStarten(db: Register, l: Zeile, grund: string, befehl: Befehl): Promise<void> {
   laufEnde(db, String(l.id), "abgebrochen", { grund });
+  await abbrechen(db, l, befehl);
+  const a = hole(db, "auftrag", String(l.auftrag_id));
   if (a.zustand === "laeuft") zurueckMitWartezeit(db, a, "wiederaufnahme");
 }
 
 type Stupser = (sitzung: string, text: string, kennung: string) => Promise<boolean>;
 
-export async function laeufePruefenJob(db: Register, stupse: Stupser): Promise<void> {
+export async function laeufePruefenJob(db: Register, stupse: Stupser, befehl: Befehl): Promise<void> {
   const jetzt = uhr.jetzt();
   for (const l of aktiveLaeufe(db)) {
-    const still = jetzt - Number(l.letzter_schritt_um);
-    const auftragId = String(l.auftrag_id);
-    const stups = wert(db, `anstupsen:${l.id}`);
-    if (stups?.wert === "offen") {
-      const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);
-      if (ok) wertSetzen(db, `anstupsen:${l.id}`, "gestupst", "arbeitsdienst", jetzt + regelMs("haengt_leise_min"));
-      else neuStarten(db, l, "angestupst, startet neu");
-      continue;
-    }
-    if (stups?.wert === "gestupst" && Number(stups.gueltig_bis) <= jetzt && Number(l.letzter_schritt_um) < Number(stups.gueltig_bis) - regelMs("haengt_leise_min")) {
-      neuStarten(db, l, "angestupst, keine Antwort, startet neu");
+    const still = jetzt - Number(l.letzter_schritt_um), auftragId = String(l.auftrag_id), aus = String(hole(db, "auftrag", auftragId).zustand);
+    if (aus === "verworfen" || aus === "geparkt") {
+      laufEnde(db, String(l.id), "abgebrochen", { grund: `Auftrag ${aus}` });
+      await abbrechen(db, l, befehl);
       continue;
     }
     if (l.zustand === "laeuft" && still > regelMs("haengt_leise_min")) uebergang(db, "lauf", String(l.id), "haengt", "kein Schritt");
-    if (still > regelMs("haengt_frage_min") && !offeneFrage(db, auftragId) && !stups) {
-      frageStellen(db, {
-        auftrag_id: auftragId, von: "arbeitsdienst:haengt", art: "auswahl", text: `${l.mitarbeiter} hängt seit ${new Date(Number(l.letzter_schritt_um)).toTimeString().slice(0, 5)}. Was tun?`,
-        was_passiert_ist: `Letzter Schritt: ${l.letzter_schritt ?? "keiner"}.`, wenn_nichts: "Der Lauf hängt weiter.", empfehlung: "Anstupsen",
-        optionen: [{ wert: "anstupsen", text: "Anstupsen", folge: "Seneca fragt den Lauf, wo er hängt; ohne Antwort startet er neu." }, { wert: "anhalten", text: "Anhalten", folge: "Der Auftrag wird geparkt." }],
-      });
+    const stups = wert(db, `anstupsen:${l.id}`);
+    if (stups?.wert === "offen" || (!stups && still > regelMs("haengt_stupsen_min"))) {
+      const ok = await stupse(String(l.sitzung), "Wo hängst du? Sag in einem Satz, was fehlt.", `anstupsen-${l.id}`);
+      if (ok) wertSetzen(db, `anstupsen:${l.id}`, "gestupst", "arbeitsdienst", jetzt + regelMs("haengt_leise_min"));
+      else await neuStarten(db, l, "angestupst, startet neu", befehl);
+      continue;
     }
+    if (stups?.wert === "gestupst" && Number(stups.gueltig_bis) <= jetzt && Number(l.letzter_schritt_um) < Number(stups.gueltig_bis) - regelMs("haengt_leise_min")) await neuStarten(db, l, "angestupst, keine Antwort, startet neu", befehl);
   }
 }
 
@@ -156,6 +150,8 @@ export function nachNeustart(db: Register): void {
   }
 }
 
+const ZUSTAENDE = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt", "verworfen"];
+
 const DAUERAUFTRAEGE: Record<string, string> = {
   morgenbericht: "Morgenbericht: je Auftrag des Vortags Stand, Beleg und was fehlt.",
   rueckblick: "Rückblick am Abend: Erledigtes, Wiederholungen, Bestwerte, was gefehlt hat.",
@@ -163,9 +159,7 @@ const DAUERAUFTRAEGE: Record<string, string> = {
 };
 
 function dauerauftrag(db: Register, wer: string, arbeitsart: string, wortlaut: string): void {
-  const da = auftraege(db, ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"])
-    .some((a) => a.quelle === "dauerauftrag" && a.verantwortlich === wer && a.arbeitsart === arbeitsart);
-  if (da) return;
+  if (auftraege(db, ZUSTAENDE.slice(0, 6)).some((a) => a.quelle === "dauerauftrag" && a.verantwortlich === wer && a.arbeitsart === arbeitsart)) return;
   auftragAnlegen(db, {
     art: "dauerauftrag", wortlaut, wortlaut_quelle: "mandat", titel: wortlaut.split(":")[0], ziel: wortlaut, abnahme: "Fortschreibung mit Beleg", abnahme_durch: "beleg",
     pruefer_noetig: false, verantwortlich: wer, auftraggeber: wer, quelle: "dauerauftrag", bereich: mandat(wer).bereich[0], arbeitsart,
@@ -174,8 +168,6 @@ function dauerauftrag(db: Register, wer: string, arbeitsart: string, wortlaut: s
 }
 
 export type Befehl = (argv: string[], ms: number) => Promise<{ code: number | null; stderr: string }>;
-
-const ZUSTAENDE = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt", "verworfen"];
 
 function arbeitVerfallen(db: Register): void {
   const ablage = regelText("ablage_pfad");

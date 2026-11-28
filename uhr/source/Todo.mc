@@ -8,6 +8,7 @@ module Todo {
         var neuer = Warteschlange.neu("todo.erledigt", {"z" => zeile["id"]}, Regeln.rueckgaengig());
         if (neuer != null) {
             Stand.lokalHinzu("e", zeile["id"] as String);
+            Stand.melden();
         }
         return neuer != null;
     }
@@ -16,6 +17,7 @@ module Todo {
         var neuer = Warteschlange.neu("todo.anlegen", {"x" => text}, Regeln.rueckgaengig());
         if (neuer != null) {
             Stand.lokalHinzu("n", text);
+            Stand.melden();
         }
         return neuer != null;
     }

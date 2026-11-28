@@ -1,6 +1,6 @@
 import { eintraegeSeit, ereignisse, termineAm, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { letzteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { lebensbereich, letzteUhrzeit, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 const TAG = ["M", "D", "M", "D", "F", "S", "S"];
 const KURZ = ["MO", "DI", "MI", "DO", "FR", "SA", "SO"];
@@ -62,8 +62,8 @@ export function woche(db: Register, jetzt: number) {
         anteil: kraftZiel ? kraftTage / kraftZiel : null, rechts: `${heuteE.filter((x) => x.art === "satz").length} SÄTZE HEUTE`, knopf: "Starten" },
       gewicht.length ? { art: "gewicht", titel: "Gewicht", wert: zahl(Number(gewicht.at(-1)?.w.kg), 1), einheit: "KG", tage: karte(e, ["gewicht"], montag, heute, (x) => Number(x.w.kg)), anteil: null,
         rechts: `${zahl(Number(gewicht.at(-1)?.w.kg) - Number(gewicht[0].w.kg), 1).replace("-", "−")} SEIT ${KURZ[(new Date(gewicht[0].zeit).getDay() + 6) % 7]}`, knopf: "+" } : null,
-    ].filter(Boolean),
-    hinweis: lesZiel && lesHeute < lesZiel ? `Lesen fehlt heute noch.${sport ? ` Nach dem ${sport.titel} passt ${MINUTEN[lesZiel - lesHeute] ?? `${lesZiel - lesHeute} Minuten`}.` : ""}` : null,
+    ].map((k) => k && { ...k, bereich: lebensbereich(k.titel) }).filter(Boolean),
+    hinweis: lesZiel && lesHeute < lesZiel ? `Für Wachstum steht heute noch Lesen an.${sport ? ` Nach dem ${sport.titel} passt ${MINUTEN[lesZiel - lesHeute] ?? `${lesZiel - lesHeute} Minuten`}.` : ""}` : null,
   };
 }
 
@@ -75,8 +75,8 @@ function kalenderwoche(t: number): number {
 
 export function lauf(db: Register, id?: string) {
   const alle = eintraegeSeit(db, 0).map(lesen).filter((x) => x.art === "lauf");
-  const l = id ? alle.find((x) => x.id === id) : alle.at(-1);
-  if (!l) return null;
+  const l = id ? alle.find((x) => x.id === id) : alle.at(-1); if (!l) return null;
+  const sp = id ? eintraegeSeit(db, l.zeit - 120_000).filter((e) => e.art === "laufspur" && Math.abs(Number(e.zeit) - l.zeit) < 120_000).sort((a, b) => Number(a.quelle === "garmin") - Number(b.quelle === "garmin")).at(-1) : undefined, spur = sp ? JSON.parse(String(sp.werte)) : null;
   const w = l.w, s = (w.km_s as number[] | undefined) ?? [], name = String(w.name ?? "Lauf");
   const lo = Math.min(...s), hi = Math.max(...s), best = s.indexOf(lo);
   const frueher = alle.filter((x) => x.zeit < l.zeit && x.w.name === w.name && ((x.w.km_s as number[] | undefined) ?? []).length);
@@ -84,7 +84,7 @@ export function lauf(db: Register, id?: string) {
   const seit = schneller === -1 ? null : frueher[schneller].zeit;
   const wo = km(eintraegeSeit(db, wochenBeginn(l.zeit)).map(lesen).filter((x) => x.zeit <= l.zeit + 1)), z = ziel(db, "laufen_km", wochenBeginn(l.zeit) + 7 * regelMs("ein_tag_tage"));
   return {
-    id: l.id, kopf: `LAUFEN · ${datum(l.zeit, { weekday: "long" }).toUpperCase()}, ${new Date(l.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+    id: l.id, spur, kopf: `LAUFEN · ${datum(l.zeit, { weekday: "long" }).toUpperCase()}, ${new Date(l.zeit).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
     satz: [`${w.titel ?? name}.`, s.length > 2 && best === s.length - 1 ? "Der letzte Kilometer war dein schnellster." : s.length > 2 && best === 0 ? "Der erste Kilometer war dein schnellster." : ""].filter(Boolean),
     werte: [[`${zahl(Number(w.km), 1)} km`, "Strecke"], [dauer(Number(w.dauer_s)), "Zeit"], [dauer(Number(w.dauer_s) / Number(w.km)), "pro km"],
       w.hm ? [`${zahl(Number(w.hm))} m`, "bergauf"] : null, w.puls ? [zahl(Number(w.puls)), "Puls Ø"] : null, w.zone ? [String(w.zone), "meist"] : null].filter(Boolean),
@@ -146,7 +146,7 @@ export function monat(db: Register, jetzt: number) {
 export function tag(db: Register, jetzt: number) {
   const e = eintraegeSeit(db, tagVon(jetzt)).map(lesen), zeit = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
     uebungen = [...new Set(e.filter((x) => x.art === "satz").map((x) => String(x.w.u ?? "Satz")))];
-  const zeilen = [...e.filter((x) => x.art !== "satz" && x.art !== "notiz").map((x) => ({ id: x.id, zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
+  const zeilen = [...e.filter((x) => ["lauf", "lesen", "gewicht", "training"].includes(x.art)).map((x) => ({ id: x.id, zeit: x.zeit, titel: x.art === "lauf" ? String(x.w.titel ?? "Lauf") : x.art === "lesen" ? String(x.w.b ?? "Lesen") : x.art === "gewicht" ? "Gewicht" : "Krafttraining",
       wert: x.art === "lauf" ? `${zahl(Number(x.w.km), 1)} km` : x.art === "lesen" ? `${x.w.m} Min` : x.art === "gewicht" ? `${zahl(Number(x.w.kg), 1)} kg` : `${x.w.s ?? ""} Sätze` })),
     ...uebungen.map((u) => { const s = e.filter((x) => x.art === "satz" && String(x.w.u ?? "Satz") === u); return { zeit: s[0].zeit, titel: u, wert: `${s.length} ${s.length === 1 ? "Satz" : "Sätze"}` }; })]
     .sort((a, b) => a.zeit - b.zeit).map((z) => [zeit(z.zeit), z.titel, z.wert, "id" in z ? z.id : ""]);
@@ -173,7 +173,6 @@ export function uebung(db: Register, jetzt: number, name?: string) {
     uhr: l ? [u, u, vorschlag ? l.kg + regelZahl("kraft_schritt_kg") : l.kg, l.w[0]] : null,
   };
 }
-
 export function buch(db: Register, jetzt: number, name?: string) {
   const les = alle(db, "lesen"), b = name ?? [...les].reverse().find((x) => x.w.b)?.w.b;
   if (!b) return null; const e = les.filter((x) => x.w.b === b), mit = e.filter((x) => x.w.s), z = ziel(db, "lesen_min") || 30, l = mit.at(-1), von = Number(l?.w.von ?? 0), s = Number(l?.w.s ?? 0);

@@ -13,6 +13,7 @@ class Hintergrund extends System.ServiceDelegate {
     }
 
     function fertig() as Void {
+        Mitteilung.frage();
         Background.exit(null);
     }
 }

@@ -62,6 +62,14 @@ final class Rollhalter: NSObject {
         merke()
     }
 
+    func zeige(oben y: CGFloat) {
+        guard let l = lage() else { return }
+        if y >= l.hoehe - l.sicht { ansEnde(); return }
+        setze(folgt: false)
+        setzeOben(y)
+        merke()
+    }
+
     private typealias Lage = (oben: CGFloat, hoehe: CGFloat, sicht: CGFloat)
 
     private func lage() -> Lage? {

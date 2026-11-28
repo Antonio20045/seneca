@@ -1,4 +1,7 @@
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
+import { rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { revision, uhr, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { wertSetzen } from "../register/schreiben.ts";
@@ -11,7 +14,8 @@ type Anfrage = { v?: number; g?: string; r?: number; zs?: string; k?: Koerper; h
 export type Antwort = { status: number; inhalt: object; kopf?: Record<string, string> };
 
 const anfragen = new Map<string, number[]>();
-const LAUF = "trail";
+const stuecke = new Map<string, Buffer[]>();
+export const LAUF = "trail";
 
 const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string; wert?: unknown }> = {
   "eintrag.neu": (p) => ({ wert: { art: p.k, werte: p } }),
@@ -20,16 +24,9 @@ const ZUORDNUNG: Record<string, (p: Record<string, unknown>) => { ziel?: string;
   "frage.antwort": (p) => ({ ziel: String(p.f), wert: { wahl: p.w, lokal: true } }),
 };
 
-function kurz(e: string): string {
-  if (e === "angenommen") return "ok";
-  if (e === "doppelt") return "schon";
-  if (e === "ueberholt") return "ub";
-  return e.startsWith("schon_beantwortet:") ? `sb:${e.slice("schon_beantwortet:".length)}` : `nein:${e.replace("abgelehnt:", "")}`;
-}
-
-function beantwortet(db: Register, frageId: string): boolean {
-  return db.prepare("SELECT 1 FROM frage WHERE id = ? AND zustand = 'beantwortet'").get(frageId) !== undefined;
-}
+const KURZ: Record<string, string> = { angenommen: "ok", doppelt: "schon", ueberholt: "ub" };
+const kurz = (e: string) => KURZ[e] ?? (e.startsWith("schon_beantwortet:") ? `sb:${e.slice("schon_beantwortet:".length)}` : `nein:${e.replace("abgelehnt:", "")}`);
+const beantwortet = (db: Register, frageId: string) => db.prepare("SELECT 1 FROM frage WHERE id = ? AND zustand = 'beantwortet'").get(frageId) !== undefined;
 
 export function schluesselHash(schluessel: string): string {
   return createHash("sha256").update(schluessel).digest("hex");
@@ -48,8 +45,8 @@ export function uhrKoppeln(db: Register, roh: Buffer): Antwort {
   const d = JSON.parse(roh.toString("utf8")) as Anfrage & { m?: string };
   const g = String(d.g ?? "");
   const fenster = wert(db, "kopplung:fenster");
-  if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   if (!g || fenster?.wert !== "ja" || (fenster.gueltig_bis ?? 0) <= uhr.jetzt()) return { status: 403, inhalt: { f: "Kein Kopplungsfenster offen" } };
+  if (begrenzt("koppeln", regelZahl("kopplung_anfragen_je_std"))) return { status: 429, inhalt: { f: "zu viele" } };
   const zahl = String(randomInt(0, 10000)).padStart(4, "0");
   const abholen = randomBytes(16).toString("hex");
   wertSetzen(db, `kopplung:${g}`, JSON.stringify({ zahl, abholen: schluesselHash(abholen), bestaetigt: false, modell: d.m?.slice(0, regelZahl("kopplung_modell_zeichen")) }), "uhr", fenster.gueltig_bis);
@@ -60,7 +57,7 @@ export function uhrAbholen(db: Register, roh: Buffer): Antwort {
   const d = JSON.parse(roh.toString("utf8")) as { g?: string; abholen?: string; lauf?: string };
   const w = wert(db, `kopplung:${d.g}`);
   const k = w && (w.gueltig_bis ?? 0) > uhr.jetzt() ? (JSON.parse(w.wert) as Kopplung) : undefined;
-  if (begrenzt("abholen", regelZahl("kopplung_anfragen_je_std")) || !k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
+  if (!k?.bestaetigt || k.abgeholt || k.abholen !== schluesselHash(String(d.abholen))) {
     return { status: 403, inhalt: { f: "nicht bestätigt" } };
   }
   const schluessel = randomBytes(32).toString("base64url");
@@ -112,4 +109,21 @@ function koerperSetzen(db: Register, k: Koerper | undefined): void {
   const morgens = JSON.parse(wert(db, "koerper:morgens")?.wert ?? "{\"zeit\":0}");
   if (morgens.zeit < letzteUhrzeit(regelText("tag_grenze"), msAusSekunden(k.bb[1]))) wertSetzen(db, "koerper:morgens", JSON.stringify({ body_battery: k.bb[0], zeit: msAusSekunden(k.bb[1]) }), "uhr");
   wertSetzen(db, "koerper", neu, "uhr");
+}
+
+export async function uhrSprache(db: Register, roh: Buffer, kopf: Record<string, string | string[] | undefined>, schreiben: (datei: string) => Promise<string | undefined>): Promise<Antwort> {
+  const geraet = String(kopf["x-geraet"] ?? ""), gespeichert = wert(db, `uhr:${geraet}`)?.wert;
+  if (!gespeichert || schluesselHash(String(kopf.authorization ?? "").replace(/^Bearer /, "")) !== gespeichert) return { status: 401, inhalt: { f: "unbekannt" } };
+  const json = String(kopf["content-type"] ?? "").includes("json");
+  const d = (json ? JSON.parse(roh.toString("utf8")) : { id: geraet, i: 0, n: 1, f: kopf["x-format"] }) as { id: string; i: number; n: number; b?: string; f?: string };
+  if (stuecke.size > regelZahl("uhr_warteschlange_max")) stuecke.clear();
+  const teile = stuecke.get(d.id) ?? [];
+  teile[d.i] = json ? Buffer.from(String(d.b), "base64") : roh;
+  stuecke.set(d.id, teile);
+  if (teile.filter(Boolean).length < d.n) return { status: 200, inhalt: { i: d.i } };
+  stuecke.delete(d.id);
+  const datei = join(tmpdir(), `seneca-uhr-${randomUUID()}.${d.f === "wav" ? "wav" : "ogg"}`);
+  writeFileSync(datei, Buffer.concat(teile));
+  const text = (await schreiben(datei).catch(() => undefined).finally(() => rmSync(datei, { force: true })))?.trim();
+  return text ? { status: 200, inhalt: { x: text } } : { status: 422, inhalt: { f: "nichts verstanden" } };
 }

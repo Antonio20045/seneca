@@ -1,2 +1,5 @@
 project.manifest = manifest.xml
-base.sourcePath = source;../gemeinsam
+base.sourcePath = source;../gemeinsam;../bin/adresse
+base.excludeAnnotations = mip
+fenix9prosolar51mm.excludeAnnotations = rund
+fenix9prosolar51mm.resourcePath = resources/drawables;resources/strings;resources-fenix9prosolar51mm

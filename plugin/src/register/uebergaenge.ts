@@ -18,6 +18,7 @@ export const UEBERGAENGE = {
     { nr: "A14", von: ["laeuft"], nach: "wartet_auf_abnahme", ausloeser: "fertig mit Beleg" },
     { nr: "A15", von: ["laeuft"], nach: "erledigt", ausloeser: "fertig, Abnahme durch Beleg" },
     { nr: "A16", von: ["wartet_auf_abnahme"], nach: "erledigt", ausloeser: "abnahme.passt" },
+    { nr: "A16a", von: ["geparkt", "bereit"], nach: "erledigt", ausloeser: "abnahme.passt auf Antonios Wort im Gespräch (schon fertig)" },
     { nr: "A17", von: ["wartet_auf_abnahme", "erledigt"], nach: "bereit", ausloeser: "abnahme.nachbessern" },
     { nr: "A19", von: ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"], nach: "verworfen", ausloeser: "auftrag.verwerfen" },
   ],
@@ -35,7 +36,7 @@ export const UEBERGAENGE = {
     { nr: "F2", von: ["offen"], nach: "beantwortet", ausloeser: "erste Antwort" },
     { nr: "F3", von: ["beantwortet"], nach: "offen", ausloeser: "rueckgaengig vor wirkt_ab" },
     { nr: "F4", von: ["offen"], nach: "ersetzt", ausloeser: "neue Frage am Auftrag" },
-    { nr: "F5", von: ["offen"], nach: "zurueckgezogen", ausloeser: "Auftrag verlaesst wartet oder endet" },
+    { nr: "F5", von: ["offen"], nach: "zurueckgezogen", ausloeser: "Auftrag endet (erledigt, verworfen) oder Startfrage obsolet" },
     { nr: "F6", von: ["offen"], nach: "abgelaufen", ausloeser: "Frist vorbei" },
   ],
   todo: [
@@ -56,7 +57,6 @@ export const PFLICHT_BEI = {
 } as const;
 
 export const NEBENWIRKUNGEN = [
-  { art: "auftrag", von: "wartet", nach: "*", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "erledigt", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "verworfen", wirkung: "frage_zurueckziehen" },
   { art: "auftrag", von: "*", nach: "erledigt", wirkung: "eltern_wecken" },

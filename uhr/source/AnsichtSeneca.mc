@@ -143,6 +143,19 @@ class EntscheidungAnsicht extends Ansicht {
     private var _frage as Dictionary;
     private var _beantwortet as Boolean = false;
 
+    function tippen(x as Float, y as Float) as Void {
+        var mitte = Zeichnen.MITTE;
+        if (y >= mitte + 30) {
+            if (x < mitte) {
+                runter();
+            } else {
+                zurueck();
+            }
+        } else if (x >= mitte && y < mitte - 20) {
+            waehlen();
+        }
+    }
+
     function initialize(frage as Dictionary) {
         Ansicht.initialize();
         _frage = frage;
@@ -188,6 +201,16 @@ class EntscheidungAnsicht extends Ansicht {
 
     function waehlen() as Void {
         antworten("ja", :ja, "Ja an " + von(), _frage["p"] instanceof String ? kurz() + " für " + Inhalt.gross(_frage["p"] as String) : kurz());
+    }
+
+    function vorwahl(wahl as Object) as Void {
+        if ("ja".equals(wahl)) {
+            waehlen();
+        } else if ("nein".equals(wahl)) {
+            runter();
+        } else {
+            zurueck();
+        }
     }
 
     function runter() as Void {
@@ -263,6 +286,14 @@ class MorgenAnsicht extends Ansicht {
 }
 
 class TeamAnsicht extends ListenAnsicht {
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:team);
+    }
+
+    function bereich() as Number {
+        return 4;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
         _auswahl = Inhalt.teamStart();
@@ -284,8 +315,7 @@ class TeamAnsicht extends ListenAnsicht {
         var arbeitet = Inhalt.teamArbeitet();
         var kopf = "TEAM · " + (arbeitet == null ? 0 : arbeitet).toString() + " ARBEITET";
         if (liste.size() == 0) {
-            Zeichnen.mitte(dc, 70, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, "TEAM");
-            Zeichnen.mitte(dc, 233, Rez.Fonts.G4_20, Zeichnen.LEISE, "Noch kein Stand vom iPhone");
+            Bildschirm.teamLeer(dc);
             return;
         }
         Bildschirm.team(dc, kopf, liste, _auswahl < liste.size() ? _auswahl : 0);

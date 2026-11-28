@@ -223,7 +223,6 @@ struct PunktZeile: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 11) {
             ZStack {
-                if ton == .kritisch { PulsRing(farbe: ton.farbe) }
                 Circle().fill(ton.farbe).frame(width: 8, height: 8)
             }
             .frame(width: 8, height: 8)
@@ -234,19 +233,6 @@ struct PunktZeile: View {
         .padding(.vertical, 9)
         .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.067)).frame(height: 1) }
         .steigen(i, start: 0.16, takt: 0.055, dauer: 0.5)
-    }
-}
-
-struct PulsRing: View {
-    var farbe: Color
-    @Environment(\.fensterSichtbar) private var sichtbar
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar)) { ctx in
-            let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.4) / 2.4
-            let w = Bezier.cssEase.wert(min(p / 0.7, 1))
-            Circle().stroke(farbe.opacity(0.45 * (1 - w)), lineWidth: 1.5).frame(width: 8 + 14 * w, height: 8 + 14 * w)
-        }
-        .allowsHitTesting(false)
     }
 }
 

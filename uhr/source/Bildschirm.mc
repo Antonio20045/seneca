@@ -1,9 +1,19 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 
+(:rund)
 module Bildschirm {
     const LINKS = Zeichnen.LINKS;
     const MITTIG = Zeichnen.MITTIG;
+
+    function taste(dc as Dc, winkel as Number, laenge as Number, farbe as Number, wort as String) as Void {
+        Zeichnen.taste(dc, winkel, laenge, farbe, wort);
+    }
+
+    function teamLeer(dc as Dc) as Void {
+        Zeichnen.mitte(dc, 70, Rez.Fonts.M5_15, Zeichnen.GEDAEMPFT, "TEAM");
+        Zeichnen.mitte(dc, 233, Rez.Fonts.G4_20, Zeichnen.LEISE, "Noch kein Stand vom iPhone");
+    }
 
     function zeile(dc as Dc, y as Numeric, id as ResourceId, farbe as Number, inhalt as String, hoechstens as Numeric) as Void {
         Zeichnen.mitte(dc, y, id, farbe, Zeichnen.kuerzen(dc, inhalt, id, hoechstens));
@@ -30,6 +40,19 @@ module Bildschirm {
         var links = Zeichnen.MITTE - (24 + Zeichnen.breite(dc, id, "SENECA")) / 2.0;
         Zeichnen.lichtpunkt(dc, links + 7, y);
         Zeichnen.text(dc, links + 24, y, id, Zeichnen.HIMMEL, "SENECA", LINKS);
+    }
+
+    function zonen(art as Symbol) as Array<Array<Number>> {
+        if (art == :start) {
+            return [[160, 284, 0], [284, 347, 1], [347, 466, 2]];
+        } else if (art == :uebungen) {
+            return [[90, 152, -1], [152, 280, 0], [280, 340, 1], [340, 466, 2]];
+        } else if (art == :team) {
+            return [[90, 151, -1], [151, 299, 0], [299, 360, 1], [360, 466, 2]];
+        } else if (art == :todos) {
+            return [[100, 211, 0], [211, 284, 1], [284, 466, 2]];
+        }
+        return [[170, 218, -2], [218, 270, -1], [270, 340, 0], [340, 390, 1]];
     }
 
     function start(dc as Dc, status as String, statusFarbe as Number, zeilen as Array<Dictionary>, auswahl as Number) as Void {
@@ -347,23 +370,47 @@ module Bildschirm {
         Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.GRUEN, Rez.Fonts.G5_18, Zeichnen.GRUEN, "weiter", 107);
     }
 
-    function ungekoppelt(dc as Dc) as Void {
-        grenzfall(dc, "SENECA", Zeichnen.HIMMEL, "Öffne Seneca auf dem iPhone.", Rez.Fonts.G5_32, 176.4, 38.5,
-            [[282, Rez.Fonts.G4_20, Zeichnen.LEISE, "Dann steht hier eine Zahl."]]);
-        Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, "erneut", 107);
+    function punkte() as String {
+        return ["", ".", "..", "..."][Zeit.jetzt() % 4] as String;
+    }
+
+    function ungekoppelt(dc as Dc, laeuft as Boolean, fehler as Number) as Void {
+        var titel = laeuft ? "Hole Zahl" + punkte() : fehler < 0 ? "Keine Verbindung." : "Nicht gekoppelt.";
+        var unter = fehler < 0 ? "Tailscale am iPhone an?" : fehler == 429 ? "Zu viele Versuche · später erneut" : "Am iPhone „Uhr koppeln“ tippen";
+        grenzfall(dc, "SENECA", Zeichnen.HIMMEL, titel, Rez.Fonts.G5_32, 176.4, 38.5, [[282, Rez.Fonts.G4_20, Zeichnen.LEISE, unter]]);
+        Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, laeuft ? "…" : "erneut", 107);
         Zeichnen.tasteMit(dc, Zeichnen.BACK, Zeichnen.GEDAEMPFT, Rez.Fonts.G5_18, Zeichnen.LEISE, "zurück", 359);
     }
 
-    function kopplung(dc as Dc, zahl as String) as Void {
+    function kopplung(dc as Dc, zahl as String, wartet as Boolean, abgelaufen as Boolean, fehler as Number) as Void {
         var ziffern = zahl.toCharArray();
         var text = "";
         for (var i = 0; i < ziffern.size(); i += 1) {
             text += (i > 0 ? " " : "") + ziffern[i].toString();
         }
-        Zeichnen.mitte(dc, 150, Rez.Fonts.M5_22W, Zeichnen.HIMMEL, "SENECA");
-        Zeichnen.mitte(dc, 240, Rez.Fonts.G5_80, Zeichnen.WEISS, text);
-        Zeichnen.mitte(dc, 320, Rez.Fonts.G4_24, Zeichnen.LEISE, "Steht das am iPhone?");
-        Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, "ja", 107);
+        Zeichnen.mitte(dc, 130, Rez.Fonts.M5_22W, Zeichnen.HIMMEL, "SENECA");
+        Zeichnen.mitte(dc, 214, Rez.Fonts.G5_80, abgelaufen ? Zeichnen.MATT : Zeichnen.WEISS, text);
+        var zeile = "Steht das am iPhone?";
+        var unter = "Dort bestätigen, dann START";
+        if (abgelaufen) {
+            zeile = "Zahl abgelaufen";
+            unter = "START holt eine neue";
+        } else if (fehler < 0) {
+            zeile = "Keine Verbindung";
+            unter = "Tailscale am iPhone an?";
+        } else if (wartet) {
+            zeile = "Warte auf Bestätigung" + punkte();
+            unter = "am iPhone";
+        }
+        Zeichnen.mitte(dc, 296, Rez.Fonts.G4_24, wartet && !abgelaufen ? Zeichnen.HIMMEL : Zeichnen.TEXT, zeile);
+        Zeichnen.mitte(dc, 334, Rez.Fonts.G4_20, Zeichnen.LEISE, unter);
+        Zeichnen.tasteMit(dc, Zeichnen.START, Zeichnen.HIMMEL, Rez.Fonts.G5_18, Zeichnen.HIMMEL, abgelaufen ? "neue Zahl" : "ja", 107);
+    }
+
+    function gekoppelt(dc as Dc) as Void {
+        Zeichnen.haken(dc, Zeichnen.MITTE, 170, 92, Zeichnen.GRUEN, Zeichnen.HAKEN_DUNKEL);
+        Zeichnen.mitte(dc, 262, Rez.Fonts.G5_34, Zeichnen.WEISS, "Gekoppelt");
+        Zeichnen.mitte(dc, 304, Rez.Fonts.G4_20, Zeichnen.LEISE, "Seneca holt den Stand");
     }
 
     function weitermachen(dc as Dc, kopf as String, saetze as String, wann as String) as Void {

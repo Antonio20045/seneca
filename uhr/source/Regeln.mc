@@ -2,6 +2,9 @@ import Toybox.Lang;
 
 (:background, :glance)
 module Regeln {
+    const NACHT_AB = 1350;
+    const NACHT_BIS = 390;
+    const MIN_JE_STD = 60;
     const PROTOKOLL = 1;
     const STAPEL = 20;
     const WIEDERHOLUNG_S = 60;

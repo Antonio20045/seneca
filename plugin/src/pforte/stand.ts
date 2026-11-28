@@ -1,4 +1,4 @@
-import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, kinder, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, wiederholungenSeit, zurueckgenommen, type Zeile } from "../register/lesen.ts";
+import { aktiveLaeufe, auftraege, kostenSeit, ereignisse, faelligeWirkungen, fragen, hole, vorschlagDaten, kinder, beendeteLaeufe, revision, spaeterBis, termineAm, todos, uhr, wert, werte, wiederholungenSeit, zurueckgenommen, type Zeile } from "../register/lesen.ts";
 import { istFokus } from "./planen.ts";
 import { aufgaben } from "./aufgaben.ts";
 import { berichte, rueckblick, tagesZahlen } from "./berichte.ts";
@@ -9,7 +9,7 @@ import { weg, wochenplan } from "./wochenplan.ts";
 import { verlauf } from "./verlauf.ts";
 import { buendelFortschritt, entscheiden, fensterStart, optionenSicht } from "./entscheiden.ts";
 import type { Register } from "../register/schema.ts";
-import { appRegeln, letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
+import { appRegeln, lebensbereich, letzteUhrzeit, msAusMinuten, naechsteUhrzeit, regelMs, regelText, regelZahl, sekundenAusMs } from "../regeln.ts";
 import { anzeigeName, mitarbeiter } from "../team.ts";
 
 const SCHEMA = 1;
@@ -29,9 +29,7 @@ function vertagt(db: Register, f: Zeile, jetzt: number): boolean {
   return !!v && JSON.parse(String(v.daten)).bis > jetzt;
 }
 
-function haengtDaran(db: Register, f: Zeile): number {
-  return auftraege(db, ["wartet"]).filter((a) => a.wartet_auf === `frage:${f.id}` || a.wartet_auf === `auftrag:${f.auftrag_id}`).length;
-}
+const haengtDaran = (db: Register, f: Zeile): number => auftraege(db, ["wartet"]).filter((a) => a.wartet_auf === `frage:${f.id}` || a.wartet_auf === `auftrag:${f.auftrag_id}`).length;
 
 function zaehlt(db: Register, f: Zeile, jetzt: number): boolean {
   if (f.art === "vorschlag" || vertagt(db, f, jetzt)) return false;
@@ -51,9 +49,7 @@ function brauchtDich(db: Register, jetzt: number): Zeile[] {
     .slice(0, regelZahl("braucht_dich_max"));
 }
 
-export function uhrTauglich(f: Zeile): boolean {
-  return (f.art === "ja_nein" || f.art === "vorschlag") && f.wirkung_aussen === "keine";
-}
+export const uhrTauglich = (f: Zeile): boolean => (f.art === "ja_nein" || f.art === "vorschlag") && f.wirkung_aussen === "keine";
 
 function vorschlagAnUhr(db: Register): Zeile | undefined {
   return fragen(db, "offen").find((f) => f.art === "vorschlag" && ereignisse(db, { art: "zustellung", frage_id: String(f.id), grenze: 1 }).some((e) => e.geraet === "uhr"));
@@ -93,7 +89,7 @@ function team(db: Register, jetzt: number) {
     const urteil = JSON.parse(String(pruef?.ergebnis ?? "{}"));
     return { name, zustand: l ? (l.zustand === "haengt" ? "hängt" : "arbeitet") : ruht ? "ruht" : "frei", satz: l?.letzter_schritt ?? null, seit: l?.gestartet ?? null,
       projekt: l ? projektVon(db, l.auftrag_id) : null, rest_min: l ? restMin(db, l, jetzt) : null,
-      zuletzt: zuletzt ? { satz: getan(db, zuletzt), um: zuletzt.beendet_um } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
+      zuletzt: zuletzt ? { satz: getan(db, zuletzt), um: zuletzt.beendet_um, art: zuletzt.arbeitsart } : null, auftrag_id: l?.auftrag_id ?? null, titel: l ? hole(db, "auftrag", String(l.auftrag_id))?.titel ?? null : null,
       schritte: l ? ereignisse(db, { art: "lauf.schritt", auftrag_id: String(l.auftrag_id), seit: Number(l.gestartet), grenze: regelZahl("team_schritte") }).reverse().map((e) => ({ um: e.zeit, satz: e.satz })) : [],
       ruht_seit: ruht ? ereignisse(db, { art: "wert.gesetzt", schluessel: `ruht:${name}`, grenze: 1 })[0]?.zeit ?? null : null,
       arbeit: l ? arbeitSicht(db, l, name, tagBeginn, jetzt) : null,
@@ -149,7 +145,7 @@ function gefragt(kurz: string | undefined, text: string) {
 
 function buendel(db: Register, braucht: Zeile[], jetzt: number) {
   const abnahmen = auftraege(db, ["wartet_auf_abnahme"]).filter((a) => a.auftraggeber === "antonio");
-  const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id));
+  const offen = fragen(db, "offen").filter((f) => !braucht.some((b) => b.id === f.id)).sort((a, b) => rang(db, b, jetzt) - rang(db, a, jetzt) || Number(a.gestellt) - Number(b.gestellt));
   return {
     fenster: fensterStart(jetzt), ...buendelText(abnahmen, offen.length), ...buendelFortschritt(db, abnahmen, jetzt),
     fragen: offen.map((f) => frageSicht(db, f, jetzt)),
@@ -168,13 +164,12 @@ function mitteilung(db: Register, f: Zeile, weitere: number) {
 }
 
 function wartetSatz(db: Register, offen: Zeile[]): string | null {
-  const von = [...new Set(offen.map((f) => String(f.von)))];
-  const viele = von.map((v) => [anzeigeName(v), offen.filter((f) => f.von === v)] as const).sort((a, b) => b[1].length - a[1].length)[0];
-  if (!viele) return null;
-  const [name, fs] = viele;
+  if (!offen.length) return null;
+  const von = [...new Set(offen.map((f) => anzeigeName(String(f.von))))];
+  const fs = offen;
   const wo = fs.map((f) => [String(JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}")).kurz ?? "").replace(/\?$/, ""), f] as const)
     .filter(([k]) => k).sort(([, a], [, b]) => Number(uhrTauglich(b)) - Number(uhrTauglich(a))).map(([k, f]) => uhrTauglich(f) ? `${k} kommt auf die Uhr, sobald du unterwegs bist` : `${k} ins Fenster um ${regelText("fenster").split(" ")[0]}`);
-  return `${ANZAHL[fs.length] ?? fs.length} ${fs.length === 1 ? "Frage" : "Fragen"} von ${name} ${fs.length === 1 ? "wartet" : "warten"} noch.${wo.length ? ` ${wo.join(", ")}.` : ""}`;
+  return `${((ZAHLWORT[fs.length] ?? String(fs.length)).replace(/^./, (c) => c.toUpperCase()))} ${fs.length === 1 ? "Frage" : "Fragen"}${von.length === 1 ? ` von ${von[0]}` : ""} ${fs.length === 1 ? "wartet" : "warten"} noch.${wo.length ? ` ${wo.join(", ")}.` : ""}`;
 }
 
 export function stand(db: Register, eingabe: { geraet: string; revision?: number }, jetzt: number) {
@@ -190,7 +185,7 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     zaehler: { braucht: braucht.length },
     wartet: wartetSatz(db, [...braucht, ...fragen(db, "offen").filter((f) => !braucht.some((x) => x.id === f.id))].filter((f) => f.zustand === "offen")),
     ruhe: ruhe(db, jetzt) ?? null,
-    heute: heute(db, ruhe(db, jetzt), jetzt),
+    heute: heute(db, ruhe(db, jetzt), jetzt, tagBeginn, braucht.length + b.fragen.length),
     koerper: koerper(db, tagBeginn, ruhe(db, jetzt)),
     vorbei: ["abgelaufen", "zurueckgezogen"].flatMap((z) => fragen(db, z)).map((f) => ({ id: f.id, text: f.text, zustand: f.zustand, frist: f.frist, satz: f.grund,
       um: Number(ereignisse(db, { art: "uebergang", frage_id: String(f.id), grenze: 1 })[0]?.zeit) })).filter((f) => f.um >= tagBeginn),
@@ -216,13 +211,14 @@ export function stand(db: Register, eingabe: { geraet: string; revision?: number
     berichte: berichte(db, tagBeginn, jetzt),
     rueckblick: rueckblick(db, tagBeginn),
     kalender: kalender(db, ruhe(db, jetzt), b, aufg.gruppe, jetzt),
-    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich,
+    todos: todos(db, "offen").map((t) => ({ id: t.id, titel: t.titel, bereich: lebensbereich(String(t.titel), t.bereich),
       tag: t.tag, bis_wann: t.bis_wann, dauer_min: t.dauer_min, geschaetzt: t.geschaetzt, geplant_von: t.geplant_von, geplant_bis: t.geplant_bis, wiederkehrend: t.wiederkehrend,
       wichtig: !!t.wichtig, oeffnet: t.oeffnet, notiz: t.notiz, anhang: t.anhang, verschoben: t.verschoben_anzahl, revision: t.revision,
       grund: ((w) => (w && (w.gueltig_bis ?? 0) > jetzt ? JSON.parse(w.wert) : null))(wert(db, `todo_grund:${t.id}`)) })),
     hinweise: [...werte(db, "hinweis:").keys()].map((k) => wert(db, k)).filter((w) => w?.wert && (w.gueltig_bis ?? Infinity) > jetzt).map((w) => w?.wert),
+    uhr_gekoppelt: [...werte(db, "uhr:uhr").keys()].length > 0,
     kopplung: [...werte(db, "kopplung:").keys()].filter((k) => k !== "kopplung:fenster").map((k) => ({ k, w: wert(db, k) })).filter(({ w }) => w && (w.gueltig_bis ?? Infinity) > jetzt)
-      .map(({ k, w }) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(String(w?.wert)) })).filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl })),
+      .map(({ k, w }) => ({ geraet: k.slice("kopplung:".length), ...JSON.parse(String(w?.wert)) })).filter((k) => !k.bestaetigt).map((k) => ({ geraet: k.geraet, zahl: k.zahl, modell: k.modell })),
   };
   if (JSON.stringify(inhalt).length > regelZahl("stand_max_kb") * 1024) throw new Error("Stand zu gross");
   return inhalt;
@@ -267,21 +263,26 @@ export function uhrStand(db: Register, jetzt: number) {
     st: (start?.gueltig_bis ?? 0) > jetzt ? [start?.wert, sekundenAusMs(Number(start?.gueltig_bis))] : null,
     koerper: { schlaf: koerper(db, letzteUhrzeit(regelText("tag_grenze"), jetzt), r)?.schlaf ?? null },
     reg: { u: regelZahl("rueckgaengig_s"), a: regelZahl("uhr_abfrage_min"), q: regelZahl("uhr_warteschlange_max") },
+    sw: ((u) => u?.code === 200 && u.bytes > 0 && u.server?.n === u.bytes ? "roh" : "stueck")(JSON.parse(wert(db, "uhr-sonde")?.wert ?? "{}").upload?.w),
   };
 }
 
-export function lesenWerkzeug(db: Register, was: string, id?: string): string {
-  const jetzt = uhr.jetzt();
-  if (was === "auftrag" && id) {
-    const a = hole(db, "auftrag", id);
-    return `„${a.titel}“ ist ${a.zustand}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
-  }
+export function lesenWerkzeug(db: Register, was: string, id?: string, wer?: string): string {
+  const jetzt = uhr.jetzt(), zeile = (a: Zeile) => `${a.id} „${a.titel}“ (${a.projekt ?? "ohne Projekt"}) ist ${a.zustand}. Wortlaut: ${a.wortlaut}. Stand: ${a.letzter_stand || "noch nichts"}. Nächster Schritt: ${a.naechster_schritt || "offen"}.`;
+  if (was === "auftrag" && id) return zeile(hole(db, "auftrag", id));
+  if (was === "auftraege") return auftraege(db, ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"]).filter((a) => a.quelle !== "dauerauftrag" && (a.verantwortlich === wer || a.auftraggeber === wer) && (!id || a.projekt === id)).map(zeile).join("\n") || "Du hast keine offenen Aufträge.";
   if (was === "tag") return tagSicht(db, jetzt);
   if (was === "team") return team(db, jetzt).map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`).join("\n");
-  if (was === "fragen") return brauchtDich(db, jetzt).map((f) => `${f.id}: ${f.text}`).join("\n") || "Nichts braucht Antonio gerade.";
+  if (was === "status" || was === "fragen" || was === "auftrag") return statusSicht(db, jetzt);
   const praefix = { profil: "profil:", fakten: "fakt:", kontakt: "kontakt:" }[was];
   if (!praefix) throw new Error(`seneca_lesen kennt ${was} nicht.`);
   return [...werte(db, praefix)].map(([k, v]) => `${k}: ${v}`).join("\n") || "Nichts hinterlegt.";
+}
+
+function statusSicht(db: Register, jetzt: number): string {
+  const dringend = brauchtDich(db, jetzt).filter((f) => f.zustand === "offen"), offen = [...dringend, ...fragen(db, "offen").filter((f) => !dringend.some((d) => d.id === f.id))], wer = (a: Zeile) => anzeigeName(String(a.verantwortlich)), geparkt = auftraege(db, ["geparkt"]), zeit = (t: unknown) => new Date(Number(t)).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const fragenText = offen.map((f) => `- ${f.id} von ${anzeigeName(String(f.von))}: ${f.text} (${dringend.includes(f) ? "dringend" : `kommt im Entscheidungsfenster ${uhrzeit(fensterStart(jetzt))}`})`).join("\n"), jeWer = [...Map.groupBy(geparkt, wer)].map(([w, l]) => `${w} ${l.length}`).join(", "), haengt = fragen(db, "offen").map((f) => ({ f, n: geparkt.filter((a) => ((vorschlagDaten(db, String(f.auftrag_id)).wirkung?.fortsetzen ?? []) as string[]).includes(String(a.id))).length })).filter((h) => h.n);
+  return [`Offene Fragen an Antonio: ${offen.length}${fragenText ? `\n${fragenText}` : ""}`, `Geparkt: ${geparkt.length} Aufträge${geparkt.length ? ` (${jeWer}), sie warten auf Antonios Entscheidung` : ""}.${haengt.map((h) => ` ${h.n} davon hängen an der Frage ${h.f.id} „${h.f.text}“, Ja nimmt sie wieder auf.`).join("")}`, `In Arbeit: ${auftraege(db, ["laeuft", "wartet", "wartet_auf_abnahme"]).map((a) => `${a.titel} (${wer(a)}, ${a.zustand})`).join("; ") || "nichts"}.`, `Nächste Läufe: ${auftraege(db, ["bereit"]).filter((a) => a.naechster_anlass).sort((a, b) => Number(a.naechster_anlass) - Number(b.naechster_anlass)).slice(0, regelZahl("status_laeufe")).map((a) => `${zeit(a.naechster_anlass)} ${a.titel} (${wer(a)})`).join("; ") || "keine geplant"}.`, `Team: ${team(db, jetzt).map((t) => `${anzeigeName(t.name)} ${t.zustand}`).join(", ")}.`].join("\n");
 }
 
 const ZEITFELDER = ["jetzt", "start", "ende", "geplant", "zeit", "bis", "von", "um"];
@@ -294,7 +295,7 @@ function tagSicht(db: Register, jetzt: number): string {
     revision: s.revision, jetzt, satz: s.heute.satz, aufgaben: s.aufgaben.satz, braucht_dich: s.zaehler.braucht, wartet: s.wartet, ruhe: s.ruhe, entscheiden: s.entscheiden.satz, buendel: s.buendel.satz,
     todos: s.todos.filter((t) => !t.wiederkehrend).map((t) => ({ titel: t.titel, bereich: t.bereich, tag: t.tag, ueberfaellig: !!t.tag && String(t.tag) < new Date(s.tag_beginn).toLocaleDateString("sv-SE"), dauer_min: t.dauer_min, geplant: t.geplant_von, wichtig: t.wichtig })),
     jeden_tag: s.aufgaben.jeden_tag?.map((t) => `${t.titel}${t.erledigt ? " (erledigt)" : ""}`), erledigt: [...s.aufgaben.erledigt.map((t) => t.titel), ...s.heute_erledigt.map((a) => `${a.titel} (${a.wer})`)],
-    termine: s.termine.map((t) => ({ titel: t.titel, start: t.start, ende: t.ende, ganztag: t.ganztag, ort: t.ort ?? null, mit: t.mit, weg: t.weg })),
+    termine: s.termine.map((t) => ({ titel: t.titel, bereich: t.bereich, start: t.start, ende: t.ende, ganztag: t.ganztag, ort: t.ort ?? null, mit: t.mit, weg: t.weg })),
     morgen: termineAm(db, s.tag_beginn + regelMs("ein_tag_tage")).map((t) => ({ titel: t.titel, start: t.start, ganztag: t.ganztag })),
     koerper: s.koerper, zahlen_heute: tagesZahlen(db, s.tag_beginn), gelernt: s.gelernt.map((g) => g.zeile), wiederholungen_heute: wiederholungenSeit(db, s.tag_beginn), team: s.team.map((t) => `${t.name}: ${t.zustand}${t.satz ? `, ${t.satz}` : ""}`),
     auftraege_seit_gestern: auftraege(db, ["bereit", "laeuft", "wartet", "wartet_auf_abnahme", "erledigt"]).filter((a) => a.quelle !== "dauerauftrag" && Number(a.geaendert) >= gestern)

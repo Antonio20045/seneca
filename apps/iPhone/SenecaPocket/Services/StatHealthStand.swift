@@ -98,6 +98,7 @@ struct StatHealthStand: Codable, Equatable {
     var ankerGewicht: Data?
     var aktualisiert: Date?
     var gemeldet: Set<String> = []
+    var spurGemeldet: Set<String>? = nil
 
     mutating func uebernehmen(laeufe neu: [StatLauf], geloescht: [String], anker: Data?, seit: Date) {
         let hatteDaten = !laeufe.isEmpty
@@ -139,13 +140,17 @@ struct StatHealthStand: Codable, Equatable {
         return l + g
     }
 
+    var offeneSpuren: [String] {
+        laeufe.values.filter { gemeldet.contains($0.id) && !(spurGemeldet ?? []).contains($0.id) }.sorted { $0.start > $1.start }.map(\.id)
+    }
+
     var offeneDetails: [String] {
         laeufe.values.filter { !fertig.contains($0.id) }.sorted { $0.start > $1.start }.map(\.id)
     }
 
     func braucht(_ grund: StatHealthGrund, jetzt: Date) -> Bool {
         guard let a = aktualisiert else { return true }
-        if !offeneDetails.isEmpty || a > jetzt { return true }
+        if !offeneDetails.isEmpty || !offeneSpuren.isEmpty || a > jetzt { return true }
         return jetzt.timeIntervalSince(a) >= grund.maxAlter
     }
 

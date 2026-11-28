@@ -35,15 +35,16 @@ test("PF08 Koppeln mit Zahlenvergleich: Schlüssel nur nach Bestätigung, genau 
   const json = (o: object) => Buffer.from(JSON.stringify(o));
   assert.equal(uhrKoppeln(p.db, json({ g: "uhr2" })).status, 403);
   p.methode("seneca.handeln", { kennung: "k1", geraet: "iphone", art: "geraet.uhr_koppeln" });
-  const k = uhrKoppeln(p.db, json({ g: "uhr2" })).inhalt as { zahl: string; abholen: string };
+  const k = uhrKoppeln(p.db, json({ g: "uhr2", m: "fēnix 9 Pro · Seneca 1.1" })).inhalt as { zahl: string; abholen: string };
   assert.match(k.zahl, /^\d{4}$/);
-  assert.deepEqual((p.methode("seneca.stand", { geraet: "iphone" }) as { kopplung: object[] }).kopplung, [{ geraet: "uhr2", zahl: k.zahl }]);
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "iphone" }) as { kopplung: object[] }).kopplung, [{ geraet: "uhr2", zahl: k.zahl, modell: "fēnix 9 Pro · Seneca 1.1" }]);
   assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
   assert.match((p.methode("seneca.handeln", { kennung: "k2", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: "0000x" }) as { ergebnis: string }).ergebnis, /zahl_passt_nicht/);
   p.methode("seneca.handeln", { kennung: "k3", geraet: "iphone", art: "geraet.uhr_bestaetigen", ziel: "uhr2", wert: k.zahl });
   const lauf = "l".repeat(48);
   const a = uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen, lauf }));
   assert.equal(a.status, 200);
+  assert.equal((p.methode("seneca.stand", { geraet: "iphone" }) as { uhr_gekoppelt: boolean }).uhr_gekoppelt, true);
   assert.equal(uhrAbholen(p.db, json({ g: "uhr2", abholen: k.abholen })).status, 403);
   const schluessel = (a.inhalt as { schluessel: string }).schluessel;
   const abgleich = uhrAbgleich(p.db, json({ v: 1, g: "uhr2", r: 0, h: [] }), { authorization: `Bearer ${schluessel}` }, (j) => uhrStand(p.db, j));

@@ -56,7 +56,7 @@ export function aufgaben(db: Register, ruhe: { grund: string; bis: number } | un
     heute: heute.map((t) => t.id),
     erledigt: todos(db, "erledigt").filter((t) => !t.wiederkehrend).map((t) => ({ id: t.id, titel: t.titel, bereich: t.bereich, von: t.erledigt_von, ...erledigt(db, t.id) }))
       .filter((t) => t.um >= tagBeginn),
-    jeden_tag: taeglich.map((t) => ({ id: t.id, titel: t.titel, erledigt: erledigt(db, t.id).um >= tagBeginn })),
+    jeden_tag: taeglich.map((t) => ({ id: t.id, titel: t.titel, erledigt: erledigt(db, t.id).um >= tagBeginn, ab: String(t.notiz ?? "").match(/ab (\d\d:\d\d)/)?.[1] ?? null, dauer_min: t.dauer_min })),
     zaehler: { morgen: zaehle("morgen"), woche: zaehle("woche"), ohne_tag: zaehle("ohne_tag") },
   };
 }

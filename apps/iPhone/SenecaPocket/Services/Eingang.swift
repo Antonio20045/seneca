@@ -35,9 +35,6 @@ struct WasStehtAnIntent: AppIntent {
 
 struct SenecaKurzbefehle: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(intent: SenecaSagenIntent(),
-                    phrases: ["\(.applicationName) etwas sagen", "Mit \(.applicationName) sprechen", "Sprich mit \(.applicationName)"],
-                    shortTitle: "Seneca etwas sagen", systemImageName: "mic")
         AppShortcut(intent: AufgabeEintragenIntent(),
                     phrases: ["Aufgabe in \(.applicationName) eintragen", "\(.applicationName) Aufgabe eintragen", "Neue Aufgabe für \(.applicationName)"],
                     shortTitle: "Aufgabe eintragen", systemImageName: "plus.circle")

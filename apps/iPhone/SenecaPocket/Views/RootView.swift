@@ -94,10 +94,18 @@ struct RootView: View {
                            chat: { oeffne(.chat(mitarbeiter: $0)) }, berichte: { oeffne(.berichte) }, laeuft: { oeffne(.arbeit(.laeuft)) }))
         .onReceive(Publishers.keyboardHeight) { keyboard = $0 }
         .task { await launch() }
+        .onChange(of: store.stand?.uhr_gekoppelt == false && scenePhase == .active) { _, offen in
+            if offen { store.daten?.handeln("geraet.uhr_koppeln") }
+        }
+        .onChange(of: store.stand?.kopplung?.last(where: { $0.bestaetigt != true })?.zahl) { _, zahl in
+            guard zahl != nil, ersterStart == nil else { return }
+            einstellungen = false
+            reading = nil
+            Bewegung.mit(.seite) { ersterStart = .uhr }
+        }
         #if DEBUG
         .overlay { SperreProbe.aus(store.stand) }
         #endif
-        .onReceive(NotificationCenter.default.publisher(for: SenecaWunsch.meldung)) { _ in if scenePhase == .active { wunschErfuellen() } }
         .onOpenURL { url in
             switch url.host {
             case "entscheiden": oeffne(.arbeit(.fragen))
@@ -108,21 +116,8 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             store.isActive = phase == .active
-            if phase == .active { Task { await reconnect() }; wunschErfuellen(); eingangVerarbeiten() }
+            if phase == .active { Task { await reconnect() }; eingangVerarbeiten() }
             if phase == .background && t.p > 0.5 { conversation.suspend() }
-        }
-    }
-
-    private func wunschErfuellen() {
-        guard SenecaWunsch.abholen() == SenecaWunsch.diktat else { return }
-        einstellungen = false
-        reading = nil
-        setSide(SideState())
-        if t.p < 0.5 { go(1, quick: false) }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 950))
-            conversation.sprechWunschOffen = true
-            conversation.sprechWunsch += 1
         }
     }
 
@@ -815,10 +810,6 @@ struct RootView: View {
             case "arbeit": oeffne(.arbeit(.fragen))
             case "laeuft": oeffne(.arbeit(.laeuft))
             case "zurueck": zurueck()
-            case "sprechen", "gespraech":
-                conversation.sprechWunschTaste = action == "sprechen"
-                conversation.sprechWunschOffen = true
-                conversation.sprechWunsch += 1
             case "lesen": reading = .demo
             case "heute": setSide(SideState()); reading = nil
             case "ask":

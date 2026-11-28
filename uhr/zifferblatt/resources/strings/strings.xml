@@ -3,4 +3,8 @@
     <string id="StilTitel">Stil</string>
     <string id="Elegant">Alltag, elegant</string>
     <string id="Sportlich">Alltag, sportlich</string>
+    <string id="FarbeTitel">Farbe</string>
+    <string id="MitDemTag">Mit dem Tag</string>
+    <string id="ImmerHell">Immer hell</string>
+    <string id="ImmerDunkel">Immer dunkel</string>
 </resources>

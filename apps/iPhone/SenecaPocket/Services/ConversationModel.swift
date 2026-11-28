@@ -14,9 +14,6 @@ final class ConversationModel: ObservableObject {
     private var vorleseLauf = UUID()
     var tippt = false
     @Published private(set) var entwurfTick = 0
-    @Published var sprechWunsch = 0
-    var sprechWunschOffen = false
-    var sprechWunschTaste = true
     @Published var stumm = false
     @Published private(set) var vonTaste = false
     @Published private(set) var letzteFrage = ""
@@ -64,8 +61,6 @@ final class ConversationModel: ObservableObject {
     @Published private(set) var zustandsHinweis: String?
     @Published private(set) var gespraech = Gespraech()
     @Published var anhaenge: [String: [ChatAnhang]] = [:]
-    @Published private(set) var diktatSeit: Date?
-    private var diktatSenke: AnyCancellable?
     var hoertZu: Bool { gespraech.phase == .hoert }
     private(set) var entwurfGesprochen = false
     private(set) var gesprochen: Set<String> = []
@@ -106,7 +101,6 @@ final class ConversationModel: ObservableObject {
     func senden(_ raw: String, an p: ChatPartner) -> Bool {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines), mit = anhaenge[p.id] ?? []
         guard !text.isEmpty || !mit.isEmpty, let chat = store?.chat else { return false }
-        diktatEnde()
         if macUnreachable {
             wartet.append(Wartend(text: text, partner: p, anhaenge: mit, zeit: store?.clock() ?? Date()))
             anhaenge[p.id] = nil
@@ -445,40 +439,6 @@ final class ConversationModel: ObservableObject {
         guard (anhaenge[p.id]?.count ?? 0) < 10,
               let a = ChatAnhang.ausDaten(daten, name: name, mime: mime, ordner: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first) else { return }
         anhaenge[p.id, default: []].append(a)
-    }
-
-    func diktatStarten(basis: String, feld: @escaping (String) -> Void) {
-        guard diktatSeit == nil, !gespraech.aktiv else { return }
-        stoppeVorlesen()
-        diktatSeit = Date()
-        var vorne = basis.isEmpty ? "" : basis + " ", zuletzt = ""
-        #if DEBUG
-        if pretendsMicrophone { feld(vorne + (demoVoice ?? "")); return }
-        #endif
-        diktatSenke = speech.$transcript.dropFirst().sink { t in
-            if t.count < zuletzt.count / 2, !zuletzt.isEmpty { vorne += zuletzt + " " }
-            zuletzt = t
-            if !t.isEmpty { feld(vorne + t) }
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            guard await self.speech.gespraechBeginnen() else { self.diktatEnde(); return }
-            if self.diktatSeit != nil { self.speech.hoeren() }
-        }
-    }
-
-    var pegel: Float {
-        #if DEBUG
-        if pretendsMicrophone { return Float.random(in: 0.02...0.4) }
-        #endif
-        return speech.pegel
-    }
-
-    func diktatEnde() {
-        guard diktatSeit != nil else { return }
-        diktatSenke = nil
-        diktatSeit = nil
-        if !pretendsMicrophone { speech.gespraechBeenden() }
     }
 
     func pruefeMikrofon() { if !pretendsMicrophone { speech.checkDenied() } }

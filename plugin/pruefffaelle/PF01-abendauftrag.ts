@@ -4,6 +4,7 @@ import { faelligeAuftraegeJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
 import { auftraege, ereignisse, hole, laeufe } from "../src/register/lesen.ts";
 import { auftragSetzen, wertSetzen } from "../src/register/schreiben.ts";
 import { uhr } from "../src/register/lesen.ts";
+import { zustellenJob } from "../src/pforte/zustellen.ts";
 import { ladePlugin, nurWach, spaeter, um } from "./aufbau.ts";
 
 const WORTLAUT = "Verschaff dir einen Überblick und setz um, was fehlt";
@@ -44,14 +45,31 @@ test("PF01 Abendauftrag: Wortlaut in jedem Lauf, Teil 2 ohne Eingabe, ohne Stand
   p.ende(p.starts[2].sessionKey);
   assert.equal(hole(p.db, "auftrag", id).zustand, "wartet_auf_abnahme");
   assert.ok(laeufe(p.db, id).every((l) => l.anlass));
+  const zeilen: string[][] = [];
+  const poste = async (sitzung: string, text: string) => (zeilen.push([sitzung, text]), "posted");
+  await zustellenJob(p.db, undefined, poste);
+  await zustellenJob(p.db, undefined, poste);
+  assert.equal(zeilen.length, 1);
+  assert.equal(zeilen[0][0], "agent:seneca:main");
+  assert.match(zeilen[0][1], new RegExp(`fertig mit „${WORTLAUT}“: Alles umgesetzt\nBeleg: PR #12 · Auftrag ${id} · unter Entscheiden`));
 });
 
-test("PF01 nie „du“, wenn es nicht Antonio war", async () => {
+test("PF01 Nachricht aus der App wird ohne Kennung zum Auftrag mit Antonios Wortlaut, eine cli-Einspeisung nie", async () => {
   const p = ladePlugin();
   um("22:50");
-  p.nachricht("agent:seneca:main", "m9", WORTLAUT, false);
-  const r = await p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "auftrag", nachricht_kennung: "m9", wortlaut: WORTLAUT, an: "produkt", ziel: "x", abnahme: "y" });
-  assert.match(String(r.fehler), /Antonios Nachricht/);
+  const auftrag = (extra: object = {}) => p.werkzeug("seneca_auftrag", "agent:seneca:main", "seneca", { art: "auftrag", wortlaut: WORTLAUT, an: "produkt", ziel: "x", abnahme: "y", ...extra });
+  p.nachricht("agent:seneca:main", "mac-1:user", `Hey Seneca. ${WORTLAUT}. Danke!`, false);
+  assert.match(String((await auftrag()).fehler), /Antonios Nachricht/);
+  assert.match(String((await auftrag({ nachricht_kennung: "mac-1:user" })).fehler), /Antonios Nachricht/);
+  p.nachricht("agent:seneca:main", "mac-2:user", `Hey Seneca. ${WORTLAUT}. Danke!`);
+  assert.match(String((await auftrag({ nachricht_kennung: "mac-1:user" })).fehler), /Antonios Nachricht/);
+  const r = await auftrag();
+  const a = hole(p.db, "auftrag", r.auftrag_id);
+  assert.equal(a.auftraggeber, "antonio");
+  assert.equal(a.wortlaut, WORTLAUT);
+  assert.equal(a.wortlaut_quelle, "mac-2:user");
+  p.haken("before_prompt_build", { prompt: "", messages: [{ role: "assistant", content: "ok" }] }, { sessionKey: "agent:seneca:main" });
+  assert.match(String((await auftrag()).fehler), /Antonios Nachricht/);
 });
 
 test("PF01 Briefing und Rückblick: Daten aus dem Register, Text in Berichte und Heute", async () => {
@@ -71,7 +89,7 @@ test("PF01 Briefing und Rückblick: Daten aus dem Register, Text in Berichte und
   um("06:40");
   const lauf = await sitzung("briefing");
   const tag = JSON.parse(String(await p.werkzeug("seneca_lesen", lauf, "seneca", { was: "tag" })));
-  assert.deepEqual(tag.satz, ["Eine für heute.", "Seneca hat sie über den Tag verteilt."]);
+  assert.deepEqual(tag.satz, ["Ein To-do.", "Der Rest des Tages gehört dir."]);
   assert.deepEqual(tag.todos.map((t: { titel: string; ueberfaellig: boolean }) => [t.titel, t.ueberfaellig]), [["Steuerberater anrufen", true]]);
   assert.deepEqual(tag.jeden_tag, ["Lesen"]);
   const text = "Guten Morgen. Ein freier Tag, der Steuerberater ist seit einer Woche überfällig.";

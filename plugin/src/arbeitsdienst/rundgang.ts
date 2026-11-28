@@ -7,17 +7,13 @@ import { euro, wochenbeginn } from "./kosten.ts";
 
 const OFFEN = ["vorgeschlagen", "geparkt", "bereit", "laeuft", "wartet", "wartet_auf_abnahme"];
 
-function seneca(wer: string): boolean {
-  return wer === regelText("dauerauftraege_von");
-}
+const seneca = (wer: string): boolean => wer === regelText("dauerauftraege_von");
 
 function meine(db: Register, wer: string): Zeile[] {
   return auftraege(db, OFFEN).filter((a) => a.quelle !== "dauerauftrag" && (seneca(wer) || a.verantwortlich === wer || a.auftraggeber === wer));
 }
 
-function tage(ms: number): number {
-  return Math.floor(ms / regelMs("ein_tag_tage"));
-}
+const tage = (ms: number): number => Math.floor(ms / regelMs("ein_tag_tage"));
 
 function feststeckt(db: Register, a: Zeile, jetzt: number): string | undefined {
   const alt = jetzt - Number(a.geaendert) > regelMs("rundgang_alt_tage");
@@ -69,7 +65,7 @@ export function rundgangSicht(db: Register, a: Zeile, jetzt: number): string {
   }
   const skill = [...aehnlich].filter(([, n]) => n >= regelZahl("rundgang_muster_anzahl")).map(([art]) => art);
   if (skill.length) zeilen.push(`Ab dem dritten ähnlichen Auftrag: prüfe, ob ein Skill fehlt (höchstens eine Seite): ${skill.join(", ")}.`);
-  zeilen.push("So handelst du: Folgezug mit seneca_auftrag art nachfassen (auftrag_id, satz). Braucht es Antonio: seneca_frage am Auftrag, mit Kontext und Empfehlung. "
+  zeilen.push("So handelst du: Folgezug mit seneca_auftrag art nachfassen (auftrag_id, satz). Braucht es Antonio: seneca_frage mit Kontext und Empfehlung (kurze Überschrift, Antwort-Etiketten höchstens drei Wörter, langer Text in folge); ohne auftrag_id wird daraus ein eigener Auftrag, der auf seine Antwort wartet. "
     + "Eigener Auftrag mit prüfbarem Nutzen: seneca_auftrag art eigener (zählt gegen dein Wochenbudget). Was in Antonios Namen etwas anlegt: art vorschlag mit herkunft.");
   return zeilen.slice(0, regelZahl("rundgang_zeilen")).join("\n");
 }
@@ -84,18 +80,19 @@ function regel(db: Register, wer: string, titel: string, warum: string, wirkung:
   vorschlagAnlegen(db, {
     wortlaut: warum, wortlaut_quelle: `rundgang:${wer}`, titel, ziel: titel, abnahme: "Wirkt nach Ja", abnahme_durch: "beleg", pruefer_noetig: false,
     verantwortlich: wer, auftraggeber: wer, bereich: mandat(wer).bereich[0], arbeitsart: "regel", herkunft: "rundgang",
-    frage: { text: `${titel}?`, was_passiert_ist: warum, empfehlung: "Ja, wenn das so stimmt." }, wirkung,
+    frage: { text: `${titel.replace(/[\s.!?:…]+$/u, "")}?`, was_passiert_ist: warum, empfehlung: "Ja, wenn das so stimmt." }, wirkung,
   });
 }
 
 export function rundgangVorbereiten(db: Register, a: Zeile, jetzt: number): void {
   const wer = String(a.verantwortlich);
-  for (const z of anzeigen(db, wer)) {
-    if (z.zustand === "aktiv" && jetzt - Number(z.stand) > regelMs("anzeige_veraltet_tage")) {
+  for (const z of [...anzeigen(db, wer).filter((z) => z.art !== "statistik"), ...(seneca(wer) ? anzeigen(db) : [])]) {
+    const ungesehen = jetzt - Number(z.zuletzt_angesehen ?? z.stand);
+    if (z.zustand === "aktiv" && (z.art === "statistik" ? ungesehen > regelMs("anzeige_ungesehen_tage") : jetzt - Number(z.stand) > regelMs("anzeige_veraltet_tage"))) {
       anzeigeSetzen(db, { id: String(z.id), projekt: String(z.projekt), art: String(z.art), titel: String(z.titel), werte: JSON.parse(String(z.werte)), besitzer: wer, zustand: "grau" });
     }
-    if (jetzt - Number(z.zuletzt_angesehen ?? z.stand) > regelMs("anzeige_ungesehen_tage")) {
-      einmal(db, `anzeige:${z.id}`, wer, () => regel(db, wer, `Kann „${z.titel}“ weg`, `Die Anzeige „${z.titel}“ hat seit ${tage(jetzt - Number(z.zuletzt_angesehen ?? z.stand))} Tagen niemand angesehen.`, { anzeige_weg: String(z.id) }));
+    if (ungesehen > regelMs("anzeige_ungesehen_tage")) {
+      einmal(db, `anzeige:${z.id}`, wer, () => regel(db, wer, `Kann „${z.titel}“ weg`, `Die ${z.art === "statistik" ? `Statistik von ${z.besitzer}` : "Anzeige"} „${z.titel}“ hat seit ${tage(ungesehen)} Tagen niemand angesehen.`, { anzeige_weg: String(z.id) }));
     }
   }
   if (!seneca(wer)) return;

@@ -35,7 +35,7 @@ struct TagesLeiste: View {
                 Rectangle().fill(Color.white.opacity(0.14)).frame(width: w, height: 1).offset(y: 24)
                 ForEach((stand.termine ?? []).filter { $0.ende - $0.start >= 15 * 60_000 }) { t in
                     let x = HeuteTafelLogik.anteil(t.start) * w, b = max(2, HeuteTafelLogik.anteil(t.ende) * w - x)
-                    block(t.art).frame(width: b, height: 8).offset(x: x, y: 20)
+                    block(t.art, t.bereich).frame(width: b, height: 8).offset(x: x, y: 20)
                 }
                 if let f = stand.buendel?.fenster {
                     let dauer = (stand.regeln?["fenster_dauer_min"] ?? 30) * 60_000
@@ -55,13 +55,13 @@ struct TagesLeiste: View {
         .accessibilityLabel("Dein Tag")
     }
 
-    @ViewBuilder private func block(_ art: String?) -> some View {
+    @ViewBuilder private func block(_ art: String?, _ bereich: String?) -> some View {
         switch art {
         case "fokus":
             RoundedRectangle(cornerRadius: 4).fill(TafelFarbe.himmel.opacity(0.14))
                 .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(TafelFarbe.himmel.opacity(0.6), lineWidth: 1))
         case "bewegung": RoundedRectangle(cornerRadius: 4).fill(TafelFarbe.gruen.opacity(0.55))
-        default: RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.3))
+        default: RoundedRectangle(cornerRadius: 4).fill(TafelFarbe.bereich(bereich).opacity(0.6))
         }
     }
 }
@@ -87,7 +87,6 @@ struct HeuteTafel: View {
 
     enum Ziel { case gespraeche, aufgaben, laeuft, frage, einstellungen }
 
-    @State private var atmet = false
     @State private var wartetBeiAusfall: Set<String> = []
     @State private var nachgereicht: Set<String> = []
     @State private var nachklang = 0
@@ -204,8 +203,7 @@ struct HeuteTafel: View {
             } else if !offline, let z = HeuteTafelLogik.teamZeile(stand) {
                 Button { if allowTap() { oeffne(.laeuft) } } label: {
                     HStack(spacing: 10) {
-                        Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(atmet ? 1 : 0.35)
-                            .animation(.timingCurve(0.22, 0.8, 0.24, 1, duration: 0.8).repeatForever(autoreverses: true), value: atmet)
+                        Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7)
                         Text(z).font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.zweit).frame(maxWidth: .infinity, alignment: .leading)
                         Text("›").font(Sundartha.grotesk(15)).foregroundStyle(TafelFarbe.leise)
                     }
@@ -213,7 +211,6 @@ struct HeuteTafel: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .onAppear { atmet = true }
             }
         }
         .padding(.horizontal, 24)
@@ -287,22 +284,8 @@ struct HeuteTafel: View {
     private func todoZeile(_ t: SenecaStand.Todo) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             todoKnopf(t)
-            if let g = t.grund, t.geplant_von != nil {
-                HStack(alignment: .top, spacing: 8) {
-                    Circle().fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: TafelFarbe.akzent, location: 0.26), .init(color: TafelFarbe.hex(0x6E9CE0, 0.5), location: 0.56),
-                                                         .init(color: TafelFarbe.hex(0x6E9CE0, 0), location: 0.76)], center: .center, startRadius: 0, endRadius: 7)).frame(width: 10, height: 10).padding(.top, 4)
-                    Text(g.satz).font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.zweit).zeilenHoehe(20, schrift: 14).fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.leading, 40).padding(.bottom, 8)
-            }
             if HeuteTafelLogik.ueberfaellig(t, stand) {
                 HStack(spacing: 6) {
-                    if let von = t.geplant_von {
-                        Button { if allowTap() { store.daten?.handeln("todo.aendern", ziel: t.id, wert: .objekt(["bis_wann": .leer, "tag": .text(HeuteTafelLogik.tagText(stand.jetzt))])) } } label: {
-                            Text("Heute \(HeuteTafelLogik.uhr(von))").font(Sundartha.grotesk(14, .medium)).foregroundStyle(.white).padding(.horizontal, 13).frame(height: 32).background(Capsule().fill(.white.opacity(0.1)))
-                        }
-                        .buttonStyle(.plain)
-                    }
                     Button { if allowTap() { oeffne(.aufgaben) } } label: {
                         Text("Neue Frist").font(Sundartha.grotesk(14, .medium)).foregroundStyle(TafelFarbe.zweit).padding(.horizontal, 5).frame(height: 32)
                     }
@@ -317,10 +300,10 @@ struct HeuteTafel: View {
         let teile = HeuteTafelLogik.todoZeile(t).components(separatedBy: " · ")
         if erledigt { return Text("\(teile[0]) · erledigt \(HeuteTafelLogik.uhr(stand.jetzt))") }
         if wartet && !offline { return Text("abgehakt, wird übertragen") }
-        let vorn = t.bereich.map { Text("\($0) · ") } ?? Text("")
+        let vorn = TafelFarbe.bereichWort(t.bereich).map { Text("\($0) · ").foregroundColor(TafelFarbe.bereich(t.bereich)) } ?? Text("")
+        let dauer = t.dauer_min.map { "\(Int($0)) Min" }
         if HeuteTafelLogik.ueberfaellig(t, stand), let bis = t.bis_wann { return vorn + Text(HeuteTafelLogik.fristWar(bis, stand)).foregroundColor(.white) }
-        if let g = t.grund, let von = t.geplant_von { return vorn + Text(HeuteTafelLogik.uhr(von)).foregroundColor(.white) + Text(" · vorher \(HeuteTafelLogik.uhr(g.vorher))") }
-        return Text(HeuteTafelLogik.todoZeile(t))
+        return vorn + Text([t.bis_wann.map { HeuteTafelLogik.frist($0, jetzt: stand.jetzt) }, dauer].compactMap { $0 }.joined(separator: " · "))
     }
 
     private func todoKnopf(_ t: SenecaStand.Todo) -> some View {
@@ -330,7 +313,7 @@ struct HeuteTafel: View {
                 ZStack {
                     let voll = offline || erledigt
                     if voll && haken { Circle().fill(TafelFarbe.gruen) } else {
-                        Circle().strokeBorder(wartet ? TafelFarbe.gruen : TafelFarbe.leise, style: StrokeStyle(lineWidth: 1.5, dash: wartet ? [3, 2.4] : []))
+                        Circle().strokeBorder(wartet ? TafelFarbe.gruen : TafelFarbe.bereich(t.bereich).opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: wartet ? [3, 2.4] : []))
                     }
                     if haken {
                         Path { p in p.move(to: CGPoint(x: 2.5, y: 6.25)); p.addLine(to: CGPoint(x: 4.75, y: 8.5)); p.addLine(to: CGPoint(x: 9.5, y: 3.75)) }

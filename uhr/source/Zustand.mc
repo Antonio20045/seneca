@@ -15,11 +15,11 @@ module Zustand {
         :nie => "Nie abgeglichen",
         :abgeglichen => "Abgeglichen $1$",
         :sendet => "Wird gesendet · $2$ offen",
-        :offline => "Offline · wird später abgeglichen",
-        :server => "Wartet auf Verbindung",
-        :gesperrt => "Uhr gesperrt · neu koppeln",
-        :zuAlt => "Uhr-App zu alt",
-        :fastVoll => "Speicher fast voll · $2$ von $3$",
+        :offline => "Kein iPhone in der Nähe · $2$ warten · sicher auf der Uhr",
+        :server => "Server antwortet nicht · Tailscale am iPhone an?",
+        :gesperrt => "Uhr ist abgemeldet · am iPhone neu koppeln",
+        :zuAlt => "Bitte Seneca auf der Uhr aktualisieren",
+        :fastVoll => "Bring das iPhone in die Nähe · $2$ warten",
         :voll => "Voll · Sätze bleiben in der Aufzeichnung"
     };
 
@@ -50,17 +50,17 @@ module Zustand {
         if (code == 426) {
             return ZU_ALT;
         }
-        if (code == 404) {
-            return SERVER;
+        if (code == -1 || code == -2 || code == -104) {
+            return OFFLINE;
         }
-        return OFFLINE;
+        return SERVER;
     }
 
     function aktuell() as Symbol {
         var wartend = Warteschlange.anzahl();
         var verbindung = netz();
         if (!Einstellungen.verbunden()) {
-            return :server;
+            return :nie;
         }
         if (verbindung == GESPERRT) {
             return :gesperrt;

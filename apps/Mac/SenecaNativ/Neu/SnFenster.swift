@@ -413,6 +413,17 @@ struct SnFensterKarte: View {
 
 private final class SnZeigerKasten { var punkt: CGPoint? }
 
+struct SnMeetingEcht: View {
+    let modell: AppModell
+    @ObservedObject var store: SenecaStore
+    let termin: SenecaStand.Termin
+    var body: some View {
+        SnMeetingAnsicht(termin: termin, todos: store.stand?.todos ?? [], zurueck: { modell.meetingTermin = nil }, notiere: { store.addTodoHeute($0) },
+                         uebernimm: { store.handle("auftrag.anlegen", ziel: termin.uid, wert: ["text": .text($0.text), "wer": .text($0.wer), "arbeitsart": .text($0.arbeitsart), "bereich": .text($0.bereich), "quelle": .text($0.quelle)]) })
+            .background { Button("") { modell.meetingTermin = nil }.keyboardShortcut(.cancelAction).opacity(0) }
+    }
+}
+
 struct SnHeuteMitFenster: View {
     @ObservedObject var modell: AppModell
     @ObservedObject private var fenster: SnFensterModell
@@ -448,13 +459,17 @@ struct SnHeuteMitFenster: View {
                     if modell.meetingOffen, let a = meeting.ablage {
                         SnMeetingErgebnis(e: a.ergebnis, datei: a.datei, dienst: meeting, zurueck: { modell.meetingOffen = false }, todos: store.stand?.todos ?? [])
                             .background { Button("") { modell.meetingOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
+                    } else if let t = store.stand?.termine?.first(where: { $0.uid == modell.meetingTermin }), t.meeting != nil {
+                        SnMeetingEcht(modell: modell, store: store, termin: t)
+                            .onDisappear { modell.meetingTermin = nil }
                     } else if let s = store.stand, modell.teamOffen {
                         SnTeamTafel(stand: s, handle: { store.handle($0, ziel: $1, text: $2) },
                                     schreiben: { id in modell.teamOffen = false; modell.gegenueber.oeffneChat(key: "agent:\(id):main", agentId: id); modell.gehe(.chat) })
                             .background { Button("") { modell.teamOffen = false }.keyboardShortcut(.cancelAction).opacity(0) }
                     } else if let s = store.stand {
-                        SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) },
-                                     zuDenFragen: { modell.gehe(.entscheidungen) }, zurArbeit: { modell.teamOffen = true }, neu: frischNeu)
+                        SnHeuteTafel(stand: s, wartend: store.wartendeTodos, erledige: { store.erledige(todo: $0) }, notiere: { store.addTodoHeute($0) },
+                                     antworte: { store.antworte(frage: $0, wahl: $1) }, handle: { store.handle($0, ziel: $1, text: $2) },
+                                     zumChat: { modell.zeigeMehr($0) }, zumMeeting: { modell.meetingTermin = $0.uid }, neu: frischNeu)
                     } else {
                         SnHeuteSkelett()
                     }

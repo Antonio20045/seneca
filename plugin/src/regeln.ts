@@ -28,6 +28,11 @@ export function regelMs(name: string): number {
   return regelZahl(name) * faktor;
 }
 
+export function lebensbereich(text: string, vorschlag?: unknown): string {
+  const v = String(vorschlag ?? "").toLowerCase(), passt = (r: string) => new RegExp(r, "i").test(text);
+  return ["soziales", "wachstum", "unternehmertum"].includes(v) ? v : passt(regelText("bereich_wachstum")) ? "wachstum" : passt(regelText("bereich_soziales")) ? "soziales" : regelText("bereich_standard");
+}
+
 export function regelListe(name: string): string[] {
   return regelText(name).split(",");
 }

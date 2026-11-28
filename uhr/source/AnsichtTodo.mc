@@ -26,6 +26,18 @@ class TodoAnsicht extends ListenAnsicht {
         }
     }
 
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:todos);
+    }
+
+    function tippenOeffnet() as Boolean {
+        return true;
+    }
+
+    function bereich() as Number {
+        return 1;
+    }
+
     function initialize() {
         ListenAnsicht.initialize();
     }
@@ -63,7 +75,7 @@ class TodoAnsicht extends ListenAnsicht {
             _auswahl = anzeige.size() - 1;
         }
         Bildschirm.todos(dc, "HEUTE · " + offen(zeilen).toString() + " OFFEN", anzeige, _auswahl);
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "abhaken");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.HIMMEL, "abhaken");
     }
 
     function waehlen() as Void {
@@ -86,7 +98,7 @@ class TodoAnsicht extends ListenAnsicht {
 
     function menue() as Void {
         var vorlagen = Inhalt.vorlagen();
-        var eintraege = [] as Array<Array>;
+        var eintraege = [[:sprechen, "Sprechen"]] as Array<Array>;
         for (var i = 0; i < vorlagen.size(); i += 1) {
             eintraege.add([i, vorlagen[i]]);
         }
@@ -97,7 +109,9 @@ class TodoAnsicht extends ListenAnsicht {
     }
 
     function vorlageGewaehlt(auswahl as Object?) as Void {
-        if (auswahl instanceof Number) {
+        if (auswahl == :sprechen) {
+            Ansichten.oeffnen(new SprechenAnsicht());
+        } else if (auswahl instanceof Number) {
             var text = Inhalt.vorlagen()[auswahl] as String;
             angelegt(Todo.anlegen(text), text);
         } else {

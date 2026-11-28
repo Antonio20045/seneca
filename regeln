@@ -21,7 +21,7 @@ lauf_wiederholen_start_min 1
 lauf_wiederholen_max_h 1
 start_nachfassen_h 24
 haengt_leise_min 10
-haengt_frage_min 30
+haengt_stupsen_min 30
 gespraech_haengt_hinweis_min 2 app
 gespraech_haengt_stopp_min 10 app
 meeting_erkennen_s 20 app
@@ -63,6 +63,7 @@ nachtruhe_bis 06:30
 ruhe_ohne_durchbruch schlaf,training,laufen,trail
 durchbruch_h 2
 braucht_dich_max 3
+status_laeufe 5
 frage_nachklang_s 6 app
 lange_wartend_h 24
 push_abstand_min 20
@@ -75,7 +76,7 @@ kontext_befunde 5
 befund_antwort_zeichen 2000
 titel_zeichen 60
 anzeigen_max_je_projekt 4
-ereignis_daten_max_bytes 4096
+ereignis_daten_max_bytes 65536
 spaeter_vor_frist_min 30 vorschlag
 antwort_max_alter_min 60 zu_messen
 praesenz_gilt_min 2
@@ -106,8 +107,15 @@ uhr_protokoll 1
 http_anfrage_max_kb 512
 uhr_anfragen_fenster_h 1
 uhr_frage_zeichen 90
+frage_text_zeichen 90
+id_ziffern_ab 9
+frage_etikett_zeichen 28
+frage_etikett_woerter 3
 uhr_todos 3
 uhr_termine 4
+uhr_kurz_zeichen 9
+bereich_wachstum training|\blauf|gym|kraft|\brad\b|schwimm|yoga|\bsport|spanisch|kurs|lernen|lesen|meditat|mental|gewicht|körper|physio|arzt|schlaf
+bereich_soziales geburtstag|abendessen|mittagessen|eltern|mama|papa|familie|freund|party|kino|kaffee|besuch|privat
 uhr_verlauf 3
 uhr_uebungen 12
 uhr_starten_min 10
@@ -135,6 +143,7 @@ kalender_abgleich_min 5
 kalender_titel_zeichen 60
 kalender_standard Privat
 kalender_seneca Seneca
+kalender_schreiber seneca,trainer
 kal_monate_zurueck 1
 kal_wochen_vor 4
 kal_marke_bis_min 10
@@ -150,6 +159,13 @@ kal_raster_fein_min 5 app
 kal_bb_gut_ab 60 vorschlag app
 ein_tag_tage 1
 stat_lang_km 15
+garmin_abgleich_min 20
+statistik_anlass_tage 14
+statistik_datenarten lauf:trainer,satz:trainer,training:trainer,aktivitaet:trainer,nacht:trainer,tag:trainer,gewicht:trainer,lesen:seneca
+garmin_haengt_s 240
+garmin_tage 3
+garmin_python /home/ubuntu/.garmin-venv/bin/python
+garmin_skript /home/ubuntu/seneca/garmin/garmin.py
 stat_gute_woche_mal 3
 kraft_volle_wdh 8
 kraft_schritt_kg 2.5
@@ -177,7 +193,7 @@ los_erinnern_min 6 app
 eine_minute_min 1
 eine_stunde_min 60
 verstehen_wort_min 6
-bereich_standard Privat
+bereich_standard unternehmertum
 kalender_quelle Apple-Kalender
 rechenknoten_name rechenknoten zu_messen
 rechenknoten_region eu-north-1 zu_messen
@@ -195,7 +211,6 @@ buendel_abnahme_s 50 vorschlag
 buendel_frage_min 3 vorschlag
 koerper_schwer_ab 50 vorschlag
 anruf_worte anruf,telefonat,call vorschlag
-satz_ruhe_ab_min 60 vorschlag
 vorschlag_verfaellt_uhr 18:00
 zu_spaet_nach_min 6
 zu_spaet_runden_min 5
@@ -206,3 +221,10 @@ anders_versuche 16
 stat_balken_km 12
 stat_balken_min 72
 stat_balken_saetze 16
+mitarbeiter_nachzug_s 120
+meeting_worte call,meeting,zoom,teams,besprechung,telefonat,jour\sfixe,abstimmung,sync,standup
+meeting_link zoom\.us|teams\.microsoft|teams\.live|meet\.google|webex|whereby|gotomeeting|facetime\.apple
+meeting_teilnehmer_min 1
+meeting_nachher_h 24
+meeting_recherche_von recherche
+meeting_zeichen 140

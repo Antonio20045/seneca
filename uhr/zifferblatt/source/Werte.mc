@@ -12,10 +12,12 @@ module Werte {
     const TAGE = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
     const MONATE = ["JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ"];
     const AKKU_WARNUNG = 20;
+    const AKKU_KRITISCH = 10;
     const BATTERIE_WARNUNG = 25;
     const SCHRITTZIEL = 10000;
 
     var seneca as Complications.Id? = null;
+    var todos as Complications.Id? = null;
 
     function jetzt() as Gregorian.Info {
         return Gregorian.info(Time.now(), Time.FORMAT_SHORT);
@@ -23,9 +25,6 @@ module Werte {
 
     function stunde(fuehrend as Boolean) as String {
         var h = jetzt().hour as Number;
-        if (!System.getDeviceSettings().is24Hour) {
-            h = (h + 11) % 12 + 1;
-        }
         return fuehrend ? h.format("%02d") : h.toString();
     }
 
@@ -67,20 +66,41 @@ module Werte {
     }
 
     function anmelden() as Void {
-        if (!(Toybox has :Complications) || seneca != null) {
+        if (!(Toybox has :Complications) || (seneca != null && todos != null)) {
             return;
         }
         var alle = Complications.getComplications();
         var c = alle.next();
         while (c != null) {
-            if ("Seneca".equals(c.longLabel) && c.complicationId != null) {
-                seneca = c.complicationId;
-                Complications.subscribeToUpdates(seneca);
+            if (c.complicationId != null && ("Seneca".equals(c.longLabel) || "Seneca To-dos".equals(c.longLabel))) {
+                if ("Seneca".equals(c.longLabel)) {
+                    seneca = c.complicationId;
+                } else {
+                    todos = c.complicationId;
+                }
+                Complications.subscribeToUpdates(c.complicationId as Complications.Id);
                 Complications.registerComplicationChangeCallback(new Lang.Method(Werte, :geaendert));
-                return;
             }
             c = alle.next();
         }
+    }
+
+    function offeneTodos() as [Number, String]? {
+        anmelden();
+        if (todos == null) {
+            return null;
+        }
+        var c = Complications.getComplication(todos);
+        var wert = c == null ? null : c.value;
+        if (!(wert instanceof String)) {
+            return null;
+        }
+        var trenner = wert.find("|");
+        if (trenner == null) {
+            return null;
+        }
+        var anzahl = wert.substring(0, trenner).toNumber();
+        return anzahl == null ? null : [anzahl, wert.substring(trenner + 1, wert.length()) as String];
     }
 
     function geaendert(id as Complications.Id) as Void {

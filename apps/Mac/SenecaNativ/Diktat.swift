@@ -447,7 +447,6 @@ final class DiktatDienst: ObservableObject {
     private var beendetHinweisArbeit: Task<Void, Never>?
     private var zustandSeit = Date()
     private(set) var aufnahmeBeginn = Date()
-    @Published var imFeld = false
     private var startKontext: String?
     private var senecaKontext: String?
     private var zielApp: NSRunningApplication?
@@ -516,6 +515,8 @@ final class DiktatDienst: ObservableObject {
     }
 
     #if DEBUG
+    var blasenPruefung: [String: Any]? { blase.pruefung }
+
     func blasenProbe(_ art: String) {
         guard MacPfade.profil != .echt || HeuteBild.ziel != nil || (Hintergrund.aktiv && ProcessInfo.processInfo.environment["SENECA_DATEN"] != nil) else { return }
         wacheAus = true

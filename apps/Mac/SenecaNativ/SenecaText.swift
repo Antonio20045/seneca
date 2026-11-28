@@ -67,7 +67,8 @@ enum Inhaltsspeicher {
     private static var speicher: [String: (teile: [FertigerTeil], nr: UInt64)] = [:]
     private static var zaehler: UInt64 = 0
 
-    static func teile(_ text: String) -> [FertigerTeil] {
+    static func teile(_ roh: String) -> [FertigerTeil] {
+        let text = GL.ohneNummern(roh)
         zaehler += 1
         if let fertig = speicher[text] {
             speicher[text] = (fertig.teile, zaehler)
@@ -81,7 +82,8 @@ enum Inhaltsspeicher {
         return gebaut
     }
 
-    static func baue(_ text: String, art: Art) -> [FertigerTeil] {
+    static func baue(_ roh: String, art: Art) -> [FertigerTeil] {
+        let text = GL.ohneNummern(roh)
         let rohTeile: [EntwurfTeil] = art == .fertig ? EntwurfErkennung.teile(text) : [.text(text)]
         return rohTeile.map { teil in
             switch teil {
@@ -295,6 +297,7 @@ struct MarkdownFlussView: NSViewRepresentable {
         v.delegate = context.coordinator
         v.linkTextAttributes = [:]
         v.textStorage?.setAttributedString(text)
+        if let c = v.textContainer { v.layoutManager?.ensureLayout(for: c) }
         return v
     }
 

@@ -29,6 +29,7 @@ struct SnKalenderTafel: View {
     var antworte: (String, String) -> Void
     var zumChat: (String?) -> Void
     var rechneWeg: (String) async -> KalWeg?
+    var zumMeeting: (SenecaStand.Termin) -> Void = { _ in }
     @ObservedObject var z = SnKalZustand.gemeinsam
     @FocusState private var titelFokus: Bool
 
@@ -40,12 +41,13 @@ struct SnKalenderTafel: View {
         GeometryReader { g in
             ScrollView(.vertical, showsIndicators: false) {
                 if let k {
+                    let breite = min(KF.breite, g.size.width - 24 - 40 - 316 - 24)
                     HStack(alignment: .top, spacing: 40) {
                         VStack(alignment: .leading, spacing: 24) {
                             kopf(k)
-                            if z.ansicht == .monat { monat(k) } else { raster(k) }
+                            if z.ansicht == .monat { monat(k, breite) } else { raster(k, breite) }
                         }
-                        .frame(width: KF.breite, alignment: .topLeading)
+                        .frame(width: breite, alignment: .topLeading)
                         seite(k).frame(width: 316, alignment: .topLeading)
                             .padding(.top, z.entwurf == nil && auswahlBlock == nil ? 64 : 0)
                     }
@@ -109,12 +111,12 @@ struct SnKalenderTafel: View {
         }
     }
 
-    private func spalte(_ n: Int) -> CGFloat { (KF.breite - KF.links) / CGFloat(n) }
+    private func spalte(_ n: Int, _ breite: CGFloat) -> CGFloat { (breite - KF.links) / CGFloat(n) }
     private var von: Double { k?.tag_von ?? 8 }
     private var hoehe: CGFloat { CGFloat((k?.tag_bis ?? 20) - von) * KF.stunde }
 
-    private func raster(_ k: SenecaStand.Wochenplan) -> some View {
-        let tage = sichtbar, w = spalte(tage.count)
+    private func raster(_ k: SenecaStand.Wochenplan, _ breite: CGFloat) -> some View {
+        let tage = sichtbar, w = spalte(tage.count, breite)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .bottom, spacing: 0) {
                 Color.clear.frame(width: KF.links, height: 1)
@@ -217,10 +219,14 @@ struct SnKalenderTafel: View {
                 let (s, e) = z.verschoben[b.id] ?? (b.start, b.ende)
                 let y = max(0, yPos(s, t.tag)), h = max(18, min(hoehe, yPos(e, t.tag)) - y - 4)
                 if y < hoehe, h > 0 {
-                    SnKalBlock(b: b, hoehe: h, gewaehlt: z.auswahl == b.id)
+                    let meeting = b.uid.flatMap { u in stand.termine?.first { $0.uid == u && $0.meeting != nil } }
+                    SnKalBlock(b: b, hoehe: h, gewaehlt: z.auswahl == b.id, meeting: meeting != nil)
                         .frame(width: breite - 8, height: h)
                         .offset(x: 4, y: y)
-                        .onTapGesture { z.entwurf = nil; z.auswahl = z.auswahl == b.id ? nil : b.id }
+                        .onTapGesture {
+                            if let meeting { zumMeeting(meeting); return }
+                            z.entwurf = nil; z.auswahl = z.auswahl == b.id ? nil : b.id
+                        }
                         .gesture(verschieben(b, tag: t.tag))
                 }
             }
@@ -294,8 +300,8 @@ struct SnKalenderTafel: View {
         .offset(x: 4, y: y)
     }
 
-    private func monat(_ k: SenecaStand.Wochenplan) -> some View {
-        let tage = L.monat(k, woche: wocheIndex), w = KF.breite / 7
+    private func monat(_ k: SenecaStand.Wochenplan, _ breite: CGFloat) -> some View {
+        let tage = L.monat(k, woche: wocheIndex), w = breite / 7
         let reihen = stride(from: 0, to: tage.count, by: 7).map { Array(tage[$0..<min(tage.count, $0 + 7)]) }
         return VStack(spacing: 0) {
             ForEach(reihen, id: \.first?.tag) { r in
@@ -307,7 +313,7 @@ struct SnKalenderTafel: View {
                                 .frame(width: 22, height: 22).background(Circle().fill(heute ? TafelFarbe.himmel : .clear))
                             ForEach(t.bloecke.prefix(3)) { b in
                                 HStack(spacing: 5) {
-                                    RoundedRectangle(cornerRadius: 1).fill(SnKalBlock.farbe(b.art)).frame(width: 2, height: 10)
+                                    RoundedRectangle(cornerRadius: 1).fill(SnKalBlock.farbe(b.art, b.bereich)).frame(width: 2, height: 10)
                                     Text(b.titel).font(Schrift.grotesk(11)).foregroundStyle(TafelFarbe.zweit).lineLimit(1)
                                 }
                             }
@@ -364,10 +370,10 @@ struct SnKalenderTafel: View {
                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(TafelFarbe.bernstein.opacity(0.28), lineWidth: 1))
             }
             VStack(alignment: .leading, spacing: 10) {
-                ForEach([("termin", "Termin"), ("seneca", "von Seneca gesetzt"), ("fenster", "Entscheidungsfenster"), ("bewegung", "Sport")], id: \.0) { art, name in
+                ForEach([("termin", "unternehmertum"), ("termin", "wachstum"), ("termin", "soziales"), ("seneca", "von Seneca gesetzt"), ("fenster", "Entscheidungsfenster")], id: \.1) { art, name in
                     HStack(spacing: 10) {
-                        SnKalBlock.grund(art, RoundedRectangle(cornerRadius: 4)).frame(width: 22, height: 12)
-                        Text(name).font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.zweit)
+                        SnKalBlock.grund(art, RoundedRectangle(cornerRadius: 4), bereich: name).frame(width: 22, height: 12)
+                        Text(TafelFarbe.bereichWort(name) ?? name).font(Schrift.grotesk(13)).hoehe(18).foregroundStyle(TafelFarbe.zweit)
                     }
                 }
             }
@@ -398,7 +404,7 @@ struct SnKalenderTafel: View {
             if let o = d.ort { zeile("WO", o, d.km) }
             if let w = d.weg { zeile("WEG", w, d.los) }
             if let m = d.mit { zeile("MIT", m) }
-            zeile("KALENDER", d.kalender ?? "–", "Apple-Kalender, du kannst ändern")
+            zeile("BEREICH", TafelFarbe.bereichWort(b.bereich) ?? "–", "ordnet Seneca zu")
             zeile("NOTIZ", d.notiz ?? "–")
             if let s = d.seneca {
                 VStack(alignment: .leading, spacing: 0) {
@@ -432,7 +438,7 @@ struct SnKalenderTafel: View {
     }
 
     private func vorschlag(_ b: SenecaStand.KalBlock, _ frage: String) -> some View {
-        let f = ((stand.braucht_dich ?? []) + (stand.buendel?.fragen ?? [])).first { $0.id == frage }
+        let f = stand.alleFragen.first { $0.id == frage }
         return VStack(alignment: .leading, spacing: 0) {
             etikett("VORSCHLAG")
             Text(b.titel).font(Schrift.serif(34)).hoehe(35).foregroundStyle(Color.white).padding(.top, 10).padding(.bottom, 6)
@@ -463,12 +469,17 @@ struct SnKalenderEcht: View {
 
     var body: some View {
         if let s = store.stand {
-            SnKalenderTafel(stand: s, handeln: { store.handle($0, ziel: $1, wert: $2) }, antworte: { store.antworte(frage: $0, wahl: $1) },
-                            zumChat: { text in
-                                if modell.route.seite != .chat { modell.zeigeGespraechSeite() }
-                                if let text { store.chat.setzeEntwurf(text, fuer: modell.gegenueber.partner); modell.chatEntwurfNeuLaden?() }
-                            },
-                            rechneWeg: { await SnWeg.gemeinsam.rechne($0, fussBisMin: s.regeln?["weg_zu_fuss_bis_min"] ?? 20) })
+            if let t = s.termine?.first(where: { $0.uid == modell.meetingTermin }), t.meeting != nil {
+                SnMeetingEcht(modell: modell, store: store, termin: t).onDisappear { modell.meetingTermin = nil }
+            } else {
+                SnKalenderTafel(stand: s, handeln: { store.handle($0, ziel: $1, wert: $2) }, antworte: { store.antworte(frage: $0, wahl: $1) },
+                                zumChat: { text in
+                                    if modell.route.seite != .chat { modell.zeigeGespraechSeite() }
+                                    if let text { store.chat.setzeEntwurf(text, fuer: modell.gegenueber.partner); modell.chatEntwurfNeuLaden?() }
+                                },
+                                rechneWeg: { await SnWeg.gemeinsam.rechne($0, fussBisMin: s.regeln?["weg_zu_fuss_bis_min"] ?? 20) },
+                                zumMeeting: { modell.meetingTermin = $0.uid })
+            }
         } else {
             SnHeuteSkelett()
         }
@@ -489,12 +500,13 @@ struct SnKalBlock: View {
     var b: SenecaStand.KalBlock
     var hoehe: CGFloat
     var gewaehlt = false
+    var meeting = false
 
-    static func farbe(_ art: String) -> Color {
-        art.hasPrefix("bewegung") ? TafelFarbe.gruen : art == "fenster" || art == "zugleich" ? TafelFarbe.bernstein : TafelFarbe.himmel
+    static func farbe(_ art: String, _ bereich: String? = nil) -> Color {
+        art == "termin" ? TafelFarbe.bereich(bereich) : art.hasPrefix("bewegung") ? TafelFarbe.gruen : art == "fenster" || art == "zugleich" ? TafelFarbe.bernstein : TafelFarbe.himmel
     }
 
-    @ViewBuilder static func grund<S: InsettableShape>(_ art: String, _ form: S, laeuft: Bool = false, gewaehlt: Bool = false) -> some View {
+    @ViewBuilder static func grund<S: InsettableShape>(_ art: String, _ form: S, laeuft: Bool = false, gewaehlt: Bool = false, bereich: String? = nil) -> some View {
         let gestrichelt = StrokeStyle(lineWidth: 1, dash: [3, 2])
         switch art {
         case "seneca", "todos":
@@ -515,7 +527,7 @@ struct SnKalBlock: View {
         case "fenster":
             form.fill(TafelFarbe.bernstein.opacity(0.12)).overlay(form.strokeBorder(TafelFarbe.bernstein.opacity(0.55), lineWidth: 1))
         default:
-            let f = farbe(art)
+            let f = farbe(art, bereich)
             form.fill(art == "zugleich" ? f.opacity(0.10) : art == "bewegung" ? f.opacity(0.12) : f.opacity(gewaehlt ? 0.3 : 0.16))
                 .overlay(alignment: .leading) { Rectangle().fill(f).frame(width: 2) }
                 .clipShape(form)
@@ -534,7 +546,7 @@ struct SnKalBlock: View {
 
     var body: some View {
         let form = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        Self.grund(b.art, form, laeuft: b.laeuft == true, gewaehlt: gewaehlt).overlay(alignment: .topLeading) { inhalt }
+        Self.grund(b.art, form, laeuft: b.laeuft == true, gewaehlt: gewaehlt, bereich: b.bereich).overlay(alignment: .topLeading) { inhalt }
             .overlay { if gewaehlt { form.strokeBorder(Color.white, lineWidth: 1.5) } }
             .shadow(color: .black.opacity(gewaehlt ? 0.35 : 0), radius: 12, y: 10)
             .contentShape(form)
@@ -546,6 +558,12 @@ struct SnKalBlock: View {
             Text(b.titel.replacingOccurrences(of: " + ", with: "\u{00A0}+ ")).font(Schrift.grotesk(12)).lineHeight(.exact(points: 16)).foregroundStyle(titelFarbe)
                 .lineLimit(hoehe >= 40 ? 2 : 1).fixedSize(horizontal: !b.titel.contains(" "), vertical: hoehe >= 40)
             if let u = b.unter, hoehe >= 40 { Text(u).font(Schrift.mono(10)).foregroundStyle(unterFarbe).lineLimit(1).frame(height: 20, alignment: .bottom).padding(.top, -1) }
+        }
+        .overlay(alignment: .topTrailing) {
+            if meeting {
+                Text("MEETING").font(Schrift.mono(8.5)).tracking(0.9).foregroundStyle(TafelFarbe.koralle).padding(.horizontal, 5).frame(height: 14)
+                    .overlay(Capsule().strokeBorder(TafelFarbe.koralle.opacity(0.5), lineWidth: 1)).padding(.top, 4).padding(.trailing, 4)
+            }
         }
         .padding(.horizontal, 8).padding(.vertical, hoehe <= 26 ? 4 : hoehe <= 32 ? 6 : 5)
     }
@@ -599,12 +617,6 @@ struct SnKalNeu: View {
                     .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).foregroundStyle(Color.white).onSubmit(eintragen)
                 if let w = e.weg { Text(L.wegZeile(w)).font(Schrift.grotesk(12)).lineHeight(.exact(points: 17)).foregroundStyle(TafelFarbe.leise) }
                 else if rechnet { Text("Seneca rechnet den Weg …").font(Schrift.grotesk(12)).foregroundStyle(TafelFarbe.leise) }
-            }
-            zeile("KALENDER") {
-                Menu {
-                    ForEach(k.kalender, id: \.self) { n in Button(n) { z.entwurf?.kalender = n } }
-                } label: { Text("\(e.kalender) ").font(Schrift.grotesk(14)) + Text("▾").font(Schrift.grotesk(9)) }
-                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).foregroundStyle(Color.white).fixedSize().disabled(e.uid != nil)
             }
             if let r = L.erinnerung(e, vorMin: stand.regeln?["weg_erinnern_vor_min"] ?? 6) {
                 zeile("ERINNERUNG") {

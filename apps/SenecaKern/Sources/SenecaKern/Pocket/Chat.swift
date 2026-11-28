@@ -331,8 +331,23 @@ enum ChatLogic {
         return subject == "Seneca" ? sentence : subject + sentence.dropFirst("Seneca".count)
     }
 
+    private static let eigene: [String: String] = [
+        "toolsearch": "Seneca denkt nach …", "sessions_list": "Seneca schaut, wer gerade woran arbeitet …",
+        "seneca_auftrag": "Seneca kümmert sich um den Auftrag …", "seneca_fortschreiben": "Seneca hält den Stand fest …",
+        "seneca_frage": "Seneca bereitet eine Frage an dich vor …", "seneca_projekt": "Seneca schreibt das Projekt fort …",
+        "seneca_lernen": "Seneca merkt sich deine Korrektur …", "seneca_einstellen": "Seneca stellt etwas ein …",
+        "seneca_anzeige": "Seneca baut eine Ansicht …", "seneca_todo": "Seneca kümmert sich um die To-dos …",
+        "seneca_eintrag": "Seneca trägt etwas ein …", "seneca_kalender": "Seneca schaut in den Kalender …",
+    ]
+    private static let lesen: [String: String] = [
+        "tag": "Seneca sieht sich deinen Tag an …", "status": "Seneca liest die Aufträge …", "auftrag": "Seneca liest die Aufträge …",
+        "team": "Seneca schaut, wer im Team woran arbeitet …", "fragen": "Seneca sieht die offenen Fragen durch …",
+    ]
+
     private static func senecaActivity(tool rawName: String, args: Any? = nil) -> String {
-        let name = rawName.lowercased()
+        let name = String(rawName.lowercased().split(separator: "__").last ?? "")
+        if name == "seneca_lesen" { return lesen[((args as? [String: Any])?["was"] as? String ?? "").lowercased()] ?? "Seneca schlägt nach …" }
+        if let satz = eigene[name] { return satz }
         var detail = ""
         if let a = args as? [String: Any] {
             detail = a.values.compactMap { $0 as? String }.joined(separator: " ").lowercased()
@@ -352,7 +367,7 @@ enum ChatLogic {
         if has("session_status") { return "Seneca schaut auf die Uhr …" }
         if ["read", "grep", "glob", "ls", "file_read"].contains(name) { return "Seneca liest nach …" }
         if ["write", "edit", "multiedit", "file_write"].contains(name) { return "Seneca schreibt etwas auf …" }
-        return "Seneca arbeitet am Mac …"
+        return "Seneca arbeitet …"
     }
 }
 
@@ -765,6 +780,30 @@ final class ChatService: ObservableObject {
         alleLives[sessionKey] = value.map { [$0] } ?? []
         synchronisiereLive()
     }
+
+    #if DEBUG
+    func spieleWieder(_ frage: String, sitzung key: String, ereignisse: [(ms: Double, event: String, payload: [String: Any])]) async {
+        let schluessel = speicher.legeFrageAn(sitzung: key, text: frage)
+        let start = Date()
+        var t = AskTracker(key: schluessel, sessionKey: key, question: frage, sentAt: start)
+        setzeDemoLive(t.live, sessionKey: key)
+        try? await Task.sleep(for: .milliseconds(400))
+        speicher.setzeZustand(sitzung: key, schluessel: schluessel, .angekommen)
+        for e in ereignisse {
+            let warte = e.ms / 1000 - Date().timeIntervalSince(start)
+            if warte > 0 { try? await Task.sleep(for: .milliseconds(Int(warte * 1000))) }
+            var p = e.payload
+            p["runId"] = schluessel
+            if case .finished(let text) = t.handle(event: e.event, payload: p) {
+                speicher.nimmStromEnde(sitzung: key, lauf: schluessel, text: text, frage: schluessel)
+                setzeDemoLive(nil, sessionKey: key)
+                speicher.setzeZustand(sitzung: key, schluessel: schluessel, .fertig)
+                return
+            }
+            setzeDemoLive(t.live, sessionKey: key)
+        }
+    }
+    #endif
 
     func simulateDemoReply(_ answer: String, question: String = "", sessionKey: String? = nil) async -> String {
         demoStop = false

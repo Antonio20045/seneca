@@ -56,7 +56,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Phase: Codable, Equatable, Sendable { public var name: String; public var zustand: String }
     public struct ProjektZeile: Codable, Equatable, Sendable { public var art: String; public var id: String; public var text: String; public var wer: String?; public var rechts: String? }
     public struct Projekt: Codable, Equatable, Sendable, Identifiable {
-        public var name: String; public var untertitel: String?; public var worum: String?; public var satz: String?; public var phasen: [Phase]?
+        public var name: String; public var bereich: String?; public var untertitel: String?; public var worum: String?; public var satz: String?; public var phasen: [Phase]?
         public var zustand: String; public var frist: Double?; public var rechts: [String]?; public var zeilen: [ProjektZeile]?
         public var id: String { name }
     }
@@ -66,7 +66,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var satz: [String]?; public var fenster: Double?; public var fenster_bis: Double?
         public var heute: [Entschieden]?; public var danach: String?; public var danach_kurz: String?
     }
-    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var frage_id: String? }
+    public struct Zuletzt: Codable, Equatable, Sendable { public var satz: String?; public var um: Double?; public var frage_id: String?; public var art: String? }
     public struct Mitglied: Codable, Equatable, Sendable {
         public var id: String?; public var name: String; public var zustand: String; public var satz: String?; public var seit: Double?
         public var projekt: String?; public var rest_min: Double?; public var zuletzt: Zuletzt?
@@ -102,16 +102,23 @@ public struct SenecaStand: Codable, Equatable, Sendable {
         public var art: String?
         public var weg: String?
         public var ankunft: Double?; public var weg_min: Double?
-        public var kalender: String?; public var kalender_quelle: String?; public var mit: [String]?; public var entfernung_m: Double?
-        public var notiz: Notiz?; public var bescheid: String?
+        public var kalender: String?; public var kalender_quelle: String?; public var bereich: String?; public var mit: [String]?; public var entfernung_m: Double?
+        public var notiz: Notiz?; public var bescheid: String?; public var meeting: Meeting?
         public var id: String { uid }
+    }
+    public struct Meeting: Codable, Equatable, Sendable {
+        public struct Du: Codable, Equatable, Sendable, Identifiable { public var id: String; public var text: String }
+        public struct Angebot: Codable, Equatable, Sendable, Identifiable {
+            public var id: String; public var text: String; public var wer: String; public var arbeitsart: String; public var bereich: String; public var quelle: String; public var genommen: Bool
+        }
+        public var grund: String; public var phase: String; public var du: [Du]; public var seneca: [Angebot]
     }
     public struct TerminDetail: Codable, Equatable, Sendable {
         public var datum: String; public var ort: String?; public var mit: String?; public var kalender: String?; public var notiz: String?
         public var da: Double?; public var da_satz: String?; public var weg: String?; public var km: String?; public var los: String?; public var seneca: Notiz?
     }
     public struct KalBlock: Codable, Equatable, Sendable, Identifiable {
-        public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String
+        public var id: String; public var titel: String; public var unter: String?; public var start: Double; public var ende: Double; public var art: String; public var bereich: String?
         public var laeuft: Bool?; public var frage_id: String?; public var uid: String?; public var teile: [String]?; public var detail: TerminDetail?; public var andere: [Double]?
     }
     public struct KalMarke: Codable, Equatable, Sendable { public var titel: String; public var zeit: Double }
@@ -151,7 +158,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public struct Aufgaben: Codable, Equatable, Sendable {
         public struct Gruppe: Codable, Equatable, Sendable { public var titel: String; public var zeit: String; public var ids: [String] }
         public struct Fertig: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var bereich: String?; public var von: String?; public var um: Double?; public var satz: String? }
-        public struct Taeglich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var erledigt: Bool }
+        public struct Taeglich: Codable, Equatable, Sendable, Identifiable { public var id: String; public var titel: String; public var erledigt: Bool; public var ab: String?; public var dauer_min: Double? }
         public struct Zaehler: Codable, Equatable, Sendable { public var morgen: Int; public var woche: Int; public var ohne_tag: Int }
         public var satz: [String]?; public var gruppe: Gruppe?; public var heute: [String]?; public var erledigt: [Fertig]?
         public var jeden_tag: [Taeglich]?; public var zaehler: Zaehler?
@@ -189,6 +196,9 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var buendel: Buendel?
     public var entscheiden: Entscheiden?
     public var projekte: Projekte?
+
+    public var alleFragen: [Frage] { (braucht_dich ?? []) + (buendel?.fragen ?? []) }
+    public var offeneFragen: [Frage] { alleFragen.filter { $0.antwort == nil } }
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var auftraege_neu: [AuftragNeu]?
@@ -207,6 +217,7 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var berichte: Berichte?; public var rueckblick: Rueckblick?
     public var hinweise: [String]?
     public var kopplung: [Kopplung]?
+    public var uhr_gekoppelt: Bool?
     public var wartet: String?
 }
 
@@ -271,7 +282,7 @@ public final class StandSpeicher {
 public struct SenecaStatistik: Codable, Equatable, Sendable {
     public struct Tag: Codable, Equatable, Sendable { public var t: String; public var zustand: String; public var heute: Bool; public var wert: Double?; public var hoehe: Double? }
     public struct Karte: Codable, Equatable, Sendable, Identifiable {
-        public var art: String; public var titel: String; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
+        public var art: String; public var titel: String; public var bereich: String?; public var buch: String?; public var unter: String?; public var wert: String; public var einheit: String
         public var tage: [Tag]; public var anteil: Double?; public var rechts: String; public var knopf: String
         public var id: String { art }
     }
@@ -295,5 +306,23 @@ public struct SenecaStatistik: Codable, Equatable, Sendable {
         public var titel: String; public var kopf: String; public var anteil: Double?; public var seite: String?; public var prozent: String?; public var satz: String; public var prognose: String?
         public var zahlen: [[String]]; public var zuletzt: [Zeile]; public var notiz: Notiz?
     }
+    public struct Kennzahlen: Codable, Equatable, Sendable {
+        public struct Lauf: Codable, Equatable, Sendable {
+            public var km: [Double]; public var lang: [Double]; public var tage: [Int]; public var trendKm: Double?; public var serie: [String: Int]?
+            public var laengster: [JSONWert]?; public var schnellsterKm: [JSONWert]?; public var aufbau: [[JSONWert]]; public var paceMonat: [[JSONWert]]?
+            enum CodingKeys: String, CodingKey { case km, lang, tage, serie, laengster, aufbau, trendKm = "trend_km", schnellsterKm = "schnellster_km", paceMonat = "pace_monat" }
+        }
+        public struct Kraft: Codable, Equatable, Sendable {
+            public var tage: [Int]; public var volumen: [String: Double]; public var bestwerte: [String: [JSONWert]]
+            enum CodingKeys: String, CodingKey { case tage, bestwerte, volumen = "volumen_4w" }
+        }
+        public struct Koerper: Codable, Equatable, Sendable { public var nacht: [[JSONWert]]; public var tag: [[JSONWert]]; public var gewicht: [[JSONWert]] }
+        public struct Eigene: Codable, Equatable, Sendable, Identifiable {
+            public var id: String; public var titel: String; public var von: String?; public var grund: String?; public var diagramm: String?; public var einheit: String?
+            public var ziel: Double?; public var punkte: [[JSONWert]]?; public var wert: Double?; public var fehler: String?; public var grau: Bool?; public var metrik: String?; public var bereich: String?
+        }
+        public var wochen: [String]; public var lauf: Lauf; public var kraft: Kraft; public var koerper: Koerper; public var statistiken: [Eigene]
+    }
     public var woche: Woche; public var lauf: Lauf?; public var tag: TagSicht?; public var monat: Raster?; public var jahr: Raster?; public var uebung: Uebung?; public var buch: Buch?
+    public var kennzahlen: Kennzahlen?
 }

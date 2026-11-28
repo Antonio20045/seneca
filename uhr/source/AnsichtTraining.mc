@@ -7,6 +7,14 @@ class UebungenAnsicht extends ListenAnsicht {
     const HAEUFIGSTE = 8;
     private var _alle as Boolean;
 
+    function zonen() as Array<Array<Number>> {
+        return Bildschirm.zonen(:uebungen);
+    }
+
+    function bereich() as Number {
+        return 2;
+    }
+
     function initialize(alle as Boolean) {
         ListenAnsicht.initialize();
         _alle = alle;
@@ -35,7 +43,7 @@ class UebungenAnsicht extends ListenAnsicht {
         }
         var fuss = gekuerzt() && _auswahl + 2 < HAEUFIGSTE ? "ALLE ÜBUNGEN" : "";
         Bildschirm.uebungen(dc, kopf, namen, unter, _auswahl, fuss);
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "wählen");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "wählen");
     }
 
     function waehlen() as Void {
@@ -98,9 +106,9 @@ class SatzAnsicht extends Ansicht {
     function zeichnen(dc as Dc) as Void {
         var kopf = "Satz " + (Training.saetze() + 1).toString() + " seit " + Zeit.dauer(Training.pauseSekunden()) + " · ♥ " + Anzeige.puls(Training.puls());
         Bildschirm.satz(dc, _uebung[1] as String, kopf, Zeichnen.kg(_kg), _wiederholungen.toString(), Anzeige.wartend(), Verlauf.text(_uebung[0] as String, false), "UP/DOWN Wdh · MENU Gewicht");
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "eintragen");
-        Zeichnen.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
-        Zeichnen.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "eintragen");
+        Bildschirm.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Bildschirm.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
     }
 
     function hoch() as Void {
@@ -156,9 +164,9 @@ class GewichtAnsicht extends Ansicht {
 
     function zeichnen(dc as Dc) as Void {
         Bildschirm.gewicht(dc, Zeichnen.kg(_kg));
-        Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "übernehmen");
-        Zeichnen.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
-        Zeichnen.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "übernehmen");
+        Bildschirm.taste(dc, Zeichnen.UP, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
+        Bildschirm.taste(dc, Zeichnen.DOWN, Zeichnen.TASTE_KURZ, Zeichnen.STUMM, "");
     }
 
     function hoch() as Void {
@@ -200,10 +208,10 @@ class PauseAnsicht extends Ansicht {
         Bildschirm.pause(dc, "PAUSE · " + Zeit.dauer(Regeln.PAUSE_S), Zeit.dauer(sekunden), Anzeige.puls(Training.puls()));
         if (Rueckgaengig.rest() > 0) {
             Bildschirm.pauseFrisch(dc, Rueckgaengig.zeile, fristAnteil());
-            Zeichnen.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
+            Bildschirm.taste(dc, Zeichnen.BACK, Zeichnen.TASTE_LANG, Zeichnen.LEISE, "rückgängig");
         } else {
             Bildschirm.pauseWeiter(dc, "als Nächstes " + Zeichnen.kg(_kg) + " kg × " + _wiederholungen.toString());
-            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "weiter");
+            Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "weiter");
         }
     }
 
@@ -261,7 +269,7 @@ class FertigAnsicht extends Ansicht {
             Bildschirm.fertigGespeichert(dc);
         } else {
             Bildschirm.fertigVorher(dc);
-            Zeichnen.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "speichern");
+            Bildschirm.taste(dc, Zeichnen.START, Zeichnen.TASTE_LANG, Zeichnen.GRUEN, "speichern");
         }
     }
 

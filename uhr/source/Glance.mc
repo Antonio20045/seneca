@@ -22,10 +22,21 @@ class GlanceAnsicht extends WatchUi.GlanceView {
             Bildschirm.blickTimer(dc, dc.getWidth() / Zeichnen.s, dc.getHeight() / Zeichnen.s, Zeit.dauer(dauer), ziel > 0 ? buch + " · Ziel " + ziel.toString() + " Min" : buch, anteil);
             return;
         }
+        var z = zeilen(daten);
+        Bildschirm.blick(dc, dc.getWidth() / Zeichnen.s, dc.getHeight() / Zeichnen.s, z[0], z[1]);
+    }
+
+    function zeilen(daten as Dictionary) as [String, String] {
         var fragen = daten["n"] instanceof Number ? daten["n"] as Number : 0;
         var ruht = Stand.ruheText();
-        var satz = ruht.length() > 0 ? ruht : Zustand.kurz();
-        var danach = fragen == 0 ? "" : (ruht.length() > 0 ? "danach " : "") + fragen.toString() + (fragen == 1 ? " Frage" : " Fragen") + (ruht.length() > 0 ? "" : " warten");
-        Bildschirm.blick(dc, dc.getWidth() / Zeichnen.s, dc.getHeight() / Zeichnen.s, satz, danach);
+        var todo = Stand.todoZeile();
+        var trenner = todo.find("|") as Number;
+        var anzahl = todo.substring(0, trenner).toNumber() as Number;
+        var naechstes = todo.substring(trenner + 1, todo.length()) as String;
+        var satz = ruht.length() > 0 ? ruht : daten.isEmpty() ? Zustand.kurz() : anzahl == 0 ? "To-dos erledigt" : anzahl == 1 ? "1 To-do" : anzahl.toString() + " To-dos";
+        if (fragen > 0) {
+            return [satz, fragen.toString() + (fragen == 1 ? " Frage wartet" : " Fragen warten")];
+        }
+        return [satz, anzahl > 0 && ruht.length() == 0 ? "nächstes: " + naechstes : ""];
     }
 }

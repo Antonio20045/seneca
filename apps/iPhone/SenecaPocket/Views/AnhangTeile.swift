@@ -77,41 +77,6 @@ struct AnhangImFaden: View {
     }
 }
 
-struct DiktatZeile: View {
-    var seit: Date
-    var pegel: () -> Float
-    var fertig: () -> Void
-    @State private var werte: [CGFloat] = Array(repeating: 0, count: 18)
-    @State private var atmet = false
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Circle().fill(TafelFarbe.jetzt).frame(width: 8, height: 8)
-                .background(Circle().fill(TafelFarbe.jetzt.opacity(0.18)).frame(width: 16, height: 16).scaleEffect(atmet ? 1 : 0.7))
-            TimelineView(.periodic(from: seit, by: 0.05)) { k in
-                let s = Int(k.date.timeIntervalSince(seit))
-                HStack(spacing: 10) {
-                    Text("\(s / 60):\(String(format: "%02d", s % 60))").mono(11).monospacedDigit().foregroundStyle(TafelFarbe.zweit)
-                    HStack(spacing: 2) {
-                        ForEach(Array(werte.enumerated()), id: \.offset) { i, w in
-                            Capsule().fill(Color.white.opacity(i >= werte.count - 3 ? 0.35 : 0.9)).frame(width: 2.5, height: max(2, 16 * w))
-                        }
-                    }
-                    .frame(height: 16)
-                    .onChange(of: k.date) { _, _ in werte = Array(werte.dropFirst()) + [CGFloat(min(1, sqrt(pegel()) * 1.6))] }
-                }
-            }
-            Spacer(minLength: 0)
-            Button(action: fertig) {
-                Text("Fertig").font(Sundartha.grotesk(14, .medium)).foregroundStyle(TafelFarbe.aufHimmel).padding(.horizontal, 14).frame(height: 36)
-                    .background(Capsule().fill(TafelFarbe.himmel))
-            }
-            .buttonStyle(.plain)
-        }
-        .onAppear { withAnimation(.easeInOut(duration: 0.8).repeatForever()) { atmet = true } }
-    }
-}
-
 @MainActor
 final class FotoQuelle: ObservableObject {
     @Published private(set) var bildschirmfoto: (PHAsset, UIImage)?

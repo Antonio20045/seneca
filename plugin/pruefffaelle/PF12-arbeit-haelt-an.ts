@@ -7,9 +7,9 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { knotenJob, signiere } from "../src/arbeitsdienst/rechenknoten.ts";
 import { faelligeAuftraegeJob, faelligeWirkungenJob, laeufePruefenJob, pflegenJob } from "../src/arbeitsdienst/jobs.ts";
-import { auftraege, ereignisse, fragen, hole, laeufe } from "../src/register/lesen.ts";
-import { auftragSetzen, frageBeantworten, wertSetzen } from "../src/register/schreiben.ts";
-import { auftragVonAntonio, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
+import { auftraege, ereignisse, fragen, hole, laeufe, uhr, wert } from "../src/register/lesen.ts";
+import { auftragSetzen, frageBeantworten, uebergang, wertSetzen } from "../src/register/schreiben.ts";
+import { auftragVonAntonio, jaNeinFrage, ladePlugin, nurWach, regelnMit, spaeter, um } from "./aufbau.ts";
 
 test("PF12 ruhender Mitarbeiter wird nie geweckt und wacht nach dem Ende von selbst auf", async () => {
   const p = ladePlugin();
@@ -77,18 +77,56 @@ test("PF12 Start zweimal gleich abgelehnt: Befund und eine Frage statt Schleife,
   assert.match(p.kontext(p.starts[0].sessionKey) ?? "", /# Bauregeln/);
 });
 
-test("PF12 alle Abos am Limit: 0 Läufe und genau ein Satz", async () => {
+test("PF12 Startfrage räumt sich selbst weg, sobald derselbe Mitarbeiter wieder starten kann, ohne Extra-Lauf", async () => {
   const p = ladePlugin();
   um("09:00");
-  for (const abo of ["anthropic:antonio", "anthropic:sundartha", "anthropic:regius"]) wertSetzen(p.db, `abo_pause:${abo}`, "ja", "test", um("23:00"));
+  const a = auftragVonAntonio(p.db, "Staging-Probe", { verantwortlich: "engineer" });
+  const abgelehnt = async () => {
+    throw new Error("plugin seneca does not uniquely own subagent tool");
+  };
+  for (const t of ["09:01", "09:03", "09:10"]) {
+    um(t);
+    await faelligeAuftraegeJob(p.db, abgelehnt);
+  }
+  const frage = String(fragen(p.db, "offen").find((f) => f.auftrag_id === a)?.id);
+  auftragVonAntonio(p.db, "Andere Sache", { verantwortlich: "engineer" });
+  um("09:20");
+  await faelligeAuftraegeJob(p.db, p.starte);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  assert.equal(hole(p.db, "frage", frage).zustand, "zurueckgezogen");
+  assert.equal(hole(p.db, "auftrag", a).zustand, "bereit");
+  assert.equal(p.starts.length, 1);
+});
+
+test("PF12 Aufwachen zum Nachfassen zieht Antonios Frage nicht zurück, Verwerfen schon", () => {
+  const p = ladePlugin();
   um("09:00");
-  auftragVonAntonio(p.db, "Etwas bauen");
+  const a = auftragVonAntonio(p.db, "Staging-Name klären");
+  const f = jaNeinFrage(p.db, a, "Staging-Name festlegen?");
+  uebergang(p.db, "auftrag", a, "wartet", "frage", { wartet_auf: `frage:${f}`, folge: "Ruht.", naechster_anlass: uhr.jetzt() });
+  uebergang(p.db, "auftrag", a, "bereit", "nachfassen", { naechster_anlass: uhr.jetzt() });
+  assert.equal(hole(p.db, "frage", f).zustand, "offen");
+  uebergang(p.db, "auftrag", a, "verworfen", "antonio");
+  assert.equal(hole(p.db, "frage", f).zustand, "zurueckgezogen");
+});
+
+test("PF12 Abo am echten Limit: genau ein Satz, kein Lauf, der sicher scheitert", async () => {
+  const p = ladePlugin();
+  um("09:00");
+  const id = auftragVonAntonio(p.db, "Etwas bauen");
   spaeter(6000);
+  for (let i = 0; i < 3; i++) {
+    await faelligeAuftraegeJob(p.db, p.starte);
+    p.haken("agent_end", { messages: [], success: false, error: "All models failed (2): anthropic/claude-sonnet-5-5: You've hit your weekly limit · resets Dec 1, 6am (Europe/Berlin) (rate_limit)" }, { sessionKey: p.starts[i].sessionKey });
+    if (i === 0) assert.match(String(wert(p.db, "hinweis:abos")?.wert), /^Abo antonio bis Di\.?, 06:00 aufgebraucht, Läufe nutzen jetzt sundartha\.$/);
+    spaeter(5 * 60000);
+  }
   await faelligeAuftraegeJob(p.db, p.starte);
-  await faelligeAuftraegeJob(p.db, p.starte);
-  assert.equal(p.starts.length, 0);
-  assert.equal(ereignisse(p.db, { art: "wert.gesetzt", schluessel: "hinweis:abos" }).length, 1);
-  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { hinweise: string[] }).hinweise.length, 1);
+  assert.equal(p.starts.length, 3);
+  assert.deepEqual(laeufe(p.db, id).map((l) => [l.abo, l.grund]), ["antonio", "sundartha", "regius"].map((a) => [`anthropic:${a}`, "Abo am Limit"]));
+  assert.equal(wert(p.db, "abo_pause:anthropic:regius")?.gueltig_bis, new Date("2026-12-01T06:00").getTime());
+  assert.deepEqual((p.methode("seneca.stand", { geraet: "mac" }) as { hinweise: string[] }).hinweise.filter((h) => h.startsWith("Abo")), [String(wert(p.db, "hinweis:abos")?.wert)]);
+  assert.match(String(wert(p.db, "hinweis:abos")?.wert), /^Abo antonio bis Di\.?, 06:00 aufgebraucht, Läufe warten\.$/);
 });
 
 test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {
@@ -111,35 +149,73 @@ test("PF12 Dauerauftrag läuft 10 Tage ohne Rahmen-Frage", async () => {
   assert.equal(fragen(p.db, "offen").length, 0);
 });
 
-test("PF12 Anstupsen: Folgezug im laufenden Lauf; ohne Schritt danach einmal neu, geht Steuern nicht, sofort neu", async () => {
+const abbruch = async () => ({ code: 0, stderr: "" });
+const stupseNie = async () => false;
+
+test("PF12 Anstupsen von selbst: still seit 30 min wird gestupst, ohne Schritt danach beendet und neu angesetzt, geht Steuern nicht, sofort; Werkzeuge zählen als Schritt", async () => {
   for (const geht of [true, false]) {
     const p = ladePlugin();
     um("09:00");
     const a = auftragVonAntonio(p.db, "Lange Recherche");
     spaeter(6000);
     await faelligeAuftraegeJob(p.db, p.starte);
-    const gestupst: string[] = [];
-    const stupse = async (sitzung: string, text: string) => (gestupst.push(`${sitzung}: ${text}`), geht);
-    um("09:40");
-    await laeufePruefenJob(p.db, stupse);
-    const f = fragen(p.db, "offen").find((x) => x.von === "arbeitsdienst:haengt");
-    assert.ok(f);
-    frageBeantworten(p.db, { frage_id: String(f.id), antwort: "anstupsen", geraet: "iphone", kennung: `s-${geht}` });
-    spaeter(10000);
-    faelligeWirkungenJob(p.db);
-    await laeufePruefenJob(p.db, stupse);
+    const sitzung = String(laeufe(p.db, a)[0].sitzung);
+    const gestupst: string[] = [], befehle: string[][] = [];
+    const stupse = async (s: string, text: string) => (gestupst.push(`${s}: ${text}`), geht);
+    const abbruchMerken = async (argv: string[]) => (befehle.push(argv), { code: 0, stderr: "" });
+    um("09:25");
+    p.haken("after_tool_call", { toolName: "exec", params: { command: "gh pr checks 1" }, toolCallId: `w-${geht}`, durationMs: 5 }, { sessionKey: sitzung });
+    um("09:45");
+    await laeufePruefenJob(p.db, stupse, abbruchMerken);
+    assert.deepEqual([gestupst.length, laeufe(p.db, a)[0].zustand], [0, "haengt"]);
+    um("09:56");
+    await laeufePruefenJob(p.db, stupse, abbruchMerken);
+    assert.equal(fragen(p.db, "offen").filter((x) => x.von === "arbeitsdienst:haengt").length, 0);
     assert.equal(gestupst.length, 1);
     assert.equal(laeufe(p.db, a)[0].zustand === "abgebrochen", !geht);
-    if (!geht) continue;
-    um("09:45");
-    await laeufePruefenJob(p.db, stupse);
-    assert.notEqual(laeufe(p.db, a)[0].zustand, "abgebrochen");
-    assert.equal(fragen(p.db, "offen").filter((x) => x.von === "arbeitsdienst:haengt").length, 0);
-    um("09:52");
-    await laeufePruefenJob(p.db, stupse);
-    assert.equal(laeufe(p.db, a)[0].zustand, "abgebrochen");
-    assert.equal(gestupst.length, 1);
+    if (geht) {
+      um("10:01");
+      await laeufePruefenJob(p.db, stupse, abbruchMerken);
+      assert.notEqual(laeufe(p.db, a)[0].zustand, "abgebrochen");
+      um("10:07");
+      await laeufePruefenJob(p.db, stupse, abbruchMerken);
+      assert.equal(gestupst.length, 1);
+    }
+    assert.deepEqual([laeufe(p.db, a)[0].zustand, hole(p.db, "auftrag", a).zustand], ["abgebrochen", "bereit"]);
+    assert.deepEqual(befehle.map((b) => [b[3], JSON.parse(b[6]).sessionKey]), [["chat.abort", sitzung]]);
   }
+});
+
+test("PF12 Auftrag verworfen oder geparkt, Stopp von außen: Lauf bricht ab und steht abgebrochen im Register, keine Hängt-Frage", async () => {
+  for (const art of ["auftrag.verwerfen", "auftrag.anhalten"]) {
+    const p = ladePlugin();
+    um("09:00");
+    const a = auftragVonAntonio(p.db, "Probe");
+    spaeter(6000);
+    await faelligeAuftraegeJob(p.db, p.starte);
+    const sitzung = String(laeufe(p.db, a)[0].sitzung);
+    p.methode("seneca.handeln", { kennung: art, geraet: "iphone", art, ziel: a });
+    const befehle: string[][] = [];
+    um("09:01");
+    await laeufePruefenJob(p.db, stupseNie, async (argv) => (befehle.push(argv), { code: 0, stderr: "" }));
+    assert.deepEqual(befehle.map((b) => b.slice(1, 4).concat(JSON.parse(b[6]).sessionKey)), [["gateway", "call", "chat.abort", sitzung]]);
+    assert.equal(laeufe(p.db, a)[0].zustand, "abgebrochen");
+    assert.equal(laeufe(p.db, a)[0].grund, art === "auftrag.verwerfen" ? "Auftrag verworfen" : "Auftrag geparkt");
+    um("10:00");
+    await laeufePruefenJob(p.db, stupseNie, abbruch);
+    assert.equal(fragen(p.db, "offen").length, 0);
+    assert.equal(befehle.length, 1);
+  }
+  const p = ladePlugin();
+  um("09:00");
+  const a = auftragVonAntonio(p.db, "Probe 2");
+  spaeter(6000);
+  await faelligeAuftraegeJob(p.db, p.starte);
+  const sitzung = String(laeufe(p.db, a)[0].sitzung);
+  p.haken("run_stopped", { source: "client", sessions: [{ agentId: "produkt", sessionKey: sitzung }], runIds: ["run-1"] }, {});
+  assert.deepEqual([laeufe(p.db, a)[0].zustand, laeufe(p.db, a)[0].grund, hole(p.db, "auftrag", a).zustand], ["abgebrochen", "gestoppt", "geparkt"]);
+  p.ende(sitzung);
+  assert.equal(laeufe(p.db, a)[0].grund, "gestoppt");
 });
 
 test("PF12 Rechenknoten: AWS-Signatur nach Vorgabe, Start nur bei Bedarf, Stopp nach Leerlauf, ohne Zugang still aus", async () => {

@@ -1,4 +1,4 @@
-import { auftraege, eintraegeSeit, ereignisse, fragen, type Zeile } from "../register/lesen.ts";
+import { auftraege, eintraegeSeit, ereignisse, fragen, todos, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { regelMs, regelText, regelZahl } from "../regeln.ts";
 import { anzeigeName } from "../team.ts";
@@ -50,7 +50,7 @@ export function tagesZahlen(db: Register, tagBeginn: number) {
   const heute = eintraegeSeit(db, tagBeginn).map((e) => ({ art: String(e.art), w: JSON.parse(String(e.werte)) }));
   const laeufe = heute.filter((e) => e.art === "lauf");
   const namen = [...new Set(laeufe.map((e) => String(e.w.name ?? "Laufen")))];
-  const erledigt = ereignisse(db, { art: "todo.erledigt", seit: tagBeginn }).length + auftraege(db, ["erledigt"]).filter((x) => Number(x.geaendert) >= tagBeginn).length;
+  const erledigt = ereignisse(db, { art: "todo.erledigt", seit: tagBeginn }).filter((e) => todos(db, "erledigt").some((t) => t.id === e.schluessel)).length + auftraege(db, ["erledigt"]).filter((x) => Number(x.geaendert) >= tagBeginn).length;
   return [
     laeufe.length ? { wert: zahl(laeufe.reduce((s, e) => s + Number(e.w.km ?? 0), 0), 1), name: `KM ${(namen.length === 1 ? namen[0] : "Laufen").toUpperCase()}` } : null,
     ...ZAHLEN.map(([art, feld, name]) => {

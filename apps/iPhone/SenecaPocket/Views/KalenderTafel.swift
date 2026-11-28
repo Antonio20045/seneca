@@ -61,7 +61,8 @@ struct KalenderTafel<Monat: View>: View {
             }
             .frame(height: 26).padding(.leading, 60)
         } else {
-            let farbe: Color = switch e.art { case "bewegung": TafelFarbe.gruen; case "fokus", "todos": TafelFarbe.himmel; case "fenster": TafelFarbe.bernstein; default: TafelFarbe.text }
+            let termin = e.uid.flatMap { u in stand.termine?.first { $0.uid == u } }
+            let farbe: Color = switch e.art { case "bewegung": TafelFarbe.gruen; case "fokus", "todos": TafelFarbe.himmel; case "fenster": TafelFarbe.bernstein; default: termin.map { TafelFarbe.bereich($0.bereich) } ?? TafelFarbe.text }
             HStack(alignment: .top, spacing: 12) {
                 Text(e.von.map { HeuteTafelLogik.uhr($0) } ?? "").mono(11).foregroundStyle(TafelFarbe.leise).padding(.top, 9).frame(width: 48, alignment: .leading)
                 Button { detail = stand.termine?.first { $0.uid == e.uid } } label: {
@@ -71,6 +72,7 @@ struct KalenderTafel<Monat: View>: View {
                             if let u = e.unter, !u.isEmpty { Text(u).font(Sundartha.grotesk(12)).zeilenHoehe(17, schrift: 12).foregroundStyle(TafelFarbe.zweit) }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        if termin?.meeting != nil { Text("MEETING").mono(11).foregroundStyle(TafelFarbe.koralle) }
                         if e.jetzt == true { Text("JETZT").mono(11).foregroundStyle(TafelFarbe.jetzt) }
                     }
                     .padding(.leading, 14).padding(.trailing, 12).padding(.vertical, 6).frame(minHeight: 46)
@@ -182,7 +184,7 @@ struct TerminDetail: View {
                     Button("Schreiben") { schliessen(); wege.oeffne(.chat()) }.font(Sundartha.grotesk(14)).foregroundStyle(TafelFarbe.himmel).buttonStyle(.plain)
                 }
             }
-            if let kal = termin.kalender { zeile("KALENDER", kal, termin.kalender_quelle) }
+            if let b = TafelFarbe.bereichWort(termin.bereich) { zeile("BEREICH", b) }
             if let n = termin.notiz {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {

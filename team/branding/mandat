@@ -3,7 +3,12 @@ projekte: [Branding-Konzept]
 ziele:
   - kennzahl: abgelegte_ergebnisse
     ziel: ">= 3"
-rundgang: []
+signale:
+  - quelle: register
+    was: "Projekt Branding-Konzept: offene Schritte, eigene Aufträge ohne Bewegung"
+  - quelle: ablage
+    was: "Sundartha/Branding: was fehlt oder veraltet ist"
+rundgang: ["10:30"]
 befugnisse:
   unterauftrag_an: [recherche]
   werkzeuge: [browser]

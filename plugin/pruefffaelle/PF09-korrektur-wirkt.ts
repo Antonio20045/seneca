@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { faelligeAuftraegeJob } from "../src/arbeitsdienst/jobs.ts";
-import { auftraege, ereignisse, hole, laeufe, wert } from "../src/register/lesen.ts";
-import { uebergang } from "../src/register/schreiben.ts";
+import { rundgangVorbereiten } from "../src/arbeitsdienst/rundgang.ts";
+import { anlaesseJob } from "../src/lernen/anlass.ts";
+import { auftraege, ereignisse, fragen, hole, laeufe, wert } from "../src/register/lesen.ts";
+import { anzeigeSetzen, eintragSetzen, uebergang } from "../src/register/schreiben.ts";
 import { auftragVonAntonio, ladePlugin, nurWach, spaeter, um } from "./aufbau.ts";
 
 const S = "agent:seneca:main";
@@ -76,4 +78,35 @@ test("PF09 Satz beim Nachbessern wird gelernt; ähnliche zuerst; Skill höchsten
   uebergang(p.db, "auftrag", String(bau?.id), "verworfen", "test");
   assert.equal(zurueck("z3", sperre.korrektur_nr), "angenommen");
   assert.ok(auftraege(p.db, ["bereit"]).every((x) => !String(x.titel).startsWith("Sperre „kein Anruf")));
+});
+
+test("PF09 Statistik von selbst: zweite Standfrage, neue Datenart und neues Projekt werden ein Auftrag; ungesehen wird grau, Ansehen macht sie wieder aktiv", async () => {
+  const p = ladePlugin();
+  um("10:00");
+  const statistikAuftraege = () => auftraege(p.db, ["bereit"]).filter((a) => a.arbeitsart === "statistik_anlegen");
+  const frage = (satz: string) => p.werkzeug("seneca_statistik", S, "seneca", { art: "frage", thema: "Kniebeuge", satz, an: "trainer" });
+  assert.match(String((await frage("Wie läuft die Kniebeuge?")).satz), /^Gemerkt/);
+  assert.equal(statistikAuftraege().length, 0);
+  spaeter(3 * 86400000);
+  assert.match(String((await frage("Und, wie weit bin ich bei der Kniebeuge?")).satz), /Ich lege dir dafür eine Statistik an/);
+  assert.deepEqual(statistikAuftraege().map((a) => [a.verantwortlich, a.quelle]), [["trainer", "eigene_idee"]]);
+  await frage("Kniebeuge?");
+  assert.equal(statistikAuftraege().length, 1);
+  eintragSetzen(p.db, { art: "lauf", werte: { km: 5 }, zeit: um("07:00"), quelle: "iphone" });
+  anlaesseJob(p.db);
+  assert.equal(statistikAuftraege().length, 1);
+  eintragSetzen(p.db, { art: "satz", werte: { u: "Kniebeuge", kg: 80, w: 5 }, zeit: um("08:00"), quelle: "garmin" });
+  eintragSetzen(p.db, { art: "lauf", werte: { km: 6 }, zeit: um("09:00"), quelle: "iphone" });
+  anlaesseJob(p.db);
+  assert.deepEqual(statistikAuftraege().map((a) => a.titel).sort(), ["Statistik: daten satz:garmin", "Statistik: kniebeuge"]);
+  await p.werkzeug("seneca_projekt", S, "seneca", { name: "Ultra", worum: "100 km am Stück bis Juni" });
+  await p.werkzeug("seneca_projekt", S, "seneca", { name: "Ultra", satz: "läuft" });
+  assert.equal(statistikAuftraege().filter((a) => a.titel === "Statistik: projekt ultra").length, 1);
+  const id = anzeigeSetzen(p.db, { projekt: "Training", art: "statistik", titel: "Wochen-km", werte: { metrik: "lauf.km", grund: "Weg zu 100 km" }, besitzer: "trainer" });
+  assert.match(String((await p.werkzeug("seneca_statistik", S, "seneca", { art: "sicht" })).satz), /Wochen-km“ \(Training, von trainer, aktiv\): Weg zu 100 km; angesehen nie/);
+  rundgangVorbereiten(p.db, { verantwortlich: "seneca" }, spaeter(15 * 86400000));
+  assert.equal(hole(p.db, "anzeige", id).zustand, "grau");
+  assert.ok(fragen(p.db, "offen").some((f) => f.text === "Kann „Wochen-km“ weg?"));
+  p.methode("seneca.handeln", { kennung: "sa1", geraet: "mac", art: "anzeige.angesehen", ziel: id });
+  assert.equal(hole(p.db, "anzeige", id).zustand, "aktiv");
 });

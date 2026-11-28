@@ -49,9 +49,30 @@ module Stand {
         var z = zeile();
         try {
             Complications.updateComplication(0, {:value => z[0] as String, :shortLabel => (z[1] as Boolean) ? "!" : ""});
+            Complications.updateComplication(1, {:value => todoZeile()});
+            Complications.updateComplication(2, {:value => "+"});
+            Complications.updateComplication(3, {:value => Frage.offen() != null ? 1 : 0});
         } catch (e) {
             return;
         }
+    }
+
+    function todoZeile() as String {
+        var erledigt = lokalListe("e");
+        var offen = daten()["d"] instanceof Array ? daten()["d"] as Array : [];
+        var anzahl = 0;
+        var erstes = "";
+        for (var i = 0; i < offen.size(); i += 1) {
+            var t = offen[i] as Array;
+            if (erledigt.indexOf(t[0]) < 0) {
+                anzahl += 1;
+                erstes = erstes.length() > 0 ? erstes : t[1] as String;
+            }
+        }
+        var neu = lokalListe("n");
+        anzahl += neu.size();
+        erstes = erstes.length() > 0 || neu.size() == 0 ? erstes : neu[0] as String;
+        return anzahl.toString() + "|" + erstes;
     }
 
     function daten() as Dictionary {

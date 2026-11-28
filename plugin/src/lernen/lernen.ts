@@ -5,7 +5,7 @@ import { regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Nachricht = { kennung: string; text: string; vonAntonio: boolean };
 export type Korrektur = {
-  nachricht_kennung: string; wortlaut: string; ort: "skill" | "profil" | "sperre" | "fakt"; ziel: string; kern: string;
+  nachricht_kennung?: string; wortlaut: string; ort: "skill" | "profil" | "sperre" | "fakt"; ziel: string; kern: string;
   aenderung: { skill?: string; alt?: string; neu?: string; schluessel?: string; wert?: string }; wiederholung_von?: number;
 };
 type Frueher = { nr: number; ort: string; ziel: string; kern: string; nachher: string | null; wortlaut?: string };
@@ -18,9 +18,9 @@ function auftrag(db: Register, n: Nachricht, k: Korrektur, an: string, titel: st
 }
 
 function vonAntonio(db: Register, n: Nachricht | undefined, k: Korrektur): Nachricht {
-  if (n?.vonAntonio && n.kennung === k.nachricht_kennung && n.text.includes(k.wortlaut)) return n;
-  const e = ereignisse(db, { art: "entscheidung", schluessel: k.nachricht_kennung, grenze: 1 })[0];
-  if (e && String(e.satz).includes(k.wortlaut)) return { kennung: k.nachricht_kennung, text: String(e.satz), vonAntonio: true };
+  if (n?.vonAntonio && (!k.nachricht_kennung || n.kennung === k.nachricht_kennung) && n.text.includes(k.wortlaut)) return n;
+  const e = k.nachricht_kennung ? ereignisse(db, { art: "entscheidung", schluessel: k.nachricht_kennung, grenze: 1 })[0] : undefined;
+  if (e && String(e.satz).includes(k.wortlaut)) return { kennung: String(k.nachricht_kennung), text: String(e.satz), vonAntonio: true };
   throw new Error("Eine Korrektur braucht Antonios Nachricht oder seinen Satz beim Nachbessern, mit diesem Wortlaut.");
 }
 

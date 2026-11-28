@@ -396,7 +396,7 @@ struct LiveZugView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if schreibt {
                     Text("\(name.uppercased()) · SCHREIBT").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
-                    AntwortKarteView(text: w.rest, ts: nil, frisch: false, live: true, gross: true)
+                    SnStromText(takt: SnStromTakt.takt(key, lauf: live.schluessel), text: w.rest, final: false)
                 } else if live.phase != .sending, chat.store?.isConnected ?? true {
                     SnLaufPille(z: z, schritte: alle)
                     if z.haengt {
@@ -412,6 +412,51 @@ struct LiveZugView: View {
                 try? await Task.sleep(for: .seconds(Laufzeile.anhaltenNach - Laufzeile.haengtNach))
                 if !Task.isCancelled { await chat.stop() }
             }
+        }
+    }
+}
+
+@MainActor
+enum SnStromTakt {
+    private static var takte: [String: (lauf: String, takt: WortTakt)] = [:]
+
+    static func takt(_ key: String, lauf: String) -> WortTakt {
+        if let t = takte[key], t.lauf == lauf { return t.takt }
+        let t = WortTakt()
+        takte[key] = (lauf, t)
+        return t
+    }
+
+    static func nachlauf(_ key: String, text: String) -> WortTakt? {
+        guard let t = takte[key]?.takt, !t.beendet, !t.sichtbar.isEmpty, text.hasPrefix(t.sichtbar) else { return nil }
+        return t
+    }
+}
+
+struct SnStromText: View {
+    @ObservedObject var takt: WortTakt
+    var text: String
+    var final: Bool
+
+    var body: some View {
+        AntwortKarteView(text: takt.sichtbar, ts: nil, frisch: false, live: true, gross: true)
+            .onAppear { takt.setzeText(text, final: final) }
+            .onChange(of: text) { _, neu in takt.setzeText(neu, final: final) }
+    }
+}
+
+struct SnAntwortNachlauf: View {
+    @ObservedObject var takt: WortTakt
+    var text: String
+    var ts: Double?
+    var gross: Bool
+
+    var body: some View {
+        if takt.beendet {
+            AntwortKarteView(text: text, ts: ts, frisch: false, gross: gross)
+        } else {
+            AntwortKarteView(text: takt.sichtbar, ts: nil, frisch: false, live: true, gross: true)
+                .onAppear { takt.setzeText(text, final: true) }
         }
     }
 }
@@ -454,14 +499,9 @@ struct SnLaufPille: View {
 
 struct SnAtemPunkt: View {
     var an: Bool
-    @Environment(\.fensterSichtbar) private var sichtbar
     var body: some View {
         if an {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar)) { ctx in
-                let p = (sin(ctx.date.timeIntervalSinceReferenceDate / 1.6 * 2 * .pi) + 1) / 2
-                Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7).opacity(0.55 + 0.45 * p)
-            }
-            .frame(width: 7, height: 7)
+            Circle().fill(TafelFarbe.gruen).frame(width: 7, height: 7)
         } else {
             Circle().strokeBorder(TafelFarbe.zweit, lineWidth: 1.5).frame(width: 7, height: 7)
         }
@@ -488,6 +528,7 @@ struct ZugView: View, Equatable {
     var vorziehen: () -> Void = {}
     var bearbeiten: () -> Void = {}
     var offline: Bool? = nil
+    var sitzung = ""
     @State private var spurOffen = false
     @State private var zeigt = false
 
@@ -533,7 +574,15 @@ struct ZugView: View, Equatable {
                             .accessibilityIdentifier("antwort-an")
                     }
                     Text("\(name.uppercased()) · \(a.ts.map { Formate.hhmm($0) } ?? "")").font(Schrift.mono(11)).kerning(1).foregroundStyle(TafelFarbe.leise)
-                    AntwortKarteView(text: HierStelle.teile(a.text).text, ts: a.ts, frisch: frisch == .voll, gross: gross).id(Self.antwortId(zug.id))
+                    let text = HierStelle.teile(a.text).text
+                    Group {
+                        if let t = SnStromTakt.nachlauf(sitzung, text: text) {
+                            SnAntwortNachlauf(takt: t, text: text, ts: a.ts, gross: gross)
+                        } else {
+                            AntwortKarteView(text: text, ts: a.ts, frisch: frisch == .voll, gross: gross)
+                        }
+                    }
+                    .id(Self.antwortId(zug.id))
                     SpurView(zug: zug, frisch: frisch != nil).padding(.top, 2)
                     if let q = quittung { QuittungErgebnis(quittung: q, zuruecklegen: zuruecklegen) }
                 } else if !zug.schritte.isEmpty, zug.widgets.isEmpty {

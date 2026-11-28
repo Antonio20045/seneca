@@ -14,13 +14,17 @@ struct SnGespraechLeiste: View {
     var zieht = false
     var fragt: SenecaStand.Frage? = nil
     var ablegen: (String, [URL]) -> Void = { _, _ in }
+    @State private var hilfeFuer: String?
+    @State private var hilfeWarte: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [GL.Zeile(text: stand.flatMap(GL.seneca) ?? "Frag Seneca etwas.")], punkt: nil).padding(.vertical, 2)
+            eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [], punkt: nil, hilfe: senecaHilfe).padding(.vertical, 2)
             etikett("DEIN TEAM").padding(.horizontal, 14).padding(.top, 26).padding(.bottom, 8)
             ForEach(stand.map(GL.leiste) ?? [], id: \.m.name) { e in
-                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: fragt?.von == e.m.name ? [GL.Zeile(text: "fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))", hervor: true)] : e.zeilen, punkt: fragt?.von == e.m.name ? .wartet : e.punkt)
+                let fragtHier = fragt?.von == e.m.name
+                eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: [], punkt: fragtHier ? .wartet : e.punkt,
+                        hilfe: fragtHier ? "Fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))" : GL.ohneNummern(GL.hilfe(e.m, e.zeilen)))
             }
             Spacer(minLength: 20)
             if zieht {
@@ -36,7 +40,13 @@ struct SnGespraechLeiste: View {
         .frame(width: 268, alignment: .topLeading)
     }
 
-    private func eintrag(id: String, name: String, zeilen: [GL.Zeile], punkt: GL.Punkt?) -> some View {
+    private var senecaHilfe: String {
+        guard let s = stand, let m = s.team?.first(where: { $0.id == Hauptagent.id }) else { return "Frag Seneca etwas." }
+        if m.zustand == "arbeitet" || m.zustand == "hängt" { return GL.ohneNummern(GL.hilfe(m, GL.mitglied(m, s).zeilen)) }
+        return m.zustand == "ruht" ? "Ruht gerade. Schreib ihm, dann legt er los." : "Gerade frei. Schreib ihm, dann legt er los."
+    }
+
+    private func eintrag(id: String, name: String, zeilen: [GL.Zeile], punkt: GL.Punkt?, hilfe: String? = nil) -> some View {
         let gewaehlt = id == aktiv
         return Button { waehle(id) } label: {
             HStack(alignment: .top, spacing: 12) {
@@ -47,8 +57,8 @@ struct SnGespraechLeiste: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(name).font(Schrift.grotesk(15, .medium)).lineHeight(.exact(points: 21))
                         .foregroundStyle(punkt == .ruht ? TafelFarbe.zweit : punkt == .fertig ? TafelFarbe.text : Color.white)
-                    zeilen.reduce(Text("")) { $0 + Text($1.text).foregroundColor($1.hervor ? TafelFarbe.bernstein : punkt == .fertig || punkt == .ruht ? TafelFarbe.leise : TafelFarbe.zweit) }
-                        .font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).fixedSize(horizontal: false, vertical: true)
+                    if !zeilen.isEmpty { zeilen.reduce(Text("")) { $0 + Text($1.text).foregroundColor($1.hervor ? TafelFarbe.bernstein : punkt == .fertig || punkt == .ruht ? TafelFarbe.leise : TafelFarbe.zweit) }
+                        .font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).fixedSize(horizontal: false, vertical: true) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -59,6 +69,34 @@ struct SnGespraechLeiste: View {
         }
         .buttonStyle(.plain)
         .dropDestination(for: URL.self) { urls, _ in ablegen(id, urls.filter(\.isFileURL)); return true }
+        .onHover { zeige(id, $0, hilfe: hilfe) }
+        .overlay(alignment: .topLeading) {
+            if let hilfe, hilfeFuer == id { SnLeisteHilfe(text: hilfe).offset(x: 54, y: 38).transition(.opacity) }
+        }
+        .zIndex(hilfeFuer == id ? 1 : 0)
+        .accessibilityHint(hilfe ?? "")
+    }
+
+    private func zeige(_ id: String, _ drauf: Bool, hilfe: String?) {
+        hilfeWarte?.cancel()
+        guard drauf, hilfe != nil else { withAnimation(Kurve.sn(0.15)) { if hilfeFuer == id || !drauf { hilfeFuer = nil } }; return }
+        hilfeWarte = Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            if !Task.isCancelled { withAnimation(Kurve.sn(0.18)) { hilfeFuer = id } }
+        }
+    }
+}
+
+struct SnLeisteHilfe: View {
+    var text: String
+    var body: some View {
+        Text(text).font(Schrift.grotesk(13)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.text)
+            .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 220, alignment: .leading)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TafelFarbe.hex(0x16294D)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.28), radius: 14, y: 6)
+            .allowsHitTesting(false)
     }
 }
 
@@ -143,12 +181,14 @@ struct SnGespraechFrage: View {
                 Text("\((frage.von ?? "").uppercased()) · \(frage.seit.map { HeuteTafelLogik.uhr($0) } ?? "")").foregroundStyle(TafelFarbe.leise)
             }
             .font(Schrift.mono(11)).kerning(1)
-            Text(frage.text).font(Schrift.serif(30)).lineHeight(.exact(points: 34)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
+            let u = GL.ueberschrift(frage.text, gross: 30)
+            Text(GL.ohneNummern(frage.text)).font(Schrift.serif(u.groesse)).lineHeight(.exact(points: u.zeile)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
             if let k = frage.kontext?.worum, !k.isEmpty {
-                Text(k).font(Schrift.grotesk(15)).lineHeight(.exact(points: 23)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+                Text(GL.ohneNummern(k)).font(Schrift.grotesk(15)).lineHeight(.exact(points: 23)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 10) {
-                if let h = haupt { Button(h.knopf ?? h.text ?? "Ja") { antworte(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 14)) }
+                if let h = haupt, GL.langesEtikett(h.knopf ?? h.text ?? "") { Button("Antworten", action: mehr).buttonStyle(SnTafelKnopf(groesse: 14)) }
+                else if let h = haupt { Button(h.knopf ?? h.text ?? "Ja") { antworte(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 14)) }
                 Button("Später") { antworte("spaeter") }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14))
                 Button("Mehr", action: mehr).buttonStyle(SnTafelKnopf(art: .leise, groesse: 14))
             }
@@ -225,16 +265,17 @@ struct SnGespraecheBild: View {
 
     var body: some View {
         GeometryReader { g in
-            let sp = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id)
             let m = stand.team?.first { $0.id == agent }
             let f = mehr ? GL.fragen(stand, von: m?.name ?? "").first : nil
+            let sp = SnChatSeite.spalte(g.size.width, seneca: agent == Hauptagent.id, frage: f != nil)
             ZStack(alignment: .topLeading) {
                 SnGespraechLeiste(stand: stand, aktiv: agent, waehle: { _ in }, neu: {}, fragt: f).padding(.leading, 40).padding(.top, 108).padding(.bottom, 40).frame(height: g.size.height, alignment: .top)
                 VStack(alignment: .leading, spacing: mehr ? 16 : 26) {
                     if let f {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(GL.mehrSeite(f, stand)).font(Schrift.mono(11, .medium)).kerning(1.3).foregroundStyle(TafelFarbe.leise)
-                            SnFrageMehr(frage: f, stand: stand, antworte: { _ in }, zuruecknehmen: {}, andereZeit: {})
+                            SnFrageMehr(frage: f, stand: stand)
+                            SnFrageMehrKnoepfe(frage: f, stand: stand, antworte: { _ in }, zuruecknehmen: {}, andereZeit: {})
                         }
                     }
                     ForEach(zuege) { z in
@@ -255,7 +296,7 @@ struct SnGespraecheBild: View {
                     }
                 }
                 .frame(width: sp.breite, height: max(0, g.size.height - (mehr ? 196 : 220)), alignment: mehr ? .top : .bottom).clipped().environment(\.festeZeit, stand.jetzt).padding(.leading, sp.links).padding(.top, mehr ? 104 : 92)
-                SnGespraechRand(stand: stand, agent: agent, frage: f, zuProjekten: {}).padding(.leading, g.size.width - 40 - (f == nil ? sp.rand : 312)).padding(.top, 108)
+                SnGespraechRand(stand: stand, agent: agent, frage: f, zuProjekten: {}).padding(.leading, g.size.width - 40 - sp.rand).padding(.top, 108)
                 HStack(spacing: 14) {
                     SnAnZeile(name: m?.name ?? "Seneca", seneca: agent == Hauptagent.id)
                     SnAnZeile.platzhalter(seneca: agent == Hauptagent.id)

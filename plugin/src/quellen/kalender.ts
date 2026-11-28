@@ -1,7 +1,7 @@
 import { kalenderTag, termineAm, uhr, wert, werte } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
 import { ereignis, wertSetzen } from "../register/schreiben.ts";
-import { kalenderSpanne, regelMs, regelText, regelZahl } from "../regeln.ts";
+import { kalenderSpanne, regelListe, regelMs, regelText, regelZahl } from "../regeln.ts";
 
 type Zugang = { benutzer?: string; passwort?: string };
 type Termin = { uid: string; start: number; ende: number; titel: string; ort?: string; teilnehmer: string[]; namen: string[]; notiz?: string; kalender?: string; ganztag: boolean };
@@ -126,7 +126,7 @@ function wann(t: number): string {
 export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p: Eingabe, sitzung = ""): Promise<object> {
   if (!z.benutzer || !z.passwort) throw new Error("Kalender ist noch nicht verbunden (App-Passwort fehlt).");
   if (p.aktion === "lesen") return { termine: termineAm(db, p.start ?? uhr.jetzt()) };
-  if (agent !== regelText("dauerauftraege_von")) throw new Error("Nur Seneca schreibt in den Kalender.");
+  if (!regelListe("kalender_schreiber").includes(agent)) throw new Error("Nur Seneca und der Trainer schreiben in den Kalender.");
   const r = await schreiben(db, z, { ...p, kalender: p.kalender ?? regelText("kalender_seneca") }) as { ok?: boolean; uid?: string; titel?: string; vorher?: Termin };
   if (r.ok && p.aktion !== "loeschen") ereignis(db, { art: "quittung", schluessel: sitzung, daten: { teil: "Kalender", ergebnis: `${r.titel} · ${wann(Number(p.start))}`,
     zurueck: r.vorher ? { uid: r.uid, start: r.vorher.start, ende: r.vorher.ende } : null } });
@@ -136,14 +136,14 @@ export async function kalenderWerkzeug(db: Register, z: Zugang, agent: string, p
 async function schreiben(db: Register, z: Zugang, p: Eingabe): Promise<object> {
   const alt = p.uid ? orte.get(p.uid) : undefined;
   if (p.aktion === "loeschen") {
-    if (!alt) throw new Error("Termin unbekannt.");
-    await dav(z, alt.href, "DELETE", undefined, { "if-match": alt.etag });
-    await kalenderAbgleich(db, z);
-    return { ok: true };
+    const ziele = alt ? [alt.href] : (await finde(z)).map((k) => `${k.url}${p.uid}.ics`);
+    const weg = await Promise.all(ziele.map((u) => dav(z, u, "DELETE", undefined, alt ? { "if-match": alt.etag } : {}).then(() => true, () => false)));
+    if (!weg.includes(true)) throw new Error("Termin unbekannt.");
+    await kalenderAbgleich(db, z); return { ok: true };
   }
   if (p.aktion === "verschieben" && !alt) throw new Error("Termin unbekannt.");
   const start = Number(p.start);
-  const ende = Number(p.ende ?? start + regelMs("termin_standard_min"));
+  const ende = Number(p.ende ?? start + regelMs("termin_standard_min")); if (!(start > 1e11 && ende > 1e11)) throw new Error("start und ende in Millisekunden angeben (Unix-Zeit mal 1000), nicht in Sekunden.");
   const konflikte = termineAm(db, start).filter((t) => t.uid !== p.uid && !t.ganztag && t.start < ende && t.ende > start).map((t) => t.titel);
   if (konflikte.length && !p.trotzdem) return { ok: false, konflikte };
   const uid = p.uid ?? `${uhr.jetzt()}-seneca`;

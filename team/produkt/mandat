@@ -5,7 +5,7 @@ ziele:
     ziel: ">= 3"
 signale:
   - quelle: github
-    was: "rote Prüfläufe, offene PRs ohne Bewegung > 1 Tag"
+    was: "Repo sundartha/hermes (gh -R sundartha/hermes): rote Prüfläufe, offene PRs ohne Bewegung > 1 Tag"
   - quelle: register
     was: "eigene Aufträge ohne Bewegung"
 rundgang: ["09:00"]

@@ -1,7 +1,8 @@
 import { ereignisse, termineAm, todos, wert } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
+import { lebensbereich, naechsteUhrzeit, regelListe, regelMs, regelText } from "../regeln.ts";
 import { stundeAlsWort, uhrzeit } from "./heute.ts";
+import { meetingVon } from "./meeting.ts";
 import { istFokus } from "./planen.ts";
 
 const ZAHL = ["Keine", "Ein", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht"];
@@ -11,17 +12,11 @@ export const MONAT = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Jul
 
 type Termin = ReturnType<typeof termineAm>[number];
 
-export function istSport(titel: string): boolean {
-  return regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
-}
+export const istSport = (titel: string): boolean => regelListe("sport_worte").some((w) => titel.toLowerCase().includes(w.toLowerCase()));
 
-export function art(t: Termin): string {
-  return istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin";
-}
+export const art = (t: Termin): string => istFokus(t) ? "fokus" : istSport(t.titel) ? "bewegung" : "termin";
 
-function kurz(titel: string): string {
-  return titel.split(/ mit | · /)[0];
-}
+const kurz = (titel: string): string => titel.split(/ mit | · /)[0];
 
 function unter(db: Register, t: Termin): string {
   const ankunft = wert(db, `ankunft:${t.uid}`)?.wert;
@@ -69,7 +64,7 @@ export function terminSicht(db: Register, t: Termin) {
   const n = ereignisse(db, { art: "wert.gesetzt", schluessel: `termin_notiz:${t.uid}`, grenze: 1 })[0];
   const mit = t.teilnehmer.length ? t.teilnehmer : t.titel.split(" mit ").slice(1);
   return { ...t, art: art(t), mit, ankunft: Number(wert(db, `ankunft:${t.uid}`)?.wert ?? 0) || null, weg_min: Number(wert(db, `wegzeit:${t.uid}`)?.wert ?? 0) || null,
-    entfernung_m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, kalender_quelle: t.kalender ? regelText("kalender_quelle") : null,
+    entfernung_m: Number(wert(db, `entfernung:${t.uid}`)?.wert ?? 0) || null, kalender_quelle: t.kalender ? regelText("kalender_quelle") : null, bereich: lebensbereich(`${t.titel} ${t.kalender ?? ""}`), meeting: meetingVon(db, t),
     notiz: n ? { satz: JSON.parse(String(n.daten)).wert, um: n.zeit } : null,
     bescheid: n && mit.length ? `${mit.join(", ")} ${mit.length === 1 ? "weiß" : "wissen"} Bescheid, seit ${uhrzeit(Number(n.zeit))}` : null };
 }

@@ -5,3 +5,4 @@ uhr/bin/
 *.p12
 *.mobileprovision
 .build/
+__pycache__/

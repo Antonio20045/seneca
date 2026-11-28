@@ -8,25 +8,36 @@ class Zifferblatt extends WatchUi.WatchFace {
 
     private var _ruht as Boolean = false;
     private var _schritt as Number = 0;
+    private var _wach as Boolean = true;
 
     function initialize() {
         WatchFace.initialize();
     }
 
     function onEnterSleep() as Void {
+        _wach = false;
         _ruht = Zeichnen.amoled();
         WatchUi.requestUpdate();
     }
 
     function onExitSleep() as Void {
+        _wach = true;
         _ruht = false;
         WatchUi.requestUpdate();
     }
 
+    (:mip)
+    function onUpdate(dc as Dc) as Void {
+        Zeichnen.flaeche(dc);
+        Gesicht.zeichnen(dc);
+    }
+
+    (:rund)
     function sportlich() as Boolean {
         return Application.Properties.getValue("stil") == 1;
     }
 
+    (:rund)
     function onUpdate(dc as Dc) as Void {
         Zeichnen.flaeche(dc);
         Zeichnen.seitlich = 0.0;
@@ -39,14 +50,9 @@ class Zifferblatt extends WatchUi.WatchFace {
             return;
         }
         if (sportlich()) {
-            Gesicht.sportlich(dc);
+            Gesicht.sportlich(dc, _wach);
             return;
         }
-        var zeile = Werte.zeile();
-        if (zeile == null) {
-            Gesicht.elegant(dc);
-        } else {
-            Gesicht.mitSeneca(dc, zeile[0] as String, zeile[1] as Boolean);
-        }
+        Gesicht.elegantAuto(dc, _wach);
     }
 }

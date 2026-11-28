@@ -75,7 +75,7 @@ export function ladePlugin(ordner = mkdtempSync(join(tmpdir(), "seneca-plugin-")
     nachAufruf: (toolCallId: string) => haken.get("after_tool_call")?.({ toolName: "x", params: {}, toolCallId }, {}),
     werkzeug: async (name: string, sitzung: string, agent: string, p: object) => (await (werkzeuge.get(name) as Fabrik)({ sessionKey: sitzung, agentId: agent }).execute("t", p)).details as Record<string, string>,
     nachricht: (sitzung: string, kennung: string, text: string, vonAntonio = true) => haken.get("before_prompt_build")?.(
-      { prompt: text, messages: [], currentUserMessage: text, currentUserMessageId: kennung }, { sessionKey: sitzung, inputProvenance: { kind: vonAntonio ? "external_user" : "inter_session" } }),
+      { prompt: text, messages: [{ role: "user", content: text, idempotencyKey: kennung, provenance: { kind: "external_user" }, __openclaw: { transport: { clients: [{ id: vonAntonio ? "openclaw-macos" : "cli", mode: vonAntonio ? "ui" : "cli" }] } } }] }, { sessionKey: sitzung }),
     kontext: (sitzung: string) => (haken.get("before_prompt_build")?.({ prompt: "", messages: [] }, { sessionKey: sitzung }) as { prependContext?: string } | undefined)?.prependContext,
     haken: (name: string, event: object, ctx: object) => haken.get(name)?.(event, ctx),
     ende: (sitzung: string, ausgabeTokens = 0) => haken.get("agent_end")?.({ messages: [{ role: "assistant", content: "Ich bin fertig.", usage: { input: 0, output: ausgabeTokens } }], success: true }, { sessionKey: sitzung }),

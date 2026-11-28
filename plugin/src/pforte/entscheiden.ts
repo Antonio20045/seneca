@@ -22,9 +22,7 @@ function zahl(n: number, [artikel, eins, viele]: [string, string, string]): stri
   return n === 1 ? `${artikel} ${eins}` : `${ZAHLWORT[n] ?? n} ${viele}`;
 }
 
-function gross(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+const gross = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function optionenSicht(f: Zeile): { optionen: Option[]; folge: string | null } {
   const optionen = (JSON.parse(String(f.optionen)) as Option[]).map((o) => {
@@ -87,11 +85,11 @@ export function buendelFortschritt(db: Register, offen: Zeile[], jetzt: number) 
     danach: rest.length ? `Danach noch ${rest.length}${arten(rest).length ? `: ${arten(rest).join(", ")}` : ""}.` : null,
     liste: alle.map(({ a, zustand }) => ({ id: a.id, titel: a.titel, zustand, unter: [a.projekt ?? a.bereich, ART[JSON.parse(String(a.ergebnis ?? "null"))?.art]?.[1],
       zustand === "zurueck" ? `an ${anzeigeName(String(a.verantwortlich))}` : null].filter(Boolean).join(" · ") })),
-    anzahl: `${gross(wort(gesamt))} ${gesamt === 1 ? "Abnahme" : "Abnahmen"}`,
+    anzahl: gesamt ? `${gross(wort(gesamt))} ${gesamt === 1 ? "Abnahme" : "Abnahmen"}` : null,
     zaehlung: zaehlen(alle, ({ a }) => String(a.projekt ?? a.bereich)).map(([p, n]) => `${p} ${n}`).join(" · "),
-    start: [`${gross(wort(gesamt))} ${gesamt === 1 ? "Abnahme" : "Abnahmen"},`, `etwa ${wort(minuten(gesamt))} Minuten.`],
+    start: gesamt ? [`${gross(wort(gesamt))} ${gesamt === 1 ? "Abnahme" : "Abnahmen"},`, `etwa ${minuten(gesamt) === 1 ? "eine Minute" : `${wort(minuten(gesamt))} Minuten`}.`] : null,
     arten: arten(alle.map(({ a }) => ({ art: JSON.parse(String(a.ergebnis ?? "null"))?.art ?? null }))).join(" · "),
-    pause: [`Pause bei ${wort(fertig.length + 1)}`, `von ${wort(gesamt)}.`],
+    pause: gesamt ? [`Pause bei ${fertig.length + 1}`, `von ${gesamt}.`] : null,
     pause_satz: `Das Fenster bleibt bis ${uhrzeit(seit + msAusMinuten(regelZahl("fenster_dauer_min")))} offen. Danach wandert der Rest ins Fenster von morgen.`,
     abschluss: !offen.length && fertig.length ? [`${gross(wort(gesamt))} durch,`, dauer === 1 ? "in einer Minute." : `in ${wort(dauer)} Minuten.`] : null,
     rueckgaengig: `${gross(wort(s))} Sekunden Rückgängig, dann die nächste.`,
