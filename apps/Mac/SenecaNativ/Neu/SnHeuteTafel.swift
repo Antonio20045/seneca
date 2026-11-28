@@ -27,6 +27,7 @@ struct SnHeuteTafel: View {
     @State private var da = false
     @State private var beantwortet: [String: (wahl: String, um: Date)] = [:]
     @State private var alleTodos = false
+    @State private var gewaehlt: [String: String] = [:]
     @State private var notiz = ""
     @State private var notiert: [String] = []
     @FocusState private var notizFokus: Bool
@@ -119,8 +120,9 @@ struct SnHeuteTafel: View {
                 Spacer(minLength: 12)
                 Text(herkunft(f)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
             }
-            Text(f.text).font(Schrift.serif(38)).tracking(-0.4).hoehe(41).foregroundStyle(.white)
-                .padding(.top, 8).padding(.bottom, 12).fixedSize(horizontal: false, vertical: true)
+            let gross = f.text.count <= 80
+            Text(f.text).font(Schrift.serif(gross ? 38 : f.text.count <= 130 ? 30 : 25)).tracking(-0.4).hoehe(gross ? 41 : f.text.count <= 130 ? 34 : 29).foregroundStyle(.white)
+                .lineLimit(5).padding(.top, 8).padding(.bottom, 12).fixedSize(horizontal: false, vertical: true)
             if let a = absatz(f) {
                 a.font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.zweit).frame(maxWidth: 720, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             }
@@ -181,18 +183,55 @@ struct SnHeuteTafel: View {
         return Array(liste.prefix(2)) + [("\(rest.count) weitere", rest.map(\.1).reduce(0, +))]
     }
 
+    static func langesEtikett(_ s: String) -> Bool { s.count > 28 || s.split(separator: " ").count > 3 }
+
     private func knoepfe(_ f: SenecaStand.Frage) -> some View {
         let optionen = (f.optionen ?? []).filter { $0.wert != nil }
-        let spaeter = optionen.contains { $0.wert == "spaeter" }
-        return HStack(spacing: 10) {
-            ForEach(Array(optionen.enumerated()), id: \.offset) { i, o in
-                Button(o.knopf ?? o.text ?? "") { senden(f, o.wert ?? "") }
-                    .buttonStyle(SnHeuteKnopf(art: i == 0 ? .haupt : o.wert == "spaeter" ? .leise : .neben))
+        let auswahl = optionen.filter { $0.wert != "spaeter" }
+        let lang = auswahl.contains { Self.langesEtikett($0.knopf ?? $0.text ?? "") }
+        let wahl = gewaehlt[f.id] ?? auswahl.first { $0.wert == f.empfehlung }?.wert ?? auswahl.first?.wert ?? ""
+        let chat = Button("Einzeln im Chat →") { zumChat(f) }.buttonStyle(.plain).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.himmel).fixedSize()
+        let spaeterKnopf = Button("Später") { senden(f, "spaeter") }.buttonStyle(SnHeuteKnopf(art: .leise))
+        return VStack(alignment: .leading, spacing: 14) {
+            if lang {
+                VStack(spacing: 8) { ForEach(Array(auswahl.enumerated()), id: \.offset) { _, o in zeile(o, gewaehlt: o.wert == wahl) { gewaehlt[f.id] = o.wert } } }
+                HStack(spacing: 10) {
+                    Button("Wählen") { senden(f, wahl) }.buttonStyle(SnHeuteKnopf(art: .haupt))
+                    spaeterKnopf
+                    Spacer(minLength: 12)
+                    chat
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(auswahl.enumerated()), id: \.offset) { i, o in Button(o.knopf ?? o.text ?? "") { senden(f, o.wert ?? "") }.buttonStyle(SnHeuteKnopf(art: i == 0 ? .haupt : .neben)) }
+                        spaeterKnopf
+                        Spacer(minLength: 12)
+                        chat
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(auswahl.enumerated()), id: \.offset) { i, o in Button(o.knopf ?? o.text ?? "") { senden(f, o.wert ?? "") }.buttonStyle(SnHeuteKnopf(art: i == 0 ? .haupt : .neben)) }
+                        HStack(spacing: 10) { spaeterKnopf; chat }
+                    }
+                }
             }
-            if !spaeter { Button("Später") { senden(f, "spaeter") }.buttonStyle(SnHeuteKnopf(art: .leise)) }
-            Spacer(minLength: 12)
-            Button("Einzeln im Chat →") { zumChat(f) }.buttonStyle(.plain).font(Schrift.grotesk(14)).foregroundStyle(TafelFarbe.himmel).fixedSize()
         }
+    }
+
+    private func zeile(_ o: SenecaStand.Option, gewaehlt: Bool, tippe: @escaping () -> Void) -> some View {
+        Button(action: tippe) {
+            HStack(alignment: .top, spacing: 12) {
+                Circle().strokeBorder(gewaehlt ? TafelFarbe.himmel : Color.white.opacity(0.3), lineWidth: 1.5).frame(width: 18, height: 18)
+                    .overlay { if gewaehlt { Circle().fill(TafelFarbe.himmel).padding(4) } }.padding(.top, 2)
+                Text(o.knopf ?? o.text ?? "").font(Schrift.grotesk(15)).hoehe(21).foregroundStyle(gewaehlt ? .white : TafelFarbe.zweit)
+                    .lineLimit(3).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(gewaehlt ? 0.09 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(gewaehlt ? TafelFarbe.himmel.opacity(0.55) : Color.white.opacity(0.06), lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func senden(_ f: SenecaStand.Frage, _ wahl: String) {
@@ -217,7 +256,7 @@ struct SnHeuteTafel: View {
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
-                    Text(text).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white)
+                    Text(text).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white).lineLimit(2)
                     Spacer()
                     if rest > 0 {
                         Button("Rückgängig") {
