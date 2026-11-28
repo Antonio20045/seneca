@@ -91,7 +91,7 @@ enum HeuteBild {
                         SnEntscheidenTafel(stand: s, antworte: { _, _ in }, handle: { _, _, _ in })
                         SnGeruestBild(stand: s, aktiv: .fragen)
                     default:
-                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, notiere: { SnHeuteMass.notiert.append($0) }, laeuft: false)
+                        SnHeuteTafel(stand: s, wartend: [], erledige: { _ in }, notiere: { SnHeuteMass.notiert.append($0) }, antworte: { SnHeuteMass.notiert.append("antwort:\($0):\($1)") }, laeuft: false)
                         SnGeruestBild(stand: s)
                     }
                 }
@@ -104,6 +104,7 @@ enum HeuteBild {
             for _ in 0..<50 { try? await Task.sleep(for: .milliseconds(50)); host.layoutSubtreeIfNeeded(); CATransaction.flush() }
             if let ablauf = env["SENECA_STAT_ABLAUF"] { await SnStatistikProbe.ablauf(host, ablauf) }
             if let ablauf = env["SENECA_HEUTE_ABLAUF"] { await SnBedienProbe.heute(host, ablauf) }
+            if let ablauf = env["SENECA_KACHEL_ABLAUF"] { await SnBedienProbe.kachel(host, ablauf) }
             if let ablauf = env["SENECA_MEETING_ABLAUF"] { await SnBedienProbe.meeting(host, ablauf) }
             if let ablauf = env["SENECA_ZURUECK_ABLAUF"] { await SnBedienProbe.ablauf(host, ablauf) }
             if let film = env["SENECA_FILM"], let dauer = env["SENECA_FILM_DAUER"].flatMap(Double.init) {

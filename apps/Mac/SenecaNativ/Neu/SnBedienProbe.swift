@@ -62,6 +62,17 @@ enum SnBedienProbe {
         schreibe(protokoll, ordner)
     }
 
+    static func kachel(_ host: NSView, _ ordner: String) async {
+        NSApp.setActivationPolicy(.accessory)
+        guard let f = host.window else { return }
+        f.setFrameOrigin(NSPoint(x: -6000, y: -6000))
+        f.makeKeyAndOrderFront(nil)
+        let p = (ProcessInfo.processInfo.environment["SENECA_KLICKS"] ?? "").split(separator: ";").compactMap { z -> CGPoint? in let t = z.split(separator: ",").compactMap { Double($0) }; return t.count == 2 ? CGPoint(x: t[0], y: t[1]) : nil }
+        for ort in p { await klick(host, ort) }
+        bild(host, "\(ordner)/kachel-nach-klick.png")
+        try? (SnHeuteMass.notiert.joined(separator: "\n") + "\n").write(toFile: "\(ordner)/kachel-klick.txt", atomically: true, encoding: .utf8)
+    }
+
     static func meeting(_ host: NSView, _ ordner: String) async {
         var protokoll: [String] = []
         func pruefe(_ was: String, _ ok: Bool) { protokoll.append((ok ? "OK      " : "FEHLER  ") + was) }

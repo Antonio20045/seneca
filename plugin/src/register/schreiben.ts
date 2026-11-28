@@ -162,6 +162,12 @@ export type NeueFrage = {
   art: string; optionen: Option[]; roh?: string; wirkung_aussen?: string; ausgang_schluessel?: string; inhalt_hash?: string; frist?: number; kurz?: string; zeit_fuer?: string; mehr?: Record<string, unknown>;
 };
 
+export function kurzFrage(f: { text: string; optionen: Option[] }): void {
+  const lang = f.optionen.find((o) => o.text.length > regelZahl("frage_etikett_zeichen") || o.text.split(/\s+/).length > regelZahl("frage_etikett_woerter"));
+  if (f.text.length > regelZahl("frage_text_zeichen")) throw new Error(`Frage zu lang: text ist die Überschrift, höchstens ${regelZahl("frage_text_zeichen")} Zeichen; Hintergrund gehört in was_passiert_ist`);
+  if (lang) throw new Error(`Antwort-Etikett zu lang („${lang.text.slice(0, 30)}…“): text höchstens ${regelZahl("frage_etikett_woerter")} Wörter wie „Du führst sie“; der ganze Satz gehört in folge`);
+}
+
 export function frageStellen(db: Register, { kurz, zeit_fuer, mehr, ...f }: NeueFrage): string {
   return schritt(db, () => {
     const fehlt = (["text", "was_passiert_ist", "wenn_nichts", "empfehlung", "art"] as const).filter((k) => !f[k]);

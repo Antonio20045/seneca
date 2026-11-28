@@ -107,6 +107,9 @@ uhr_protokoll 1
 http_anfrage_max_kb 512
 uhr_anfragen_fenster_h 1
 uhr_frage_zeichen 90
+frage_text_zeichen 140
+frage_etikett_zeichen 28
+frage_etikett_woerter 3
 uhr_todos 3
 uhr_termine 4
 uhr_kurz_zeichen 9
