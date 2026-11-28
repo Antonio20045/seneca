@@ -19,12 +19,12 @@ struct SnGespraechLeiste: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [GL.Zeile(text: stand.flatMap(GL.seneca) ?? "Frag Seneca etwas.")], punkt: nil).padding(.vertical, 2)
+            eintrag(id: Hauptagent.id, name: "Seneca", zeilen: [], punkt: nil, hilfe: senecaHilfe).padding(.vertical, 2)
             etikett("DEIN TEAM").padding(.horizontal, 14).padding(.top, 26).padding(.bottom, 8)
             ForEach(stand.map(GL.leiste) ?? [], id: \.m.name) { e in
                 let fragtHier = fragt?.von == e.m.name
                 eintrag(id: e.m.id ?? e.m.name.lowercased(), name: e.m.name, zeilen: [], punkt: fragtHier ? .wartet : e.punkt,
-                        hilfe: fragtHier ? "Fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))" : GL.hilfe(e.m, e.zeilen))
+                        hilfe: fragtHier ? "Fragt dich · seit \(HeuteTafelLogik.uhr(fragt?.seit ?? 0))" : GL.ohneNummern(GL.hilfe(e.m, e.zeilen)))
             }
             Spacer(minLength: 20)
             if zieht {
@@ -38,6 +38,13 @@ struct SnGespraechLeiste: View {
             }
         }
         .frame(width: 268, alignment: .topLeading)
+    }
+
+    /// Unter „Seneca“ steht keine Zusammenfassung (Wunsch 27.11.). Beim Zeigen sagt er, was er gerade tut, wie die anderen.
+    private var senecaHilfe: String {
+        guard let s = stand, let m = s.team?.first(where: { $0.id == Hauptagent.id }) else { return "Frag Seneca etwas." }
+        if m.zustand == "arbeitet" || m.zustand == "hängt" { return GL.ohneNummern(GL.hilfe(m, GL.mitglied(m, s).zeilen)) }
+        return m.zustand == "ruht" ? "Ruht gerade. Schreib ihm, dann legt er los." : "Gerade frei. Schreib ihm, dann legt er los."
     }
 
     private func eintrag(id: String, name: String, zeilen: [GL.Zeile], punkt: GL.Punkt?, hilfe: String? = nil) -> some View {
@@ -175,12 +182,14 @@ struct SnGespraechFrage: View {
                 Text("\((frage.von ?? "").uppercased()) · \(frage.seit.map { HeuteTafelLogik.uhr($0) } ?? "")").foregroundStyle(TafelFarbe.leise)
             }
             .font(Schrift.mono(11)).kerning(1)
-            Text(frage.text).font(Schrift.serif(30)).lineHeight(.exact(points: 34)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
+            let u = GL.ueberschrift(frage.text, gross: 30)
+            Text(GL.ohneNummern(frage.text)).font(Schrift.serif(u.groesse)).lineHeight(.exact(points: u.zeile)).foregroundStyle(Color.white).fixedSize(horizontal: false, vertical: true)
             if let k = frage.kontext?.worum, !k.isEmpty {
-                Text(k).font(Schrift.grotesk(15)).lineHeight(.exact(points: 23)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+                Text(GL.ohneNummern(k)).font(Schrift.grotesk(15)).lineHeight(.exact(points: 23)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 10) {
-                if let h = haupt { Button(h.knopf ?? h.text ?? "Ja") { antworte(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 14)) }
+                if let h = haupt, GL.langesEtikett(h.knopf ?? h.text ?? "") { Button("Antworten", action: mehr).buttonStyle(SnTafelKnopf(groesse: 14)) }
+                else if let h = haupt { Button(h.knopf ?? h.text ?? "Ja") { antworte(h.wert ?? "ja") }.buttonStyle(SnTafelKnopf(groesse: 14)) }
                 Button("Später") { antworte("spaeter") }.buttonStyle(SnTafelKnopf(art: .rand, groesse: 14))
                 Button("Mehr", action: mehr).buttonStyle(SnTafelKnopf(art: .leise, groesse: 14))
             }
@@ -224,7 +233,7 @@ struct SnGespraechLauf: View {
     var body: some View {
         HStack(spacing: 12) {
             Circle().fill(TafelFarbe.gruen).frame(width: 8, height: 8)
-            Text(GL.laufSatz(mitglied))
+            Text(GL.laufSatz(mitglied) ?? "")
                 .font(Schrift.grotesk(14)).lineHeight(.exact(points: 20)).foregroundStyle(TafelFarbe.zweit)
             Spacer()
             Text("⌘. stoppt").font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)

@@ -258,7 +258,11 @@ struct VerlaufView: View, Equatable {
                     Color.clear.frame(height: leisteInfo == nil ? 0 : 46)
                     LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 34)
                     Color.black
+                    // „Ans Ende“ liegt nie auf Text: darunter blendet der Verlauf aus, der Knopf steht auf freier Fläche.
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: folgt ? 0 : 28)
+                    Color.clear.frame(height: folgt ? 0 : 40)
                 }
+                .animation(Kurve.sn(0.2), value: folgt)
             }
             .safeAreaInset(edge: .top, spacing: 0) { if let leisteInfo { leiste(leisteInfo, leser) } }
             .onChange(of: gesendet) { _, _ in halter.ansEnde() }

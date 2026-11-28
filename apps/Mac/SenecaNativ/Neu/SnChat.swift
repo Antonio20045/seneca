@@ -252,7 +252,7 @@ struct SnChatSeite: View {
                                 Text(g.satz).font(Schrift.grotesk(13)).foregroundStyle(TafelFarbe.leise)
                             }
                         }
-                        if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { SnGespraechLauf(mitglied: m) }
+                        if let m = mitglied, m.zustand == "arbeitet", !GL.fragen(s, von: m.name).isEmpty { if GL.laufSatz(m) != nil { SnGespraechLauf(mitglied: m) } }
                         else if let m = mitglied, let st = GL.station(s, m) {
                             SnAuftragKarte(station: st, ansehen: { modell.teamOffen = true; modell.gehe(Route.heute) }, anstupsen: { steuerung.sende("Wo hängst du gerade?") })
                         }
