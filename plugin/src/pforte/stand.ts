@@ -164,13 +164,12 @@ function mitteilung(db: Register, f: Zeile, weitere: number) {
 }
 
 function wartetSatz(db: Register, offen: Zeile[]): string | null {
-  const von = [...new Set(offen.map((f) => String(f.von)))];
-  const viele = von.map((v) => [anzeigeName(v), offen.filter((f) => f.von === v)] as const).sort((a, b) => b[1].length - a[1].length)[0];
-  if (!viele) return null;
-  const [name, fs] = viele;
+  if (!offen.length) return null;
+  const von = [...new Set(offen.map((f) => anzeigeName(String(f.von))))];
+  const fs = offen;
   const wo = fs.map((f) => [String(JSON.parse(String(ereignisse(db, { art: "frage.gestellt", frage_id: String(f.id), grenze: 1 })[0]?.daten ?? "{}")).kurz ?? "").replace(/\?$/, ""), f] as const)
     .filter(([k]) => k).sort(([, a], [, b]) => Number(uhrTauglich(b)) - Number(uhrTauglich(a))).map(([k, f]) => uhrTauglich(f) ? `${k} kommt auf die Uhr, sobald du unterwegs bist` : `${k} ins Fenster um ${regelText("fenster").split(" ")[0]}`);
-  return `${ANZAHL[fs.length] ?? fs.length} ${fs.length === 1 ? "Frage" : "Fragen"} von ${name} ${fs.length === 1 ? "wartet" : "warten"} noch.${wo.length ? ` ${wo.join(", ")}.` : ""}`;
+  return `${((ZAHLWORT[fs.length] ?? String(fs.length)).replace(/^./, (c) => c.toUpperCase()))} ${fs.length === 1 ? "Frage" : "Fragen"}${von.length === 1 ? ` von ${von[0]}` : ""} ${fs.length === 1 ? "wartet" : "warten"} noch.${wo.length ? ` ${wo.join(", ")}.` : ""}`;
 }
 
 export function stand(db: Register, eingabe: { geraet: string; revision?: number }, jetzt: number) {

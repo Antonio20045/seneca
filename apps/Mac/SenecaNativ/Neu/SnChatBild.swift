@@ -102,7 +102,7 @@ private struct SnChatBildInhalt: View {
                         SnFrageMehrFuss(frage: f) { _ in }
                     }
                 }
-                .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
+                .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, SnDock.freiraum).frame(height: g.size.height)
                 if rand > 0 { SnGespraechRand(stand: stand, agent: agent, frage: frage, zuProjekten: {}).padding(.leading, g.size.width - 40 - rand).padding(.top, 108) }
                 let film = ProcessInfo.processInfo.environment["SENECA_FILM"] != nil
                 HStack(spacing: 14) {

@@ -26,7 +26,7 @@ final class MitteilungsWaechter {
     static func kandidaten(daten: OvDaten, stand: SenecaStand?, jetzt: Double) -> [Mitteilung.Art: [Mitteilung]] {
         var out: [Mitteilung.Art: [Mitteilung]] = [:]
         if let s = stand {
-            out[.entscheidung] = ((s.braucht_dich ?? []) + (s.buendel?.fragen ?? [])).map {
+            out[.entscheidung] = s.alleFragen.map {
                 Mitteilung(id: "entscheidung:\($0.id)", art: .entscheidung, titel: $0.mitteilung?.titel ?? "Braucht dich",
                            text: Menschlich.kuerzen($0.mitteilung?.text ?? $0.text, 140), pfad: Route(.entscheidungen).pfad)
             }

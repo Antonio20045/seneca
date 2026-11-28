@@ -86,6 +86,14 @@ enum HeuteTafelLogik {
         return s.braucht_dich?.first { $0.antwort == nil }
     }
 
+    static func projekteSatz(_ s: SenecaStand) -> [String]? {
+        let n = s.offeneFragen.count
+        guard let satz = s.projekte?.satz, satz.count == 2 else { return nil }
+        guard n > 0, !(s.projekte?.liste ?? []).contains(where: { $0.zustand == "braucht" }) else { return satz }
+        let zahl = n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n].prefix(1).uppercased() + VerlaufLogik.zahlwort[n].dropFirst() : "\(n)"
+        return ["Kein Projekt hängt an dir.", "\(zahl) \(n == 1 ? "Frage wartet" : "Fragen warten") bei Entscheiden."]
+    }
+
     static func wartenZeile(_ s: SenecaStand) -> String? {
         let n = (s.buendel?.fragen?.count ?? 0) + (s.ruhe == nil ? 0 : s.braucht_dich?.count ?? 0)
         guard let r = s.ruhe, n > 0 else { return nil }

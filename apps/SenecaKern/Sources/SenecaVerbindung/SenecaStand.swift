@@ -196,6 +196,9 @@ public struct SenecaStand: Codable, Equatable, Sendable {
     public var buendel: Buendel?
     public var entscheiden: Entscheiden?
     public var projekte: Projekte?
+
+    public var alleFragen: [Frage] { (braucht_dich ?? []) + (buendel?.fragen ?? []) }
+    public var offeneFragen: [Frage] { alleFragen.filter { $0.antwort == nil } }
     public var team: [Mitglied]?
     public var heute_erledigt: [Erledigt]?
     public var auftraege_neu: [AuftragNeu]?

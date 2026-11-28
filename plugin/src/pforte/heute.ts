@@ -78,7 +78,7 @@ export function buendelText(abnahmen: Zeile[], fragen: number) {
   const aus = projekte.length ? ` aus ${projekte.length > 1 ? `${projekte.slice(0, -1).join(", ")} und ${projekte.at(-1)}` : projekte[0]}` : "";
   const teile = [fragen ? `${fragen} ${fragen === 1 ? "Frage" : "Fragen"}` : "", n ? `${n} ${n === 1 ? "Abnahme" : "Abnahmen"}` : ""].filter(Boolean).join(" und ");
   if (!teile) return { dauer_min: 0, satz: null, kurz: null };
-  return { dauer_min: minuten, satz: `${teile}${aus}, etwa ${minuten} Minuten.`, kurz: `${teile}, etwa ${minuten} Min` };
+  return { dauer_min: minuten, satz: `${teile}${aus}, etwa ${minuten === 1 ? "eine Minute" : `${minuten} Minuten`}.`, kurz: `${teile}, etwa ${minuten} Min` };
 }
 
 export function koerper(db: Register, tagBeginn: number, ruhe: { grund: string; bis: number } | undefined) {

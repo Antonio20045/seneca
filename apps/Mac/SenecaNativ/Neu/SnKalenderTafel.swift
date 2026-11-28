@@ -41,12 +41,13 @@ struct SnKalenderTafel: View {
         GeometryReader { g in
             ScrollView(.vertical, showsIndicators: false) {
                 if let k {
+                    let breite = min(KF.breite, g.size.width - 24 - 40 - 316 - 24)
                     HStack(alignment: .top, spacing: 40) {
                         VStack(alignment: .leading, spacing: 24) {
                             kopf(k)
-                            if z.ansicht == .monat { monat(k) } else { raster(k) }
+                            if z.ansicht == .monat { monat(k, breite) } else { raster(k, breite) }
                         }
-                        .frame(width: KF.breite, alignment: .topLeading)
+                        .frame(width: breite, alignment: .topLeading)
                         seite(k).frame(width: 316, alignment: .topLeading)
                             .padding(.top, z.entwurf == nil && auswahlBlock == nil ? 64 : 0)
                     }
@@ -110,12 +111,12 @@ struct SnKalenderTafel: View {
         }
     }
 
-    private func spalte(_ n: Int) -> CGFloat { (KF.breite - KF.links) / CGFloat(n) }
+    private func spalte(_ n: Int, _ breite: CGFloat) -> CGFloat { (breite - KF.links) / CGFloat(n) }
     private var von: Double { k?.tag_von ?? 8 }
     private var hoehe: CGFloat { CGFloat((k?.tag_bis ?? 20) - von) * KF.stunde }
 
-    private func raster(_ k: SenecaStand.Wochenplan) -> some View {
-        let tage = sichtbar, w = spalte(tage.count)
+    private func raster(_ k: SenecaStand.Wochenplan, _ breite: CGFloat) -> some View {
+        let tage = sichtbar, w = spalte(tage.count, breite)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .bottom, spacing: 0) {
                 Color.clear.frame(width: KF.links, height: 1)
@@ -299,8 +300,8 @@ struct SnKalenderTafel: View {
         .offset(x: 4, y: y)
     }
 
-    private func monat(_ k: SenecaStand.Wochenplan) -> some View {
-        let tage = L.monat(k, woche: wocheIndex), w = KF.breite / 7
+    private func monat(_ k: SenecaStand.Wochenplan, _ breite: CGFloat) -> some View {
+        let tage = L.monat(k, woche: wocheIndex), w = breite / 7
         let reihen = stride(from: 0, to: tage.count, by: 7).map { Array(tage[$0..<min(tage.count, $0 + 7)]) }
         return VStack(spacing: 0) {
             ForEach(reihen, id: \.first?.tag) { r in
@@ -437,7 +438,7 @@ struct SnKalenderTafel: View {
     }
 
     private func vorschlag(_ b: SenecaStand.KalBlock, _ frage: String) -> some View {
-        let f = ((stand.braucht_dich ?? []) + (stand.buendel?.fragen ?? [])).first { $0.id == frage }
+        let f = stand.alleFragen.first { $0.id == frage }
         return VStack(alignment: .leading, spacing: 0) {
             etikett("VORSCHLAG")
             Text(b.titel).font(Schrift.serif(34)).hoehe(35).foregroundStyle(Color.white).padding(.top, 10).padding(.bottom, 6)

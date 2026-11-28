@@ -175,7 +175,7 @@ struct SnBuendelTafel: View {
                     }
                     .font(Schrift.grotesk(13)).frame(width: 18)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(z.titel).font(Schrift.grotesk(13, jetzt ? .medium : .regular)).lineHeight(.exact(points: 18))
+                        Text(GL.ohneNummern(z.titel)).font(Schrift.grotesk(13, jetzt ? .medium : .regular)).lineHeight(.exact(points: 18))
                             .foregroundStyle(jetzt ? .white : z.zustand == "offen" ? TafelFarbe.zweit : TafelFarbe.leise)
                         if jetzt || z.zustand == "zurueck", let u = z.unter { Text(u).font(Schrift.grotesk(11)).lineHeight(.exact(points: 15)).foregroundStyle(TafelFarbe.leise) }
                     }
@@ -197,7 +197,7 @@ struct SnBuendelTafel: View {
             if let pr = a.pruefer {
                 HStack(alignment: .top, spacing: 14) {
                     Text("PRÜFER").font(Schrift.mono(10, .medium)).tracking(1.2).foregroundStyle(TafelFarbe.leise).frame(width: 52, alignment: .leading).padding(.top, 3)
-                    Text(pr).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+                    Text(GL.ohneNummern(pr)).font(Schrift.grotesk(14)).lineHeight(.exact(points: 21)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 18).padding(.vertical, 14)
@@ -207,7 +207,7 @@ struct SnBuendelTafel: View {
             knoepfe(a).padding(.top, 26)
             HStack(spacing: 0) {
                 if let n = liste.dropFirst(nr).first {
-                    (Text("Danach: ") + Text(n.titel).foregroundColor(TafelFarbe.zweit) + Text(n.unter.map { " · " + $0.components(separatedBy: " · ").reversed().joined(separator: " · ") } ?? ""))
+                    (Text("Danach: ") + Text(GL.ohneNummern(n.titel)).foregroundColor(TafelFarbe.zweit) + Text(n.unter.map { " · " + $0.components(separatedBy: " · ").reversed().joined(separator: " · ") } ?? ""))
                 }
                 Spacer()
                 HStack(spacing: 6) { SnTaste(t: "Leertaste"); Text("abspielen") }

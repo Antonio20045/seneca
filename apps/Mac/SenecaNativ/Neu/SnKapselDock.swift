@@ -12,7 +12,7 @@ enum SnOrt: CaseIterable {
         switch self { case .heute: .heute; case .projekte: .projekte; case .fragen: .entscheidungen; case .kalender: .kalender; case .statistik: .statistik; case .gespraeche: .chat }
     }
 
-    static func fragen(_ s: SenecaStand?) -> Int { (s?.braucht_dich?.count ?? 0) + (s?.buendel?.fragen?.count ?? 0) }
+    static func fragen(_ s: SenecaStand?) -> Int { s?.offeneFragen.count ?? 0 }
 
     static func von(_ s: Seite) -> SnOrt? {
         switch s {
@@ -84,6 +84,7 @@ private struct DockKugel: View {
 
 struct SnDock: View {
     var offen: Bool
+    static let freiraum: CGFloat = 180
     var breiteOffen: CGFloat = 720
     var oeffne: () -> Void
     var schliesse: () -> Void

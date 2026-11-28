@@ -264,7 +264,7 @@ struct SnChatSeite: View {
                         SnFrageMehrFuss(frage: f) { steuerung.sende($0) }
                     }
                 }
-                .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, 128).frame(height: g.size.height)
+                .frame(width: breite).padding(.leading, links).padding(.top, 92).padding(.bottom, SnDock.freiraum).frame(height: g.size.height)
                 if rand > 0 {
                     Group {
                         if !anzeigen.isEmpty && mehrFrage == nil {

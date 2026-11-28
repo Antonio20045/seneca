@@ -30,8 +30,8 @@ struct SnProjekteTafel: View {
         let p = stand.projekte
         let liste = p?.liste ?? []
         return VStack(alignment: .leading, spacing: 0) {
-            Text(p?.kopf ?? "").font(Schrift.mono(13)).tracking(0.4).foregroundStyle(TafelFarbe.zweit).padding(.bottom, 14)
-            if let s = p?.satz, s.count == 2 {
+            Text(GL.ohneNummern(p?.kopf ?? "")).font(Schrift.mono(13)).tracking(0.4).foregroundStyle(TafelFarbe.zweit).padding(.bottom, 14)
+            if let s = HeuteTafelLogik.projekteSatz(stand) {
                 (Text(s[0] + " ").font(Schrift.serif(44)).foregroundColor(.white) + Text(s[1]).font(Schrift.serif(44, kursiv: true)).foregroundColor(TafelFarbe.akzent))
                     .tracking(-0.5).hoehe(46.6).frame(maxWidth: 1060, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             }
@@ -41,7 +41,7 @@ struct SnProjekteTafel: View {
             }
             .overlay(alignment: .top) { linie.frame(height: 1) }
             .padding(.top, 36)
-            if let r = p?.ruhen { Text(r).font(Schrift.grotesk(14)).hoehe(20).foregroundStyle(TafelFarbe.leise).padding(.top, 18) }
+            if let r = p?.ruhen { Text(GL.ohneNummern(r)).font(Schrift.grotesk(14)).hoehe(20).foregroundStyle(TafelFarbe.leise).padding(.top, 18) }
         }
     }
 
@@ -49,11 +49,11 @@ struct SnProjekteTafel: View {
         HStack(alignment: .top, spacing: 40) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(p.name).font(Schrift.serif(30)).hoehe(31.5).foregroundStyle(.white)
-                (Text(TafelFarbe.bereichWort(p.bereich).map { (p.untertitel ?? "").isEmpty ? $0 : "\($0) · " } ?? "").foregroundStyle(TafelFarbe.bereich(p.bereich)) + Text(p.untertitel ?? "").foregroundStyle(TafelFarbe.leise)).font(Schrift.grotesk(13)).hoehe(18)
+                (Text(TafelFarbe.bereichWort(p.bereich).map { (p.untertitel ?? "").isEmpty ? $0 : "\($0) · " } ?? "").foregroundStyle(TafelFarbe.bereich(p.bereich)) + Text(GL.ohneNummern(p.untertitel ?? "")).foregroundStyle(TafelFarbe.leise)).font(Schrift.grotesk(13)).hoehe(18)
             }
             .frame(width: 240, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
-                if let s = p.satz { Text(s).font(Schrift.grotesk(16)).hoehe(24).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true) }
+                if let s = p.satz { Text(GL.ohneNummern(s)).font(Schrift.grotesk(16)).hoehe(24).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true) }
                 phasen(p).padding(.top, 16)
                 if offen, let z = p.zeilen, !z.isEmpty {
                     VStack(alignment: .leading, spacing: 2) { ForEach(z, id: \.id) { aufgabe($0) } }.padding(.top, 18)
@@ -89,7 +89,7 @@ struct SnProjekteTafel: View {
                 }
             }
             .frame(width: 8, height: 8).frame(width: 16, alignment: .leading)
-            (Text(z.text).foregroundColor(z.art == "frage" ? .white : TafelFarbe.text) + Text(z.wer.map { " · \($0)" } ?? "").foregroundColor(TafelFarbe.leise))
+            (Text(GL.ohneNummern(z.text)).foregroundColor(z.art == "frage" ? .white : TafelFarbe.text) + Text(z.wer.map { " · \(GL.ohneNummern($0))" } ?? "").foregroundColor(TafelFarbe.leise))
                 .font(Schrift.grotesk(14)).hoehe(20).frame(maxWidth: .infinity, alignment: .leading)
             if let r = z.rechts {
                 if z.art == "frage" {

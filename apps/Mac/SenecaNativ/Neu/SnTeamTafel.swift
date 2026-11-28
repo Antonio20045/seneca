@@ -23,7 +23,7 @@ struct SnTeamTafel: View {
     }
 
     private func fragen(_ m: SenecaStand.Mitglied) -> Int {
-        ((stand.braucht_dich ?? []) + (stand.buendel?.fragen ?? [])).filter { $0.von == m.name }.count
+        stand.alleFragen.filter { $0.von == m.name }.count
     }
 
     private func punkt(_ m: SenecaStand.Mitglied) -> some View {
@@ -64,7 +64,7 @@ struct SnTeamTafel: View {
                         punkt(t).frame(width: 14)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(t.name).font(Schrift.grotesk(14, .medium)).foregroundStyle(.white).lineHeight(.exact(points: 20))
-                            Text(satz).font(Schrift.grotesk(12)).foregroundStyle(farbe).lineHeight(.exact(points: 17))
+                            Text(GL.ohneNummern(satz)).font(Schrift.grotesk(12)).foregroundStyle(farbe).lineHeight(.exact(points: 17))
                         }
                         Spacer(minLength: 0)
                         if let r = t.rest_min, t.zustand == "arbeitet" { Text("\(Int(r)) MIN").font(Schrift.mono(11)).foregroundStyle(TafelFarbe.leise) }
@@ -204,7 +204,7 @@ struct SnTeamTafel: View {
     private func fuss(_ k: String, _ t: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(k).font(Schrift.mono(10, .medium)).tracking(1.3).foregroundStyle(TafelFarbe.leise)
-            Text(t).font(Schrift.grotesk(14)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
+            Text(GL.ohneNummern(t)).font(Schrift.grotesk(14)).lineHeight(.exact(points: 19)).foregroundStyle(TafelFarbe.zweit).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

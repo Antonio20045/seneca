@@ -51,7 +51,7 @@ struct SnHeuteTafel: View {
                         kalender(jetzt, hoehe: max(420, g.size.height - 104 - 150)).rein(an, 0.3)
                     }
                     .padding(.leading, max(24, (g.size.width - breite - abstand - K.breite) / 2))
-                    .padding(.top, 104).padding(.bottom, 170)
+                    .padding(.top, 104).padding(.bottom, SnDock.freiraum)
                     .frame(width: g.size.width, alignment: .topLeading)
                 }
                 .scrollClipDisabled()
@@ -74,7 +74,7 @@ struct SnHeuteTafel: View {
     private func lage(_ jetzt: Double) -> some View {
         let termine = K.heute(stand, jetzt).filter { $0.ende > jetzt && $0.art != "fokus" }
         let marken: [(Int, String, Color)] = [
-            (offeneFragen.filter { $0.antwort == nil }.count, "FRAGEN", TafelFarbe.bernstein),
+            (offeneFragen.count, "FRAGEN", TafelFarbe.bernstein),
             (offeneTodos.count, "TO-DOS", TafelFarbe.himmel),
             (termine.count, "TERMINE", TafelFarbe.text),
             (termine.filter(K.istMeeting).count, "MEETINGS", TafelFarbe.koralle),
@@ -102,17 +102,17 @@ struct SnHeuteTafel: View {
         .overlay(alignment: .bottom) { linie.frame(height: 1) }
     }
 
-    private var offeneFragen: [SenecaStand.Frage] { (stand.braucht_dich ?? []) + (stand.buendel?.fragen ?? []) }
+    private var offeneFragen: [SenecaStand.Frage] { stand.offeneFragen }
 
     private var frage: SenecaStand.Frage? {
         if let id = beantwortet.keys.first, let f = (offeneFragen + (stand.eben_beantwortet ?? [])).first(where: { $0.id == id }) { return f }
-        return offeneFragen.first { $0.antwort == nil }
+        return offeneFragen.first
     }
 
     private func frageKarte(_ f: SenecaStand.Frage) -> some View {
         let form = RoundedRectangle(cornerRadius: 24, style: .continuous)
         let wer = Self.wer(f, (stand.team ?? []).map(\.name))
-        let n = offeneFragen.filter { $0.antwort == nil }.count
+        let n = offeneFragen.count
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Circle().fill(TafelFarbe.bernstein).frame(width: 8, height: 8)
@@ -121,7 +121,7 @@ struct SnHeuteTafel: View {
                 Text(herkunft(f)).font(Schrift.mono(12)).foregroundStyle(TafelFarbe.leise)
             }
             let gross = f.text.count <= 80
-            Text(f.text).font(Schrift.serif(gross ? 38 : f.text.count <= 130 ? 30 : 25)).tracking(-0.4).hoehe(gross ? 41 : f.text.count <= 130 ? 34 : 29).foregroundStyle(.white)
+            Text(GL.ohneNummern(f.text)).font(Schrift.serif(gross ? 38 : f.text.count <= 130 ? 30 : 25)).tracking(-0.4).hoehe(gross ? 41 : f.text.count <= 130 ? 34 : 29).foregroundStyle(.white)
                 .lineLimit(5).padding(.top, 8).padding(.bottom, 12).fixedSize(horizontal: false, vertical: true)
             if let a = absatz(f) {
                 a.font(Schrift.grotesk(15)).hoehe(22).foregroundStyle(TafelFarbe.zweit).frame(maxWidth: 720, alignment: .leading).fixedSize(horizontal: false, vertical: true)
@@ -244,7 +244,7 @@ struct SnHeuteTafel: View {
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(TafelFarbe.gruen)
-                    Text(text).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white).lineLimit(2)
+                    Text(GL.ohneNummern(text)).font(Schrift.grotesk(16, .medium)).foregroundStyle(.white).lineLimit(2)
                     Spacer()
                     if rest > 0 {
                         Button("Rückgängig") {
