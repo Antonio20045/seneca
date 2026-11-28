@@ -183,7 +183,7 @@ struct SnHeuteTafel: View {
         return Array(liste.prefix(2)) + [("\(rest.count) weitere", rest.map(\.1).reduce(0, +))]
     }
 
-    static func langesEtikett(_ s: String) -> Bool { s.count > 28 || s.split(separator: " ").count > 3 }
+    static func langesEtikett(_ s: String) -> Bool { GL.langesEtikett(s) }
 
     private func knoepfe(_ f: SenecaStand.Frage) -> some View {
         let optionen = (f.optionen ?? []).filter { $0.wert != nil }
@@ -219,19 +219,7 @@ struct SnHeuteTafel: View {
     }
 
     private func zeile(_ o: SenecaStand.Option, gewaehlt: Bool, tippe: @escaping () -> Void) -> some View {
-        Button(action: tippe) {
-            HStack(alignment: .top, spacing: 12) {
-                Circle().strokeBorder(gewaehlt ? TafelFarbe.himmel : Color.white.opacity(0.3), lineWidth: 1.5).frame(width: 18, height: 18)
-                    .overlay { if gewaehlt { Circle().fill(TafelFarbe.himmel).padding(4) } }.padding(.top, 2)
-                Text(o.knopf ?? o.text ?? "").font(Schrift.grotesk(15)).hoehe(21).foregroundStyle(gewaehlt ? .white : TafelFarbe.zweit)
-                    .lineLimit(3).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(gewaehlt ? 0.09 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(gewaehlt ? TafelFarbe.himmel.opacity(0.55) : Color.white.opacity(0.06), lineWidth: 1))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        SnAuswahlZeile(text: o.knopf ?? o.text ?? "", gewaehlt: gewaehlt, tippe: tippe)
     }
 
     private func senden(_ f: SenecaStand.Frage, _ wahl: String) {

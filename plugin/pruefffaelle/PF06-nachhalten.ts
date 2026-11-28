@@ -71,4 +71,7 @@ test("PF06 Rundgang findet Feststeckendes, fasst nach, schlägt Regeln vor und l
   assert.match(lesenWerkzeug(p.db, "auftraege", undefined, "seneca"), /Statusfragen zählen.*Wortlaut: Statusfragen zählen[\s\S]*Prüfläufe rot/);
   await faelligeAuftraegeJob(p.db, p.starte);
   assert.equal(fragen(p.db, "offen").filter((x) => x.art === "vorschlag").length, 3);
+  const mitNummer = await p.werkzeug("seneca_frage", sitzung, "seneca", { art: "stellen", text: "Auftrag 0mwzi3exd83233c9b freigeben?", was_passiert_ist: "Lauf 46098083410 ist fertig", wenn_nichts: "Wartet", empfehlung: "Ja", optionen: [{ wert: "ja", text: "Ja", folge: "Weiter" }] });
+  assert.match(String(mitNummer.fehler), /interne Nummer/);
+  assert.match(String((await p.werkzeug("seneca_fortschreiben", sitzung, "seneca", { letzter_stand: "Stand 9f2c1ab7e0 gemergt", naechster_schritt: "x", ergebnis: "weiter" })).fehler), /interne Nummer/);
 });

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SnChatBild: View {
@@ -22,12 +23,57 @@ struct SnChatBild: View {
         store.chat.speicher.ersetze(key, zeilen: j["vorher"] as? [[String: Any]] ?? [])
         store.chat.speicher.oeffne(key)
         guard let frage = j["frage"] as? String else { return }
-        try? await Task.sleep(for: .milliseconds(Int((j["start_ms"] as? Double) ?? 1500)))
         let e = (j["ereignisse"] as? [[String: Any]] ?? []).map { ($0["ms"] as? Double ?? 0, $0["event"] as? String ?? "chat", $0["payload"] as? [String: Any] ?? [:]) }
         #if DEBUG
+        if let log = ProcessInfo.processInfo.environment["SENECA_CHAT_ABLAUF"] { await ablauf(frage, e, log); return }
+        try? await Task.sleep(for: .milliseconds(Int((j["start_ms"] as? Double) ?? 1500)))
         await store.chat.spieleWieder(frage, sitzung: key, ereignisse: e)
         #endif
     }
+
+    #if DEBUG
+    private func ablauf(_ frage: String, _ e: [(Double, String, [String: Any])], _ log: String) async {
+        func warte(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
+        func flaeche(_ v: NSView) -> NSScrollView? {
+            if let s = v as? NSScrollView, (s.documentView?.frame.height ?? 0) > s.contentView.bounds.height + 200 { return s }
+            return v.subviews.lazy.compactMap { flaeche($0) }.first
+        }
+        var p: [String] = []
+        await warte(3200)
+        guard let host = NSApp.windows.first?.contentView, let sv = flaeche(host) else { p.append("keine Scroll-Fläche"); try? p.joined(separator: "\n").write(toFile: log, atomically: true, encoding: .utf8); return }
+        func setze(_ y: CGFloat) { sv.contentView.scroll(to: NSPoint(x: 0, y: y)); sv.reflectScrolledClipView(sv.contentView) }
+        let unten = { max(0, (sv.documentView?.frame.height ?? 0) - sv.contentView.bounds.height) }
+        setze(unten()); p.append(String(format: "start unten y=%.0f hoehe=%.0f", unten(), sv.documentView?.frame.height ?? 0))
+        await warte(900)
+        var y = unten(), n = 0
+        while y > 0 { y = max(0, y - 22); setze(y); n += 1; await warte(16) }
+        p.append("nach oben in \(n) Schritten, y=\(Int(sv.contentView.bounds.minY))")
+        await warte(1200)
+        NotificationCenter.default.post(name: .snProbeWahl, object: 1)
+        await warte(900)
+        NotificationCenter.default.post(name: .snProbeWahl, object: 1, userInfo: ["senden": true])
+        p.append("Frage beantwortet (Zeile 2)")
+        await warte(1800)
+        let vorher = store.chat.speicher.bloecke.count, t0 = CFAbsoluteTimeGetCurrent()
+        var eigene: Double?, zeile: Double?, zeichen: Double?
+        let lauf = Task { await store.chat.spieleWieder(frage, sitzung: key, ereignisse: e) }
+        while zeichen == nil, CFAbsoluteTimeGetCurrent() - t0 < 30 {
+            host.layoutSubtreeIfNeeded(); host.displayIfNeeded(); CATransaction.flush()
+            let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+            if eigene == nil, store.chat.speicher.bloecke.count > vorher { eigene = ms }
+            if zeile == nil, store.chat.lives[key] != nil { zeile = ms }
+            if zeichen == nil, !(store.chat.lives[key]?.text ?? "").isEmpty { zeichen = ms }
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(4))
+        }
+        p.append(String(format: "Senden bis eigene Nachricht im Bild: %.0f ms", eigene ?? -1))
+        p.append(String(format: "Senden bis Arbeitszeile im Bild: %.0f ms", zeile ?? -1))
+        p.append(String(format: "Senden bis erstes Zeichen der Antwort (Probe-Strom: erstes Textereignis bei %.0f ms): %.0f ms", e.first { $0.1 == "chat" || (($0.2["stream"] as? String) == "assistant") }?.0 ?? -1, zeichen ?? -1))
+        try? p.joined(separator: "\n").write(toFile: log, atomically: true, encoding: .utf8)
+        await lauf.value
+    }
+    #endif
+
 }
 
 private struct SnChatBildInhalt: View {

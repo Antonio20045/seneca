@@ -1,6 +1,6 @@
 import { aktiveLaeufe, ereignisse, hole, kinder, kostenSeit, laeufe, laufZurSitzung, uhr, wert, type Zeile } from "../register/lesen.ts";
 import type { Register } from "../register/schema.ts";
-import { auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, kurzFrage, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage } from "../register/schreiben.ts";
+import { auftragAnlegen, auftragSetzen, befund, ereignis, fortschreibung, frageBeantworten, frageStellen, kurzFrage, ohneNummern, laufAnlegen, laufEnde, laufSchritt, schritt, uebergang, vorschlagAnlegen, wertSetzen, type NeueFrage } from "../register/schreiben.ts";
 import { naechsteUhrzeit, regelListe, regelMs, regelText, regelUhrzeitNach, regelZahl } from "../regeln.ts";
 import { bauregeln, mandat, mitarbeiter, rolle } from "../team.ts";
 import { aboReihenfolge, limitMerken } from "./abo.ts";
@@ -122,7 +122,7 @@ function anlassSatz(db: Register, a: Zeile): string {
 
 export function kontext(db: Register, sitzung: string, skill: SkillLeser): string | undefined {
   const l = laufZurSitzung(db, sitzung), wer0 = sitzung.split(":")[1];
-  if (!l || !AKTIV.includes(String(l.zustand))) return wer0 !== regelText("dauerauftraege_von") && mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
+  if (!l || !AKTIV.includes(String(l.zustand))) return mitarbeiter().includes(wer0) ? rolle(wer0) : undefined;
   const wer = String(l.mitarbeiter);
   const a = hole(db, "auftrag", String(l.auftrag_id));
   const m = mandat(wer);
@@ -130,6 +130,7 @@ export function kontext(db: Register, sitzung: string, skill: SkillLeser): strin
   const verbraucht = kostenSeit(db, 0, { auftrag_id: String(a.id) });
   const teile: [string, boolean][] = [
     [`Seneca-Lauf ${l.id}. Am Ende rufst du seneca_fortschreiben auf: letzter Stand, Beleg, nächster Schritt, Ergebnis weiter, wartet oder fertig. Hängt ein Teil an einem Unterauftrag, einer Frage oder einem Zugang, arbeite am nächsten Teil weiter, der nicht davon abhängt, und schreib weiter fort; wartet nur, wenn kein Teil mehr ohne das geht. Braucht ein Teil etwas von Antonio (Zugang, Entscheidung), frag ihn mit seneca_frage samt Empfehlung (kurze Überschrift, Antwort-Etiketten höchstens drei Wörter, langer Text in folge), statt es nur in den nächsten Schritt zu schreiben. Wartest du auf Antonio, geh bei jedem Anlass einmal die offenen Pakete durch: Geht eines ohne seine Antwort, arbeite daran oder gib es ab. Bleibst du bei wartet, schreib in den Stand je Paket kurz, woran es hängt. Ist ein Ergebnis fertig und grün und fehlt nur Antonios Freigabe (etwa das Approve eines PR), frag ihn kurz mit seneca_frage: Link, Empfehlung, kurz „PR … freigeben?“. Hat dein Auftrag schon eine offene Frage, stell die neue am Unterauftrag (auftrag_id), sonst ersetzt sie die alte.`, true],
+    [`Alles, was Antonio liest (Frage, Stand, Rückmeldung, Berichtskopf), schreibst du in Alltagssprache, so wie du es ihm am Tisch sagen würdest. Keine internen Nummern: keine Auftrags-, Lauf- oder Run-Nummern, keine Commit-Kürzel. Links nur als lesbares Ziel, z. B. „PR 6411 bei Hermes“. Überschrift: ein Satz, höchstens ${regelZahl("frage_text_zeichen")} Zeichen. Erklärung: höchstens zwei Sätze. Antwort-Etiketten: höchstens ${regelZahl("frage_etikett_woerter")} Wörter, der lange Text steht als Beschreibung in folge. Nummern, Links und Belege gehören in den Bericht und in die Ablage. Das Werkzeug weist Texte mit Nummern zurück; formuliere dann neu.`, true],
     [`${rolle(wer)}\nBefugnisse: Unteraufträge an ${m.befugnisse.unterauftrag_an.join(", ")}; Werkzeuge ${m.befugnisse.werkzeuge.join(", ")}; Zugänge ${m.zugaenge.join(", ")}.`, false],
     [bauregeln(wer), true],
     [`Ablage ${regelText("ablage_pfad")}: lesen ${[...m.bereich, ...regelListe("ablage_alle_lesen")].join(", ")}; schreiben ${[...m.befugnisse.ablage_schreiben, `_arbeit/${wer}`].join(", ")}. Zwischendateien nur in _arbeit/${wer}/; dort löscht Seneca sie nach ${regelText("arbeitsdateien_tage")} Tagen, außer ihr Pfad steht im Ergebnis oder Beleg. Berichte und fertige Dateien legst du in _arbeit/${wer}/ oder im Projektordner deines Bereichs in der Ablage ab, nie unter ~/Bereiche und nicht nur im eigenen Arbeitsordner. Zu jedem fertigen Ergebnis (auch PR oder Lauf) legst du dort eine kurze Notiz ab: was es ist, Link, was geprüft ist; ihren Pfad nennst du im Beleg.`, true],
@@ -248,6 +249,7 @@ export type Fortschreibung = {
 };
 
 export function werkzeugFortschreiben(db: Register, sitzung: string, p: Fortschreibung): { zustand: string } {
+  ohneNummern(p.letzter_stand, p.naechster_schritt, p.folge);
   const l = laufender(db, sitzung);
   if (p.ergebnis === "wartet" && !(p.wartet_auf && p.folge && p.nachfass_um)) throw new Error("wartet braucht wartet_auf, Folge und Nachfasszeit.");
   if (p.ergebnis === "fertig" && !p.beleg) throw new Error("fertig braucht einen Beleg.");

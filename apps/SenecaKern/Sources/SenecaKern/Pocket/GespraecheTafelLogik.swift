@@ -43,9 +43,34 @@ enum GespraecheTafelLogik {
         return s.prefix(1).uppercased() + s.dropFirst()
     }
 
+    static func langesEtikett(_ s: String) -> Bool { s.count > 28 || s.split(separator: " ").count > 3 }
+
+    static func ueberschrift(_ t: String, gross: Double = 38) -> (groesse: Double, zeile: Double) {
+        t.count <= 80 ? (gross, gross + 3) : t.count <= 130 ? (30, 34) : (25, 29)
+    }
+
+    static func ersterSatz(_ t: String) -> String {
+        let s = ohneNummern(t)
+        guard let r = s.range(of: #"(?<!\d)[.!?](\s+(?=[A-ZÄÖÜ„])|$)"#, options: .regularExpression) else { return s }
+        return String(s[..<r.upperBound]).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static let nummer = #"(?:\b[0O]m(?=[a-z]*\d)[a-z0-9]{6,}…?|(?<![+\d])\b[1-9]\d{8,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b)"#
+    private static let nummerRegeln: [(NSRegularExpression, String)] = [
+        (#"\s*\((?:[A-Za-zÄÖÜäöüß-]+\s)?§(?:\s*(?:,|/|und)\s*§)*\)"#, ""),
+        (#"\s*(?:\b(?:Frage|Lauf|Run|Auftrag|Aufträgen|Aufträge|ID|Nr\.?)\s)?§(?:\s*(?:,|/|und)\s*§)*"#, ""),
+        (#"\(\s*\)"#, ""), (#"[ \t]{2,}"#, " "), (#"\s+([.,;:!?)])"#, "$1"), (#"\(\s+"#, "("),
+    ].compactMap { m, z in (try? NSRegularExpression(pattern: m.replacingOccurrences(of: "§", with: nummer)), z) }.map { ($0.0!, $0.1) }
+
+    static func ohneNummern(_ t: String) -> String {
+        guard t.range(of: nummer, options: .regularExpression) != nil else { return t }
+        var s = t
+        for (r, z) in nummerRegeln { s = r.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: z) }
+        return s
+    }
+
     static func laufSatz(_ m: SenecaStand.Mitglied) -> String {
-        let w = (m.satz ?? "arbeitet").split(separator: " ", maxSplits: 1).map(String.init)
-        return "Solange du überlegst, \(w[0]) \(m.name)\(w.count > 1 ? " " + w[1] : "")" + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
+        "\(m.name) arbeitet" + (m.titel.flatMap { $0.isEmpty ? nil : " an „\($0)“" } ?? "") + (m.rest_min.map { " · noch etwa \(Int($0)) Min" } ?? "")
     }
 
     static func seneca(_ s: SenecaStand) -> String? {
@@ -141,7 +166,7 @@ enum GespraecheTafelLogik {
 
     static func wirktSatz(_ f: SenecaStand.Frage, _ s: SenecaStand) -> String {
         let n = Int(s.regeln?["rueckgaengig_s"] ?? 5)
-        return "\(haupt(f)?.knopf ?? haupt(f)?.text ?? "Ja") wirkt nach \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden. Bis dahin kannst du es zurücknehmen."
+        return "Nach dem Tippen \(n < VerlaufLogik.zahlwort.count ? VerlaufLogik.zahlwort[n] : "\(n)") Sekunden zum Zurücknehmen."
     }
 
     static func wann(_ ms: Double, _ s: SenecaStand) -> String {
